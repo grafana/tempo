@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"math/rand/v2"
 	"net"
 	"strings"
 	"sync"
@@ -56,6 +57,17 @@ func (a *staticAddr) String() string  { return a.str }
 // number of servers in subsequent calls to SetServers, servers
 // are stored in natural sort order.
 func (s *MemcachedJumpHashSelector) SetServers(servers ...string) error {
+	naddrs, err := convertAddesses(servers)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.addrs = naddrs
+	return nil
+}
+
+func convertAddesses(servers []string) ([]net.Addr, error) {
 	sortedServers := make([]string, len(servers))
 	copy(sortedServers, servers)
 	natsort.Sort(sortedServers)
@@ -65,22 +77,18 @@ func (s *MemcachedJumpHashSelector) SetServers(servers ...string) error {
 		if strings.Contains(server, "/") {
 			addr, err := net.ResolveUnixAddr("unix", server)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			naddrs[i] = newStaticAddr(addr)
 		} else {
 			tcpAddr, err := net.ResolveTCPAddr("tcp", server)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			naddrs[i] = newStaticAddr(tcpAddr)
 		}
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.addrs = naddrs
-	return nil
+	return naddrs, nil
 }
 
 // jumpHash consistently chooses a hash bucket number in the range [0, numBuckets) for the given key.
@@ -119,6 +127,72 @@ func (s *MemcachedJumpHashSelector) PickServer(key string) (net.Addr, error) {
 // If f returns a non-nil error, iteration will stop and that
 // error will be returned.
 func (s *MemcachedJumpHashSelector) Each(f func(net.Addr) error) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, def := range s.addrs {
+		if err := f(def); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// memcachedPinnedSelector picks a stable, consecutive subset of servers
+type memcachedPinnedSelector struct {
+	mu           sync.RWMutex
+	addrs        []net.Addr
+	hostnameHash uint64
+	count        uint
+}
+
+func newMemcachedPinnedSelector(hostname string, count uint) *memcachedPinnedSelector {
+	var hash uint64
+	if hostname == "" {
+		hash = rand.Uint64() //nolint:gosec // G404: no need for secure random here
+	} else {
+		hash = xxhash.Sum64String(hostname)
+	}
+	return &memcachedPinnedSelector{
+		hostnameHash: hash,
+		count:        count,
+	}
+}
+
+func (s *memcachedPinnedSelector) SetServers(servers ...string) error {
+	addrs, err := convertAddesses(servers)
+	if err != nil {
+		return err
+	}
+
+	start := int(jumpHash(s.hostnameHash, len(addrs)))
+	selected := cutServers(addrs, start, s.count)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.addrs = selected
+	return nil
+}
+
+func cutServers(addrs []net.Addr, start int, count uint) []net.Addr {
+	if int(count) > len(addrs) {
+		return addrs
+	}
+	selected := make([]net.Addr, count)
+	for i := range selected {
+		selected[i] = addrs[(start+i)%len(addrs)]
+	}
+	return selected
+}
+
+func (s *memcachedPinnedSelector) PickServer(_ string) (net.Addr, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.addrs) == 0 {
+		return nil, memcache.ErrNoServers
+	}
+	return s.addrs[rand.IntN(len(s.addrs))], nil //nolint:gosec // G404: no need for secure random here
+}
+
+func (s *memcachedPinnedSelector) Each(f func(net.Addr) error) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, def := range s.addrs {

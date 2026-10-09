@@ -2995,6 +2995,13 @@ cache:
             [consistent_hash: <bool>]
 
             # Optional
+            # Pin this Tempo pod to this many Memcached proxy pods. The proxies
+            # must share the same backend cache pool and key-routing configuration.
+            # Overrides consistent_hash when positive; 0 disables pinning.
+            # (default: 0)
+            [pin_servers: <uint>]
+
+            # Optional
             # The maximum size of an item stored in memcached, in bytes.
             # Bigger items are not stored. A value of 0 disables the limit.
             # (default: 0)

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -85,15 +86,18 @@ type MemcachedClientConfig struct {
 	// relative to the number of recently used connections, when reaping idle connections.
 	// If negative, idle connections are never closed. If 0, all connections idle for longer
 	// than 2 minutes are closed.
-	MinIdleConnsHeadroomPercentage float64            `yaml:"min_idle_conns_headroom_percentage"`
-	MaxItemSize                    int                `yaml:"max_item_size"`
-	UpdateInterval                 time.Duration      `yaml:"update_interval"`
-	ConsistentHash                 bool               `yaml:"consistent_hash"`
-	CBFailures                     uint               `yaml:"circuit_breaker_consecutive_failures"`
-	CBTimeout                      time.Duration      `yaml:"circuit_breaker_timeout"`  // reset error count after this long
-	CBInterval                     time.Duration      `yaml:"circuit_breaker_interval"` // remain closed for this long after CBFailures errors
-	TLSEnabled                     bool               `yaml:"tls_enabled"`              // Enable connecting to Memcached with TLS.
-	TLS                            dstls.ClientConfig `yaml:",inline"`                  // TLS to use to connect to the Memcached server.
+	MinIdleConnsHeadroomPercentage float64       `yaml:"min_idle_conns_headroom_percentage"`
+	MaxItemSize                    int           `yaml:"max_item_size"`
+	UpdateInterval                 time.Duration `yaml:"update_interval"`
+	ConsistentHash                 bool          `yaml:"consistent_hash"`
+	// PinServers selects this many proxy pods per Tempo pod, independently of
+	// cache key. Use only when the proxies share the same backend cache pool.
+	PinServers uint               `yaml:"pin_servers"`
+	CBFailures uint               `yaml:"circuit_breaker_consecutive_failures"`
+	CBTimeout  time.Duration      `yaml:"circuit_breaker_timeout"`  // reset error count after this long
+	CBInterval time.Duration      `yaml:"circuit_breaker_interval"` // remain closed for this long after CBFailures errors
+	TLSEnabled bool               `yaml:"tls_enabled"`              // Enable connecting to Memcached with TLS.
+	TLS        dstls.ClientConfig `yaml:",inline"`                  // TLS to use to connect to the Memcached server.
 }
 
 // RegisterFlagsWithPrefix adds the flags required to config this to the given FlagSet
@@ -107,6 +111,7 @@ func (cfg *MemcachedClientConfig) RegisterFlagsWithPrefix(prefix, description st
 	f.DurationVar(&cfg.ConnectTimeout, prefix+"memcached.connect-timeout", 0, description+"Maximum time to wait for a connection to a memcached server to be established. If 0, the value of timeout is used.")
 	f.DurationVar(&cfg.UpdateInterval, prefix+"memcached.update-interval", 1*time.Minute, description+"Period with which to poll DNS for memcache servers.")
 	f.BoolVar(&cfg.ConsistentHash, prefix+"memcached.consistent-hash", true, description+"Use consistent hashing to distribute to memcache servers.")
+	f.UintVar(&cfg.PinServers, prefix+"memcached.pin-servers", 0, description+"Pin this pod's cache traffic to this many proxy servers (0 disables pinning).")
 	f.UintVar(&cfg.CBFailures, prefix+"memcached.circuit-breaker-consecutive-failures", 10, description+"Trip circuit-breaker after this number of consecutive dial failures (if zero then circuit-breaker is disabled).")
 	f.DurationVar(&cfg.CBTimeout, prefix+"memcached.circuit-breaker-timeout", 10*time.Second, description+"Duration circuit-breaker remains open after tripping (if zero then 60 seconds is used).")
 	f.DurationVar(&cfg.CBInterval, prefix+"memcached.circuit-breaker-interval", 10*time.Second, description+"Reset circuit-breaker counts after this long (if zero then never reset).")
@@ -119,9 +124,16 @@ func (cfg *MemcachedClientConfig) RegisterFlagsWithPrefix(prefix, description st
 // from SRV and updates the server list on a regular basis.
 func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Registerer, logger log.Logger) MemcachedClient {
 	var selector serverSelector
-	if cfg.ConsistentHash {
+	switch {
+	case cfg.PinServers > 0:
+		hostname, err := os.Hostname()
+		if err != nil {
+			level.Error(logger).Log("msg", "couldn't get hostname for memcache proxy selection", "err", err)
+		}
+		selector = newMemcachedPinnedSelector(hostname, cfg.PinServers)
+	case cfg.ConsistentHash:
 		selector = &MemcachedJumpHashSelector{}
-	} else {
+	default:
 		selector = &memcache.ServerList{}
 	}
 
@@ -267,7 +279,10 @@ func (c *memcachedClient) Set(item *memcache.Item) error {
 	if err == nil {
 		return nil
 	}
-
+	if c.cfg.PinServers > 1 {
+		// A second PickServer call would choose a different proxy.
+		return err
+	}
 	// Inject the server address in order to have more information about which memcached
 	// backend server failed. This is a best effort.
 	addr, addrErr := c.serverList.PickServer(item.Key)
@@ -327,7 +342,6 @@ func (c *memcachedClient) updateMemcacheServers() error {
 			servers = append(servers, net.JoinHostPort(srv.Target, strconv.Itoa(int(srv.Port))))
 		}
 	}
-
 	if len(servers) > 0 {
 		// Copy across circuit-breakers for current set of addresses, thus
 		// leaving behind any for servers we won't talk to again

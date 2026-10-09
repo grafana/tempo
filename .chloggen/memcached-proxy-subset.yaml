@@ -1,0 +1,6 @@
+change_type: enhancement
+component: cache
+note: Allow Tempo cache clients to distribute requests across a bounded number of Memcached proxy pods.
+issues: [8067]
+subtext: Configure pin_servers with a headless proxy Service; zero preserves existing key-based routing.
+user: ruslan-mikhailov

@@ -40,6 +40,7 @@ timeout: 250ms
 connect_timeout: 50ms
 update_interval: 5m
 consistent_hash: false
+pin_servers: 2
 circuit_breaker_consecutive_failures: 0
 circuit_breaker_timeout: 0s
 circuit_breaker_interval: 0s
@@ -52,6 +53,7 @@ circuit_breaker_interval: 0s
 				ConnectTimeout:                 50 * time.Millisecond,
 				UpdateInterval:                 5 * time.Minute,
 				ConsistentHash:                 false,
+				PinServers:                     2,
 			},
 		},
 		{
