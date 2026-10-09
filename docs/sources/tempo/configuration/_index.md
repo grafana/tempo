@@ -2411,6 +2411,12 @@ overrides:
       [max_global_traces_per_user: <int> | default = 0]
 
       # Shuffle sharding shards used for this user. A value of 0 uses all partitions.
+      # A good starting value is 1 shard per 5MB/s of ingest. For example, a tenant
+      # sending 2MB/s gets 1 shard, and a tenant sending 100MB/s gets 20 shards. Setting this
+      # value appropriately for the tenant volume is important to maintain balance between
+      # read and write resources. Setting this value too small increases pressure on block builders
+      # and live stores.  Setting this value too high causes many small blocks to be flushed, 
+      # increasing pressure on queriers, compaction, and polling.
       [tenant_shard_size: <int> | default = 0]
 
       # Maximum bytes any attribute can be for both keys and values.
