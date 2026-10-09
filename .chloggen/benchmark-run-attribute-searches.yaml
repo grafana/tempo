@@ -1,0 +1,5 @@
+change_type: enhancement
+component: tempo-cli
+note: Add generated searches to `tempo-cli benchmark run`, one per selectivity band (high, medium, low), an equality over each band's most sizeable attribute against its most common value.
+issues: []
+user: mapno
