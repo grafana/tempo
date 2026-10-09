@@ -1,6 +1,6 @@
 name: release-prep
 # Dispatch-triggered prep for any release, detected from the version string:
-#   - release candidate (X.Y.Z-rc.N): prepped on main, NO image-tag bump,
+#   - release candidate (X.Y.Z-rc.N): prepped on main or release-vX.Y, NO image-tag bump,
 #     published later as a pre-release.
 #   - minor / patch (X.Y.Z): prepped on release-vX.Y, WITH image-tag bump,
 #     published later as latest.
@@ -13,6 +13,14 @@ on:
         description: 'Version to release, e.g. 2.10.7 or 3.1.0-rc.0 (no leading v)'
         type: string
         required: true
+      base_branch:
+        description: 'Optional source branch: main or matching release-vX.Y for RCs; matching release-vX.Y for final releases'
+        type: string
+        default: ''
+      skip_changelog:
+        description: 'Skip changelog generation and use an existing release section in CHANGELOG.md'
+        type: boolean
+        default: false
       validate_only:
         description: 'Run validation checks only; do not open a PR'
         type: boolean
@@ -29,6 +37,8 @@ jobs:
       id-token: write
     env:
       VERSION: ${{ inputs.version }}
+      REQUESTED_BASE_BRANCH: ${{ inputs.base_branch }}
+      SKIP_CHANGELOG: ${{ inputs.skip_changelog }}
     steps:
       - name: Validate version and derive release parameters
         id: vars
@@ -54,6 +64,14 @@ jobs:
           else
             base_branch="release-v${minor}"
             bump=true
+          fi
+          if [ -n "$REQUESTED_BASE_BRANCH" ]; then
+            if [ "$REQUESTED_BASE_BRANCH" != "release-v${minor}" ] && \
+               { [ "$is_rc" != true ] || [ "$REQUESTED_BASE_BRANCH" != main ]; }; then
+              echo "ERROR: invalid base branch '$REQUESTED_BASE_BRANCH' for v${VERSION}"
+              exit 1
+            fi
+            base_branch="$REQUESTED_BASE_BRANCH"
           fi
           {
             echo "base_branch=${base_branch}"
@@ -105,8 +123,8 @@ jobs:
           pending=$(find .chloggen -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) \
             ! -name 'config.yaml' ! -name 'TEMPLATE.yaml' | wc -l | tr -d ' ')
           echo "Found ${pending} pending changelog entr(y/ies)."
-          if [ "$pending" -lt 1 ] && [ "$IS_MINOR" != "true" ]; then
-            echo "ERROR: no pending .chloggen entries; nothing to release."
+          if [ "$pending" -lt 1 ] && [ "$IS_MINOR" != "true" ] && [ "$SKIP_CHANGELOG" != "true" ]; then
+            echo "ERROR: no pending .chloggen entries; use skip_changelog for an already prepared release section."
             exit 1
           fi
           last_tag=$(git describe --tags --abbrev=0)
@@ -124,7 +142,9 @@ jobs:
           set -euo pipefail
           pending=$(find .chloggen -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) \
             ! -name 'config.yaml' ! -name 'TEMPLATE.yaml' | wc -l | tr -d ' ')
-          if [ "$pending" -ge 1 ]; then
+          if [ "$SKIP_CHANGELOG" = "true" ]; then
+            echo "Changelog generation skipped; using the existing ${TAG} section."
+          elif [ "$pending" -ge 1 ]; then
             make chlog-update VERSION="${TAG}"
           else
             echo "No pending entries; skipping chlog-update (changelog section expected to be prepared manually, e.g. RC heading renamed)."
@@ -138,7 +158,7 @@ jobs:
           fi
 
       - name: Verify changelog section exists
-        if: ${{ ! inputs.validate_only }}
+        if: ${{ ! inputs.validate_only || inputs.skip_changelog }}
         env:
           TAG: ${{ steps.vars.outputs.tag }}
         run: |
@@ -162,7 +182,11 @@ jobs:
           {
             echo "Automated release prep for **${TAG}** (base: \`${BASE_BRANCH}\`)."
             echo
-            echo "- Changelog collated via \`make chlog-update VERSION=${TAG}\` (skipped if no pending entries)"
+            if [ "$SKIP_CHANGELOG" = "true" ]; then
+              echo "- Existing changelog section preserved (\`skip_changelog=true\`)"
+            else
+              echo "- Changelog collated via \`make chlog-update VERSION=${TAG}\` (skipped if no pending entries)"
+            fi
             echo "- \`VERSION\` file set to ${TAG#v}"
             if [ "$BUMP" = true ]; then
               echo "- Image tag bumped via \`make bump-tempo-image-tag TEMPO_IMAGE_TAG=${IMAGE_TAG}\` + \`make jsonnet\`"
