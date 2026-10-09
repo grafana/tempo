@@ -1,0 +1,26 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: change
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: tempo-cli
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: "benchmark run warms the block once before measuring it, so every case reads warm, and the --warmup flag is removed."
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Warmup used to re-run every case's queries a discarded pass at a time, though
+  the only state a pass could affect, the block's pages in the OS cache, is
+  shared by all cases. Streaming the block's objects once before the run warms
+  the whole block for every case, at a fraction of the cost, and does not
+  re-pay simulated backend latency.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: mapno
