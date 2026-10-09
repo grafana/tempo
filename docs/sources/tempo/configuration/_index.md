@@ -1241,6 +1241,9 @@ query_frontend:
     mcp_server:
         [enabled: <bool> | default = false]
 
+    # Enables the active queries endpoint on the internal server.
+    [active_queries_enabled: <bool> | default = false]
+
 ```
 
 ### Limit query size to improve performance and stability
