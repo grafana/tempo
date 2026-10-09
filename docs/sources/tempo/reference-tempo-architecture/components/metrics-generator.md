@@ -98,6 +98,12 @@ prometheus_remote_storage_samples_failed_total
 prometheus_remote_storage_samples_dropped_total
 ```
 
+Every generated series includes the `__metrics_gen_instance` label. Its value is the
+metrics-generator ring identity configured by `metrics_generator.ring.instance_id`,
+which defaults to the hostname. Configure a globally unique ring identity for every
+metrics-generator that writes to the same remote-write endpoint. Reusing an identity
+causes independent generators to write different samples to the same series.
+
 ## Related resources
 
 Refer to the [metrics-generator documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/) for configuration and usage details.
