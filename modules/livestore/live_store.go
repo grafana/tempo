@@ -207,10 +207,12 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 
 		// TODO: It's probably easier to just use the ID directly
 		//  https://raintank-corp.slack.com/archives/C05CAA0ULUF/p1752847274420489
-		s.cfg.IngestConfig.Kafka.ConsumerGroup, err = ingest.LiveStoreConsumerGroupID(cfg.Ring.InstanceID)
+		var consumerGroup string
+		consumerGroup, err = ingest.LiveStoreConsumerGroupID(cfg.Ring.InstanceID)
 		if err != nil {
 			return nil, fmt.Errorf("calculating livestore consumer group ID: %w", err)
 		}
+		s.cfg.IngestConfig.Kafka.ConsumerGroup = s.cfg.IngestConfig.Kafka.PrefixedConsumerGroup(consumerGroup)
 	}
 
 	// setup partition ring
