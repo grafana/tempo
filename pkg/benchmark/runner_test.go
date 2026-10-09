@@ -180,6 +180,48 @@ func TestRunRepeatMultipliesExecutions(t *testing.T) {
 	}
 }
 
+// A profile with ranked attributes generates a search per selectivity band,
+// each an equality the profile proves matches: its band's most sizeable
+// attribute against that attribute's most common value.
+func TestRunGeneratesAttributeCases(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := benchtest.Block(t, 300)
+
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 10, NumAttributes: 100})
+	require.NoError(t, err)
+
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{})
+	require.NoError(t, err)
+
+	generated := map[string]CaseResult{}
+	for _, c := range result.Cases {
+		if !strings.HasPrefix(c.ID, "search/attr/") {
+			continue
+		}
+		generated[c.ID] = c
+	}
+
+	// The fixture's attributes are carried by either every span or one trace,
+	// so it has a high band and a low one, and nothing in between. The high
+	// band holds the duration intrinsic, the most sizeable attribute every
+	// span carries; the low one holds the biggest span attribute, whose
+	// values are one per trace.
+	require.Len(t, generated, 2)
+
+	high := generated["search/attr/high"]
+	require.Equal(t, `{ duration = 1s }`, high.Query)
+	low := generated["search/attr/low"]
+	require.True(t, strings.HasPrefix(low.Query, `{ span.attr.a = "`), low.Query)
+
+	for id, c := range generated {
+		require.Empty(t, c.Error, "case %s", id)
+		require.NotEmpty(t, c.Query, "case %s", id)
+		// A sharded case runs one execution per shard, like the phase 1 search.
+		require.Equal(t, result.Shards, c.Executions, "case %s", id)
+		require.Positive(t, c.Matched, "case %s matched nothing; the profile's value was wrong", id)
+	}
+}
+
 // A profile from another block would make every lookup a miss, which would read
 // as a fast run rather than a broken one.
 func TestRunRejectsForeignProfile(t *testing.T) {
