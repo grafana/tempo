@@ -1,0 +1,6 @@
+change_type: enhancement
+component: operations
+note: "tempo-mixin: add a Block Builder Flush Size panel to the Compactions row of the Backend Work dashboard, plotting tempo_block_builder_flush_size_bytes."
+issues: [7773]
+subtext:
+user: zalegrala

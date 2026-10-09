@@ -3724,12 +3724,153 @@
    "type": "timeseries"
   },
   {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${metrics}"
+   },
+   "description": "Classic-bucket and native-histogram queries are both present. The native series gives full resolution where the classic buckets are coarse; it renders once native histograms are retained for this metric.",
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisBorderShow": false,
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "barWidthFactor": 0.6,
+      "drawStyle": "line",
+      "fillOpacity": 0,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "insertNulls": false,
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "auto",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [
+
+     ],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green"
+       },
+       {
+        "color": "red",
+        "value": 80
+       }
+      ]
+     },
+     "unit": "bytes"
+    },
+    "overrides": [
+
+    ]
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 12,
+    "x": 0,
+    "y": 59
+   },
+   "id": 47,
+   "options": {
+    "legend": {
+     "calcs": [
+
+     ],
+     "displayMode": "list",
+     "placement": "right",
+     "showLegend": true
+    },
+    "tooltip": {
+     "hideZeros": false,
+     "mode": "single",
+     "sort": "none"
+    }
+   },
+   "pluginVersion": "12.0.1",
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempo_block_builder_flush_size_bytes_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
+     "legendFormat": "p99",
+     "range": true,
+     "refId": "A_classic"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempo_block_builder_flush_size_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": "p99",
+     "range": true,
+     "refId": "A_native"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempo_block_builder_flush_size_bytes_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+     "hide": false,
+     "legendFormat": "p50",
+     "range": true,
+     "refId": "B_classic"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempo_block_builder_flush_size_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+     "hide": false,
+     "legendFormat": "p50",
+     "range": true,
+     "refId": "B_native"
+    }
+   ],
+   "title": "Block Builder Flush Size",
+   "type": "timeseries"
+  },
+  {
    "collapsed": false,
    "gridPos": {
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 59
+    "y": 65
    },
    "id": 25,
    "panels": [
@@ -3850,7 +3991,7 @@
     "h": 8,
     "w": 6,
     "x": 12,
-    "y": 60
+    "y": 66
    },
    "id": 7,
    "options": {
@@ -4022,7 +4163,7 @@
     "h": 8,
     "w": 6,
     "x": 18,
-    "y": 60
+    "y": 66
    },
    "id": 6,
    "options": {
@@ -4101,7 +4242,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 68
+    "y": 74
    },
    "id": 1,
    "panels": [
@@ -4177,7 +4318,7 @@
     "h": 8,
     "w": 6,
     "x": 0,
-    "y": 69
+    "y": 75
    },
    "id": 2,
    "options": {
@@ -4360,7 +4501,7 @@
     "h": 8,
     "w": 6,
     "x": 6,
-    "y": 69
+    "y": 75
    },
    "id": 3,
    "options": {
@@ -4521,7 +4662,7 @@
     "h": 8,
     "w": 6,
     "x": 12,
-    "y": 69
+    "y": 75
    },
    "id": 4,
    "options": {
@@ -4693,7 +4834,7 @@
     "h": 8,
     "w": 6,
     "x": 18,
-    "y": 69
+    "y": 75
    },
    "id": 5,
    "options": {
