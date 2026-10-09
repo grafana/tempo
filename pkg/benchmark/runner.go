@@ -32,6 +32,9 @@ func Run(ctx context.Context, blockPath string, prof *profile.BlockProfile, opts
 	if prof.TraceIDs.Mode == profile.TraceIDModeAll {
 		return nil, errors.New(`profile was built with --trace-ids=all, which embeds no IDs; rebuild it with a count`)
 	}
+	if err := warmBlock(ctx, raw, meta); err != nil {
+		return nil, err
+	}
 
 	simulated := metrics.NewSimulatedReader(raw, opts.BackendLatency, opts.BackendBandwidth)
 	counter := &metrics.CountingReader{RawReader: simulated}
@@ -93,15 +96,6 @@ func runCase(ctx context.Context, block common.BackendBlock, prof *profile.Block
 	if len(executions) == 0 {
 		res.Error = "nothing to execute"
 		return res
-	}
-
-	for range opts.Warmup {
-		for _, execute := range executions {
-			if _, err := execute(ctx, block, opts); err != nil {
-				res.Error = err.Error()
-				return res
-			}
-		}
 	}
 
 	collector := metrics.NewCollector(counter, gatherer)

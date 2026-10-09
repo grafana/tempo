@@ -27,11 +27,6 @@ const (
 // because they are what an experiment varies between its groups.
 type RunOptions struct {
 	Repeat int `json:"repeat"`
-	// Warmup passes run and are discarded before a case is measured. It has no
-	// default so 0 stays expressible, but without it the first case pays the
-	// block's cold-read cost and every later case runs warm, a bias repetition
-	// does not average out.
-	Warmup int `json:"warmup"`
 
 	TargetBytesPerRequest int `json:"targetBytesPerRequest"`
 	SearchLimit           int `json:"searchLimit"`

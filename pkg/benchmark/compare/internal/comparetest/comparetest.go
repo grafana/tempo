@@ -17,7 +17,7 @@ func Result(host string, cases ...benchmark.CaseResult) *benchmark.Result {
 	return &benchmark.Result{
 		SchemaVersion: benchmark.ResultSchemaVersion,
 		RunEnv:        benchmark.RunEnv{GitSHA: "abc", GoVersion: "go1.27", GoMaxProcs: 12, Hostname: host},
-		Options:       benchmark.RunOptions{Repeat: 1, Warmup: 1},
+		Options:       benchmark.RunOptions{Repeat: 1},
 		Shards:        55,
 		Cases:         cases,
 	}

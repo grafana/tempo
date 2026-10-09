@@ -169,7 +169,7 @@ func TestRunRepeatMultipliesExecutions(t *testing.T) {
 	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 10})
 	require.NoError(t, err)
 
-	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{Repeat: 3, Warmup: 1})
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{Repeat: 3})
 	require.NoError(t, err)
 
 	for _, c := range result.Cases {
