@@ -188,7 +188,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	// now see if we can find our ids
 	for i, id := range allIDs {
 		t.Run(fmt.Sprintf("trace-%d", i), func(t *testing.T) {
-			trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+			trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
 			require.NoError(t, err)
 			require.Nil(t, failedBlocks)
 			require.NotNil(t, trs)
@@ -342,7 +342,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	// search for all ids
 	for i, id := range allIDs {
-		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 
@@ -426,7 +426,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	// Make sure all expected traces are found.
 	for i := 0; i < blockCount; i++ {
 		for j := 0; j < recordCount; j++ {
-			trace, failedBlocks, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+			trace, failedBlocks, err := rw.Find(context.TODO(), testTenantID, &tempopb.TraceByIDRequest{TraceID: makeTraceID(i, j), BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
 			require.NotNil(t, trace)
 			require.Greater(t, len(trace), 0)
 			require.NoError(t, err)

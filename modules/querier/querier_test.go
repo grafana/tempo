@@ -14,9 +14,12 @@ import (
 	livestore_client "github.com/grafana/tempo/v3/modules/livestore/client"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/modules/querier/worker"
+	"github.com/grafana/tempo/v3/modules/storage"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
@@ -196,6 +199,8 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	defer server.Close()
 
 	cfg := Config{
+		// external lookups never carry blocks, so they must work without querier polling
+		BlocklistPolling: false,
 		TraceByID: TraceByIDConfig{
 			External: ExternalConfig{
 				Endpoint: server.URL,
@@ -220,7 +225,9 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:   traceID,
 		QueryMode: QueryModeExternal,
-	}, time.Unix(startTime, 0), time.Unix(endTime, 0))
+		Start:     time.Unix(startTime, 0),
+		End:       time.Unix(endTime, 0),
+	})
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -229,4 +236,117 @@ func TestFindTraceByID_ExternalMode(t *testing.T) {
 	require.Len(t, resp.Trace.ResourceSpans[0].ScopeSpans, 1)
 	require.Len(t, resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans, 1)
 	require.Equal(t, "external-span", resp.Trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Name)
+}
+
+type mockTraceByIDStore struct {
+	storage.Store
+	findCalls    int
+	findTenantID string
+	findReq      *tempopb.TraceByIDRequest
+}
+
+func (m *mockTraceByIDStore) Find(_ context.Context, tenantID string, req *tempopb.TraceByIDRequest, _ common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
+	m.findCalls++
+	m.findTenantID = tenantID
+	m.findReq = req
+	return nil, nil, nil
+}
+
+func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
+	tests := []struct {
+		name            string
+		queryMode       string
+		pollingDisabled bool
+		blocks          *tempopb.TraceByIDBlocks
+		expectErr       error
+	}{
+		{
+			name:   "no blocks falls back to the polled blocklist",
+			blocks: nil,
+		},
+		{
+			name:            "no blocks without polling is rejected",
+			pollingDisabled: true,
+			blocks:          nil,
+			expectErr:       ErrTraceByIDBlocksRequired,
+		},
+		{
+			name:            "no blocks without polling is rejected before querying live-stores",
+			queryMode:       QueryModeAll,
+			pollingDisabled: true,
+			blocks:          nil,
+			expectErr:       ErrTraceByIDBlocksRequired,
+		},
+		{
+			name:   "blocks are searched with polling",
+			blocks: &tempopb.TraceByIDBlocks{Blocks: []*tempopb.TraceByIDBlock{{Version: "vParquet5"}}},
+		},
+		{
+			name:            "blocks are searched without polling",
+			pollingDisabled: true,
+			blocks:          &tempopb.TraceByIDBlocks{Blocks: []*tempopb.TraceByIDBlock{{Version: "vParquet5"}}},
+		},
+		{
+			name:            "empty blocks are searched, not rejected",
+			pollingDisabled: true,
+			blocks:          &tempopb.TraceByIDBlocks{},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+			require.NoError(t, err)
+
+			store := &mockTraceByIDStore{}
+			q, err := New(Config{BlocklistPolling: !tc.pollingDisabled}, nil, livestore_client.Config{}, nil, false, store, o)
+			require.NoError(t, err)
+
+			ctx := user.InjectOrgID(context.Background(), "blerg")
+			queryMode := QueryModeBlocks
+			if tc.queryMode != "" {
+				queryMode = tc.queryMode
+			}
+			// with no partition ring, reaching the live-stores would return a different error
+			_, err = q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+				TraceID:   test.ValidTraceID(nil),
+				QueryMode: queryMode,
+				Blocks:    tc.blocks,
+			})
+			if tc.expectErr != nil {
+				require.ErrorIs(t, err, tc.expectErr)
+				require.Equal(t, 0, store.findCalls)
+				return
+			}
+			require.NoError(t, err)
+
+			require.Equal(t, 1, store.findCalls)
+			// tenant comes from the org id, never from the request payload
+			require.Equal(t, "blerg", store.findTenantID)
+			require.Equal(t, tc.blocks, store.findReq.Blocks)
+		})
+	}
+}
+
+// TestFindTraceByIDRequiresBlocksOnlyForBackendModes guards live-store and external lookups, which never carry blocks.
+func TestFindTraceByIDRequiresBlocksOnlyForBackendModes(t *testing.T) {
+	for _, mode := range []string{QueryModeIngesters, QueryModeExternal} {
+		t.Run(mode, func(t *testing.T) {
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+			require.NoError(t, err)
+
+			store := &mockTraceByIDStore{}
+			q, err := New(Config{BlocklistPolling: false}, nil, livestore_client.Config{}, nil, false, store, o)
+			require.NoError(t, err)
+
+			// no live-store ring or external client is set up, so each mode fails later with its own error
+			ctx := user.InjectOrgID(context.Background(), "blerg")
+			_, err = q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+				TraceID:   test.ValidTraceID(nil),
+				QueryMode: mode,
+			})
+			require.Error(t, err)
+			require.NotErrorIs(t, err, ErrTraceByIDBlocksRequired)
+			require.Equal(t, 0, store.findCalls)
+		})
+	}
 }

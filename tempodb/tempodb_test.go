@@ -20,6 +20,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/grafana/tempo/v3/modules/cache/memcached"
 	"github.com/grafana/tempo/v3/modules/cache/redis"
@@ -30,6 +33,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/grafana/tempo/v3/tempodb/wal"
@@ -117,7 +121,7 @@ func TestDB(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, BlockIDMin, BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 		assert.True(t, proto.Equal(bFound[0].Trace, reqs[i]))
@@ -173,7 +177,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case1: hit
 	blockStart := uuid.MustParse(BlockIDMin).String()
 	blockEnd := uuid.MustParse(BlockIDMax).String()
-	bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockStart, blockEnd, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+	bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: blockStart, BlockEnd: blockEnd}, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
 	assert.Greater(t, len(bFound), 0)
@@ -183,7 +187,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case2: miss
 	blockStart = uuid.MustParse(BlockIDMin).String()
 	blockEnd = uuid.MustParse(BlockIDMin).String()
-	bFound, failedBlocks, err = r.Find(ctx, testTenantID, id, blockStart, blockEnd, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+	bFound, failedBlocks, err = r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: blockStart, BlockEnd: blockEnd}, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
 	assert.Len(t, bFound, 0)
@@ -192,10 +196,177 @@ func TestBlockSharding(t *testing.T) {
 func TestNilOnUnknownTenantID(t *testing.T) {
 	r, _, _, _ := testConfig(t, 0)
 
-	buff, failedBlocks, err := r.Find(context.Background(), "unknown", []byte{0x01}, BlockIDMin, BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+	buff, failedBlocks, err := r.Find(context.Background(), "unknown", &tempopb.TraceByIDRequest{TraceID: []byte{0x01}, BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
 	assert.Nil(t, buff)
 	assert.Nil(t, err)
 	assert.Nil(t, failedBlocks)
+}
+
+func TestFindWithBlocks(t *testing.T) {
+	r, w, _, _ := testConfig(t, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r.EnablePolling(ctx, &mockJobSharder{})
+
+	wal := w.WAL()
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
+	require.NoError(t, err)
+
+	id := test.ValidTraceID(nil)
+	req := test.MakeTrace(1, id)
+	writeTraceToWal(t, head, dec, id, req, 0, 0)
+
+	_, err = w.CompleteBlock(ctx, head)
+	require.NoError(t, err)
+
+	r.(*readerWriter).pollBlocklist(ctx)
+
+	metas := r.TraceByIDBlockMetas(ctx, testTenantID, time.Time{}, time.Time{})
+	require.Len(t, metas, 1)
+
+	blocks, err := backend.TraceByIDBlocksFromMetas(metas)
+	require.NoError(t, err)
+
+	bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, Blocks: blocks}, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+	require.Len(t, bFound, 1)
+	require.True(t, proto.Equal(bFound[0].Trace, req))
+
+	// an empty list searches nothing, even though the blocklist has the block
+	bFound, failedBlocks, err = r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, Blocks: &tempopb.TraceByIDBlocks{}}, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+	require.Empty(t, bFound)
+}
+
+// TestFindWithBlocksFromStaleView covers a frontend blocklist view that compaction has since changed.
+func TestFindWithBlocksFromStaleView(t *testing.T) {
+	r, w, c, _ := testConfig(t, time.Minute)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	require.NoError(t, c.EnableCompaction(ctx, &CompactorConfig{
+		MaxCompactionRange:      24 * time.Hour,
+		CompactedBlockRetention: time.Hour,
+	}, &mockSharder{}, &mockOverrides{}))
+	r.EnablePolling(ctx, &mockJobSharder{})
+
+	rw := r.(*readerWriter)
+	wal := w.WAL()
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+	id := test.ValidTraceID(nil)
+
+	// split the trace so compaction has two inputs to merge
+	for range 2 {
+		head, err := wal.NewBlock(&backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}, model.CurrentEncoding)
+		require.NoError(t, err)
+		writeTraceToWal(t, head, dec, id, test.MakeTrace(1, id), 0, 0)
+		_, err = w.CompleteBlock(ctx, head)
+		require.NoError(t, err)
+	}
+	rw.pollBlocklist(ctx)
+
+	staleView := r.TraceByIDBlockMetas(ctx, testTenantID, time.Time{}, time.Time{})
+	require.Len(t, staleView, 2)
+
+	find := func(metas []*backend.BlockMeta) (int, []error, error) {
+		blocks, err := backend.TraceByIDBlocksFromMetas(metas)
+		require.NoError(t, err)
+		partials, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, Blocks: blocks}, common.DefaultSearchOptions())
+		combiner := trace.NewCombiner(0, false)
+		for _, p := range partials {
+			_, cErr := combiner.Consume(p.Trace)
+			require.NoError(t, cErr)
+		}
+		tr, _ := combiner.Result()
+		return countSpans(tr), failedBlocks, err
+	}
+
+	wantSpans, failedBlocks, err := find(staleView)
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+	require.Positive(t, wantSpans)
+
+	require.NoError(t, rw.compactOneJob(ctx, staleView, testTenantID))
+	rw.pollBlocklist(ctx)
+
+	// inputs stay readable for compacted_block_retention
+	spans, failedBlocks, err := find(staleView)
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+	require.Equal(t, wantSpans, spans)
+
+	// the fresh view holds inputs and output, so the spans must dedupe
+	freshView := r.TraceByIDBlockMetas(ctx, testTenantID, time.Time{}, time.Time{})
+	require.Len(t, freshView, 3)
+	spans, failedBlocks, err = find(freshView)
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+	require.Equal(t, wantSpans, spans)
+
+	// deleted blocks must fail the job, not return an empty trace
+	for _, m := range staleView {
+		require.NoError(t, rw.c.ClearBlock(uuid.UUID(m.BlockID), testTenantID))
+	}
+	_, failedBlocks, err = find(staleView)
+	require.NoError(t, err)
+	require.Len(t, failedBlocks, 2)
+}
+
+func countSpans(tr *tempopb.Trace) int {
+	n := 0
+	for _, rs := range tr.GetResourceSpans() {
+		for _, ss := range rs.ScopeSpans {
+			n += len(ss.Spans)
+		}
+	}
+	return n
+}
+
+func TestTraceByIDBlockMetas(t *testing.T) {
+	r, _, _, _ := testConfig(t, time.Minute)
+
+	live := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+	recentlyCompacted := &backend.CompactedBlockMeta{
+		BlockMeta:     backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID},
+		CompactedTime: time.Now(),
+	}
+	oldCompacted := &backend.CompactedBlockMeta{
+		BlockMeta:     backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID},
+		CompactedTime: time.Now().Add(-time.Hour),
+	}
+	r.(*readerWriter).blocklist.ApplyPollResults(
+		blocklist.PerTenant{testTenantID: {live}},
+		blocklist.PerTenantCompacted{testTenantID: {recentlyCompacted, oldCompacted}},
+		nil,
+	)
+
+	recorder := tracetest.NewSpanRecorder()
+	ctx, span := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("test").Start(context.Background(), "test")
+
+	// compacted blocks stay searchable for 2x the poll interval, matching Find
+	metas := r.TraceByIDBlockMetas(ctx, testTenantID, time.Time{}, time.Time{})
+	require.Len(t, metas, 2)
+	require.ElementsMatch(t, []backend.UUID{live.BlockID, recentlyCompacted.BlockID}, []backend.UUID{metas[0].BlockID, metas[1].BlockID})
+
+	span.End()
+	require.Len(t, recorder.Ended(), 1)
+	require.ElementsMatch(t, []attribute.KeyValue{
+		attribute.Int("liveBlocks", 1),
+		attribute.Int("liveBlocksSearched", 1),
+		attribute.Int("compactedBlocks", 2),
+		attribute.Int("compactedBlocksSearched", 1),
+	}, recorder.Ended()[0].Attributes())
+
+	// blocks have zero start and end times, so a later range excludes them all
+	future := time.Now().Add(100 * time.Hour)
+	require.Empty(t, r.TraceByIDBlockMetas(context.Background(), testTenantID, future, future.Add(time.Hour)))
 }
 
 func TestBlockCleanup(t *testing.T) {
@@ -518,7 +689,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// read
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: blockID, BlockEnd: blockID}, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0].Trace, reqs[i]))
@@ -543,7 +714,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	// find should succeed with old block range
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: blockID, BlockEnd: blockID}, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 		require.True(t, proto.Equal(bFound[0].Trace, reqs[i]))

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,8 +62,12 @@ func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql
 	return nil
 }
 
-func (m *mockReader) Find(context.Context, string, common.ID, string, string, time.Time, time.Time, common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
+func (m *mockReader) Find(context.Context, string, *tempopb.TraceByIDRequest, common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	return nil, nil, nil
+}
+
+func (m *mockReader) TraceByIDBlockMetas(context.Context, string, time.Time, time.Time) []*backend.BlockMeta {
+	return slices.Clone(m.metas)
 }
 
 func (m *mockReader) BlockMeta(context.Context, string, backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {

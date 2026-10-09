@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/collector"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -84,7 +85,9 @@ type Writer interface {
 type IterateObjectCallback func(id common.ID, obj []byte) bool
 
 type Reader interface {
-	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart, timeEnd time.Time, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error)
+	Find(ctx context.Context, tenantID string, req *tempopb.TraceByIDRequest, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error)
+	TraceByIDBlockMetas(ctx context.Context, tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta
+
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	SearchTags(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagsBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error)
 	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesResponse, error)
@@ -338,13 +341,41 @@ func (rw *readerWriter) Tenants() []string {
 	return rw.blocklist.Tenants()
 }
 
-func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart, timeEnd time.Time, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
+// Find uses the polled blocklist only when req.Blocks is nil, an empty list searches nothing.
+func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.TraceByIDRequest, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
 	ctx, span := tracer.Start(ctx, "store.Find")
 	defer span.End()
 
-	blockStartUUID, err := uuid.Parse(blockStart)
+	id := common.ID(req.TraceID)
+
+	span.SetAttributes(attribute.Bool("frontendBlocks", req.Blocks != nil))
+
+	if req.Blocks != nil {
+		metas, err := backend.MetasFromTraceByIDBlocks(req.Blocks, tenantID)
+		if err != nil {
+			return nil, nil, err
+		}
+		span.SetAttributes(attribute.Int("blocksSearched", len(metas)))
+		if len(metas) == 0 {
+			return nil, nil, nil
+		}
+
+		blocks := make([]interface{}, 0, len(metas))
+		for _, m := range metas {
+			blocks = append(blocks, m)
+		}
+
+		partialTraceObjs, funcErrs, err := rw.findInBlocks(ctx, logger, id, blocks, opts)
+
+		span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
+
+		return partialTraceObjs, funcErrs, err
+	}
+
+	// TODO: remove with querier blocklist polling
+	blockStartUUID, err := uuid.Parse(req.BlockStart)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -352,7 +383,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	if err != nil {
 		return nil, nil, err
 	}
-	blockEndUUID, err := uuid.Parse(blockEnd)
+	blockEndUUID, err := uuid.Parse(req.BlockEnd)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -369,13 +400,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	compactedBlocksSearched := 0
 
 	for _, b := range blocklist {
-		if includeBlock(b, id, blockStartBytes, blockEndBytes, timeStart, timeEnd) {
+		if includeBlock(b, id, blockStartBytes, blockEndBytes, req.Start, req.End) {
 			copiedBlocklist = append(copiedBlocklist, b)
 			blocksSearched++
 		}
 	}
 	for _, c := range compactedBlocklist {
-		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, timeStart, timeEnd) {
+		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, req.Start, req.End) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 			compactedBlocksSearched++
 		}
@@ -384,11 +415,55 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		return nil, nil, nil
 	}
 
+	partialTraceObjs, funcErrs, err := rw.findInBlocks(ctx, logger, id, copiedBlocklist, opts)
+
+	span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
+	span.SetAttributes(attribute.Int("liveBlocks", len(blocklist)))
+	span.SetAttributes(attribute.Int("liveBlocksSearched", blocksSearched))
+	span.SetAttributes(attribute.Int("compactedBlocks", len(compactedBlocklist)))
+	span.SetAttributes(attribute.Int("compactedBlocksSearched", compactedBlocksSearched))
+
+	return partialTraceObjs, funcErrs, err
+}
+
+// TraceByIDBlockMetas includes recently compacted blocks to match Find's selection.
+func (rw *readerWriter) TraceByIDBlockMetas(ctx context.Context, tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta {
+	blockStart := make([]byte, 16)
+	blockEnd := bytes.Repeat([]byte{0xff}, 16)
+
+	blocklist := rw.blocklist.Metas(tenantID)
+	compactedBlocklist := rw.blocklist.CompactedMetas(tenantID)
+	metas := make([]*backend.BlockMeta, 0, len(blocklist))
+
+	for _, b := range blocklist {
+		if includeBlock(b, nil, blockStart, blockEnd, timeStart, timeEnd) {
+			metas = append(metas, b)
+		}
+	}
+	liveBlocksSearched := len(metas)
+	for _, c := range compactedBlocklist {
+		if includeCompactedBlock(c, nil, blockStart, blockEnd, rw.cfg.BlocklistPoll, timeStart, timeEnd) {
+			metas = append(metas, &c.BlockMeta)
+		}
+	}
+
+	// same names as the polled Find path, so traces read alike whichever side picked the blocks
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int("liveBlocks", len(blocklist)),
+		attribute.Int("liveBlocksSearched", liveBlocksSearched),
+		attribute.Int("compactedBlocks", len(compactedBlocklist)),
+		attribute.Int("compactedBlocksSearched", len(metas)-liveBlocksSearched),
+	)
+
+	return metas
+}
+
+func (rw *readerWriter) findInBlocks(ctx context.Context, logger gkLog.Logger, id common.ID, blocks []interface{}, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	if rw.cfg != nil && rw.cfg.Search != nil {
 		rw.cfg.Search.ApplyToOptions(&opts)
 	}
 
-	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, copiedBlocklist, func(ctx context.Context, payload interface{}) (interface{}, error) {
+	partialTraces, funcErrs, err := rw.pool.RunJobs(ctx, blocks, func(ctx context.Context, payload interface{}) (interface{}, error) {
 		meta := payload.(*backend.BlockMeta)
 		block, err := encoding.OpenBlock(meta, rw.r)
 		if err != nil {
@@ -416,12 +491,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 			partialTraceObjs = append(partialTraceObjs, trace)
 		}
 	}
-
-	span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
-	span.SetAttributes(attribute.Int("liveBlocks", len(blocklist)))
-	span.SetAttributes(attribute.Int("liveBlocksSearched", blocksSearched))
-	span.SetAttributes(attribute.Int("compactedBlocks", len(compactedBlocklist)))
-	span.SetAttributes(attribute.Int("compactedBlocksSearched", compactedBlocksSearched))
 
 	return partialTraceObjs, funcErrs, err
 }
