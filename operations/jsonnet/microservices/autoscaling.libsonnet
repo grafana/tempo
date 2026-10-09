@@ -84,6 +84,28 @@
           /
           sum(avg_over_time(kube_statefulset_status_replicas{namespace="%(namespace)s", statefulset="backend-worker"}[10m]))
         ||| % { namespace: $._config.namespace },
+        // Optional second trigger that scales on the scheduler jobs in flight (active + pending),
+        // in addition to outstanding blocks. Outstanding blocks only measures compaction backlog,
+        // so work that is not counted there (for example a redaction batch) leaves the
+        // autoscaler free to remove workers while they hold running jobs. KEDA acts on the
+        // highest replica count requested by any trigger.
+        jobs_in_flight: {
+          local this = self,
+          enabled: false,
+          // Jobs a single worker handles at a time; requested workers = ceil(jobs / jobs_per_worker).
+          jobs_per_worker: 1,
+          // Look-back for the max over time. Bridges the gap between one job finishing and the
+          // next being created.
+          window: '5m',
+          // Prometheus query returning the total number of jobs in flight. jobs_pending has no
+          // series until it is first set, hence the vector(0) fallbacks.
+          query: |||
+            (
+              sum(max_over_time(tempo_backend_scheduler_jobs_active{namespace="%(namespace)s", container="backend-scheduler"}[%(window)s]))
+              + (sum(max_over_time(tempo_backend_scheduler_jobs_pending{namespace="%(namespace)s", container="backend-scheduler"}[%(window)s])) or vector(0))
+            ) or vector(0)
+          ||| % { namespace: $._config.namespace, window: this.window },
+        },
         // Scale up in large chunks to catch up on work, but limit frequency to avoid ring churn.
         scale_up_stabilization_window_seconds: 60 * 15,
         scale_up_pods: 20,
@@ -312,7 +334,8 @@
     if $._config.metrics_generator.keda.enabled then $.removeReplicasFromSpec else {},
 
   //
-  // Backend Worker: Prometheus-based autoscaling on outstanding blocks.
+  // Backend Worker: Prometheus-based autoscaling on outstanding blocks and, optionally
+  // (backend_worker.keda.jobs_in_flight.enabled), on the scheduler jobs in flight.
   //
   tempo_backend_worker_scaled_object:
     if $._config.backend_worker.keda.enabled then
@@ -325,6 +348,19 @@
           threshold='%d' % $._config.backend_worker.keda.threshold,
         ),
       ])
+      + (
+        local jobs = $._config.backend_worker.keda.jobs_in_flight;
+        if jobs.enabled then
+          assert jobs.jobs_per_worker > 0 : 'backend_worker.keda.jobs_in_flight.jobs_per_worker must be > 0';
+          scaledObject.spec.withTriggersMixin([
+            $.prometheusTrigger(
+              query=jobs.query,
+              metricName='tempo_backend_scheduler_jobs_in_flight',
+              threshold='%d' % jobs.jobs_per_worker,
+            ),
+          ])
+        else {}
+      )
     else {},
 
   tempo_backend_worker_statefulset+:

@@ -11,6 +11,14 @@ local withBackendWorkerKeda(url, tenant='') = default {
   },
 };
 
+// Helper: backend_worker KEDA with the optional jobs-in-flight trigger.
+local withBackendWorkerJobsInFlight(jobs={}) = default {
+  _config+:: {
+    autoscaling_prometheus_url: 'http://prometheus:9090',
+    backend_worker+: { keda+: { enabled: true, jobs_in_flight+: { enabled: true } + jobs } },
+  },
+};
+
 // Helper: metrics-generator KEDA enabled. With a query it uses a Prometheus trigger;
 // without one it falls back to the CPU trigger.
 local withMetricsGeneratorKeda(url='', query='') = default {
@@ -363,5 +371,33 @@ test.new(std.thisFile)
   test.expect.eq(
     withMetricsGeneratorKeda('http://prometheus:9090', 'max(some_metric)').tempo_metrics_generator_scaled_object.spec.triggers[0].metadata.query,
     'max(some_metric)'
+  )
+)
++ test.case.new(
+  'backend_worker KEDA has only the outstanding blocks trigger by default',
+  test.expect.eq(
+    std.map(function(t) t.metadata.metricName, withBackendWorkerKeda('http://prometheus:9090').tempo_backend_worker_scaled_object.spec.triggers),
+    ['tempodb_compaction_outstanding_blocks']
+  )
+)
++ test.case.new(
+  'backend_worker KEDA jobs_in_flight adds a second trigger',
+  test.expect.eq(
+    std.map(function(t) t.metadata.metricName, withBackendWorkerJobsInFlight().tempo_backend_worker_scaled_object.spec.triggers),
+    ['tempodb_compaction_outstanding_blocks', 'tempo_backend_scheduler_jobs_in_flight']
+  )
+)
++ test.case.new(
+  'backend_worker KEDA jobs_in_flight threshold follows jobs_per_worker',
+  test.expect.eq(
+    withBackendWorkerJobsInFlight({ jobs_per_worker: 2 }).tempo_backend_worker_scaled_object.spec.triggers[1].metadata.threshold,
+    '2'
+  )
+)
++ test.case.new(
+  'backend_worker KEDA jobs_in_flight query uses the configured window',
+  test.expect.eq(
+    std.length(std.findSubstr('[10m]', withBackendWorkerJobsInFlight({ window: '10m' }).tempo_backend_worker_scaled_object.spec.triggers[1].metadata.query)),
+    2
   )
 )
