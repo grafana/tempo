@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/grafana/tempo/v3/pkg/util/atomicfs"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
@@ -47,30 +49,19 @@ func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, 
 	return l, l, l, err
 }
 
-// Write implements backend.Writer.
+// Write implements backend.Writer. The object goes through a synced temporary file, so a
+// crash leaves either no object or the whole of it, never an empty or truncated one. A block's
+// meta is written after its data, so a meta that survives a crash implies its data did too.
 func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ *backend.CacheInfo) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	blockFolder := rw.rootPath(keypath)
-	err := os.MkdirAll(blockFolder, 0o700)
-	if err != nil {
+	if err := os.MkdirAll(rw.rootPath(keypath), 0o700); err != nil {
 		return err
 	}
 
-	tracesFileName := rw.objectFileName(keypath, name)
-	dst, err := os.Create(tracesFileName)
-	if err != nil {
-		return err
-	}
-	defer dst.Close()
-
-	_, err = io.Copy(dst, data)
-	if err != nil {
-		return err
-	}
-	return err
+	return atomicfs.CreateFile(rw.objectFileName(keypath, name), data)
 }
 
 // WriteAtomic writes via a temp file + os.Rename so concurrent writers to
@@ -157,8 +148,10 @@ func (rw *Backend) CloseAppend(ctx context.Context, tracker backend.AppendTracke
 		return nil
 	}
 
+	// Sync before closing: the directory fsync that Write performs for the block's meta makes
+	// this file's name durable, but not its contents.
 	dst := tracker.(*os.File)
-	return dst.Close()
+	return errors.Join(dst.Sync(), dst.Close())
 }
 
 func (rw *Backend) Delete(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) error {
