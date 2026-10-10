@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Defined an interface of stringBuilder that compatible with
@@ -123,16 +124,16 @@ func asNumber(t iterator, o interface{}) float64 {
 		if node == nil {
 			return math.NaN()
 		}
-		if v, err := strconv.ParseFloat(node.Value(), 64); err == nil {
-			return v
-		}
+		return stringToNumber(node.Value())
 	case float64:
 		return typ
 	case string:
-		v, err := strconv.ParseFloat(typ, 64)
-		if err == nil {
-			return v
+		return stringToNumber(typ)
+	case bool:
+		if typ {
+			return 1
 		}
+		return 0
 	}
 	return math.NaN()
 }
@@ -156,11 +157,26 @@ func floorFunc(arg query) func(query, iterator) interface{} {
 	}
 }
 
+// round implements XPath 1.0 round() (REC §4.4): halves round toward +Infinity
+// and NaN/±Infinity pass through, so the result stays a number.
+func round(f float64) float64 {
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return f
+	}
+	if f >= -0.5 && f < 0.5 {
+		return f * 0 // keep the sign of zero per §4.4
+	}
+	r := math.Floor(f)
+	if f-r >= 0.5 {
+		r++
+	}
+	return r
+}
+
 // roundFunc is a XPath Node Set functions round(node-set).
 func roundFunc(arg query) func(query, iterator) interface{} {
 	return func(_ query, t iterator) interface{} {
 		val := asNumber(t, functionArgs(arg).Evaluate(t))
-		//return math.Round(val)
 		return round(val)
 	}
 }
@@ -245,6 +261,32 @@ func asBool(t iterator, v interface{}) bool {
 	}
 }
 
+func stringToNumber(s string) float64 {
+	s = strings.TrimSpace(s)
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return math.NaN()
+	}
+	return f
+}
+
+// formatNumber converts a number to a string per the XPath 1.0 spec (REC 4.2):
+// no exponent for finite values, "Infinity"/"-Infinity", "NaN", and "0" for -0.
+func formatNumber(f float64) string {
+	switch {
+	case math.IsNaN(f):
+		return "NaN"
+	case math.IsInf(f, 1):
+		return "Infinity"
+	case math.IsInf(f, -1):
+		return "-Infinity"
+	case f == 0:
+		return "0"
+	default:
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+}
+
 func asString(t iterator, v interface{}) string {
 	switch v := v.(type) {
 	case nil:
@@ -255,7 +297,7 @@ func asString(t iterator, v interface{}) string {
 		}
 		return "false"
 	case float64:
-		return strconv.FormatFloat(v, 'g', -1, 64)
+		return formatNumber(v)
 	case string:
 		return v
 	case query:
@@ -391,9 +433,11 @@ func matchesFunc(arg1, arg2 query) func(query, iterator) interface{} {
 		case query:
 			node := typ.Select(t)
 			if node == nil {
-				return ""
+				return false
 			}
 			s = node.Value()
+		default:
+			s = asString(t, typ)
 		}
 		var pattern string
 		var ok bool
@@ -421,6 +465,8 @@ func normalizespaceFunc(arg1 query) func(query, iterator) interface{} {
 				return ""
 			}
 			m = node.Value()
+		default:
+			m = asString(t, typ)
 		}
 		var b = builderPool.Get().(stringBuilder)
 		b.Grow(len(m))
@@ -458,6 +504,8 @@ func substringFunc(arg1, arg2, arg3 query) func(query, iterator) interface{} {
 				return ""
 			}
 			m = node.Value()
+		default:
+			m = asString(t, typ)
 		}
 
 		var start, length float64
@@ -465,39 +513,33 @@ func substringFunc(arg1, arg2, arg3 query) func(query, iterator) interface{} {
 		if start, ok = functionArgs(arg2).Evaluate(t).(float64); !ok {
 			panic(errors.New("substring() function first argument type must be number"))
 		}
+		// positions are in characters, not bytes (REC 4.2)
+		rs := []rune(m)
 		// fix https://github.com/antchfx/xpath/issues/109
-		start = math.Round(start)
-		if start > float64(len(m)) {
+		// XPath round, not math.Round: -0.5 goes to 0, so
+		// substring("12345", -0.5, 3) is "12".
+		start = round(start)
+		if start > float64(len(rs)) {
 			return ""
 		}
 		if arg3 == nil {
 			if start <= 0 {
 				return m
 			}
-			return m[int(start)-1:]
+			return string(rs[int(start)-1:])
 		}
 
 		if length, ok = functionArgs(arg3).Evaluate(t).(float64); !ok {
 			panic(errors.New("substring() function second argument type must be number"))
 		}
-		length = math.Round(length)
-		if length <= 0 {
+		length = round(length)
+		// keep positions p with start <= p < start+length, clipped to the string (REC 4.2)
+		first := math.Max(start, 1)
+		last := math.Min(start+length, float64(len(rs))+1)
+		if !(last > first) {
 			return ""
 		}
-		if length > float64(len(m)) {
-			length = float64(len(m))
-		}
-		if start < 0 {
-			length = length - math.Abs(start)
-			if length <= 1 {
-				return ""
-			}
-			return m[:int(length-1)]
-		}
-		if start == 0 {
-			return m[:int(length-1)]
-		}
-		return m[int(start-1):int(length+start-1)]
+		return string(rs[int(first)-1 : int(last)-1])
 	}
 }
 
@@ -547,13 +589,15 @@ func stringLengthFunc(arg1 query) func(query, iterator) interface{} {
 	return func(_ query, t iterator) interface{} {
 		switch v := functionArgs(arg1).Evaluate(t).(type) {
 		case string:
-			return float64(len(v))
+			return float64(utf8.RuneCountInString(v))
 		case query:
 			node := v.Select(t)
 			if node == nil {
 				break
 			}
-			return float64(len(node.Value()))
+			return float64(utf8.RuneCountInString(node.Value()))
+		default:
+			return float64(utf8.RuneCountInString(asString(t, v)))
 		}
 		return float64(0)
 	}
@@ -566,11 +610,13 @@ func translateFunc(arg1, arg2, arg3 query) func(query, iterator) interface{} {
 		src := asString(t, functionArgs(arg2).Evaluate(t))
 		dst := asString(t, functionArgs(arg3).Evaluate(t))
 
-		replace := make([]string, 0, len(src))
-		for i, s := range src {
+		// src and dst are paired by character position, not byte offset
+		dstRunes := []rune(dst)
+		replace := make([]string, 0, 2*utf8.RuneCountInString(src))
+		for i, s := range []rune(src) {
 			d := ""
-			if i < len(dst) {
-				d = string(dst[i])
+			if i < len(dstRunes) {
+				d = string(dstRunes[i])
 			}
 			replace = append(replace, string(s), d)
 		}
@@ -621,16 +667,7 @@ func concatFunc(args ...query) func(query, iterator) interface{} {
 		b := builderPool.Get().(stringBuilder)
 		for _, v := range args {
 			v = functionArgs(v)
-
-			switch v := v.Evaluate(t).(type) {
-			case string:
-				b.WriteString(v)
-			case query:
-				node := v.Select(t)
-				if node != nil {
-					b.WriteString(node.Value())
-				}
-			}
+			b.WriteString(asString(t, v.Evaluate(t)))
 		}
 		result := b.String()
 		b.Reset()

@@ -1,5 +1,16 @@
 package ll
 
+import (
+	"sync"
+)
+
+// conditionalPool pools Conditional instances to reduce allocations.
+var conditionalPool = sync.Pool{
+	New: func() any {
+		return &Conditional{}
+	},
+}
+
 // Conditional enables conditional logging based on a boolean condition.
 // It wraps a logger with a condition that determines whether logging operations are executed,
 // optimizing performance by skipping expensive operations (e.g., field computation, message formatting)
@@ -7,6 +18,21 @@ package ll
 type Conditional struct {
 	logger    *Logger // Associated logger instance for logging operations
 	condition bool    // Whether logging is allowed (true to log, false to skip)
+}
+
+// getConditional retrieves a Conditional from the pool or creates a new one.
+func getConditional(logger *Logger, condition bool) *Conditional {
+	c := conditionalPool.Get().(*Conditional)
+	c.logger = logger
+	c.condition = condition
+	return c
+}
+
+// putConditional returns a Conditional to the pool for reuse.
+func putConditional(c *Conditional) {
+	c.logger = nil
+	c.condition = false
+	conditionalPool.Put(c)
 }
 
 // If creates a conditional logger that logs only if the condition is true.
@@ -19,7 +45,7 @@ type Conditional struct {
 //	logger.If(true).Info("Logged")   // Output: [app] INFO: Logged
 //	logger.If(false).Info("Ignored") // No output
 func (l *Logger) If(condition bool) *Conditional {
-	return &Conditional{logger: l, condition: condition}
+	return getConditional(l, condition)
 }
 
 // IfAny creates a conditional logger that logs only if at least one condition is true.
@@ -40,7 +66,12 @@ func (cl *Conditional) IfAny(conditions ...bool) *Conditional {
 			break
 		}
 	}
-	return &Conditional{logger: cl.logger, condition: result}
+	// Reuse current instance if condition unchanged
+	if cl.condition == result {
+		return cl
+	}
+	cl.condition = result
+	return cl
 }
 
 // IfErr creates a conditional logger that logs only if the error is non-nil.
@@ -107,10 +138,16 @@ func (cl *Conditional) IfErr(err error) *Conditional {
 func (cl *Conditional) IfErrAny(errs ...error) *Conditional {
 	for _, err := range errs {
 		if err != nil {
-			return &Conditional{logger: cl.logger, condition: cl.condition && true}
+			// Reuse if condition already true
+			if cl.condition {
+				return cl
+			}
+			cl.condition = true
+			return cl
 		}
 	}
-	return &Conditional{logger: cl.logger, condition: false}
+	cl.condition = false
+	return cl
 }
 
 // IfErrOne creates a conditional logger that logs only if ALL errors are non-nil.
@@ -123,10 +160,14 @@ func (cl *Conditional) IfErrAny(errs ...error) *Conditional {
 func (cl *Conditional) IfErrOne(errs ...error) *Conditional {
 	for _, err := range errs {
 		if err == nil {
-			return &Conditional{logger: cl.logger, condition: false}
+			cl.condition = false
+			return cl
 		}
 	}
-	return &Conditional{logger: cl.logger, condition: cl.condition && len(errs) > 0}
+	if len(errs) > 0 {
+		cl.condition = cl.condition && true
+	}
+	return cl
 }
 
 // IfOne creates a conditional logger that logs only if all conditions are true.
@@ -147,7 +188,12 @@ func (cl *Conditional) IfOne(conditions ...bool) *Conditional {
 			break
 		}
 	}
-	return &Conditional{logger: cl.logger, condition: result}
+	// Reuse current instance if condition unchanged
+	if cl.condition == result {
+		return cl
+	}
+	cl.condition = result
+	return cl
 }
 
 // Debug logs a message at Debug level with variadic arguments if the condition is true.
@@ -263,9 +309,10 @@ func (cl *Conditional) Fatalf(format string, args ...any) {
 //	logger.If(true).Field(map[string]interface{}{"user": "alice"}).Info("Logged") // Output: [app] INFO: Logged [user=alice]
 //	logger.If(false).Field(map[string]interface{}{"user": "alice"}).Info("Ignored") // No output
 func (cl *Conditional) Field(fields map[string]interface{}) *FieldBuilder {
-	// Skip field processing if condition is false
+	// Skip field processing if condition is false - return FieldBuilder with nil logger
+	// so that all subsequent logging methods become no-ops
 	if !cl.condition {
-		return &FieldBuilder{logger: cl.logger, fields: nil}
+		return &FieldBuilder{logger: nil, fields: nil}
 	}
 	// Delegate to logger's Field method
 	return cl.logger.Field(fields)
@@ -280,9 +327,10 @@ func (cl *Conditional) Field(fields map[string]interface{}) *FieldBuilder {
 //	logger.If(true).Fields("user", "alice").Info("Logged") // Output: [app] INFO: Logged [user=alice]
 //	logger.If(false).Fields("user", "alice").Info("Ignored") // No output, no field processing
 func (cl *Conditional) Fields(pairs ...any) *FieldBuilder {
-	// Skip field processing if condition is false
+	// Skip field processing if condition is false - return FieldBuilder with nil logger
+	// so that all subsequent logging methods become no-ops
 	if !cl.condition {
-		return &FieldBuilder{logger: cl.logger, fields: nil}
+		return &FieldBuilder{logger: nil, fields: nil}
 	}
 	// Delegate to logger's Fields method
 	return cl.logger.Fields(pairs...)
