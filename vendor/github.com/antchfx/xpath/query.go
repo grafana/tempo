@@ -581,6 +581,8 @@ func (f *followingQuery) Select(t iterator) NodeNavigator {
 
 func (f *followingQuery) Evaluate(t iterator) interface{} {
 	f.Input.Evaluate(t)
+	f.iterator = nil
+	f.posit = 0
 	return f
 }
 
@@ -670,6 +672,8 @@ func (p *precedingQuery) Select(t iterator) NodeNavigator {
 
 func (p *precedingQuery) Evaluate(t iterator) interface{} {
 	p.Input.Evaluate(t)
+	p.iterator = nil
+	p.posit = 0
 	return p
 }
 
@@ -1018,8 +1022,17 @@ func (n *numericQuery) Select(t iterator) NodeNavigator {
 }
 
 func (n *numericQuery) Evaluate(t iterator) interface{} {
-	m := n.Left.Evaluate(t)
-	k := n.Right.Evaluate(t)
+	// Snapshot the operator's context so each operand evaluates and coerces
+	// against equivalent context. filterQuery (predicates) mutates t.Current()
+	// while selecting the left operand; without restore, a context-sensitive
+	// right operand (e.g. count(self::*)) observes the moved navigator.
+	// Eager asNumber materializes node-set coercion before restore so Do's
+	// lazy conversion cannot re-Select against the wrong context either.
+	root := t.Current().Copy()
+	m := asNumber(t, n.Left.Evaluate(t))
+	t.Current().MoveTo(root)
+	k := asNumber(t, n.Right.Evaluate(t))
+	t.Current().MoveTo(root)
 	return n.Do(t, m, k)
 }
 
@@ -1353,6 +1366,7 @@ func (m *mergeQuery) Select(t iterator) NodeNavigator {
 
 func (m *mergeQuery) Evaluate(t iterator) interface{} {
 	m.Input.Evaluate(t)
+	m.iterator = nil
 	return m
 }
 

@@ -1,18 +1,16 @@
 package xpath
 
-import (
-	"strconv"
-)
+import "math"
 
 // The XPath number operator function list.
 
 type logical func(iterator, string, interface{}, interface{}) bool
 
 var logicalFuncs = [][]logical{
-	{cmpBooleanBoolean, nil, nil, nil},
-	{nil, cmpNumericNumeric, cmpNumericString, cmpNumericNodeSet},
-	{nil, cmpStringNumeric, cmpStringString, cmpStringNodeSet},
-	{nil, cmpNodeSetNumeric, cmpNodeSetString, cmpNodeSetNodeSet},
+	{cmpBooleanBoolean, cmpBooleanNumeric, cmpBooleanString, cmpBooleanNodeSet},
+	{cmpNumberBoolean, cmpNumericNumeric, cmpNumericString, cmpNumericNodeSet},
+	{cmpStringBoolean, cmpStringNumeric, cmpStringString, cmpStringNodeSet},
+	{cmpNodeSetBoolean, cmpNodeSetNumeric, cmpNodeSetString, cmpNodeSetNodeSet},
 }
 
 // number vs number
@@ -39,28 +37,35 @@ func cmpStringStringF(op string, a, b string) bool {
 	switch op {
 	case "=":
 		return a == b
-	case ">":
-		return a > b
-	case "<":
-		return a < b
-	case ">=":
-		return a >= b
-	case "<=":
-		return a <= b
 	case "!=":
 		return a != b
+	case ">", "<", ">=", "<=":
+		return cmpNumberNumberF(op, stringToNumber(a), stringToNumber(b))
 	}
 	return false
 }
 
 func cmpBooleanBooleanF(op string, a, b bool) bool {
 	switch op {
+	case "=":
+		return a == b
+	case "!=":
+		return a != b
 	case "or":
 		return a || b
 	case "and":
 		return a && b
 	}
 	return false
+}
+
+func cmpNumberBoolean(t iterator, op string, m, n interface{}) bool {
+	a := m.(float64)
+	b := 0.0
+	if n.(bool) {
+		b = 1.0
+	}
+	return cmpNumericNumeric(t, op, a, b)
 }
 
 func cmpNumericNumeric(t iterator, op string, m, n interface{}) bool {
@@ -72,31 +77,35 @@ func cmpNumericNumeric(t iterator, op string, m, n interface{}) bool {
 func cmpNumericString(t iterator, op string, m, n interface{}) bool {
 	a := m.(float64)
 	b := n.(string)
-	num, err := strconv.ParseFloat(b, 64)
-	if err != nil {
-		panic(err)
-	}
-	return cmpNumberNumberF(op, a, num)
+	return cmpNumberNumberF(op, a, stringToNumber(b))
 }
 
 func cmpNumericNodeSet(t iterator, op string, m, n interface{}) bool {
 	a := m.(float64)
 	b := n.(query)
 
-	for {
-		node := b.Select(t)
-		if node == nil {
-			break
-		}
-		num, err := strconv.ParseFloat(node.Value(), 64)
-		if err != nil {
-			panic(err)
-		}
-		if cmpNumberNumberF(op, a, num) {
-			return true
-		}
+	node := b.Select(t)
+	if node == nil {
+		right := math.NaN()
+		return cmpNumberNumberF(op, a, right)
 	}
-	return false
+
+	right := stringToNumber(node.Value())
+	return cmpNumberNumberF(op, a, right)
+}
+
+func cmpNodeSetBoolean(t iterator, op string, m, n interface{}) bool {
+	q := m.(query)
+	b := 0.0
+	if n.(bool) {
+		b = 1.0
+	}
+	node := q.Select(t)
+	if node == nil {
+		return cmpNumericNumeric(t, op, math.NaN(), b)
+	}
+	a := stringToNumber(node.Value())
+	return cmpNumericNumeric(t, op, a, b)
 }
 
 func cmpNodeSetNumeric(t iterator, op string, m, n interface{}) bool {
@@ -107,11 +116,7 @@ func cmpNodeSetNumeric(t iterator, op string, m, n interface{}) bool {
 		if node == nil {
 			break
 		}
-		num, err := strconv.ParseFloat(node.Value(), 64)
-		if err != nil {
-			panic(err)
-		}
-		if cmpNumberNumberF(op, num, b) {
+		if cmpNumberNumberF(op, stringToNumber(node.Value()), b) {
 			return true
 		}
 	}
@@ -126,7 +131,7 @@ func cmpNodeSetString(t iterator, op string, m, n interface{}) bool {
 		if node == nil {
 			break
 		}
-		if cmpStringStringF(op, b, node.Value()) {
+		if cmpStringStringF(op, node.Value(), b) {
 			return true
 		}
 	}
@@ -160,14 +165,19 @@ func cmpNodeSetNodeSet(t iterator, op string, m, n interface{}) bool {
 	}
 }
 
+func cmpStringBoolean(t iterator, op string, m, n interface{}) bool {
+	a := stringToNumber(m.(string))
+	b := 0.0
+	if n.(bool) {
+		b = 1.0
+	}
+	return cmpNumericNumeric(t, op, a, b)
+}
+
 func cmpStringNumeric(t iterator, op string, m, n interface{}) bool {
 	a := m.(string)
 	b := n.(float64)
-	num, err := strconv.ParseFloat(a, 64)
-	if err != nil {
-		panic(err)
-	}
-	return cmpNumberNumberF(op, b, num)
+	return cmpNumberNumberF(op, stringToNumber(a), b)
 }
 
 func cmpStringString(t iterator, op string, m, n interface{}) bool {
@@ -179,22 +189,52 @@ func cmpStringString(t iterator, op string, m, n interface{}) bool {
 func cmpStringNodeSet(t iterator, op string, m, n interface{}) bool {
 	a := m.(string)
 	b := n.(query)
-	for {
-		node := b.Select(t)
-		if node == nil {
-			break
-		}
-		if cmpStringStringF(op, a, node.Value()) {
-			return true
-		}
+
+	left := stringToNumber(a)
+
+	node := b.Select(t)
+	if node == nil {
+		return cmpNumberNumberF(op, left, math.NaN())
 	}
-	return false
+
+	right := stringToNumber(node.Value())
+	return cmpNumberNumberF(op, left, right)
 }
 
 func cmpBooleanBoolean(t iterator, op string, m, n interface{}) bool {
 	a := m.(bool)
 	b := n.(bool)
 	return cmpBooleanBooleanF(op, a, b)
+}
+
+func cmpBooleanNumeric(t iterator, op string, m, n interface{}) bool {
+	a := n.(float64)
+	b := 0.0
+	if m.(bool) {
+		b = 1.0
+	}
+	return cmpNumberNumberF(op, a, b)
+}
+
+func cmpBooleanString(t iterator, op string, m, n interface{}) bool {
+	a := 0.0
+	if m.(bool) {
+		a = 1.0
+	}
+	b := stringToNumber(n.(string))
+	return cmpNumberNumberF(op, a, b)
+}
+
+func cmpBooleanNodeSet(t iterator, op string, m, n interface{}) bool {
+	a := m.(bool)
+	q := n.(query)
+
+	node := q.Select(t)
+	if node == nil {
+		return cmpBooleanNumeric(t, op, a, math.NaN())
+	}
+	num := stringToNumber(node.Value())
+	return cmpBooleanNumeric(t, op, a, num)
 }
 
 // eqFunc is an `=` operator.
@@ -283,6 +323,7 @@ var divFunc = func(t iterator, m, n interface{}) interface{} {
 // modFunc is an 'MOD' operator.
 var modFunc = func(t iterator, m, n interface{}) interface{} {
 	return numericExpr(t, m, n, func(a, b float64) float64 {
-		return float64(int(a) % int(b))
+		// XPath 1.0 REC §3.5: truncating IEEE remainder; mod by zero is NaN.
+		return math.Mod(a, b)
 	})
 }

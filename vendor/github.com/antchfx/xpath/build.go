@@ -170,11 +170,48 @@ func canBeNumber(q query) bool {
 	return true
 }
 
+// positionalCondition reports whether a condition AST node produces a numeric
+// or positional result.
+func positionalCondition(n node) bool {
+	switch v := n.(type) {
+	case *operandNode:
+		_, ok := v.Val.(float64)
+		return ok
+	case *functionNode:
+		switch v.FuncName {
+		case "position", "last", "count", "sum", "string-length", "number",
+			"floor", "ceiling", "round":
+			return true
+		}
+		for _, arg := range v.Args {
+			if positionalCondition(arg) {
+				return true
+			}
+		}
+		return false
+	case *operatorNode:
+		switch v.Op {
+		case "+", "-", "*", "div", "mod":
+			return true
+		}
+		return positionalCondition(v.Left) || positionalCondition(v.Right)
+	default:
+		return false
+	}
+}
+
 // processFilterNode builds query for the XPath filter predicate.
 func (b *builder) processFilter(root *filterNode, flags flag, props *builderProp) (query, error) {
 	first := (flags & flagsEnum.Filter) == 0
 
-	qyInput, err := b.processNode(root.Input, (flags | flagsEnum.Filter), props)
+	// Inspect the condition AST to decide whether to set flagsEnum.Filter.
+	// Positional predicates cannot be compiled into a descendantQuery.
+	inputFlags := flags
+	if positionalCondition(root.Condition) {
+		inputFlags |= flagsEnum.Filter
+	}
+
+	qyInput, err := b.processNode(root.Input, inputFlags, props)
 	if err != nil {
 		return nil, err
 	}
@@ -692,6 +729,19 @@ func (b *builder) processNode(root node, flags flag, props *builderProp) (q quer
 		}
 		q = &groupQuery{Input: q}
 		b.firstInput = q
+	case nodeVariable:
+		// Variables have no binding in a compiled expression, so they cannot
+		// resolve to a query. A bare "$x" already surfaces as an undeclared
+		// variable error because the nil result reaches the caller, but a
+		// variable nested in a larger expression (e.g. "$x/@attr") would be
+		// swallowed here and left as a nil sub-query that panics at select
+		// time. Report it as undeclared instead.
+		n := root.(*variableNode)
+		name := n.Name
+		if n.Prefix != "" {
+			name = n.Prefix + ":" + name
+		}
+		err = fmt.Errorf("undeclared variable in XPath expression: $%s", name)
 	}
 	b.parseDepth--
 	return

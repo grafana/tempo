@@ -65,3 +65,8 @@ type Timestamper interface {
 // It takes an existing handler as input and returns a new, wrapped handler
 // that adds functionality (like filtering, transformation, or routing).
 type Wrap func(next Handler) Handler
+
+// Deduper defines how to calculate a deduplication key for an entry.
+type Deduper interface {
+	Calculate(*Entry) uint64
+}
