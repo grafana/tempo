@@ -107,12 +107,13 @@ func (cfg *Config) Validate() error {
 
 // KafkaConfig holds the generic config for the Kafka backend.
 type KafkaConfig struct {
-	Address      string        `yaml:"address"`
-	Topic        string        `yaml:"topic"`
-	ClientID     string        `yaml:"client_id"`
-	ClientRack   string        `yaml:"client_rack"`
-	DialTimeout  time.Duration `yaml:"dial_timeout"`
-	WriteTimeout time.Duration `yaml:"write_timeout"`
+	Address      string                 `yaml:"address"`
+	AddressList  flagext.StringSliceCSV `yaml:"address_list"`
+	Topic        string                 `yaml:"topic"`
+	ClientID     string                 `yaml:"client_id"`
+	ClientRack   string                 `yaml:"client_rack"`
+	DialTimeout  time.Duration          `yaml:"dial_timeout"`
+	WriteTimeout time.Duration          `yaml:"write_timeout"`
 
 	SASL       KafkaAuthConfig `yaml:",inline"`
 	TLSEnabled bool            `yaml:"tls_enabled"`
@@ -171,7 +172,8 @@ func (cfg *KafkaConfig) RegisterFlags(f *flag.FlagSet) {
 }
 
 func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
-	f.StringVar(&cfg.Address, prefix+".address", "localhost:9092", "The Kafka backend address.")
+	f.StringVar(&cfg.Address, prefix+".address", "localhost:9092", "The Kafka backend address in host:port format. Used when address_list is empty.")
+	f.Var(&cfg.AddressList, prefix+".address-list", "Comma-separated list of Kafka seed broker addresses in host:port format. When non-empty, takes precedence over -"+prefix+".address.")
 	f.StringVar(&cfg.Topic, prefix+".topic", "", "The Kafka topic name.")
 	f.StringVar(&cfg.ClientID, prefix+".client-id", "", "The Kafka client ID.")
 	f.StringVar(&cfg.ClientRack, prefix+".client-rack", "", "The rack identifier for this Kafka client. Corresponds to the Kafka client.rack setting and enables fetching from the closest replica (KIP-392). Set this to the instance's availability zone to reduce cross-zone Kafka traffic.")
@@ -204,8 +206,10 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 }
 
 func (cfg *KafkaConfig) Validate() error {
-	if cfg.Address == "" {
-		return ErrMissingKafkaAddress
+	for _, broker := range cfg.seedBrokers() {
+		if broker == "" {
+			return ErrMissingKafkaAddress
+		}
 	}
 	if cfg.Topic == "" {
 		return ErrMissingKafkaTopic
@@ -235,6 +239,19 @@ func (cfg *KafkaConfig) Validate() error {
 	}
 
 	return nil
+}
+
+func (cfg *KafkaConfig) seedBrokers() []string {
+	addresses := cfg.AddressList
+	// falling back to the legacy Address config when AddressList is empty
+	if len(addresses) == 0 {
+		return []string{cfg.Address}
+	}
+	brokers := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		brokers = append(brokers, strings.TrimSpace(address))
+	}
+	return brokers
 }
 
 // Supported producer compression codec names for KafkaConfig.ProducerCompression.
