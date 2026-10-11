@@ -350,7 +350,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 
 	id := common.ID(req.TraceID)
 
-	span.SetAttributes(attribute.Bool("frontendBlocks", req.Blocks != nil))
+	span.SetAttributes(attribute.Bool("polledBlocklist", req.Blocks == nil))
 
 	if req.Blocks != nil {
 		metas, err := backend.MetasFromTraceByIDBlocks(req.Blocks, tenantID)
@@ -411,6 +411,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 			compactedBlocksSearched++
 		}
 	}
+	span.SetAttributes(attribute.Int("blocksSearched", len(copiedBlocklist)))
 	if len(copiedBlocklist) == 0 {
 		return nil, nil, nil
 	}
@@ -447,12 +448,12 @@ func (rw *readerWriter) TraceByIDBlockMetas(ctx context.Context, tenantID string
 		}
 	}
 
-	// same names as the polled Find path, so traces read alike whichever side picked the blocks
 	trace.SpanFromContext(ctx).SetAttributes(
 		attribute.Int("liveBlocks", len(blocklist)),
 		attribute.Int("liveBlocksSearched", liveBlocksSearched),
 		attribute.Int("compactedBlocks", len(compactedBlocklist)),
 		attribute.Int("compactedBlocksSearched", len(metas)-liveBlocksSearched),
+		attribute.Int("blocksSearched", len(metas)),
 	)
 
 	return metas

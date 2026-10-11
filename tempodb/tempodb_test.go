@@ -362,6 +362,7 @@ func TestTraceByIDBlockMetas(t *testing.T) {
 		attribute.Int("liveBlocksSearched", 1),
 		attribute.Int("compactedBlocks", 2),
 		attribute.Int("compactedBlocksSearched", 1),
+		attribute.Int("blocksSearched", 2),
 	}, recorder.Ended()[0].Attributes())
 
 	// blocks have zero start and end times, so a later range excludes them all

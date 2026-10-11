@@ -208,13 +208,6 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
 
-	// shows in traces whether a job used the frontend's blocks or the querier's own blocklist
-	span.SetAttributes(
-		attribute.Bool("blocklistPolling", q.cfg.BlocklistPolling),
-		attribute.Bool("frontendBlocks", req.Blocks != nil),
-		attribute.Int("frontendBlockCount", len(req.Blocks.GetBlocks())),
-	)
-
 	// TODO: remove with querier blocklist polling, then always require blocks for blocks and all modes
 	if req.Blocks == nil && !q.cfg.BlocklistPolling && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
 		return nil, ErrTraceByIDBlocksRequired
@@ -227,7 +220,6 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		// Get responses from all live stores in parallel.
 		span.AddEvent("searching live-stores")
-		// live-stores ignore req.Blocks, and only direct callers send blocks with mode=all
 		forEach := func(funcCtx context.Context, client tempopb.QuerierClient) (any, error) {
 			return client.FindTraceByID(funcCtx, req)
 		}
