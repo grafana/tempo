@@ -196,7 +196,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 	// When external is disabled, we have N-1 block shards
 	// blockBoundaries has length equal to numBlockShards+1, and we create shards between adjacent boundaries
 	for i := 1; i < len(blockBoundaries); i++ {
-		// lets queriers skip polling the blocklist
+		// TODO: remove with querier blocklist polling, then skip shards with no blocks
 		shardBlocks, err := backend.TraceByIDBlocksFromMetas(blocksInRange(blocks, blockBoundaries[i-1], blockBoundaries[i]))
 		if err != nil {
 			return nil, err
