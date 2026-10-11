@@ -44,6 +44,8 @@ var _ tempodb.Reader = (*mockReader)(nil)
 type mockReader struct {
 	metas   []*backend.BlockMeta
 	tenants []string
+	// returned by TraceByIDBlockMetas only, like recently compacted blocks
+	compactedMetas []*backend.BlockMeta
 }
 
 func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, *tempopb.SearchTagsBlockRequest, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
@@ -66,8 +68,18 @@ func (m *mockReader) Find(context.Context, string, *tempopb.TraceByIDRequest, co
 	return nil, nil, nil
 }
 
-func (m *mockReader) TraceByIDBlockMetas(context.Context, string, time.Time, time.Time) []*backend.BlockMeta {
-	return slices.Clone(m.metas)
+func (m *mockReader) TraceByIDBlockMetas(_ context.Context, _ string, start, end time.Time) []*backend.BlockMeta {
+	if start.IsZero() || end.IsZero() {
+		return append(slices.Clone(m.metas), m.compactedMetas...)
+	}
+	// same overlap rule as tempodb's includeBlock
+	metas := make([]*backend.BlockMeta, 0, len(m.metas))
+	for _, b := range append(slices.Clone(m.metas), m.compactedMetas...) {
+		if b.StartTime.Before(end) && b.EndTime.After(start) {
+			metas = append(metas, b)
+		}
+	}
+	return metas
 }
 
 func (m *mockReader) BlockMeta(context.Context, string, backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {

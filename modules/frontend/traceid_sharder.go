@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"slices"
 	"sort"
-	"time"
 
 	"github.com/go-kit/log" //nolint:all //deprecated
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
@@ -106,28 +105,25 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	}, s.next), nil
 }
 
+// maxBlocksPerTraceByIDJob keeps a batch of jobs well under the 16 MiB gRPC message limit, at ~100 B per block.
+const maxBlocksPerTraceByIDJob = 10_000
+
 // blockBoundariesForTenant returns the block boundaries to use when building sharded requests.
 //
 // When cfg.BlocksPerShard > 0 the number of block shards is derived dynamically from
-// the current blocklist length: numBlockShards = ceil(len(blocklist) / BlocksPerShard).
-// If startTime and endTime are non-zero, only blocks that overlap that time range are
-// counted, giving a more accurate shard estimate for time-bounded queries.
-// Otherwise the pre-computed boundaries (based on QueryShards) are returned unchanged.
-func (s *asyncTraceSharder) blockBoundariesForTenant(tenantID string, startTime, endTime time.Time) [][]byte {
+// the number of blocks the jobs will carry: numBlockShards = ceil(numBlocks / BlocksPerShard).
+// Otherwise the pre-computed boundaries (based on QueryShards) are used, with more shards
+// only when a shard would carry more than maxBlocksPerTraceByIDJob blocks.
+func (s *asyncTraceSharder) blockBoundariesForTenant(numBlocks int) [][]byte {
 	if s.cfg.BlocksPerShard == 0 {
-		return s.blockBoundaries
+		fixedBlockShards := len(s.blockBoundaries) - 1
+		if fixedBlockShards < 1 || numBlocks <= fixedBlockShards*maxBlocksPerTraceByIDJob {
+			return s.blockBoundaries
+		}
+		return blockboundary.CreateBlockBoundaries(s.capBlockShards(int(math.Ceil(float64(numBlocks) / maxBlocksPerTraceByIDJob))))
 	}
 
-	blocks := s.reader.BlockMetas(tenantID)
-
-	// If time range is provided, filter it down to the blocks within range. We
-	// don't care about the actual blocks here, it's just an estimate to determine
-	// the number of shards.
-	if !startTime.IsZero() && !endTime.IsZero() {
-		blocks = blockMetasForSearch(blocks, startTime, endTime, acceptAllBlocks)
-	}
-
-	numBlockShards := int(math.Ceil(float64(len(blocks)) / float64(s.cfg.BlocksPerShard)))
+	numBlockShards := int(math.Ceil(float64(numBlocks) / float64(s.cfg.BlocksPerShard)))
 
 	// Always ensure at least one job is created.
 	// Older queriers ignore the blocks and search their own blocklist, so they still need a block job.
@@ -136,32 +132,34 @@ func (s *asyncTraceSharder) blockBoundariesForTenant(tenantID string, startTime,
 		numBlockShards = 1
 	}
 
-	// Never exceed the max queue depth (0 means uncapped).
-	// It is better to run with sub-optimal sharding, than exceed the max queue depth and fail.
-	if s.maxDynamicBlockShards > 0 && numBlockShards > s.maxDynamicBlockShards {
-		numBlockShards = s.maxDynamicBlockShards
-	}
+	return blockboundary.CreateBlockBoundaries(s.capBlockShards(numBlockShards))
+}
 
-	return blockboundary.CreateBlockBoundaries(numBlockShards)
+// capBlockShards never exceeds the max queue depth (0 means uncapped).
+// It is better to run with sub-optimal sharding, than exceed the max queue depth and fail.
+func (s *asyncTraceSharder) capBlockShards(numBlockShards int) int {
+	if s.maxDynamicBlockShards > 0 && numBlockShards > s.maxDynamicBlockShards {
+		return s.maxDynamicBlockShards
+	}
+	return numBlockShards
 }
 
 // buildShardedRequests returns a slice of requests sharded on block boundaries.
-// When cfg.BlocksPerShard > 0 the boundaries are computed from the live blocklist;
-// otherwise the pre-computed boundaries (derived from query_shards) are used.
+// The boundaries come from blockBoundariesForTenant, sized from the blocks the jobs carry.
 func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceByIDReq *tempopb.TraceByIDRequest) ([]pipeline.Request, error) {
 	userID, err := validation.ExtractValidTenantID(parent.Context())
 	if err != nil {
 		return nil, err
 	}
 
-	blockBoundaries := s.blockBoundariesForTenant(userID, traceByIDReq.Start, traceByIDReq.End)
-
-	// sorted by block id so each shard's blocks are one contiguous range.
-	// A second blocklist copy after blockBoundariesForTenant, cheap next to marshalling the jobs.
+	// sorted by block id so each shard's blocks are one contiguous range
 	blocks := s.reader.TraceByIDBlockMetas(parent.Context(), userID, traceByIDReq.Start, traceByIDReq.End)
 	slices.SortFunc(blocks, func(a, b *backend.BlockMeta) int {
 		return bytes.Compare(a.BlockID[:], b.BlockID[:])
 	})
+
+	// shards are sized from the blocks the jobs carry, including recently compacted ones
+	blockBoundaries := s.blockBoundariesForTenant(len(blocks))
 
 	reqs := make([]pipeline.Request, 0, len(blockBoundaries))
 

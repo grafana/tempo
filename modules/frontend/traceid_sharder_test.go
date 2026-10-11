@@ -474,3 +474,57 @@ func TestBlocksInRange(t *testing.T) {
 		})
 	}
 }
+
+func TestBlocksPerShardCountsRecentlyCompactedBlocks(t *testing.T) {
+	sharder := &asyncTraceSharder{
+		cfg: &TraceByIDConfig{
+			QueryShards:    100,
+			BlocksPerShard: 1,
+		},
+		reader: &mockReader{
+			metas:          []*backend.BlockMeta{{BlockID: backend.NewUUID()}},
+			compactedMetas: []*backend.BlockMeta{{BlockID: backend.NewUUID()}, {BlockID: backend.NewUUID()}},
+		},
+		blockBoundaries: blockboundary.CreateBlockBoundaries(99),
+	}
+
+	ctx := user.InjectOrgID(context.Background(), "blerg")
+	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
+
+	// the jobs carry the compacted blocks too, so they count toward the shard size
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
+	require.NoError(t, err)
+	require.Len(t, shardedReqs, 4) // 1 ingester + 3 block shards
+}
+
+func TestFixedQueryShardsCapBlocksPerJob(t *testing.T) {
+	metas := make([]*backend.BlockMeta, 2*maxBlocksPerTraceByIDJob+1)
+	for i := range metas {
+		metas[i] = &backend.BlockMeta{BlockID: backend.NewUUID()}
+	}
+
+	sharder := &asyncTraceSharder{
+		cfg: &TraceByIDConfig{
+			QueryShards: 3,
+		},
+		reader:          &mockReader{metas: metas},
+		blockBoundaries: blockboundary.CreateBlockBoundaries(2),
+	}
+
+	ctx := user.InjectOrgID(context.Background(), "blerg")
+	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
+
+	// 2 fixed block shards would carry ~10k blocks each, so a third shard is added
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
+	require.NoError(t, err)
+	require.Len(t, shardedReqs, 4) // 1 ingester + 3 block shards
+
+	total := 0
+	for _, r := range shardedReqs[1:] {
+		traceByIDReq, err := api.ParseTraceByIDRequest(r.HTTPRequest())
+		require.NoError(t, err)
+		require.LessOrEqual(t, len(traceByIDReq.Blocks.GetBlocks()), maxBlocksPerTraceByIDJob)
+		total += len(traceByIDReq.Blocks.GetBlocks())
+	}
+	require.Equal(t, len(metas), total)
+}
