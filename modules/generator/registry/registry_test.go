@@ -1172,7 +1172,7 @@ func TestManagedRegistry_borrowedLabelsSurviveSanitizerAndLimiter(t *testing.T) 
 
 	// The per-label limiter must only know the stable, owned label names.
 	pll := registry.perLabelLimiter.(*PerLabelLimiter)
-	labelsState := *pll.labelsState.Load()
+	labelsState := pll.snapshot()
 	keys := make([]string, 0, len(labelsState))
 	for k := range labelsState {
 		keys = append(keys, k)

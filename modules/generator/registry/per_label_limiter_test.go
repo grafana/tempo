@@ -49,7 +49,7 @@ func TestPerLabelLimiter_RuntimeEnableDisable(t *testing.T) {
 	// when disabled, Limit() returns before inserting into sketches, so labelsState
 	// is empty, which means no demand gauge was published as well.
 	triggerDemandUpdate(s)
-	labelsStateLen := len(*s.labelsState.Load())
+	labelsStateLen := len(s.snapshot())
 	require.Equal(t, 0, labelsStateLen, "no label state should exist when disabled")
 
 	// Phase 2: Enable at runtime by changing the override
@@ -306,7 +306,7 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	// After all goroutines finish, trigger maintenance and verify the state is consistent
 	triggerDemandUpdate(s)
 
-	state, ok := (*s.labelsState.Load())["label"]
+	state, ok := s.snapshot()["label"]
 	require.True(t, ok, "label state should exist after concurrent inserts")
 	// Estimate may be less than 1000 because prune ticks rotate out sketch data during the test
 	require.Greater(t, state.sketch.Estimate(), uint64(0), "sketch should have recorded values")
@@ -373,7 +373,7 @@ func TestPerLabelLimiter_ConcurrentNewLabelNames(t *testing.T) {
 	}
 	wg.Wait()
 
-	states := *s.labelsState.Load()
+	states := s.snapshot()
 	require.Len(t, states, names)
 	for i := 0; i < names; i++ {
 		require.Equal(t, uint64(goroutines), states[fmt.Sprintf("label_%d", i)].sketch.Estimate())
@@ -594,7 +594,7 @@ func TestPerLabelLimiter_BorrowedLabelNameNotRetained(t *testing.T) {
 	scratch.Overwrite(&second)
 	s.Limit(second)
 
-	labelsState := *s.labelsState.Load()
+	labelsState := s.snapshot()
 	keys := make([]string, 0, len(labelsState))
 	for k := range labelsState {
 		keys = append(keys, k)
@@ -631,7 +631,7 @@ func TestPerLabelLimiter_BorrowedLabelNameNotRetainedInOverflowMetric(t *testing
 		s.Limit(labels.FromStrings(labelName, fmt.Sprintf("v-%d", i)))
 	}
 	triggerDemandUpdate(s)
-	overLimit := (*s.labelsState.Load())[labelName].overLimit.Load()
+	overLimit := s.snapshot()[labelName].overLimit.Load()
 	require.True(t, overLimit, "label should be over its limit after the demand update")
 
 	// Drive an overflow through a BORROWED label set whose name aliases a

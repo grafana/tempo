@@ -80,13 +80,18 @@ func (st *labelCardinalityState) insert(hash uint64) {
 // It runs in the label-building pipeline after sanitization but before the global
 // entity limiter, making the processing order: sanitize -> per-label limit -> entity limit.
 type PerLabelLimiter struct {
-	mtx                sync.Mutex // serializes additions to labelsState
+	mtx                sync.Mutex // serializes additions to labelsState and guards pending
 	tenant             string
 	maxCardinalityFunc maxCardinalityFunc
 	maxCardinality     atomic.Uint64 // refreshed on demand update tick, read atomically in Limit() hot path
 
 	// labelsState is copy-on-write so that Limit() reads it without locking.
-	labelsState   atomic.Pointer[map[string]*labelCardinalityState]
+	labelsState atomic.Pointer[map[string]*labelCardinalityState]
+	// pending holds states created since labelsState was last published. Label
+	// names can come from untrusted span data (e.g. target_info resource
+	// attribute keys), so copying labelsState on every new name would be
+	// quadratic; pending is merged in only once it is as large as labelsState.
+	pending       map[string]*labelCardinalityState
 	staleDuration time.Duration
 
 	demandUpdateChan <-chan time.Time
@@ -179,6 +184,9 @@ func (s *PerLabelLimiter) getOrCreateState(labelName string) *labelCardinalitySt
 	if state, ok := current[labelName]; ok {
 		return state
 	}
+	if state, ok := s.pending[labelName]; ok {
+		return state
+	}
 	// labelName may alias a pooled/borrowed scratch buffer (see
 	// CloseAndBorrowLabels) that the caller reuses after this call returns.
 	// Clone it once and retain only the owned copy (as the map key and as
@@ -191,13 +199,38 @@ func (s *PerLabelLimiter) getOrCreateState(labelName string) *labelCardinalitySt
 		sketch:    NewCardinality(s.staleDuration, removeStaleSeriesInterval),
 		ownedName: owned,
 	}
-	// label names come from config and are mostly stable, so copying the map
-	// on each new name is cheap.
-	next := make(map[string]*labelCardinalityState, len(current)+1)
-	maps.Copy(next, current)
-	next[owned] = state
-	s.labelsState.Store(&next)
+	if s.pending == nil {
+		s.pending = make(map[string]*labelCardinalityState)
+	}
+	s.pending[owned] = state
+	// Publish once pending has grown as large as the published map, so the
+	// total copying cost stays linear in the number of label names.
+	if len(s.pending) >= len(current) {
+		s.publishPendingLocked()
+	}
 	return state
+}
+
+// publishPendingLocked merges pending into a new labelsState snapshot and
+// returns it. s.mtx must be held.
+func (s *PerLabelLimiter) publishPendingLocked() map[string]*labelCardinalityState {
+	current := *s.labelsState.Load()
+	if len(s.pending) == 0 {
+		return current
+	}
+	next := make(map[string]*labelCardinalityState, len(current)+len(s.pending))
+	maps.Copy(next, current)
+	maps.Copy(next, s.pending)
+	s.labelsState.Store(&next)
+	s.pending = nil
+	return next
+}
+
+// snapshot publishes any pending states and returns every label state.
+func (s *PerLabelLimiter) snapshot() map[string]*labelCardinalityState {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	return s.publishPendingLocked()
 }
 
 // doPeriodicMaintenance runs at most one of the demand update (every 15s) and
@@ -217,7 +250,7 @@ func (s *PerLabelLimiter) doPeriodicMaintenance() {
 		}
 
 		// step 2: update estimate and publish demand estimate metric
-		for labelName, state := range *s.labelsState.Load() {
+		for labelName, state := range s.snapshot() {
 			estimate := state.sketch.Estimate()
 			state.overLimit.Store(estimate > maxCardinality)
 			metricLabelCardinalityDemand.WithLabelValues(s.tenant, labelName).Set(float64(estimate))
@@ -225,7 +258,7 @@ func (s *PerLabelLimiter) doPeriodicMaintenance() {
 	case <-s.pruneChan:
 		// label names come from config and are mostly stable, so stale entries
 		// in labelsState are unlikely to grow unboundedly, so we don't clean up.
-		for _, state := range *s.labelsState.Load() {
+		for _, state := range s.snapshot() {
 			state.sketch.Advance()
 		}
 	default:
