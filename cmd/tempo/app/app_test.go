@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/usagestats"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,6 +74,16 @@ func TestApp_RunStop(t *testing.T) {
 }
 
 func TestApp_RunExitsWhenOverridesFailToLoad(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	previousRegisterer := prometheus.DefaultRegisterer
+	previousGatherer := prometheus.DefaultGatherer
+	prometheus.DefaultRegisterer = registry
+	prometheus.DefaultGatherer = registry
+	t.Cleanup(func() {
+		prometheus.DefaultRegisterer = previousRegisterer
+		prometheus.DefaultGatherer = previousGatherer
+	})
+
 	tempDir := t.TempDir()
 	overridesFile := filepath.Join(tempDir, "overrides.yaml")
 	require.NoError(t, os.WriteFile(overridesFile, []byte("not: valid: {{{"), 0o600))

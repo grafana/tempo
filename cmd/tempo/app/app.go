@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -217,17 +216,6 @@ func (t *App) Run() error {
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }
 	stopped := func() { level.Info(log.Logger).Log("msg", "Tempo stopped") }
-	var (
-		moduleErrMu sync.Mutex
-		moduleErr   error
-	)
-	rememberModuleErr := func(err error) {
-		moduleErrMu.Lock()
-		defer moduleErrMu.Unlock()
-		if moduleErr == nil {
-			moduleErr = err
-		}
-	}
 	serviceFailed := func(service services.Service) {
 		// if any service fails, stop everything
 		sm.StopAsync()
@@ -242,16 +230,12 @@ func (t *App) Run() error {
 					return
 				} else if err != nil {
 					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", err)
-					rememberModuleErr(fmt.Errorf("module %s failed: %w", m, err))
 				}
 				return
 			}
 		}
 
 		level.Error(log.Logger).Log("msg", "module failed", "module", "unknown", "err", err)
-		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, modules.ErrStopProcess) {
-			rememberModuleErr(fmt.Errorf("module failed: %w", err))
-		}
 	}
 	sm.AddListener(services.NewManagerListener(healthy, stopped, serviceFailed))
 
@@ -280,9 +264,26 @@ func (t *App) Run() error {
 	if err := sm.AwaitStopped(context.Background()); err != nil {
 		return err
 	}
-	moduleErrMu.Lock()
-	defer moduleErrMu.Unlock()
-	return moduleErr
+	// The failure listener runs on its own goroutine, so it can still be
+	// pending when the manager reports stopped. The service already stores
+	// the error before that report.
+	return failedModuleError(serviceMap)
+}
+
+func failedModuleError(serviceMap map[string]services.Service) error {
+	names := make([]string, 0, len(serviceMap))
+	for name := range serviceMap {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		err := serviceMap[name].FailureCase()
+		if err == nil || errors.Is(err, modules.ErrStopProcess) || errors.Is(err, context.Canceled) {
+			continue
+		}
+		return fmt.Errorf("module %s failed: %w", name, err)
+	}
+	return nil
 }
 
 // Stop the app. It panics if the app is not running.
