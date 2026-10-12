@@ -1295,7 +1295,7 @@ querier:
 
     # Whether queriers poll the blocklist or not.
     #
-    # Queriers only use blocklist to choose blocks for trace by ID, but query-frontends now sends blocks in each job.
+    # Queriers only use the blocklist to choose blocks for trace by ID, but query-frontends now send blocks in each job.
     # This is a temporary rollout switch, and will be removed together with querier blocklist polling in a future release.
     # Set to false only after all query-frontends and queriers run the release that added this setting.
     # With false, the querier rejects trace by ID jobs without blocks, such as jobs from older query-frontends.
