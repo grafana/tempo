@@ -1,0 +1,24 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: enhancement
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: docs
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Document querier read lookback, block-builder WAL slack default, parquet rewrite flags, and corrupt meta poller skip.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: [8088]
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  Covers `querier.partition_ring.read_lookback_period`, block-builder
+  `wal.ingestion_time_range_slack` default of 2h, `tempo-cli parquet rewrite`
+  parameters, and `tempodb_blocklist_corrupt_block_meta_total`.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: knylander-grafana
