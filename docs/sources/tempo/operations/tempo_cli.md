@@ -811,7 +811,7 @@ tempo-cli parquet rewrite ./block-in ./block-out --row-group-size-bytes=10485760
 Example that also sets dedicated columns:
 
 ```bash
-tempo-cli parquet rewrite ./block-in ./block-out "span.http.method" "int/span.http.status_code" --bloom-fp=0.01 --bloom-shard-size-bytes=1048576
+tempo-cli parquet rewrite ./block-in ./block-out "span.http.method" "int/span.http.status_code" --bloom-fp=0.01 --bloom-shard-size-bytes=102400
 ```
 
 ## Migrate tenant command
