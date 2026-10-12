@@ -764,18 +764,12 @@ func TestProviderBasedScheduling(t *testing.T) {
 		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker-" + strconv.Itoa(i),
 		})
-		if err != nil {
-			statusErr, ok := status.FromError(err)
-			require.True(t, ok)
-			if statusErr.Code() == codes.NotFound {
-				// No more jobs, break
-				break
-			}
-			require.NoError(t, err)
-		}
-
+		require.NoError(t, err)
 		require.NotNil(t, resp)
-		require.NotEmpty(t, resp.JobId)
+		if resp.JobId == "" {
+			// No more jobs, break
+			break
+		}
 
 		switch resp.Type {
 		case tempopb.JobType_JOB_TYPE_COMPACTION:
