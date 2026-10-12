@@ -774,6 +774,46 @@ Example:
 tempo-cli parquet convert-4to5 ./block-in ./block-out "span.http.method" "int/span.http.status_code" "blob/span.db.statement"
 ```
 
+## Parquet rewrite command
+
+Rewrites an existing Parquet block using its detected encoding.
+Use this command to change dedicated columns or bloom and row-group parameters without converting to a newer block format.
+
+```bash
+tempo-cli parquet rewrite <in file> [<out path>] [<list of dedicated columns>] [flags]
+```
+
+Arguments:
+
+- `in file` Path to an existing Parquet block directory.
+- `out path` Path to write the rewritten block to. The default is `./out`.
+- `list of dedicated columns` Optional list of dedicated columns.
+  When you supply this list, it replaces the block's existing dedicated columns.
+  When you omit it, the command keeps the input block's dedicated columns.
+  Columns use TraceQL syntax with scope.
+  Use the same `int/` and `blob/` prefixes as `parquet convert-4to5`.
+
+Options:
+
+- `--row-group-size-bytes <int>` Target row group size in bytes.
+  If unset, the command uses the 100MB Tempo default and prints a warning.
+- `--bloom-fp <float>` Bloom filter false positive rate.
+  If unset, the command inherits the rate from the input block.
+- `--bloom-shard-size-bytes <int>` Bloom filter shard size in bytes.
+  If unset, the command inherits the shard size from the input block.
+
+Example that rewrites a block with an explicit row group size and inherits bloom settings:
+
+```bash
+tempo-cli parquet rewrite ./block-in ./block-out --row-group-size-bytes=104857600
+```
+
+Example that also sets dedicated columns:
+
+```bash
+tempo-cli parquet rewrite ./block-in ./block-out "span.http.method" "int/span.http.status_code" --bloom-fp=0.01 --bloom-shard-size-bytes=1048576
+```
+
 ## Migrate tenant command
 
 Copy blocks from one backend and tenant to another. Blocks can be copied within the same backend or between two
