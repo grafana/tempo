@@ -48,9 +48,9 @@ func TestApp_RunStop(t *testing.T) {
 	app, err := New(*config)
 	require.NoError(t, err)
 
-	// start Tempo
+	errCh := make(chan error, 1)
 	go func() {
-		require.NoError(t, app.Run())
+		errCh <- app.Run()
 	}()
 
 	// check health endpoint is reachable
@@ -72,6 +72,13 @@ func TestApp_RunStop(t *testing.T) {
 		_, httpErr := http.Get(healthCheckURL)
 		return httpErr != nil
 	}, 60*time.Second, 1*time.Second)
+
+	select {
+	case runErr := <-errCh:
+		require.NoError(t, runErr)
+	case <-time.After(30 * time.Second):
+		t.Fatal("tempo did not finish stopping")
+	}
 }
 
 func TestApp_RunExitsWhenOverridesFailToLoad(t *testing.T) {
