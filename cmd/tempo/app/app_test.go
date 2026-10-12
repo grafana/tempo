@@ -42,6 +42,7 @@ func TestApp_RunStop(t *testing.T) {
 	config.StorageConfig.Trace.Backend = backend.Local
 	config.StorageConfig.Trace.Local.Path = filepath.Join(tempDir, "tempo")
 	config.StorageConfig.Trace.WAL.Filepath = filepath.Join(tempDir, "wal")
+	config.BackendScheduler.LocalWorkPath = tempDir
 	config.UsageReport.Enabled = false // speeds up the shutdown process
 
 	app, err := New(*config)
