@@ -152,15 +152,13 @@ Set the bootstrap addresses and topic in the shared Tempo configuration:
 ```yaml
 ingest:
   kafka:
-    address:
-      - <KAFKA_BOOTSTRAP_ADDRESS>
-      - <KAFKA_BOOTSTRAP_ADDRESS>
+    address: <KAFKA_BOOTSTRAP_ADDRESS>,<KAFKA_BOOTSTRAP_ADDRESS>
     topic: tempo-traces
     auto_create_topic_enabled: false
 ```
 
-`address` accepts one or more bootstrap brokers as a single host:port,
-a comma-separated list, or a YAML list.
+`address` accepts one or more bootstrap brokers as a single host:port
+or a comma-separated list.
 After connecting, Tempo discovers the topic's remaining brokers from Kafka metadata.
 
 ### Configure authentication and TLS

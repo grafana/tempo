@@ -154,7 +154,7 @@ func TestFetchLastCommittedOffsetForceFromLookback(t *testing.T) {
 		l := test.NewTestingLogger(t)
 		cfg := ingest.KafkaConfig{}
 		flagext.DefaultValues(&cfg)
-		cfg.Address = ingest.KafkaAddresses{address}
+		cfg.Address = flagext.StringSliceCSV{address}
 		cfg.Topic = testTopic
 		cfg.ConsumerGroup = testConsumerGroup
 
@@ -192,7 +192,7 @@ func TestFetchLastCommittedOffsetForceFromLookback(t *testing.T) {
 		l := test.NewTestingLogger(t)
 		cfg := ingest.KafkaConfig{}
 		flagext.DefaultValues(&cfg)
-		cfg.Address = ingest.KafkaAddresses{address}
+		cfg.Address = flagext.StringSliceCSV{address}
 		cfg.Topic = testTopic
 		cfg.ConsumerGroup = testConsumerGroup
 
@@ -218,7 +218,7 @@ func TestFetchLastCommittedOffsetForceFromLookback(t *testing.T) {
 		l := test.NewTestingLogger(t)
 		cfg := ingest.KafkaConfig{}
 		flagext.DefaultValues(&cfg)
-		cfg.Address = ingest.KafkaAddresses{address}
+		cfg.Address = flagext.StringSliceCSV{address}
 		cfg.Topic = testTopic
 		cfg.ConsumerGroup = testConsumerGroup
 
@@ -244,7 +244,7 @@ func defaultPartitionReaderWithCommitInterval(t *testing.T, address string, comm
 
 	cfg := ingest.KafkaConfig{}
 	flagext.DefaultValues(&cfg)
-	cfg.Address = ingest.KafkaAddresses{address}
+	cfg.Address = flagext.StringSliceCSV{address}
 	cfg.Topic = testTopic
 	cfg.ConsumerGroup = testConsumerGroup
 

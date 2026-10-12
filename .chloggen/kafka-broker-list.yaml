@@ -16,8 +16,8 @@ issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext: |
-  A single `host:port`, a comma-separated string, and a YAML list of brokers
-  are all accepted. Existing single-address configs continue to work.
+  A single `host:port` or a comma-separated list of brokers is accepted.
+  Existing single-address configs continue to work.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: david-vavra

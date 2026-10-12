@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grafana/dskit/flagext"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -50,7 +51,7 @@ func TestCommonKafkaClientOptions_ClientRack(t *testing.T) {
 	// Instead we verify that setting ClientRack still produces a valid client
 	// that kgo.NewClient accepts.
 	metrics := kprom.NewMetrics("", kprom.Registerer(prometheus.NewPedanticRegistry()))
-	cfg := KafkaConfig{Address: KafkaAddresses{"localhost:9092"}, Topic: "test", ClientRack: "us-east-1a"}
+	cfg := KafkaConfig{Address: flagext.StringSliceCSV{"localhost:9092"}, Topic: "test", ClientRack: "us-east-1a"}
 
 	opts, err := commonKafkaClientOptions(cfg, metrics, test.NewTestingLogger(t))
 	require.NoError(t, err)
@@ -64,7 +65,7 @@ func TestCommonKafkaClientOptions_EmptyClientRack(t *testing.T) {
 	// An empty ClientRack must not add the Rack option, so rack-aware fetching
 	// stays disabled by default.
 	metrics := kprom.NewMetrics("", kprom.Registerer(prometheus.NewPedanticRegistry()))
-	cfg := KafkaConfig{Address: KafkaAddresses{"localhost:9092"}, Topic: "test"}
+	cfg := KafkaConfig{Address: flagext.StringSliceCSV{"localhost:9092"}, Topic: "test"}
 
 	opts, err := commonKafkaClientOptions(cfg, metrics, test.NewTestingLogger(t))
 	require.NoError(t, err)

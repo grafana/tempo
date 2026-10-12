@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/flagext"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kfake"
@@ -48,7 +49,7 @@ func TestSetDefaultNumberOfPartitionsForAutocreatedTopics(t *testing.T) {
 	}
 
 	cfg := KafkaConfig{
-		Address:                          KafkaAddresses{cluster.ListenAddrs()[0]},
+		Address:                          flagext.StringSliceCSV{cluster.ListenAddrs()[0]},
 		AutoCreateTopicDefaultPartitions: 100,
 	}
 
@@ -115,7 +116,7 @@ func TestParseProducerCompression_UnsetVsExplicitNone(t *testing.T) {
 
 func TestKafkaConfig_Validate_ProducerCompression(t *testing.T) {
 	cfg := KafkaConfig{
-		Address:                    KafkaAddresses{"localhost:9092"},
+		Address:                    flagext.StringSliceCSV{"localhost:9092"},
 		Topic:                      "test",
 		ProducerMaxRecordSizeBytes: minProducerRecordDataBytesLimit,
 	}
@@ -133,15 +134,15 @@ func TestKafkaConfig_Validate_ProducerCompression(t *testing.T) {
 	require.ErrorIs(t, cfg.Validate(), ErrInvalidProducerCompression)
 }
 
-func TestKafkaAddresses(t *testing.T) {
+func TestKafkaConfig_Address(t *testing.T) {
 	t.Run("flag default is a single localhost broker", func(t *testing.T) {
 		var cfg KafkaConfig
 		f := flag.NewFlagSet("test", flag.PanicOnError)
 		cfg.RegisterFlags(f)
 
-		require.Equal(t, KafkaAddresses{"localhost:9092"}, cfg.Address)
+		require.Equal(t, flagext.StringSliceCSV{"localhost:9092"}, cfg.Address)
 		require.NoError(t, f.Parse(nil))
-		require.Equal(t, KafkaAddresses{"localhost:9092"}, cfg.Address)
+		require.Equal(t, flagext.StringSliceCSV{"localhost:9092"}, cfg.Address)
 	})
 
 	t.Run("flag replaces the default with a comma-separated list", func(t *testing.T) {
@@ -149,29 +150,24 @@ func TestKafkaAddresses(t *testing.T) {
 		f := flag.NewFlagSet("test", flag.PanicOnError)
 		cfg.RegisterFlags(f)
 
-		require.NoError(t, f.Parse([]string{"-kafka.address=kafka-1:9092, kafka-2:9092"}))
-		require.Equal(t, KafkaAddresses{"kafka-1:9092", "kafka-2:9092"}, cfg.Address)
+		require.NoError(t, f.Parse([]string{"-kafka.address=kafka-1:9092,kafka-2:9092"}))
+		require.Equal(t, flagext.StringSliceCSV{"kafka-1:9092", "kafka-2:9092"}, cfg.Address)
 	})
 
 	tests := []struct {
 		name string
 		yaml string
-		want KafkaAddresses
+		want flagext.StringSliceCSV
 	}{
 		{
 			name: "single string",
 			yaml: "address: kafka-1:9092\n",
-			want: KafkaAddresses{"kafka-1:9092"},
+			want: flagext.StringSliceCSV{"kafka-1:9092"},
 		},
 		{
 			name: "comma-separated string",
-			yaml: "address: kafka-1:9092, kafka-2:9092\n",
-			want: KafkaAddresses{"kafka-1:9092", "kafka-2:9092"},
-		},
-		{
-			name: "yaml list",
-			yaml: "address:\n  - kafka-1:9092\n  - kafka-2:9092\n",
-			want: KafkaAddresses{"kafka-1:9092", "kafka-2:9092"},
+			yaml: "address: kafka-1:9092,kafka-2:9092\n",
+			want: flagext.StringSliceCSV{"kafka-1:9092", "kafka-2:9092"},
 		},
 	}
 	for _, tc := range tests {
@@ -185,7 +181,7 @@ func TestKafkaAddresses(t *testing.T) {
 
 func TestKafkaConfig_Validate_Address(t *testing.T) {
 	cfg := KafkaConfig{
-		Address:                    KafkaAddresses{"localhost:9092"},
+		Address:                    flagext.StringSliceCSV{"localhost:9092"},
 		Topic:                      "test",
 		ProducerMaxRecordSizeBytes: minProducerRecordDataBytesLimit,
 	}
@@ -194,7 +190,7 @@ func TestKafkaConfig_Validate_Address(t *testing.T) {
 	cfg.Address = nil
 	require.ErrorIs(t, cfg.Validate(), ErrMissingKafkaAddress)
 
-	cfg.Address = KafkaAddresses{}
+	cfg.Address = flagext.StringSliceCSV{}
 	require.ErrorIs(t, cfg.Validate(), ErrMissingKafkaAddress)
 }
 
@@ -204,7 +200,7 @@ func TestCommonKafkaClientOptions_MultipleSeedBrokers(t *testing.T) {
 	t.Cleanup(cluster.Close)
 
 	cfg := KafkaConfig{
-		Address: KafkaAddresses(cluster.ListenAddrs()),
+		Address: flagext.StringSliceCSV(cluster.ListenAddrs()),
 		Topic:   "test",
 	}
 	opts, err := commonKafkaClientOptions(cfg, nil, log.NewNopLogger())
