@@ -1293,7 +1293,7 @@ querier:
     # not distinguish between the types of queries.
     [max_concurrent_queries: <int> | default = 20]
 
-    # Whether queriers poll the blocklist or not.
+    # Control blocklist polling in the querier.
     #
     # Queriers only use the blocklist to choose blocks for trace by ID, but query-frontends now send blocks in each job.
     # This is a temporary rollout switch, and will be removed together with querier blocklist polling in a future release.

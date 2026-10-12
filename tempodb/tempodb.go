@@ -341,7 +341,6 @@ func (rw *readerWriter) Tenants() []string {
 	return rw.blocklist.Tenants()
 }
 
-// Find uses the polled blocklist only when req.Blocks is nil, an empty list searches nothing.
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.TraceByIDRequest, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
@@ -352,6 +351,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 
 	span.SetAttributes(attribute.Bool("polledBlocklist", req.Blocks == nil))
 
+	// use blocks passed by frontend, if we have them in request
 	if req.Blocks != nil {
 		metas, err := backend.MetasFromTraceByIDBlocks(req.Blocks, tenantID)
 		if err != nil {
@@ -374,6 +374,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 		return partialTraceObjs, funcErrs, err
 	}
 
+	// use blocks from polling, frontend didn't pass any
 	// TODO: remove with querier blocklist polling
 	blockStartUUID, err := uuid.Parse(req.BlockStart)
 	if err != nil {
@@ -427,7 +428,6 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, req *tempopb.
 	return partialTraceObjs, funcErrs, err
 }
 
-// TraceByIDBlockMetas includes recently compacted blocks to match Find's selection.
 func (rw *readerWriter) TraceByIDBlockMetas(ctx context.Context, tenantID string, timeStart, timeEnd time.Time) []*backend.BlockMeta {
 	blockStart := make([]byte, 16)
 	blockEnd := bytes.Repeat([]byte{0xff}, 16)
