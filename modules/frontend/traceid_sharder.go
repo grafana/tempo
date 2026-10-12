@@ -105,22 +105,14 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	}, s.next), nil
 }
 
-// maxBlocksPerTraceByIDJob keeps a batch of jobs well under the 16 MiB gRPC message limit, at ~100 B per block.
-const maxBlocksPerTraceByIDJob = 10_000
-
 // blockBoundariesForTenant returns the block boundaries to use when building sharded requests.
 //
 // When cfg.BlocksPerShard > 0 the number of block shards is derived dynamically from
 // the number of blocks the jobs will carry: numBlockShards = ceil(numBlocks / BlocksPerShard).
-// Otherwise the pre-computed boundaries (based on QueryShards) are used, with more shards
-// only when a shard would carry more than maxBlocksPerTraceByIDJob blocks.
+// Otherwise the pre-computed boundaries (based on QueryShards) are returned unchanged.
 func (s *asyncTraceSharder) blockBoundariesForTenant(numBlocks int) [][]byte {
 	if s.cfg.BlocksPerShard == 0 {
-		fixedBlockShards := len(s.blockBoundaries) - 1
-		if fixedBlockShards < 1 || numBlocks <= fixedBlockShards*maxBlocksPerTraceByIDJob {
-			return s.blockBoundaries
-		}
-		return blockboundary.CreateBlockBoundaries(s.capBlockShards(int(math.Ceil(float64(numBlocks) / maxBlocksPerTraceByIDJob))))
+		return s.blockBoundaries
 	}
 
 	numBlockShards := int(math.Ceil(float64(numBlocks) / float64(s.cfg.BlocksPerShard)))
@@ -132,16 +124,13 @@ func (s *asyncTraceSharder) blockBoundariesForTenant(numBlocks int) [][]byte {
 		numBlockShards = 1
 	}
 
-	return blockboundary.CreateBlockBoundaries(s.capBlockShards(numBlockShards))
-}
-
-// capBlockShards never exceeds the max queue depth (0 means uncapped).
-// It is better to run with sub-optimal sharding, than exceed the max queue depth and fail.
-func (s *asyncTraceSharder) capBlockShards(numBlockShards int) int {
+	// Never exceed the max queue depth (0 means uncapped).
+	// It is better to run with sub-optimal sharding, than exceed the max queue depth and fail.
 	if s.maxDynamicBlockShards > 0 && numBlockShards > s.maxDynamicBlockShards {
-		return s.maxDynamicBlockShards
+		numBlockShards = s.maxDynamicBlockShards
 	}
-	return numBlockShards
+
+	return blockboundary.CreateBlockBoundaries(numBlockShards)
 }
 
 // buildShardedRequests returns a slice of requests sharded on block boundaries.
