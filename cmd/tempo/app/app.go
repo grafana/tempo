@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -216,26 +217,41 @@ func (t *App) Run() error {
 	// Let's listen for events from this manager, and log them.
 	healthy := func() { level.Info(log.Logger).Log("msg", "Tempo started") }
 	stopped := func() { level.Info(log.Logger).Log("msg", "Tempo stopped") }
+	var (
+		moduleErrMu sync.Mutex
+		moduleErr   error
+	)
+	rememberModuleErr := func(err error) {
+		moduleErrMu.Lock()
+		defer moduleErrMu.Unlock()
+		if moduleErr == nil {
+			moduleErr = err
+		}
+	}
 	serviceFailed := func(service services.Service) {
 		// if any service fails, stop everything
 		sm.StopAsync()
 
 		// let's find out which module failed
+		err := service.FailureCase()
 		for m, s := range serviceMap {
 			if s == service {
-				err := service.FailureCase()
 				if errors.Is(err, modules.ErrStopProcess) {
 					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", err)
 				} else if errors.Is(err, context.Canceled) {
 					return
 				} else if err != nil {
 					level.Error(log.Logger).Log("msg", "module failed", "module", m, "err", err)
+					rememberModuleErr(fmt.Errorf("module %s failed: %w", m, err))
 				}
 				return
 			}
 		}
 
-		level.Error(log.Logger).Log("msg", "module failed", "module", "unknown", "err", service.FailureCase())
+		level.Error(log.Logger).Log("msg", "module failed", "module", "unknown", "err", err)
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, modules.ErrStopProcess) {
+			rememberModuleErr(fmt.Errorf("module failed: %w", err))
+		}
 	}
 	sm.AddListener(services.NewManagerListener(healthy, stopped, serviceFailed))
 
@@ -261,7 +277,12 @@ func (t *App) Run() error {
 		return fmt.Errorf("failed to start service manager: %w", err)
 	}
 
-	return sm.AwaitStopped(context.Background())
+	if err := sm.AwaitStopped(context.Background()); err != nil {
+		return err
+	}
+	moduleErrMu.Lock()
+	defer moduleErrMu.Unlock()
+	return moduleErr
 }
 
 // Stop the app. It panics if the app is not running.

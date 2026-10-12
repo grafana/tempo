@@ -71,3 +71,36 @@ func TestApp_RunStop(t *testing.T) {
 		return httpErr != nil
 	}, 60*time.Second, 1*time.Second)
 }
+
+func TestApp_RunExitsWhenOverridesFailToLoad(t *testing.T) {
+	tempDir := t.TempDir()
+	overridesFile := filepath.Join(tempDir, "overrides.yaml")
+	require.NoError(t, os.WriteFile(overridesFile, []byte("not: valid: {{{"), 0o600))
+
+	config := NewDefaultConfig()
+	config.Target = BackendScheduler
+	config.Server.HTTPListenPort = util.MustGetFreePort()
+	config.Server.GRPCListenPort = util.MustGetFreePort()
+	config.StorageConfig.Trace.Backend = backend.Local
+	config.StorageConfig.Trace.Local.Path = filepath.Join(tempDir, "tempo")
+	config.StorageConfig.Trace.WAL.Filepath = filepath.Join(tempDir, "wal")
+	config.UsageReport.Enabled = false
+	config.Overrides.PerTenantOverrideConfig = overridesFile
+
+	app, err := New(*config)
+	require.NoError(t, err)
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- app.Run()
+	}()
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		require.ErrorContains(t, err, "module")
+	case <-time.After(30 * time.Second):
+		app.Stop()
+		t.Fatal("process kept running after overrides failed to load")
+	}
+}
