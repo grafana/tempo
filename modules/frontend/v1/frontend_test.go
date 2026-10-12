@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -16,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/frontend/queue"
@@ -33,6 +36,8 @@ type mockProcessServer struct {
 	cancel context.CancelFunc
 
 	totalRequests int
+	// returned for every request batch
+	sendErr error
 
 	mu            sync.Mutex
 	recvCount     int
@@ -53,9 +58,10 @@ func (m *mockProcessServer) Send(msg *frontendv1pb.FrontendToClient) error {
 		m.lastBatchSize = len(msg.HttpRequestBatch)
 	default:
 		// GET_ID handshake, nothing to record.
+		return nil
 	}
 
-	return nil
+	return m.sendErr
 }
 
 func (m *mockProcessServer) Recv() (*frontendv1pb.ClientToFrontend, error) {
@@ -125,6 +131,33 @@ func TestProcessRequestBatchReuseRace(t *testing.T) {
 	err = f.Process(srv)
 	require.ErrorIs(t, err, context.Canceled)
 	require.GreaterOrEqual(t, srv.served, totalRequests)
+}
+
+func TestProcessLogsOversizedBatch(t *testing.T) {
+	var buf bytes.Buffer
+	f, err := New(Config{MaxOutstandingPerTenant: 100, MaxBatchSize: 2}, log.NewLogfmtLogger(log.NewSyncWriter(&buf)), prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	noopSpan := trace.SpanFromContext(context.Background())
+	for range 2 {
+		httpReq := httptest.NewRequest("GET", "http://example.com", nil).WithContext(user.InjectOrgID(context.Background(), "test-tenant"))
+		r := &request{
+			request:   pipeline.NewHTTPRequest(httpReq),
+			queueSpan: noopSpan,
+			err:       make(chan error, 1),
+			response:  make(chan *http.Response, 1),
+		}
+		require.NoError(t, f.requestQueue.EnqueueRequest("test-tenant", r))
+	}
+
+	sendErr := status.Error(codes.ResourceExhausted, "trying to send message larger than max (200 vs. 100)")
+	srv := &mockProcessServer{ctx: context.Background(), sendErr: sendErr}
+
+	err = f.Process(srv)
+	require.ErrorIs(t, err, sendErr)
+	require.Contains(t, buf.String(), "tenant=test-tenant")
+	require.Contains(t, buf.String(), "requests=2")
+	require.Contains(t, buf.String(), "bytes=")
 }
 
 func TestQueryOp(t *testing.T) {
