@@ -16,6 +16,7 @@ type mockOverrides struct {
 	nativeHistogramBucketFactor                        float64
 	nativeHistogramMinResetDuration                    time.Duration
 	serviceGraphsHistogramBuckets                      []float64
+	serviceGraphsMaxItems                              *int
 	serviceGraphsDimensions                            []string
 	serviceGraphsPeerAttributes                        []string
 	serviceGraphsFilterPolicies                        []filterconfig.FilterPolicy
@@ -91,6 +92,13 @@ func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]st
 
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(string) []float64 {
 	return m.serviceGraphsHistogramBuckets
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsMaxItems(string) (int, bool) {
+	if m.serviceGraphsMaxItems != nil {
+		return *m.serviceGraphsMaxItems, true
+	}
+	return 0, false
 }
 
 func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsDimensions(string) []string {

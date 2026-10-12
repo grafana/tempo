@@ -348,6 +348,17 @@ func TestServiceGraphs_applyFilterPolicy(t *testing.T) {
 	}
 }
 
+func TestServiceGraphs_invalidMaxItems(t *testing.T) {
+	for _, maxItems := range []int{0, -1} {
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.MaxItems = maxItems
+
+		_, err := New(cfg, "test", &registry.TestRegistry{}, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+		require.ErrorContains(t, err, "max_items must be greater than zero")
+	}
+}
+
 func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	testRegistry := registry.TestRegistry{}
 

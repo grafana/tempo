@@ -55,6 +55,44 @@ func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {
 	assert.ErrorContains(t, err, "validating overrides for bar failed: no")
 }
 
+func TestRuntimeConfigOverrides_ServiceGraphsMaxItems(t *testing.T) {
+	maxItems := 123
+	manager := runtimeConfigOverridesManager{
+		defaultLimits: &Overrides{
+			MetricsGenerator: MetricsGeneratorOverrides{
+				Processor: ProcessorOverrides{
+					ServiceGraphs: ServiceGraphsOverrides{
+						MaxItems: &maxItems,
+					},
+				},
+			},
+		},
+	}
+
+	got, ok := manager.MetricsGeneratorProcessorServiceGraphsMaxItems("tenant")
+	require.True(t, ok)
+	require.Equal(t, maxItems, got)
+
+	manager.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.MaxItems = nil
+	got, ok = manager.MetricsGeneratorProcessorServiceGraphsMaxItems("tenant")
+	require.False(t, ok)
+	require.Zero(t, got)
+}
+
+func TestUnmarshalPerTenantOverrides_ServiceGraphsMaxItems(t *testing.T) {
+	overrides, err := UnmarshalPerTenantOverrides([]byte(`
+overrides:
+  tenant:
+    metrics_generator:
+      processor:
+        service_graphs:
+          max_items: 0
+`))
+	require.NoError(t, err)
+	require.NotNil(t, overrides["tenant"].MetricsGenerator.Processor.ServiceGraphs.MaxItems)
+	require.Zero(t, *overrides["tenant"].MetricsGenerator.Processor.ServiceGraphs.MaxItems)
+}
+
 func TestRuntimeConfigOverrides(t *testing.T) {
 	tests := []struct {
 		name                        string

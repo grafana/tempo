@@ -369,7 +369,7 @@ distributor:
     # Optional.
     # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted.
     # Set this to `0` to disable retries on ResourceExhausted at cluster level.
-    # per-tenant override `ingestion.retry_info_enabled` can also be used to disable it at tenent level.
+    # per-tenant override `ingestion.retry_info_enabled` can also be used to disable it at tenant level.
     [retry_after_on_resource_exhausted: <duration> | default = 5s]
 
     # Optional
@@ -2633,6 +2633,7 @@ overrides:
 
         # Configuration for the service-graphs processor
         service_graphs:
+          [max_items: <int>]
           [histogram_buckets: <list of float>]
           [dimensions: <list of string>]
           [peer_attributes: <list of string>]

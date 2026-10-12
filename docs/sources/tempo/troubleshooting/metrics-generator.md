@@ -434,9 +434,25 @@ sum(rate(tempo_metrics_generator_processor_service_graphs_dropped_spans{}[1m]))
 
 Use `max_items` to adjust the maximum amount of edges tracked:
 
+This can be set using the metrics_generator global configuration
 ```yaml
 metrics_generator:
   processor:
     service_graphs:
       max_items: 10000
+```
+or via [overrides](/docs/tempo/<TEMPO_VERSION>/configuration/#overrides)
+```yamlyaml
+overrides:
+  defaults:
+    metrics_generator:
+      processor:
+        service_graphs:
+          max_items: 10000
+per_tenant_overrides:
+  my-tenant:
+    metrics_generator:
+      processor:
+        service_graphs:
+          max_items: 500000
 ```

@@ -2,6 +2,7 @@ package servicegraphs
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/v3/modules/generator/registry"
@@ -64,6 +65,14 @@ type Config struct {
 	// Bare "service-graphs" enables Request and Latency for backwards compatibility;
 	// ConnectionInfo is opt-in via the "service-graphs-connection-info" sub-name.
 	Subprocessors map[Subprocessor]bool `yaml:"-"`
+}
+
+// Validate checks the config of an enabled service-graphs processor.
+func (cfg *Config) Validate() error {
+	if cfg.MaxItems <= 0 {
+		return fmt.Errorf("service graphs max_items must be greater than zero, got %d", cfg.MaxItems)
+	}
+	return nil
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {

@@ -43,6 +43,18 @@ func histogramMethodPtr(h histograms.HistogramMethod) *histograms.HistogramMetho
 	return &h
 }
 
+func intPtr(i int) *int {
+	return &i
+}
+
+func serviceGraphsMaxItemsOverrides(maxItems *int) overrides.Overrides {
+	return overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
+		Processor: overrides.ProcessorOverrides{
+			ServiceGraphs: overrides.ServiceGraphsOverrides{MaxItems: maxItems},
+		},
+	}}
+}
+
 func Test_runtimeOverridesValidator(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -93,6 +105,28 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 				},
 			},
 			expErr: "metrics_generator.processor.service_graphs.histogram_buckets must be strictly increasing: bucket[1]=1 is <= bucket[0]=2",
+		},
+		{
+			name:      "service graphs max_items unset",
+			cfg:       Config{},
+			overrides: serviceGraphsMaxItemsOverrides(nil),
+		},
+		{
+			name:      "service graphs max_items valid",
+			cfg:       Config{},
+			overrides: serviceGraphsMaxItemsOverrides(intPtr(1)),
+		},
+		{
+			name:      "service graphs max_items zero",
+			cfg:       Config{},
+			overrides: serviceGraphsMaxItemsOverrides(intPtr(0)),
+			expErr:    "metrics_generator.processor.service_graphs.max_items must be greater than zero, got 0",
+		},
+		{
+			name:      "service graphs max_items negative",
+			cfg:       Config{},
+			overrides: serviceGraphsMaxItemsOverrides(intPtr(-5)),
+			expErr:    "metrics_generator.processor.service_graphs.max_items must be greater than zero, got -5",
 		},
 		{
 			name: "span metrics histogram buckets must be increasing",

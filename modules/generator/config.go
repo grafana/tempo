@@ -186,6 +186,9 @@ func (cfg *ProcessorConfig) Validate() error {
 func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userID string) (ProcessorConfig, error) {
 	copyCfg := *cfg
 
+	if maxItems, ok := o.MetricsGeneratorProcessorServiceGraphsMaxItems(userID); ok {
+		copyCfg.ServiceGraphs.MaxItems = maxItems
+	}
 	if buckets := o.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID); buckets != nil {
 		copyCfg.ServiceGraphs.HistogramBuckets = buckets
 	}

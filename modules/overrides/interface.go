@@ -57,6 +57,7 @@ type Interface interface {
 	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int
 	MetricsGeneratorForwarderWorkers(userID string) int
+	MetricsGeneratorProcessorServiceGraphsMaxItems(userID string) (int, bool)
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string
