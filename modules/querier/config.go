@@ -26,7 +26,7 @@ type Config struct {
 	SecondaryIngesterRing                  string        `yaml:"secondary_ingester_ring,omitempty"`
 
 	// BlocklistPolling is a temporary rollout switch, removed together with querier polling.
-	// TODO: remove with querier blocklist polling
+	// TODO: deprecate and remove this flag with querier blocklist polling
 	BlocklistPolling bool `yaml:"blocklist_polling"`
 }
 
