@@ -122,6 +122,7 @@ metrics_generator_forwarder_workers: 7
 metrics_generator_remote_write_headers:
   tenant-id: foo
 metrics_generator_processor_service_graphs_histogram_buckets: [1,2]
+metrics_generator_processor_service_graphs_max_items: 23
 metrics_generator_processor_service_graphs_dimensions: ['foo']
 metrics_generator_processor_service_graphs_peer_attributes: ['foo']
 metrics_generator_processor_service_graphs_enable_client_server_prefix: false
@@ -197,6 +198,7 @@ defaults:
     native_histogram_min_reset_duration: 15m
     processor:
       service_graphs:
+        max_items: 23
         histogram_buckets:
         - 1
         - 2
@@ -418,6 +420,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorForwarderQueueSize:                                          100,
 		MetricsGeneratorForwarderWorkers:                                            5,
 		MetricsGeneratorRemoteWriteHeaders:                                          RemoteWriteHeaders{"header-1": "value-1"},
+		MetricsGeneratorProcessorServiceGraphsMaxItems:                              new(256),
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      []float64{1.0, 2.0, 5.0},
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            []string{"dimension-1", "dimension-2"},
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},

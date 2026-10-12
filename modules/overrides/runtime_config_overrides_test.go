@@ -56,6 +56,90 @@ func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {
 	assert.ErrorContains(t, err, "validating overrides for bar failed: no")
 }
 
+func TestRuntimeConfigOverrides_ServiceGraphsMaxItems(t *testing.T) {
+	maxItems := 123
+	manager := runtimeConfigOverridesManager{
+		defaultLimits: &Overrides{
+			MetricsGenerator: MetricsGeneratorOverrides{
+				Processor: ProcessorOverrides{
+					ServiceGraphs: ServiceGraphsOverrides{
+						MaxItems: &maxItems,
+					},
+				},
+			},
+		},
+	}
+
+	got, ok := manager.MetricsGeneratorProcessorServiceGraphsMaxItems("tenant")
+	require.True(t, ok)
+	require.Equal(t, maxItems, got)
+
+	manager.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.MaxItems = nil
+	got, ok = manager.MetricsGeneratorProcessorServiceGraphsMaxItems("tenant")
+	require.False(t, ok)
+	require.Zero(t, got)
+}
+
+func TestRuntimeConfigOverrides_ServiceGraphsMaxItemsPerTenant(t *testing.T) {
+	overridesFile := filepath.Join(t.TempDir(), "overrides.yaml")
+	require.NoError(t, os.WriteFile(overridesFile, []byte(`
+overrides:
+  custom:
+    metrics_generator:
+      processor:
+        service_graphs:
+          max_items: 42
+  zero:
+    metrics_generator:
+      processor:
+        service_graphs:
+          max_items: 0
+`), 0o600))
+
+	cfg := Config{
+		PerTenantOverrideConfig: overridesFile,
+		PerTenantOverridePeriod: model.Duration(time.Hour),
+	}
+	cfg.Defaults.MetricsGenerator.Processor.ServiceGraphs.MaxItems = new(100)
+
+	o, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(context.Background(), o))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), o))
+	})
+
+	tests := []struct {
+		tenant string
+		want   int
+	}{
+		{"custom", 42}, // per-tenant value wins over the default
+		{"zero", 0},    // explicit 0 is reported as set, not treated as unset
+		{"other", 100}, // no per-tenant entry falls back to the default
+	}
+	for _, tc := range tests {
+		t.Run(tc.tenant, func(t *testing.T) {
+			got, ok := o.MetricsGeneratorProcessorServiceGraphsMaxItems(tc.tenant)
+			require.True(t, ok)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestUnmarshalPerTenantOverrides_ServiceGraphsMaxItems(t *testing.T) {
+	overrides, err := UnmarshalPerTenantOverrides([]byte(`
+overrides:
+  tenant:
+    metrics_generator:
+      processor:
+        service_graphs:
+          max_items: 0
+`))
+	require.NoError(t, err)
+	require.NotNil(t, overrides["tenant"].MetricsGenerator.Processor.ServiceGraphs.MaxItems)
+	require.Zero(t, *overrides["tenant"].MetricsGenerator.Processor.ServiceGraphs.MaxItems)
+}
+
 func TestRuntimeConfigOverrides(t *testing.T) {
 	tests := []struct {
 		name                        string
@@ -954,4 +1038,19 @@ func TestIngestionCreationGracePeriod_LegacyFormat(t *testing.T) {
 	assert.Equal(t, 10*time.Minute, overrides.IngestionCreationGracePeriod("unknown-tenant"))
 
 	require.NoError(t, services.StopAndAwaitTerminated(context.TODO(), overrides))
+}
+
+func TestNewRuntimeConfigOverrides_ValidatesDefaults(t *testing.T) {
+	cfg := Config{}
+	cfg.Defaults.MetricsGenerator.Processor.ServiceGraphs.MaxItems = new(0)
+
+	validator := &mockValidator{f: func(o *Overrides) error {
+		if m := o.MetricsGenerator.Processor.ServiceGraphs.MaxItems; m != nil && *m <= 0 {
+			return errors.New("invalid max_items")
+		}
+		return nil
+	}}
+
+	_, err := newRuntimeConfigOverrides(cfg, validator, prometheus.NewRegistry())
+	require.ErrorContains(t, err, "validating overrides defaults failed: invalid max_items")
 }
