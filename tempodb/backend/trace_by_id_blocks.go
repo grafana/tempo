@@ -8,7 +8,7 @@ import (
 )
 
 // TraceByIDBlocksFromMetas dedupes dedicated columns because a tenant's blocks usually share them.
-func TraceByIDBlocksFromMetas(metas []*BlockMeta) (*tempopb.TraceByIDBlocks, error) {
+func TraceByIDBlocksFromMetas(metas []*BlockMeta) *tempopb.TraceByIDBlocks {
 	blocks := &tempopb.TraceByIDBlocks{
 		Blocks: make([]*tempopb.TraceByIDBlock, 0, len(metas)),
 	}
@@ -20,11 +20,7 @@ func TraceByIDBlocksFromMetas(metas []*BlockMeta) (*tempopb.TraceByIDBlocks, err
 			hash := m.DedicatedColumns.Hash()
 			var ok bool
 			if idx, ok = columnsIdx[hash]; !ok {
-				cols, err := m.DedicatedColumns.ToTempopb()
-				if err != nil {
-					return nil, fmt.Errorf("error converting dedicated columns for block %s: %w", m.BlockID, err)
-				}
-				blocks.DedicatedColumns = append(blocks.DedicatedColumns, &tempopb.TraceByIDDedicatedColumns{Columns: cols})
+				blocks.DedicatedColumns = append(blocks.DedicatedColumns, &tempopb.TraceByIDDedicatedColumns{Columns: traceByIDColumns(m.DedicatedColumns)})
 
 				idx = uint32(len(blocks.DedicatedColumns))
 				columnsIdx[hash] = idx
@@ -43,7 +39,30 @@ func TraceByIDBlocksFromMetas(metas []*BlockMeta) (*tempopb.TraceByIDBlocks, err
 		})
 	}
 
-	return blocks, nil
+	return blocks
+}
+
+// traceByIDColumns drops what the read path skips, so a column from a newer writer can't fail the query.
+func traceByIDColumns(dcs DedicatedColumns) []*tempopb.DedicatedColumn {
+	cols := make([]*tempopb.DedicatedColumn, 0, len(dcs))
+	for _, c := range dcs {
+		scope, err := c.Scope.ToTempopb()
+		if err != nil {
+			continue
+		}
+		typ, err := c.Type.ToTempopb()
+		if err != nil {
+			continue
+		}
+		var options tempopb.DedicatedColumn_Option
+		for _, o := range c.Options {
+			if mask, err := (DedicatedColumnOptions{o}).ToTempopb(); err == nil {
+				options |= mask
+			}
+		}
+		cols = append(cols, &tempopb.DedicatedColumn{Scope: scope, Name: c.Name, Type: typ, Options: options})
+	}
+	return cols
 }
 
 // MetasFromTraceByIDBlocks is the inverse of TraceByIDBlocksFromMetas.

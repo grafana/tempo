@@ -48,8 +48,7 @@ func TestTraceByIDBlocksRoundTrip(t *testing.T) {
 		},
 	}
 
-	blocks, err := TraceByIDBlocksFromMetas(metas)
-	require.NoError(t, err)
+	blocks := TraceByIDBlocksFromMetas(metas)
 	// blocks 0 and 3 share dedicated columns
 	require.Len(t, blocks.DedicatedColumns, 2)
 
@@ -59,12 +58,29 @@ func TestTraceByIDBlocksRoundTrip(t *testing.T) {
 }
 
 func TestMetasFromTraceByIDBlocksTakesTenantFromCaller(t *testing.T) {
-	blocks, err := TraceByIDBlocksFromMetas([]*BlockMeta{{BlockID: MustParse("00000000-0000-0000-0000-000000000001"), TenantID: "other"}})
-	require.NoError(t, err)
+	blocks := TraceByIDBlocksFromMetas([]*BlockMeta{{BlockID: MustParse("00000000-0000-0000-0000-000000000001"), TenantID: "other"}})
 
 	metas, err := MetasFromTraceByIDBlocks(blocks, "tenant")
 	require.NoError(t, err)
 	require.Equal(t, "tenant", metas[0].TenantID)
+}
+
+func TestTraceByIDBlocksFromMetasSkipsUnknownColumns(t *testing.T) {
+	metas := []*BlockMeta{{
+		Version: "vParquet5",
+		BlockID: MustParse("00000000-0000-0000-0000-000000000001"),
+		DedicatedColumns: DedicatedColumns{
+			{Scope: "future", Name: "a", Type: DedicatedColumnTypeString},
+			{Scope: DedicatedColumnScopeSpan, Name: "b", Type: "future"},
+			{Scope: DedicatedColumnScopeSpan, Name: "c", Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{"future", DedicatedColumnOptionBlob}},
+		},
+	}}
+
+	// the read path skips unknown scopes and types without using a spare column, and ignores unknown options
+	blocks := TraceByIDBlocksFromMetas(metas)
+	require.Equal(t, []*tempopb.DedicatedColumn{
+		{Scope: tempopb.DedicatedColumn_SPAN, Name: "c", Type: tempopb.DedicatedColumn_STRING, Options: tempopb.DedicatedColumn_BLOB},
+	}, blocks.DedicatedColumns[0].Columns)
 }
 
 func TestMetasFromTraceByIDBlocksInvalid(t *testing.T) {

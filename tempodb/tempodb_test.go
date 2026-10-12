@@ -228,8 +228,7 @@ func TestFindWithBlocks(t *testing.T) {
 	metas := r.TraceByIDBlockMetas(ctx, testTenantID, time.Time{}, time.Time{})
 	require.Len(t, metas, 1)
 
-	blocks, err := backend.TraceByIDBlocksFromMetas(metas)
-	require.NoError(t, err)
+	blocks := backend.TraceByIDBlocksFromMetas(metas)
 
 	bFound, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, Blocks: blocks}, common.DefaultSearchOptions())
 	require.NoError(t, err)
@@ -276,8 +275,7 @@ func TestFindWithBlocksFromStaleView(t *testing.T) {
 	require.Len(t, staleView, 2)
 
 	find := func(metas []*backend.BlockMeta) (int, []error, error) {
-		blocks, err := backend.TraceByIDBlocksFromMetas(metas)
-		require.NoError(t, err)
+		blocks := backend.TraceByIDBlocksFromMetas(metas)
 		partials, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{TraceID: id, Blocks: blocks}, common.DefaultSearchOptions())
 		combiner := trace.NewCombiner(0, false)
 		for _, p := range partials {
