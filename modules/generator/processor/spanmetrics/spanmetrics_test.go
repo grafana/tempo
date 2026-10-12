@@ -424,6 +424,34 @@ func TestSpanMetrics_dimensionPatterns(t *testing.T) {
 		})
 		assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 	})
+
+	t.Run("empty and digit-leading keys are skipped even when matched", func(t *testing.T) {
+		// Deliberately narrow, unlike ".*", so the fixture's own resource
+		// attributes (e.g. "random.res.attr") don't also match and pollute lbls.
+		p, testRegistry := newProcessor(t, Config{DimensionPatterns: []string{"^$", "^2fa$", "^valid_key$"}})
+
+		batch := test.MakeBatch(10, nil)
+		for _, ss := range batch.ScopeSpans {
+			for _, s := range ss.Spans {
+				s.Attributes = append(s.Attributes,
+					stringAttr("", "empty-key-value"),
+					stringAttr("2fa", "digit-leading-value"),
+					stringAttr("valid_key", "valid-value"),
+				)
+			}
+		}
+
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+		lbls := labels.FromMap(map[string]string{
+			"service":     "test-service",
+			"span_name":   "test",
+			"span_kind":   "SPAN_KIND_CLIENT",
+			"status_code": "STATUS_CODE_OK",
+			"valid_key":   "valid-value",
+		})
+		assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+	})
 }
 
 func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {

@@ -336,6 +336,16 @@ func (p *Processor) buildAndSetTargetInfoLabels(attributes []*v1_common.KeyValue
 // and once for resource attributes; see the call site for why the order matters.
 func addPatternDimensions(builder registry.LabelBuilder, patterns []*regexp.Regexp, attrs []*v1_common.KeyValue, sanitizeFn validation.SanitizeFn) {
 	for _, attr := range attrs {
+		key := attr.Key
+		// Unlike Dimensions, where the operator names an exact key they're
+		// responsible for, a pattern can match any key a span happens to carry.
+		// Skip empty keys (out of spec but technically possible in the proto) and
+		// keys starting with a digit: SanitizeLabelName only replaces invalid
+		// characters, it doesn't fix a leading digit, and target_info skips the
+		// same two cases for the same reason below.
+		if key == "" || (key[0] >= '0' && key[0] <= '9') {
+			continue
+		}
 		for _, pattern := range patterns {
 			if pattern.MatchString(attr.Key) {
 				label := validation.SanitizeLabelNameWithCollisions(attr.Key, validation.SupportedIntrinsicDimensionsSet, sanitizeFn)
