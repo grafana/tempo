@@ -66,6 +66,7 @@ type Interface interface {
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool
 	MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []config.FilterPolicy
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
+	MetricsGeneratorProcessorSpanMetricsDimensionPatterns(userID string) []string
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool) // returns (enabled, isSet)
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) (bool, bool) // returns (enabled, isSet)

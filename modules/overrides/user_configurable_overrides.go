@@ -378,6 +378,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsD
 	return o.Interface.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensionPatterns(userID string) []string {
+	if patterns, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensionPatterns(); ok {
+		return patterns
+	}
+	return o.Interface.MetricsGeneratorProcessorSpanMetricsDimensionPatterns(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool) {
 	if enableTargetInfo, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetEnableTargetInfo(); ok {
 		return enableTargetInfo, true

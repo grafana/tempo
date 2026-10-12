@@ -187,6 +187,12 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 		}
 	}
 
+	if dimensionPatterns, ok := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics().GetDimensionPatterns(); ok {
+		if err := validation.ValidateDimensionPatterns(dimensionPatterns); err != nil {
+			return err
+		}
+	}
+
 	if dimensions, ok := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetDimensions(); ok {
 		if err := validation.ValidateServiceGraphsDimensions(dimensions); err != nil {
 			return err

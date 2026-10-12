@@ -487,6 +487,7 @@ metrics_generator:
                 status_code: true
             dimensions: []
             dimension_mappings: []
+            dimension_patterns: []
             enable_target_info: false
             span_multiplier_key: ""
             enable_tracestate_span_multiplier: false

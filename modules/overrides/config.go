@@ -108,6 +108,7 @@ type SpanMetricsOverrides struct {
 	IntrinsicDimensions            map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
 	FilterPolicies                 []filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
 	DimensionMappings              []sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mapings,omitempty"`
+	DimensionPatterns              []string                         `yaml:"dimension_patterns,omitempty" json:"dimension_patterns,omitempty"`
 	EnableTargetInfo               *bool                            `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
 	TargetInfoExcludedDimensions   []string                         `yaml:"target_info_excluded_dimensions,omitempty" json:"target_info_excluded_dimensions,omitempty"`
 	EnableInstanceLabel            *bool                            `yaml:"enable_instance_label,omitempty" json:"enable_instance_label,omitempty"`

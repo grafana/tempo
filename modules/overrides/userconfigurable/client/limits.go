@@ -228,6 +228,7 @@ type LimitsMetricsGeneratorProcessorSpanMetrics struct {
 	Dimensions                     *[]string                         `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 	IntrinsicDimensions            *map[string]bool                  `yaml:"intrinsic_dimensions,omitempty" json:"intrinsic_dimensions,omitempty"`
 	DimensionMappings              *[]sharedconfig.DimensionMappings `yaml:"dimension_mappings,omitempty" json:"dimension_mappings,omitempty"`
+	DimensionPatterns              *[]string                         `yaml:"dimension_patterns,omitempty" json:"dimension_patterns,omitempty"`
 	EnableTargetInfo               *bool                             `yaml:"enable_target_info,omitempty" json:"enable_target_info,omitempty"`
 	FilterPolicies                 *[]filterconfig.FilterPolicy      `yaml:"filter_policies,omitempty" json:"filter_policies,omitempty"`
 	HistogramBuckets               *[]float64                        `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
@@ -254,6 +255,13 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetIntrinsicDimensions() (m
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensionMappings() ([]sharedconfig.DimensionMappings, bool) {
 	if l != nil && l.DimensionMappings != nil {
 		return *l.DimensionMappings, true
+	}
+	return nil, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetDimensionPatterns() ([]string, bool) {
+	if l != nil && l.DimensionPatterns != nil {
+		return *l.DimensionPatterns, true
 	}
 	return nil, false
 }

@@ -56,6 +56,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions:                     c.MetricsGenerator.Processor.SpanMetrics.IntrinsicDimensions,
 		MetricsGeneratorProcessorSpanMetricsFilterPolicies:                          c.MetricsGenerator.Processor.SpanMetrics.FilterPolicies,
 		MetricsGeneratorProcessorSpanMetricsDimensionMappings:                       c.MetricsGenerator.Processor.SpanMetrics.DimensionMappings,
+		MetricsGeneratorProcessorSpanMetricsDimensionPatterns:                       c.MetricsGenerator.Processor.SpanMetrics.DimensionPatterns,
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:                        c.MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo,
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:            c.MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions,
 		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:                     c.MetricsGenerator.Processor.SpanMetrics.EnableInstanceLabel,
@@ -147,6 +148,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions                     map[string]bool                  `yaml:"metrics_generator_processor_span_metrics_intrinsic_dimensions" json:"metrics_generator_processor_span_metrics_intrinsic_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsFilterPolicies                          []filterconfig.FilterPolicy      `yaml:"metrics_generator_processor_span_metrics_filter_policies" json:"metrics_generator_processor_span_metrics_filter_policies"`
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings                       []sharedconfig.DimensionMappings `yaml:"metrics_generator_processor_span_metrics_dimension_mappings" json:"metrics_generator_processor_span_metrics_dimension_mapings"`
+	MetricsGeneratorProcessorSpanMetricsDimensionPatterns                       []string                         `yaml:"metrics_generator_processor_span_metrics_dimension_patterns" json:"metrics_generator_processor_span_metrics_dimension_patterns"`
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo                        *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_target_info" json:"metrics_generator_processor_span_metrics_enable_target_info"`
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions            []string                         `yaml:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions" json:"metrics_generator_processor_span_metrics_target_info_excluded_dimensions"`
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel                     *bool                            `yaml:"metrics_generator_processor_span_metrics_enable_instance_label" json:"metrics_generator_processor_span_metrics_enable_instance_label"`
@@ -372,6 +374,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 					IntrinsicDimensions:            l.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions,
 					FilterPolicies:                 l.MetricsGeneratorProcessorSpanMetricsFilterPolicies,
 					DimensionMappings:              l.MetricsGeneratorProcessorSpanMetricsDimensionMappings,
+					DimensionPatterns:              l.MetricsGeneratorProcessorSpanMetricsDimensionPatterns,
 					EnableTargetInfo:               l.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo,
 					TargetInfoExcludedDimensions:   l.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions,
 					EnableInstanceLabel:            l.MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel,

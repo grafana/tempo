@@ -142,6 +142,7 @@ func Test_limitsFromOverrides(t *testing.T) {
             "join": "/"
           }
         ],
+        "dimension_patterns": null,
         "enable_target_info": true,
         "filter_policies": [
           {

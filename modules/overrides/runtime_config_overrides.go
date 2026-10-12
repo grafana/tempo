@@ -644,6 +644,11 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsDime
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.DimensionMappings
 }
 
+// MetricsGeneratorProcessorSpanMetricsDimensionPatterns controls regex-matched dimensions
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsDimensionPatterns(userID string) []string {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.DimensionPatterns
+}
+
 // MetricsGeneratorProcessorSpanMetricsEnableTargetInfo enables target_info metrics
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool) {
 	enableTargetInfo := o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.EnableTargetInfo

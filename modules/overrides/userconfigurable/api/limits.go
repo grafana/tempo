@@ -44,6 +44,7 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 					Dimensions:          strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensions(userID)),
 					IntrinsicDimensions: mapBoolPtr(overrides.MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID)),
 					DimensionMappings:   dimensionMappingsPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)),
+					DimensionPatterns:   strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsDimensionPatterns(userID)),
 					EnableTargetInfo: func() *bool {
 						val, _ := overrides.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)
 						return boolPtr(val)

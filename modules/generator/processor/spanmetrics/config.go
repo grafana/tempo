@@ -42,6 +42,12 @@ type Config struct {
 	// Dimension label mapping to allow the user to rename attributes in their metrics
 	DimensionMappings []sharedconfig.DimensionMappings `yaml:"dimension_mappings"`
 
+	// Additional dimensions (labels) added to the metric by matching attribute keys against regular
+	// expressions. Unlike Dimensions, which requires an exact key, every attribute whose key matches
+	// a pattern becomes its own label, named after the matched key. Exact-match Dimensions and
+	// DimensionMappings always take precedence over a pattern match that produces the same label.
+	DimensionPatterns []string `yaml:"dimension_patterns"`
+
 	// Enable target_info as a metrics
 	EnableTargetInfo bool `yaml:"enable_target_info"`
 

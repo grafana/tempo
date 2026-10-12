@@ -3,6 +3,7 @@ package validation
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/grafana/tempo/v3/modules/distributor/usage"
@@ -133,6 +134,15 @@ func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimen
 		seen[sanitized] = fmt.Sprintf("dimension_mapping %q", m.Name)
 	}
 
+	return nil
+}
+
+func ValidateDimensionPatterns(patterns []string) error {
+	for _, p := range patterns {
+		if _, err := regexp.Compile(p); err != nil {
+			return fmt.Errorf("dimension_patterns %q is not a valid regular expression: %w", p, err)
+		}
+	}
 	return nil
 }
 

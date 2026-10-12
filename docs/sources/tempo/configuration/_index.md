@@ -845,6 +845,12 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
+            # Additional dimensions added by matching attribute keys against regular expressions
+            # instead of an exact key. Every attribute whose key matches a pattern becomes its own
+            # label, named after the matched key. A dimension or dimension_mapping always takes
+            # precedence over a pattern match that would produce the same label.
+            [dimension_patterns: <list of string>]
+
             # Custom labeling mapping to rename attributes or combine multiple attributes into a single label.
             # Use dimension_mappings to rename a single attribute to a custom label name or combine multiple attributes into a composite label.
             dimension_mappings: <list of label mappings>
@@ -2647,6 +2653,8 @@ overrides:
           [histogram_buckets: <list of float>]
           # Allowed keys for intrinsic dimensions are: service, span_name, span_kind, status_code, and status_message.
           [dimensions: <list of string>]
+          # Additional dimensions added by matching attribute keys against regular expressions.
+          [dimension_patterns: <list of string>]
           [intrinsic_dimensions: <map string to bool>]
           [filter_policies: [
             [

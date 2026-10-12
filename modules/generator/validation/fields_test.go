@@ -256,6 +256,32 @@ func TestValidateFilterPolicies(t *testing.T) {
 	}
 }
 
+func TestValidateDimensionPatterns(t *testing.T) {
+	tests := []struct {
+		name     string
+		patterns []string
+		expErr   bool
+	}{
+		{name: "nil patterns"},
+		{name: "empty patterns", patterns: []string{}},
+		{name: "valid pattern", patterns: []string{"^fruit_.*"}},
+		{name: "multiple valid patterns", patterns: []string{"^fruit_.*", "^veg_.*"}},
+		{name: "invalid pattern", patterns: []string{"["}, expErr: true},
+		{name: "one invalid among valid", patterns: []string{"^fruit_.*", "("}, expErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateDimensionPatterns(tt.patterns)
+			if tt.expErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestValidateCostAttributionDimensions(t *testing.T) {
 	tests := []struct {
 		name       string

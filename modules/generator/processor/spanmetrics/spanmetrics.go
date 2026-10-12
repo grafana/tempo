@@ -2,6 +2,7 @@ package spanmetrics
 
 import (
 	"context"
+	"regexp"
 	"time"
 
 	"github.com/grafana/tempo/v3/modules/generator/validation"
@@ -47,6 +48,7 @@ type Processor struct {
 	targetInfoExcluded     map[string]struct{}
 	dimensionLabels        []string
 	dimensionMappingLabels []string
+	dimensionPatterns      []*regexp.Regexp
 	usesSpanMultiplier     bool
 
 	// for testing
@@ -79,6 +81,15 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		return nil, err
 	}
 
+	if err := validation.ValidateDimensionPatterns(cfg.DimensionPatterns); err != nil {
+		return nil, err
+	}
+	dimensionPatterns := make([]*regexp.Regexp, len(cfg.DimensionPatterns))
+	for i, pattern := range cfg.DimensionPatterns {
+		// Already validated above, compiling again just builds the regexp we keep.
+		dimensionPatterns[i] = regexp.MustCompile(pattern)
+	}
+
 	dimensionLabels := make([]string, len(cfg.Dimensions))
 	for i, d := range cfg.Dimensions {
 		dimensionLabels[i] = validation.SanitizeLabelNameWithCollisions(d, validation.SupportedIntrinsicDimensionsSet, c.Get)
@@ -100,6 +111,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		targetInfoExcluded:     excludedDimensionsSet(cfg.TargetInfoExcludedDimensions),
 		dimensionLabels:        dimensionLabels,
 		dimensionMappingLabels: dimensionMappingLabels,
+		dimensionPatterns:      dimensionPatterns,
 		usesSpanMultiplier:     cfg.SpanMultiplierKey != "" || cfg.EnableTraceStateSpanMultiplier,
 	}
 
@@ -195,6 +207,14 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 	if p.Cfg.IntrinsicDimensions.StatusMessage {
 		builder.Add(gen.DimStatusMessage, span.GetStatus().GetMessage())
+	}
+
+	if len(p.dimensionPatterns) > 0 {
+		// Span attributes first, resource attributes second: compactLabels keeps the
+		// last Add for a given name, so a resource attribute wins over a span attribute
+		// with the same key, mirroring the precedence FindAttributeValue gives below.
+		addPatternDimensions(builder, p.dimensionPatterns, span.Attributes, p.sanitizeCache.Get)
+		addPatternDimensions(builder, p.dimensionPatterns, rs.Attributes, p.sanitizeCache.Get)
 	}
 
 	for i, d := range p.Cfg.Dimensions {
@@ -309,6 +329,21 @@ func (p *Processor) buildAndSetTargetInfoLabels(attributes []*v1_common.KeyValue
 		p.spanMetricsTargetInfo.SetForTargetInfoBorrowed(targetInfoLabels, 1, updateTimeMs)
 	}
 	return true
+}
+
+// addPatternDimensions adds one label per attribute in attrs whose key matches any of patterns,
+// named after the sanitized attribute key with the attribute's value. Call once for span attributes
+// and once for resource attributes; see the call site for why the order matters.
+func addPatternDimensions(builder registry.LabelBuilder, patterns []*regexp.Regexp, attrs []*v1_common.KeyValue, sanitizeFn validation.SanitizeFn) {
+	for _, attr := range attrs {
+		for _, pattern := range patterns {
+			if pattern.MatchString(attr.Key) {
+				label := validation.SanitizeLabelNameWithCollisions(attr.Key, validation.SupportedIntrinsicDimensionsSet, sanitizeFn)
+				builder.Add(label, tempo_util.StringifyAnyValue(attr.Value))
+				break
+			}
+		}
+	}
 }
 
 func excludedDimensionsSet(exclude []string) map[string]struct{} {

@@ -27,6 +27,7 @@ type mockOverrides struct {
 	spanMetricsIntrinsicDimensions                     map[string]bool
 	spanMetricsFilterPolicies                          []filterconfig.FilterPolicy
 	spanMetricsDimensionMappings                       []sharedconfig.DimensionMappings
+	spanMetricsDimensionPatterns                       []string
 	spanMetricsEnableTargetInfo                        *bool
 	spanMetricsTargetInfoExcludedDimensions            []string
 	spanMetricsEnableInstanceLabel                     *bool
@@ -124,6 +125,11 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsFilterPolicies(strin
 // MetricsGeneratorProcessorSpanMetricsDimensionMappings controls custom dimension mapping
 func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionMappings(string) []sharedconfig.DimensionMappings {
 	return m.spanMetricsDimensionMappings
+}
+
+// MetricsGeneratorProcessorSpanMetricsDimensionPatterns controls regex-matched dimensions
+func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsDimensionPatterns(string) []string {
+	return m.spanMetricsDimensionPatterns
 }
 
 // The native histogram accessors fall back to the registered production

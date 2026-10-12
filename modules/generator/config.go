@@ -223,6 +223,10 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.SpanMetrics.DimensionMappings = dimensionMappings
 	}
 
+	if dimensionPatterns := o.MetricsGeneratorProcessorSpanMetricsDimensionPatterns(userID); dimensionPatterns != nil {
+		copyCfg.SpanMetrics.DimensionPatterns = dimensionPatterns
+	}
+
 	if enableTargetInfo, ok := o.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID); ok {
 		copyCfg.SpanMetrics.EnableTargetInfo = enableTargetInfo
 	}

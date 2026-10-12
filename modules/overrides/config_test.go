@@ -449,6 +449,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 				Join:        "join-1",
 			},
 		},
+		MetricsGeneratorProcessorSpanMetricsDimensionPatterns:              []string{"^fruit_.*"},
 		MetricsGeneratorProcessorSpanMetricsEnableTargetInfo:               boolPtr(true),
 		MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions:   []string{"excluded-dim-1", "excluded-dim-2"},
 		MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel:            boolPtr(false),

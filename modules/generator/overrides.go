@@ -28,6 +28,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsIntrinsicDimensions(userID string) map[string]bool
 	MetricsGeneratorProcessorSpanMetricsFilterPolicies(userID string) []filterconfig.FilterPolicy
 	MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID string) []sharedconfig.DimensionMappings
+	MetricsGeneratorProcessorSpanMetricsDimensionPatterns(userID string) []string
 	MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID string) (bool, bool)
 	MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID string) bool
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) (bool, bool)

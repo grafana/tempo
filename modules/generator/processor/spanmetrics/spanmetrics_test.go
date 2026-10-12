@@ -314,6 +314,118 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
 }
 
+func TestSpanMetrics_dimensionPatterns(t *testing.T) {
+	newProcessor := func(t *testing.T, cfg Config) (gen.Processor, *registry.TestRegistry) {
+		testRegistry := registry.NewTestRegistry()
+		filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+		invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.HistogramBuckets = []float64{0.5, 1}
+
+		p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+		require.NoError(t, err)
+		t.Cleanup(func() { p.Shutdown(context.Background()) })
+		return p, testRegistry
+	}
+
+	stringAttr := func(key, value string) *common_v1.KeyValue {
+		return &common_v1.KeyValue{
+			Key:   key,
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: value}},
+		}
+	}
+
+	t.Run("invalid pattern rejected at construction", func(t *testing.T) {
+		cfg := Config{DimensionPatterns: []string{"["}}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		testRegistry := registry.NewTestRegistry()
+		filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+		invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+
+		_, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+		require.Error(t, err)
+	})
+
+	t.Run("wildcard matches each attribute as its own label", func(t *testing.T) {
+		p, testRegistry := newProcessor(t, Config{DimensionPatterns: []string{"^fruit_.*"}})
+
+		batch := test.MakeBatch(10, nil)
+		for _, ss := range batch.ScopeSpans {
+			for _, s := range ss.Spans {
+				s.Attributes = append(s.Attributes,
+					stringAttr("fruit_apple", "3"),
+					stringAttr("fruit_orange", "5"),
+					stringAttr("other_key", "should-not-appear"),
+				)
+			}
+		}
+
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+		lbls := labels.FromMap(map[string]string{
+			"service":      "test-service",
+			"span_name":    "test",
+			"span_kind":    "SPAN_KIND_CLIENT",
+			"status_code":  "STATUS_CODE_OK",
+			"fruit_apple":  "3",
+			"fruit_orange": "5",
+		})
+		assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+	})
+
+	t.Run("resource attribute wins over span attribute with the same key", func(t *testing.T) {
+		p, testRegistry := newProcessor(t, Config{DimensionPatterns: []string{"^dup_.*"}})
+
+		batch := test.MakeBatch(10, nil)
+		batch.Resource.Attributes = append(batch.Resource.Attributes, stringAttr("dup_x", "resource-value"))
+		for _, ss := range batch.ScopeSpans {
+			for _, s := range ss.Spans {
+				s.Attributes = append(s.Attributes, stringAttr("dup_x", "span-value"))
+			}
+		}
+
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+		lbls := labels.FromMap(map[string]string{
+			"service":     "test-service",
+			"span_name":   "test",
+			"span_kind":   "SPAN_KIND_CLIENT",
+			"status_code": "STATUS_CODE_OK",
+			"dup_x":       "resource-value",
+		})
+		assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+	})
+
+	t.Run("exact dimension wins over a pattern match producing the same label", func(t *testing.T) {
+		p, testRegistry := newProcessor(t, Config{
+			Dimensions:        []string{"foo.bar"},
+			DimensionPatterns: []string{"^foo_bar$"},
+		})
+
+		batch := test.MakeBatch(10, nil)
+		for _, ss := range batch.ScopeSpans {
+			for _, s := range ss.Spans {
+				s.Attributes = append(s.Attributes,
+					stringAttr("foo.bar", "exact-value"),
+					stringAttr("foo_bar", "pattern-value"),
+				)
+			}
+		}
+
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+
+		lbls := labels.FromMap(map[string]string{
+			"service":     "test-service",
+			"span_name":   "test",
+			"span_kind":   "SPAN_KIND_CLIENT",
+			"status_code": "STATUS_CODE_OK",
+			"foo_bar":     "exact-value",
+		})
+		assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+	})
+}
+
 func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
 	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
