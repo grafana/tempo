@@ -28,7 +28,7 @@ func attr(scope, name, typ string, totalBytes uint64, sel float64, value string)
 	}
 }
 
-func TestPhase2Cases(t *testing.T) {
+func TestGeneratedCases(t *testing.T) {
 	tests := []struct {
 		name string
 		prof *profile.BlockProfile
@@ -130,7 +130,7 @@ func TestPhase2Cases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := phase2Cases(tt.prof)
+			got := generatedCases(tt.prof)
 			require.Len(t, got, len(tt.want))
 
 			for i, c := range got {
@@ -147,19 +147,42 @@ func TestPhase2Cases(t *testing.T) {
 	}
 }
 
-// Generated cases shard the way the phase 1 search case does: one execution per
+// Generated cases shard the way the fixed search case does: one execution per
 // shard, over the block's own window.
-func TestPhase2CasesShard(t *testing.T) {
+func TestGeneratedCasesShard(t *testing.T) {
 	prof := ranked(attr(attributes.ScopeSpan, "key", attributes.TypeString, 10, 0.9, "value"))
 	prof.Block = &backend.BlockMeta{}
 
-	cases := phase2Cases(prof)
+	cases := generatedCases(prof)
 	require.Len(t, cases, 1)
 
 	shards := []Shard{{Index: 0, StartPage: 0, TotalPages: 2}, {Index: 1, StartPage: 2, TotalPages: 2}}
 	executions, err := cases[0].executions(prof, shards, RunOptions{})
 	require.NoError(t, err)
 	require.Len(t, executions, len(shards))
+}
+
+// allCases keeps the cases of an API together, so the summary of a comparison
+// shows one group per API: the generated searches join the fixed search case,
+// not a group of their own after the metadata cases.
+func TestAllCasesKeepsAPIsTogether(t *testing.T) {
+	prof := ranked(
+		attr(attributes.ScopeSpan, "most", attributes.TypeString, 30, 0.95, "x"),
+		attr(attributes.ScopeSpan, "some", attributes.TypeString, 20, 0.6, "y"),
+		attr(attributes.ScopeSpan, "few", attributes.TypeString, 10, 0.01, "z"),
+	)
+
+	var got []string
+	for _, c := range allCases(prof) {
+		got = append(got, c.id)
+	}
+	require.Equal(t, []string{
+		"traceid/present", "traceid/absent",
+		"search/nopredicate", "search/attr/high", "search/attr/medium", "search/attr/low",
+		"metrics/rate", "metrics/rate-by-service",
+		"metadata/tagnames/none", "metadata/tagnames/resource", "metadata/tagnames/span",
+		"metadata/tagnames/event", "metadata/tagnames/link", "metadata/tagnames/instrumentation",
+	}, got)
 }
 
 func TestSelectivityBand(t *testing.T) {

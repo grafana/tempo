@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"slices"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,7 +49,7 @@ func Run(ctx context.Context, blockPath string, prof *profile.BlockProfile, opts
 	}
 
 	start := time.Now()
-	all := slices.Concat(phase1Cases(), phase2Cases(prof))
+	all := allCases(prof)
 	cases := make([]CaseResult, 0, len(all))
 	for _, queryCase := range all {
 		cases = append(cases, runCase(ctx, block, prof, shards, queryCase, opts, counter, prometheus.DefaultGatherer))

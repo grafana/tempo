@@ -1,8 +1,10 @@
 package benchmark
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -20,7 +22,7 @@ const (
 	apiMetadata  = "metadata"
 )
 
-// basicMetricsQueries are the phase 1 metrics queries. Phase 1 does no
+// basicMetricsQueries are the fixed metrics queries. The fixed set does no
 // attribute profiling, so the grouped query groups by a well-known attribute.
 var basicMetricsQueries = []struct {
 	id    string
@@ -52,8 +54,8 @@ type benchCase struct {
 	executions func(*profile.BlockProfile, []Shard, RunOptions) ([]execution, error)
 }
 
-// phase1Cases is the fixed query set: no generated queries, no attribute profiling.
-func phase1Cases() []benchCase {
+// fixedCases is the fixed query set: no generated queries, no attribute profiling.
+func fixedCases() []benchCase {
 	cases := []benchCase{
 		{
 			id:  "traceid/present",
@@ -131,9 +133,9 @@ func selectivityBand(s float64) string {
 	}
 }
 
-// phase2Cases generates a search per selectivity band: high, medium, low.
+// generatedCases generates a search per selectivity band: high, medium, low.
 // The selectivity indicates a predicate's cost.
-func phase2Cases(prof *profile.BlockProfile) []benchCase {
+func generatedCases(prof *profile.BlockProfile) []benchCase {
 	if prof.Attributes == nil {
 		return nil
 	}
@@ -141,7 +143,7 @@ func phase2Cases(prof *profile.BlockProfile) []benchCase {
 	byBand := map[string]string{}
 	for _, a := range prof.Attributes.Ranked {
 		if len(a.Values) == 0 {
-			continue // quantiles stand for `>` predicates, a later phase
+			continue // quantiles stand for `>` predicates, a later change
 		}
 		ref, ok := attributeReference(a.Scope, a.Name)
 		if !ok {
@@ -168,6 +170,28 @@ func phase2Cases(prof *profile.BlockProfile) []benchCase {
 		})
 	}
 	return cases
+}
+
+// allCases is every case a run measures: the fixed set with the profile's
+// generated cases, the cases of each API kept together, so a comparison
+// lists one group per API rather than one per phase. The fixed set fixes
+// the order the groups come in; generated cases of an API it lacks come
+// after, as a group of their own.
+func allCases(prof *profile.BlockProfile) []benchCase {
+	all := slices.Concat(fixedCases(), generatedCases(prof))
+
+	// The cases of an API stay together, in the order the APIs first appear
+	// in the list above — the fixed set's order — and, within an API, as given.
+	first := map[string]int{}
+	for i, c := range all {
+		if _, ok := first[c.api]; !ok {
+			first[c.api] = i
+		}
+	}
+	slices.SortStableFunc(all, func(a, b benchCase) int {
+		return cmp.Compare(first[a.api], first[b.api])
+	})
+	return all
 }
 
 // attributeReference writes a profile attribute as a TraceQL reference:

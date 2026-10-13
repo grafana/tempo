@@ -216,7 +216,7 @@ func TestRunGeneratesAttributeCases(t *testing.T) {
 	for id, c := range generated {
 		require.Empty(t, c.Error, "case %s", id)
 		require.NotEmpty(t, c.Query, "case %s", id)
-		// A sharded case runs one execution per shard, like the phase 1 search.
+		// A sharded case runs one execution per shard, like the fixed search.
 		require.Equal(t, result.Shards, c.Executions, "case %s", id)
 		require.Positive(t, c.Matched, "case %s matched nothing; the profile's value was wrong", id)
 	}
