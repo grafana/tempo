@@ -139,6 +139,12 @@ func ValidateDimensions(dimensions []string, intrinsicDimensions []string, dimen
 
 func ValidateDimensionPatterns(patterns []string) error {
 	for _, p := range patterns {
+		// An empty pattern compiles fine and matches every string, turning every
+		// span and resource attribute into its own label - almost certainly a
+		// config mistake, and one that can drive a tenant into series overflow.
+		if p == "" {
+			return errors.New("dimension_patterns entries cannot be empty")
+		}
 		if _, err := regexp.Compile(p); err != nil {
 			return fmt.Errorf("dimension_patterns %q is not a valid regular expression: %w", p, err)
 		}

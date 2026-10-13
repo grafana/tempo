@@ -268,6 +268,8 @@ func TestValidateDimensionPatterns(t *testing.T) {
 		{name: "multiple valid patterns", patterns: []string{"^fruit_.*", "^veg_.*"}},
 		{name: "invalid pattern", patterns: []string{"["}, expErr: true},
 		{name: "one invalid among valid", patterns: []string{"^fruit_.*", "("}, expErr: true},
+		{name: "empty pattern rejected", patterns: []string{""}, expErr: true},
+		{name: "empty pattern among valid", patterns: []string{"^fruit_.*", ""}, expErr: true},
 	}
 
 	for _, tt := range tests {

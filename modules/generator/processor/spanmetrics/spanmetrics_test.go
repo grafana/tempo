@@ -347,6 +347,17 @@ func TestSpanMetrics_dimensionPatterns(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("empty pattern rejected at construction", func(t *testing.T) {
+		cfg := Config{DimensionPatterns: []string{""}}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		testRegistry := registry.NewTestRegistry()
+		filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics")
+		invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics")
+
+		_, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+		require.Error(t, err)
+	})
+
 	t.Run("wildcard matches each attribute as its own label", func(t *testing.T) {
 		p, testRegistry := newProcessor(t, Config{DimensionPatterns: []string{"^fruit_.*"}})
 
