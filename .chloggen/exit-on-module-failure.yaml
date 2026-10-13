@@ -8,11 +8,11 @@ change_type: bug_fix
 component: tempo
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Exit 1 when a module fails, instead of stopping and returning success.
+note: Exit 1 when a module fails on its own. A requested shutdown still exits 0.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
-issues: [7874]
+issues: [7958, 7874]
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext:

@@ -264,6 +264,11 @@ func (t *App) Run() error {
 	if err := sm.AwaitStopped(context.Background()); err != nil {
 		return err
 	}
+	// A signal already requested shutdown. A module that fails while stopping
+	// should not turn that into exit 1.
+	if shutdownRequested.Load() {
+		return nil
+	}
 	// The failure listener runs on its own goroutine, so it can still be
 	// pending when the manager reports stopped. The service already stores
 	// the error before that report.
@@ -276,14 +281,15 @@ func failedModuleError(serviceMap map[string]services.Service) error {
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	var errs []error
 	for _, name := range names {
 		err := serviceMap[name].FailureCase()
 		if err == nil || errors.Is(err, modules.ErrStopProcess) || errors.Is(err, context.Canceled) {
 			continue
 		}
-		return fmt.Errorf("module %s failed: %w", name, err)
+		errs = append(errs, fmt.Errorf("module %s failed: %w", name, err))
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // Stop the app. It panics if the app is not running.

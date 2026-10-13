@@ -103,6 +103,7 @@ func TestApp_RunExitsWhenOverridesFailToLoad(t *testing.T) {
 	config.StorageConfig.Trace.Backend = backend.Local
 	config.StorageConfig.Trace.Local.Path = filepath.Join(tempDir, "tempo")
 	config.StorageConfig.Trace.WAL.Filepath = filepath.Join(tempDir, "wal")
+	config.BackendScheduler.LocalWorkPath = tempDir
 	config.UsageReport.Enabled = false
 	config.Overrides.PerTenantOverrideConfig = overridesFile
 
@@ -117,7 +118,7 @@ func TestApp_RunExitsWhenOverridesFailToLoad(t *testing.T) {
 	select {
 	case err := <-errCh:
 		require.Error(t, err)
-		require.ErrorContains(t, err, "module")
+		require.ErrorContains(t, err, "failed to load runtime config")
 	case <-time.After(30 * time.Second):
 		app.Stop()
 		t.Fatal("process kept running after overrides failed to load")
