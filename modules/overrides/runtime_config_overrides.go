@@ -464,6 +464,26 @@ func (o *runtimeConfigOverridesManager) MaxMetricsDuration(userID string) time.D
 	return time.Duration(o.getOverridesForUser(userID).Read.MaxMetricsDuration)
 }
 
+// MaxMetricsScannedBytes is the byte budget of backend blocks a metrics query may scan for this tenant.
+func (o *runtimeConfigOverridesManager) MaxMetricsScannedBytes(userID string) uint64 {
+	return o.getOverridesForUser(userID).Read.MaxMetricsScannedBytes
+}
+
+// MinMetricsDuration is the metrics query range always allowed for this tenant, even over the scanned bytes budget.
+func (o *runtimeConfigOverridesManager) MinMetricsDuration(userID string) time.Duration {
+	return time.Duration(o.getOverridesForUser(userID).Read.MinMetricsDuration)
+}
+
+// MaxSearchScannedBytes is the byte budget of backend blocks a search may scan for this tenant.
+func (o *runtimeConfigOverridesManager) MaxSearchScannedBytes(userID string) uint64 {
+	return o.getOverridesForUser(userID).Read.MaxSearchScannedBytes
+}
+
+// MinSearchDuration is the search range always allowed for this tenant, even over the scanned bytes budget.
+func (o *runtimeConfigOverridesManager) MinSearchDuration(userID string) time.Duration {
+	return time.Duration(o.getOverridesForUser(userID).Read.MinSearchDuration)
+}
+
 // MetricsGeneratorIngestionSlack is the max amount of time passed since a span's end time
 // for the span to be considered in metrics generation
 func (o *runtimeConfigOverridesManager) MetricsGeneratorIngestionSlack(userID string) time.Duration {
