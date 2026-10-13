@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -475,7 +476,7 @@ func TestBackendRequests(t *testing.T) {
 			pipelineRequest := pipeline.NewHTTPRequest(r)
 
 			searchJobResponse := &combiner.SearchJobResponse{}
-			s.backendRequests(ctx, "test", pipelineRequest, searchReq, searchJobResponse, reqCh, cancelCause)
+			s.backendRequests(ctx, "test", pipelineRequest, searchReq, time.Now().Add(-s.cfg.QueryBackendAfter), func() []*backend.BlockMeta { return s.reader.BlockMetas("test") }, searchJobResponse, reqCh, cancelCause)
 			require.Equal(t, tc.expectedJobs, searchJobResponse.TotalJobs)
 			require.Equal(t, tc.expectedBlocks, searchJobResponse.TotalBlocks)
 			require.Equal(t, tc.expectedBlockBytes, searchJobResponse.TotalBytes)
@@ -803,7 +804,7 @@ func TestBackendRange(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		actualStart, actualEnd := backendRange(searchReq.Start, searchReq.End, tc.queryBackendAfter)
+		actualStart, actualEnd := backendRange(searchReq.Start, searchReq.End, time.Now().Add(-tc.queryBackendAfter))
 		assert.Equal(t, int(tc.expectedStart), int(actualStart))
 		assert.Equal(t, int(tc.expectedEnd), int(actualEnd))
 	}
@@ -973,37 +974,6 @@ func TestAdjustLimit(t *testing.T) {
 	l, err = adjustLimit(25, 10, 20)
 	require.Equal(t, uint32(0), l)
 	require.EqualError(t, err, "limit 25 exceeds max limit 20")
-}
-
-func TestMaxDuration(t *testing.T) {
-	//
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
-	require.NoError(t, err)
-	sharder := asyncSearchSharder{
-		cfg: SearchSharderConfig{
-			MaxDuration: 5 * time.Minute,
-		},
-		overrides: o,
-	}
-	actual := sharder.maxDuration("test")
-	assert.Equal(t, 5*time.Minute, actual)
-
-	o, err = overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Read: overrides.ReadOverrides{
-				MaxSearchDuration: model.Duration(10 * time.Minute),
-			},
-		},
-	}, nil, prometheus.DefaultRegisterer)
-	require.NoError(t, err)
-	sharder = asyncSearchSharder{
-		cfg: SearchSharderConfig{
-			MaxDuration: 5 * time.Minute,
-		},
-		overrides: o,
-	}
-	actual = sharder.maxDuration("test")
-	assert.Equal(t, 10*time.Minute, actual)
 }
 
 func newJobsPerQueryHistogram() *prometheus.HistogramVec {
@@ -1514,4 +1484,148 @@ func urisEqual(t *testing.T, expectedURIs, actualURIs []string) {
 
 		assert.Equal(t, e, a)
 	}
+}
+
+func TestSearchSharderScannedBytesLimit(t *testing.T) {
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+		return nil, nil
+	})
+	metas := []*backend.BlockMeta{
+		{StartTime: time.Unix(3000, 0), EndTime: time.Unix(4000, 0), Size_: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")},
+		{StartTime: time.Unix(1000, 0), EndTime: time.Unix(2000, 0), Size_: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002")},
+	}
+
+	tcs := []struct {
+		name            string
+		query           string
+		maxScannedBytes uint64
+		maxDuration     time.Duration
+		minDuration     time.Duration
+		wantErr         string
+		wantOutcome     string
+		wantCalls       int
+	}{
+		{
+			name:        "limit off keeps the max_duration error and logs nothing",
+			query:       "/?start=1&end=8200",
+			maxDuration: time.Hour,
+			wantErr:     "range specified by start and end exceeds 1h0m0s. received start=1 end=8200",
+		},
+		{
+			name:            "over max_duration keeps its error and is logged",
+			query:           "/?start=1&end=8200",
+			maxScannedBytes: 150,
+			maxDuration:     time.Hour,
+			wantErr:         "range specified by start and end exceeds 1h0m0s. received start=1 end=8200",
+			wantOutcome:     scannedBytesOutcomeRejectedMaxDuration,
+			wantCalls:       1,
+		},
+		{
+			name:            "over the budget",
+			query:           "/?start=1&end=8200",
+			maxScannedBytes: 150,
+			maxDuration:     168 * time.Hour,
+			// The floor binds above the 1h43m19s the budget allows, so the config min_duration must reach the decision.
+			minDuration: 2 * time.Hour,
+			wantErr:     "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes)",
+			wantOutcome: scannedBytesOutcomeRejected,
+			wantCalls:   1,
+		},
+		{
+			name:            "max_duration error comes before the spans per span set error",
+			query:           "/?start=1&end=8200&spss=200",
+			maxScannedBytes: 150,
+			maxDuration:     time.Hour,
+			wantErr:         "range specified by start and end exceeds 1h0m0s. received start=1 end=8200",
+			wantOutcome:     scannedBytesOutcomeRejectedMaxDuration,
+			wantCalls:       1,
+		},
+		{
+			// The blocklist is walked, but the rejected search stays out of the metrics and log.
+			name:            "spans per span set error logs nothing",
+			query:           "/?start=1&end=8200&spss=200",
+			maxScannedBytes: 150,
+			maxDuration:     168 * time.Hour,
+			wantErr:         "spans per span set exceeds 100. received 200",
+			wantCalls:       1,
+		},
+		{
+			// The scanned bytes check and the backend scan share one blocklist copy.
+			name:            "within the budget",
+			query:           "/?start=1&end=8200",
+			maxScannedBytes: 10_000,
+			maxDuration:     168 * time.Hour,
+			wantOutcome:     scannedBytesOutcomeWithin,
+			wantCalls:       1,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+			require.NoError(t, err)
+			rdr := &countingMockReader{mockReader: mockReader{metas: metas}}
+			var buf bytes.Buffer
+			sharder := newAsyncSearchSharder(rdr, o, SearchSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
+				MaxSpansPerSpanSet:    100,
+				MaxDuration:           tc.maxDuration,
+				MinDuration:           tc.minDuration,
+				MaxScannedBytes:       tc.maxScannedBytes,
+			}, nil, newJobsPerQueryHistogram(), log.NewLogfmtLogger(&buf))
+
+			req := httptest.NewRequest("GET", tc.query, nil)
+			req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
+			countBefore := outcomeCount("blerg", searchOp, tc.wantOutcome)
+			resp, err := sharder.Wrap(next).RoundTrip(pipeline.NewHTTPRequest(req))
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				testBadRequestFromResponses(t, resp, err, tc.wantErr)
+			}
+
+			require.Equal(t, tc.wantCalls, rdr.callCount())
+			if tc.wantOutcome == "" {
+				require.Empty(t, buf.String())
+			} else {
+				require.Contains(t, buf.String(), "outcome="+tc.wantOutcome+" ")
+				require.Equal(t, 1.0, outcomeCount("blerg", searchOp, tc.wantOutcome)-countBefore)
+			}
+		})
+	}
+}
+
+func TestSearchSharderScannedBytesLimitCutoff(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// A half second past the boundary, so the cutoff's truncation to whole seconds shows in the allowed range.
+		time.Sleep(500 * time.Millisecond)
+		now := time.Now()
+		// One large block straddles the cutoff at now-30m. The 28m after it reach no backend block.
+		reader := &mockReader{metas: []*backend.BlockMeta{{
+			StartTime: now.Add(-40 * time.Minute),
+			EndTime:   now.Add(-time.Minute),
+			Size_:     1000,
+			BlockID:   backend.MustParse("00000000-0000-0000-0000-000000000001"),
+		}}}
+		o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+		require.NoError(t, err)
+		sharder := newAsyncSearchSharder(reader, o, SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+			MostRecentShards:      defaultMostRecentShards,
+			MaxDuration:           168 * time.Hour,
+			MaxScannedBytes:       500,
+			QueryBackendAfter:     30 * time.Minute,
+		}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
+		next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+			return nil, nil
+		})
+
+		req := httptest.NewRequest("GET", fmt.Sprintf("/?start=%d&end=%d", now.Add(-time.Hour).Unix(), now.Add(-2*time.Minute).Unix()), nil)
+		req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
+		resp, err := sharder.Wrap(next).RoundTrip(pipeline.NewHTTPRequest(req))
+		testBadRequestFromResponses(t, resp, err, "search time range of 58m0s exceeds the maximum allowed range of 28m0s for tenant blerg (limited by scanned bytes)")
+	})
 }

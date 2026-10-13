@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
@@ -37,6 +38,10 @@ type SearchSharderConfig struct {
 	DefaultLimit          uint32        `yaml:"default_result_limit"`
 	MaxLimit              uint32        `yaml:"max_result_limit"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
+	// MaxScannedBytes is the byte budget of backend blocks a search range may overlap. 0 disables the limit.
+	MaxScannedBytes uint64 `yaml:"max_scanned_bytes,omitempty"`
+	// MinDuration is the range always allowed when MaxScannedBytes is set, even if it is over the budget.
+	MinDuration time.Duration `yaml:"min_duration,omitempty"`
 	// QueryBackendAfter determines when to query backend storage vs ingesters only.
 	QueryBackendAfter      time.Duration `yaml:"query_backend_after,omitempty"`
 	IngesterShards         int           `yaml:"ingester_shards,omitempty"`
@@ -101,10 +106,27 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	ctx, span := tracer.Start(requestCtx, "frontend.ShardSearch")
 	defer span.End()
 
-	// calculate and enforce max search duration
-	maxDuration := s.maxDuration(tenantID)
-	if maxDuration != 0 && time.Duration(searchReq.End-searchReq.Start)*time.Second > maxDuration {
-		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", maxDuration, searchReq.Start, searchReq.End)), nil
+	// One cutoff, in whole seconds like backendRange, keeps the limit check and the backend scan on the same window.
+	cutoff := time.Unix(time.Now().Add(-s.cfg.QueryBackendAfter).Unix(), 0)
+	metas := sync.OnceValue(func() []*backend.BlockMeta { return s.reader.BlockMetas(tenantID) })
+
+	// calculate and enforce max search duration and the scanned bytes limit
+	limit := evaluateScannedBytesLimit(s.overrides, scannedBytesConfig{
+		maxDuration:     s.cfg.MaxDuration,
+		minDuration:     s.cfg.MinDuration,
+		maxScannedBytes: s.cfg.MaxScannedBytes,
+	}, scannedBytesQuery{
+		op:        searchOp,
+		tenantID:  tenantID,
+		requested: time.Duration(searchReq.End-searchReq.Start) * time.Second,
+		start:     time.Unix(int64(searchReq.Start), 0),
+		end:       time.Unix(int64(searchReq.End), 0),
+		cutoff:    cutoff,
+		metas:     metas,
+	})
+	if limit.outcome == scannedBytesOutcomeRejectedMaxDuration {
+		limit.record(span, s.logger)
+		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", limit.maxDuration, searchReq.Start, searchReq.End)), nil
 	}
 
 	// Validate SpansPerSpanSet against MaxSpansPerSpanSet
@@ -112,6 +134,12 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	// If MaxSpansPerSpanSet is non-zero, enforce the limit
 	if s.cfg.MaxSpansPerSpanSet != 0 && searchReq.SpansPerSpanSet > s.cfg.MaxSpansPerSpanSet {
 		return pipeline.NewBadRequest(fmt.Errorf("spans per span set exceeds %d. received %d", s.cfg.MaxSpansPerSpanSet, searchReq.SpansPerSpanSet)), nil
+	}
+
+	// Recorded only now, so searches the spans per span set check rejects stay out of the metrics and log.
+	limit.record(span, s.logger)
+	if err := limit.scannedBytesErr("search"); err != nil {
+		return pipeline.NewBadRequest(err), nil
 	}
 
 	// buffer of shards+1 allows us to insert ingestReq and metrics
@@ -125,7 +153,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	}
 
 	// pass subCtx in requests so we can cancel and exit early
-	s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, jobMetrics, reqCh, func(err error) {
+	s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, cutoff, metas, jobMetrics, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
 		s.logger.Log("msg", "search: failed to build backend requests", "err", err)
 	})
@@ -138,7 +166,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, resp *combiner.SearchJobResponse, reqCh chan<- pipeline.Request, errFn func(error)) {
+func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, cutoff time.Time, metas func() []*backend.BlockMeta, resp *combiner.SearchJobResponse, reqCh chan<- pipeline.Request, errFn func(error)) {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -146,7 +174,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 	}
 
 	// calculate duration (start and end) to search the backend blocks
-	start, end := backendRange(searchReq.Start, searchReq.End, s.cfg.QueryBackendAfter)
+	start, end := backendRange(searchReq.Start, searchReq.End, cutoff)
 
 	// no need to search backend
 	if start == end {
@@ -157,7 +185,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 	startT := time.Unix(int64(start), 0)
 	endT := time.Unix(int64(end), 0)
 
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, acceptAllBlocks)
+	blocks := blockMetasForSearch(metas(), startT, endT, acceptAllBlocks)
 
 	// calculate metrics to return to the caller
 	resp.TotalBlocks = len(blocks)
@@ -269,22 +297,10 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 	return resp, nil
 }
 
-// maxDuration returns the max search duration allowed for this tenant.
-func (s *asyncSearchSharder) maxDuration(tenantID string) time.Duration {
-	// check overrides first, if no overrides then grab from our config
-	maxDuration := s.overrides.MaxSearchDuration(tenantID)
-	if maxDuration != 0 {
-		return maxDuration
-	}
-
-	return s.cfg.MaxDuration
-}
-
-// backendRange returns a new start/end range for the backend based on the config parameter
+// backendRange returns a new start/end range for the backend based on cutoff, which is now minus
 // query_backend_after. If the returned start == the returned end then backend querying is not necessary.
-func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, uint32) {
-	now := time.Now()
-	backendAfter := uint32(now.Add(-queryBackendAfter).Unix())
+func backendRange(start, end uint32, cutoff time.Time) (uint32, uint32) {
+	backendAfter := uint32(cutoff.Unix())
 
 	// adjust start/end if necessary. if the entire query range was inside backendAfter then
 	// start will == end. This signals we don't need to query the backend.
