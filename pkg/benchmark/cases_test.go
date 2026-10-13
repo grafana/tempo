@@ -168,9 +168,9 @@ func TestSelectivityBand(t *testing.T) {
 		want string
 	}{
 		{1.0, "high"},
-		{0.5, "high"},
-		{0.499, "medium"},
-		{0.1, "medium"},
+		{0.9, "high"},
+		{0.899, "medium"},
+		{0.5, "medium"},
 		{0.099, "low"},
 		{0, "low"},
 	} {

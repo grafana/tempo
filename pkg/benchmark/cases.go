@@ -122,9 +122,9 @@ func phase1Cases() []benchCase {
 // low is rejected early, medium filters as it goes.
 func selectivityBand(s float64) string {
 	switch {
-	case s >= 0.5:
+	case s >= 0.9:
 		return "high"
-	case s >= 0.1:
+	case s >= 0.5:
 		return "medium"
 	default:
 		return "low"
