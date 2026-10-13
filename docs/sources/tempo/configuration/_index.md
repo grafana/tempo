@@ -900,6 +900,9 @@ metrics_generator:
         [stale_duration: <duration> | default = 15m]
 
         # A list of labels that will be added to all generated metrics.
+        # Set a label that is unique for each metrics-generator StatefulSet or cluster when
+        # multiple StatefulSets write to the same remote write backend. Otherwise, generators with
+        # the same pod name write to the same series.
         [external_labels: <map>]
 
         # If set, the tenant ID will added as label with the given label name to all generated metrics.
