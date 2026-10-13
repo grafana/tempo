@@ -60,6 +60,10 @@ Unusually large traces often indicate a retry loop or misconfigured instrumentat
 Use the `tempo_distributor_trace_size_bytes` histogram to observe the size distribution of every trace received by the distributor, per tenant.
 Unlike the limits above, this histogram records all traces, so you can see how close traces get to the limit before they are dropped.
 
+The distributor sees each push request separately, so a trace sent across many requests shows up as several smaller samples.
+Use the `tempodb_compaction_trace_size_bytes` histogram to observe the size of combined traces written by compaction, per tenant and compaction level.
+Each compaction level rewrites the trace, so filter to the highest level to approximate the final trace size.
+
 ### Example configuration
 
 To estimate the rate limit you need, multiply your average span size by your peak spans-per-second across all services for a given tenant.
