@@ -34,6 +34,7 @@ const (
 	configIngestPartialSucess = "config-ingest-partial-success.yaml"
 	configQueryRate           = "config-query-rate.yaml"
 	configIngest              = "config-ingest.yaml"
+	configQueryScannedBytes   = "config-query-scanned-bytes.yaml"
 )
 
 func TestIngestionLimits(t *testing.T) {
@@ -330,5 +331,85 @@ func TestQueryRateLimits(t *testing.T) {
 		}
 		require.ErrorContains(t, err, "job queue full")
 		require.ErrorContains(t, err, "code = ResourceExhausted")
+	})
+}
+
+func TestQueryScannedBytesLimits(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		ConfigOverlay: configQueryScannedBytes,
+		// The block-builder writes the backend blocks the budget counts.
+		Components: util.ComponentsBackendQuerying,
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		require.NoError(t, h.WriteTraceInfo(tempoUtil.NewTraceInfo(time.Now(), ""), ""))
+		h.WaitTracesWrittenToBackend(t, 1)
+
+		apiClient := h.APIClientHTTP("")
+		end := time.Now().Unix()
+		hourAgo := end - int64(time.Hour/time.Second)
+		floorAgo := end - int64(10*time.Minute/time.Second)
+
+		// One byte of budget makes every backend block overflow, so the 10m floor sets the allowed range.
+		_, err := apiClient.MetricsQueryRange("{} | rate()", hourAgo, end, "60s", 0)
+		require.ErrorContains(t, err, "failed with response: 400")
+		require.ErrorContains(t, err, "metrics query time range of 1h0m0s exceeds the maximum allowed range of 10m0s for tenant single-tenant (limited by scanned bytes)")
+
+		_, err = apiClient.SearchTraceQLWithRange("{}", hourAgo, end)
+		require.ErrorContains(t, err, "failed with response: 400")
+		require.ErrorContains(t, err, "search time range of 1h0m0s exceeds the maximum allowed range of 10m0s for tenant single-tenant (limited by scanned bytes)")
+
+		// A query at the floor passes.
+		_, err = apiClient.MetricsQueryRange("{} | rate()", floorAgo, end, "60s", 0)
+		require.NoError(t, err)
+		_, err = apiClient.SearchTraceQLWithRange("{}", floorAgo, end)
+		require.NoError(t, err)
+
+		queryFrontend := h.Services[util.ServiceQueryFrontend]
+		for _, tc := range []struct{ op, outcome string }{
+			{"metrics", "rejected"},
+			{"metrics", "floored"},
+			{"search", "rejected"},
+			{"search", "floored"},
+		} {
+			require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(
+				e2e.GreaterOrEqual(1),
+				[]string{"tempo_query_frontend_scanned_bytes_limit_total"},
+				e2e.WithLabelMatchers(
+					labels.MustNewMatcher(labels.MatchEqual, "op", tc.op),
+					labels.MustNewMatcher(labels.MatchEqual, "outcome", tc.outcome),
+				),
+				e2e.WaitMissingMetrics,
+			), "op=%s outcome=%s", tc.op, tc.outcome)
+		}
+
+		// A per-tenant budget, reloaded at runtime, lets the long queries through.
+		require.NoError(t, h.UpdateOverrides(map[string]*overrides.Overrides{
+			"single-tenant": {
+				Read: overrides.ReadOverrides{
+					MaxMetricsScannedBytes: 1024 * 1024 * 1024,
+					MaxSearchScannedBytes:  1024 * 1024 * 1024,
+				},
+			},
+		}))
+
+		end = time.Now().Unix()
+		hourAgo = end - int64(time.Hour/time.Second)
+		_, err = apiClient.MetricsQueryRange("{} | rate()", hourAgo, end, "60s", 0)
+		require.NoError(t, err)
+		_, err = apiClient.SearchTraceQLWithRange("{}", hourAgo, end)
+		require.NoError(t, err)
+
+		for _, op := range []string{"metrics", "search"} {
+			require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(
+				e2e.GreaterOrEqual(1),
+				[]string{"tempo_query_frontend_scanned_bytes_limit_total"},
+				e2e.WithLabelMatchers(
+					labels.MustNewMatcher(labels.MatchEqual, "op", op),
+					labels.MustNewMatcher(labels.MatchEqual, "outcome", "within"),
+				),
+				e2e.WaitMissingMetrics,
+			), "op=%s outcome=within", op)
+		}
 	})
 }
