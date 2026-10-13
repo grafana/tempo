@@ -3818,7 +3818,7 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "(histogram_quantile(0.99, sum(rate(tempo_block_builder_flush_size_bytes_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempodb_compaction_output_block_size_bytes_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
      "hide": false,
      "legendFormat": "p99",
      "range": true,
@@ -3830,7 +3830,7 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "(histogram_quantile(0.99, sum(rate(tempo_block_builder_flush_size_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+     "expr": "(histogram_quantile(0.99, sum(rate(tempodb_compaction_output_block_size_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
      "hide": false,
      "legendFormat": "p99",
      "range": true,
@@ -3842,7 +3842,7 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "(histogram_quantile(0.50, sum(rate(tempo_block_builder_flush_size_bytes_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempodb_compaction_output_block_size_bytes_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
      "hide": false,
      "legendFormat": "p50",
      "range": true,
@@ -3854,14 +3854,14 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "(histogram_quantile(0.50, sum(rate(tempo_block_builder_flush_size_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+     "expr": "(histogram_quantile(0.50, sum(rate(tempodb_compaction_output_block_size_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
      "hide": false,
      "legendFormat": "p50",
      "range": true,
      "refId": "B_native"
     }
    ],
-   "title": "Block Builder Flush Size",
+   "title": "Compaction Output Block Size",
    "type": "timeseries"
   },
   {
