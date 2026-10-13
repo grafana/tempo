@@ -1,11 +1,13 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"math"
 	"testing"
 	"time"
 
+	"github.com/go-kit/log" //nolint:all deprecated
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
@@ -122,4 +124,85 @@ func TestValidateMetricsQueryMaxDuration_OverflowSafe(t *testing.T) {
 	}
 	err := validateMetricsQueryMaxDuration(ctx, o, 0, req)
 	require.Error(t, err, "huge range must be rejected, not silently bypassed via overflow")
+}
+
+func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
+	tcs := []struct {
+		name            string
+		start           time.Time
+		maxScannedBytes uint64
+		maxDuration     time.Duration
+		maxIntervals    uint64
+		wantErr         string
+		wantOutcome     string
+		wantCalls       int
+	}{
+		{
+			name:  "limit off reads no blocklist and logs nothing",
+			start: hoursAgo(2),
+		},
+		{
+			name:            "over the budget",
+			start:           hoursAgo(4),
+			maxScannedBytes: 350,
+			wantErr:         "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant foo (limited by scanned bytes)",
+			wantOutcome:     scannedBytesOutcomeRejected,
+			wantCalls:       1,
+		},
+		{
+			name:            "over max_duration keeps its error and is logged",
+			start:           hoursAgo(8),
+			maxScannedBytes: 350,
+			maxDuration:     6 * time.Hour,
+			wantErr:         "metrics query time range exceeds the maximum allowed duration of 6h0m0s",
+			wantOutcome:     scannedBytesOutcomeRejectedMaxDuration,
+			wantCalls:       1,
+		},
+		{
+			name:            "negative max_duration fails closed without logging",
+			start:           hoursAgo(2),
+			maxScannedBytes: 350,
+			maxDuration:     -time.Hour,
+			wantErr:         "metrics query time range exceeds the maximum allowed duration of -1h0m0s",
+		},
+		{
+			name:            "step error skips the blocklist walk",
+			start:           hoursAgo(2),
+			maxScannedBytes: 350,
+			maxIntervals:    10,
+			wantErr:         "step of 1m0s is too small, minimum step for given range is 12m0s",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			cfg := Config{}
+			cfg.Metrics.MaxIntervals = tc.maxIntervals
+			cfg.Metrics.Sharder = QueryRangeSharderConfig{MaxDuration: tc.maxDuration, MaxScannedBytes: tc.maxScannedBytes}
+			o := &mockOverridesScannedBytes{}
+			rdr := &countingMockReader{mockReader: mockReader{metas: hourlyMetricsBlocks(scannedBytesTestEnd)}}
+			sl := newScannedBytesLimiter(rdr, o, cfg.Metrics.Sharder, log.NewLogfmtLogger(&buf))
+
+			countBefore := outcomeCount("foo", metricsOp, tc.wantOutcome)
+			err := validateQueryRangeReq(user.InjectOrgID(context.Background(), "foo"), cfg, o, sl, &tempopb.QueryRangeRequest{
+				Start: uint64(tc.start.UnixNano()),
+				End:   uint64(scannedBytesTestEnd.UnixNano()),
+				Step:  uint64(time.Minute),
+			})
+
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.EqualError(t, err, tc.wantErr)
+			}
+			require.Equal(t, tc.wantCalls, rdr.callCount())
+			if tc.wantOutcome == "" {
+				require.Empty(t, buf.String())
+			} else {
+				require.Contains(t, buf.String(), "outcome="+tc.wantOutcome+" ")
+				require.Equal(t, 1.0, outcomeCount("foo", metricsOp, tc.wantOutcome)-countBefore)
+			}
+		})
+	}
 }
