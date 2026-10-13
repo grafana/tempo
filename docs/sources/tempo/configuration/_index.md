@@ -1238,8 +1238,11 @@ query_frontend:
     mcp_server:
         [enabled: <bool> | default = false]
 
-    # Enables the active queries endpoint on the internal server.
-    [active_queries_enabled: <bool> | default = false]
+    # Query tracker configuration. Enable it to expose active query status pages.
+    query_tracker:
+        [enabled: <bool> | default = false]
+        [max_queries_per_tenant: <int> | default = 20]
+        [max_query_text_bytes: <int> | default = 4096]
 
 ```
 

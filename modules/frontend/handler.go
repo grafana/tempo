@@ -41,19 +41,26 @@ type handler struct {
 	roundTripper           http.RoundTripper
 	logger                 log.Logger
 	logQueryRequestHeaders flagext.StringSliceCSV
+	queryTracker           queryTracker
 }
 
 // newHandler creates a handler
 func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
+	return newHandlerWithTracker(LogQueryRequestHeaders, rt, logger, noopQueryTracker{})
+}
+
+func newHandlerWithTracker(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger, queryTracker queryTracker) http.Handler {
 	return &handler{
 		logQueryRequestHeaders: LogQueryRequestHeaders,
 		roundTripper:           rt,
 		logger:                 logger,
+		queryTracker:           queryTracker,
 	}
 }
 
 // ServeHTTP implements http.Handler
 func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer f.queryTracker.track(r.Context(), r.Method, r.URL.Path, r.URL.Query().Get("q"))()
 	defer func() {
 		_ = r.Body.Close()
 	}()

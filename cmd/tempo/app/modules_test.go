@@ -71,12 +71,12 @@ func newTestStore(t *testing.T, tmpDir string) storage.Store {
 func TestRegisterActiveQueriesHandler(t *testing.T) {
 	router := mux.NewRouter()
 	app := &App{
-		cfg:            *NewDefaultConfig(),
-		InternalServer: &server.Server{HTTP: router},
+		cfg:    *NewDefaultConfig(),
+		Server: &fakeTempoServer{router: router},
 	}
 	app.registerActiveQueriesHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
-	}))
+	}), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusAccepted) }))
 
 	tests := []struct {
 		name       string
@@ -91,10 +91,14 @@ func TestRegisterActiveQueriesHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, api.PathActiveQueries, nil)
-			app.InternalServer.HTTP.ServeHTTP(rec, req)
+			app.Server.HTTPHandler().ServeHTTP(rec, req)
 			require.Equal(t, tt.statusCode, rec.Code)
 		})
 	}
+
+	rec := httptest.NewRecorder()
+	app.Server.HTTPHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, api.PathActiveQueries+"/tenant-a", nil))
+	require.Equal(t, http.StatusAccepted, rec.Code)
 }
 
 func TestConfigureGenerator(t *testing.T) {

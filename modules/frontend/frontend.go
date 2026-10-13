@@ -50,7 +50,7 @@ type QueryFrontend struct {
 	TraceByIDHandler, TraceByIDHandlerV2, TraceDiffHandler, SearchHandler                      http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler
-	ActiveQueriesHandler                                                                       http.Handler
+	ActiveQueriesHandler, ActiveQueriesTenantHandler                                           http.Handler
 	MCPHandler                                                                                 http.Handler
 	cacheProvider                                                                              cache.Provider
 	streamingSearch                                                                            streamingSearchHandler
@@ -60,7 +60,7 @@ type QueryFrontend struct {
 	streamingTagValuesV2                                                                       streamingTagValuesV2Handler
 	streamingQueryRange                                                                        streamingQueryRangeHandler
 	streamingQueryInstant                                                                      streamingQueryInstantHandler
-	activeQueries                                                                              *activeQueryTracker
+	activeQueries                                                                              queryTracker
 	logger                                                                                     log.Logger
 }
 
@@ -250,9 +250,9 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, o, logger, dataAccessController) // Reuses the same pipeline
 	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, o, logger, dataAccessController)
 
-	activeQueries := newActiveQueryTracker(logger)
+	activeQueries := newQueryTracker(cfg.QueryTracker)
 	trackedHandler := func(rt http.RoundTripper) http.Handler {
-		return activeQueries.wrap(newHandler(cfg.Config.LogQueryRequestHeaders, rt, logger))
+		return newHandlerWithTracker(cfg.Config.LogQueryRequestHeaders, rt, logger, activeQueries)
 	}
 
 	f := &QueryFrontend{
@@ -267,7 +267,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		SearchTagsValuesV2Handler:  trackedHandler(searchTagValuesV2),
 		MetricsQueryInstantHandler: trackedHandler(queryInstant),
 		MetricsQueryRangeHandler:   trackedHandler(queryRange),
-		ActiveQueriesHandler:       activeQueries.handler(),
 
 		// grpc/streaming
 		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, o, logger, dataAccessController),
@@ -281,6 +280,10 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		activeQueries: activeQueries,
 		cacheProvider: cacheProvider,
 		logger:        logger,
+	}
+	if tracker, ok := activeQueries.(*activeQueryTracker); ok {
+		f.ActiveQueriesHandler = tracker.tenantsHandler()
+		f.ActiveQueriesTenantHandler = tracker.tenantHandler()
 	}
 
 	if cfg.MCPServer.Enabled {

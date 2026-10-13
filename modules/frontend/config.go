@@ -25,8 +25,7 @@ type Config struct {
 	ResponseConsumers         int                    `yaml:"response_consumers"`
 	Weights                   pipeline.WeightsConfig `yaml:"weights"`
 	MCPServer                 MCPServerConfig        `yaml:"mcp_server"`
-	// ActiveQueriesEnabled exposes the active queries endpoint on the internal server when enabled.
-	ActiveQueriesEnabled bool `yaml:"active_queries_enabled,omitempty"`
+	QueryTracker              QueryTrackerConfig     `yaml:"query_tracker"`
 
 	// the maximum time limit that tempo will work on an api request. this includes both
 	// grpc and http requests and applies to all "api" frontend query endpoints such as
@@ -62,6 +61,12 @@ type Config struct {
 
 type MCPServerConfig struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+type QueryTrackerConfig struct {
+	Enabled             bool `yaml:"enabled"`
+	MaxQueriesPerTenant int  `yaml:"max_queries_per_tenant"`
+	MaxQueryTextBytes   int  `yaml:"max_query_text_bytes"`
 }
 
 type SearchConfig struct {
@@ -154,11 +159,15 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Metrics.MaxIntervals = 10_000
 
 	cfg.QueryEndCutoff = 30 * time.Second
+	cfg.QueryTracker.MaxQueriesPerTenant = 20
+	cfg.QueryTracker.MaxQueryTextBytes = 4096
 
 	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
 	// explicit enabling. registers a flag in addition to YAML configuration.
 	f.BoolVar(&cfg.MCPServer.Enabled, util.PrefixConfig(prefix, "mcp-server.enabled"), false, "Set to true to enable the MCP server")
-	f.BoolVar(&cfg.ActiveQueriesEnabled, util.PrefixConfig(prefix, "active-queries-enabled"), false, "Set to true to enable the active queries endpoint on the internal server")
+	f.BoolVar(&cfg.QueryTracker.Enabled, util.PrefixConfig(prefix, "query-tracker.enabled"), false, "Set to true to enable query tracking and active query status pages")
+	f.IntVar(&cfg.QueryTracker.MaxQueriesPerTenant, util.PrefixConfig(prefix, "query-tracker.max-queries-per-tenant"), cfg.QueryTracker.MaxQueriesPerTenant, "Maximum active queries tracked per tenant")
+	f.IntVar(&cfg.QueryTracker.MaxQueryTextBytes, util.PrefixConfig(prefix, "query-tracker.max-query-text-bytes"), cfg.QueryTracker.MaxQueryTextBytes, "Maximum bytes of query text retained for an active query")
 }
 
 type CortexNoQuerierLimits struct{}
