@@ -53,16 +53,15 @@ func openLocalBlock(ctx context.Context, path string) (*backend.BlockMeta, backe
 	return meta, rawR, nil
 }
 
-// warmBlock streams the block's objects once, pulling them into the OS page
-// cache. The block is read-only and shared by every case, so its cold-read cost
-// is paid here, once before the run, instead of landing on whichever case
-// first touches each object. It reads through the raw reader: the counted and
-// simulated readers charge every request, and warming is not one to bill.
+// warmBlock streams the block's objects once, pulling them into the OS page cache.
+//
+// The block is read-only and shared by every case, so its cold-read cost is paid here,
+// once before the run, instead of landing on whichever case first touches each object.
+// It reads through the raw reader: the counted and simulated readers charge every request,
+// and warming is not one to bill.
 func warmBlock(ctx context.Context, raw backend.RawReader, meta *backend.BlockMeta) error {
 	keyPath := backend.KeyPathForBlock(uuid.UUID(meta.BlockID), meta.TenantID)
 
-	// The data object's name belongs to the encoding that wrote the block, so
-	// a block no encoding claims cannot be warmed, and would fail to open.
 	var dataName string
 	switch meta.Version {
 	case vparquet4.VersionString:
@@ -87,8 +86,8 @@ func warmBlock(ctx context.Context, raw backend.RawReader, meta *backend.BlockMe
 	return nil
 }
 
-// readThrough streams one object and keeps none of it, so warming costs
-// constant memory whatever the block's size.
+// readThrough streams one object and keeps none of it,
+// so warming costs constant memory whatever the block's size.
 func readThrough(ctx context.Context, raw backend.RawReader, name string, keyPath backend.KeyPath) error {
 	rc, _, err := raw.Read(ctx, name, keyPath, nil)
 	if err != nil {
