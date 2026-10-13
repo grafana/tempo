@@ -81,6 +81,56 @@ func TestApp_RunStop(t *testing.T) {
 	}
 }
 
+func TestApp_RunStopIgnoresModuleFailureDuringShutdown(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	previousRegisterer := prometheus.DefaultRegisterer
+	previousGatherer := prometheus.DefaultGatherer
+	prometheus.DefaultRegisterer = registry
+	prometheus.DefaultGatherer = registry
+	t.Cleanup(func() {
+		prometheus.DefaultRegisterer = previousRegisterer
+		prometheus.DefaultGatherer = previousGatherer
+	})
+
+	tempDir := t.TempDir()
+	workFile := filepath.Join(tempDir, "work-cache")
+	require.NoError(t, os.WriteFile(workFile, []byte("not a directory"), 0o600))
+
+	config := NewDefaultConfig()
+	config.Target = BackendScheduler
+	config.Server.HTTPListenPort = util.MustGetFreePort()
+	config.Server.GRPCListenPort = util.MustGetFreePort()
+	config.StorageConfig.Trace.Backend = backend.Local
+	config.StorageConfig.Trace.Local.Path = filepath.Join(tempDir, "tempo")
+	config.StorageConfig.Trace.WAL.Filepath = filepath.Join(tempDir, "wal")
+	config.BackendScheduler.LocalWorkPath = workFile
+	config.UsageReport.Enabled = false
+
+	app, err := New(*config)
+	require.NoError(t, err)
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- app.Run()
+	}()
+
+	healthCheckURL := fmt.Sprintf("http://localhost:%d/ready", config.Server.HTTPListenPort)
+	require.Eventually(t, func() bool {
+		// #nosec G107 -- nosemgrep: tainted-url-host
+		resp, httpErr := http.Get(healthCheckURL)
+		return httpErr == nil && resp.StatusCode == http.StatusOK
+	}, 30*time.Second, 1*time.Second)
+
+	app.Stop()
+
+	select {
+	case runErr := <-errCh:
+		require.NoError(t, runErr)
+	case <-time.After(30 * time.Second):
+		t.Fatal("tempo did not finish stopping")
+	}
+}
+
 func TestApp_RunExitsWhenOverridesFailToLoad(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	previousRegisterer := prometheus.DefaultRegisterer
