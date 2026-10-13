@@ -40,6 +40,33 @@ As jobs complete, new ones are dispatched.
 This limits the blast radius of a single large query.
 In shared clusters, keeping this value lower ensures fair scheduling across tenants.
 
+## Query range limits
+
+The frontend rejects TraceQL searches and metrics queries whose time range is too long.
+`max_duration` sets a fixed ceiling for each query type.
+
+You can also limit the range by the bytes it scans with `max_scanned_bytes`, under `query_frontend.search` or `query_frontend.metrics`.
+The frontend sums the size of the backend blocks the query range overlaps.
+When the sum exceeds `max_scanned_bytes`, the allowed range shrinks to the longest window ending at the query end that fits the budget.
+`min_duration` sets a floor that is always allowed, and `max_duration` stays the ceiling.
+Per-tenant overrides are `max_search_scanned_bytes`, `min_search_duration`, `max_metrics_scanned_bytes`, and `min_metrics_duration`.
+For a multi-tenant metrics query, each tenant is checked against its own limits.
+With `max_scanned_bytes` set, that includes each tenant's own `max_metrics_duration`.
+Without it, only the `max_metrics_duration` of the combined tenant ID applies, as before.
+Rejected queries get an error that reports the allowed range.
+The `tempo_query_frontend_scanned_bytes_limit_derived_range_seconds` histogram records the range the budget allows, before the floor and ceiling,
+for queries within `max_duration` that are over the budget.
+To roll out without changing any range, set `min_duration` and `max_duration` to today's limit, then raise `max_duration` in steps.
+
+When `max_scanned_bytes` is set, the frontend logs one `msg="scanned bytes limit"` line per tenant for each query that reaches the scanned bytes check,
+with `requested_seconds`, `scanned_bytes`, `derived_seconds` or `fits`, `min_seconds`, `max_seconds`, `outcome`, and `passes_scanned_bytes`.
+Queries that `max_duration` rejects are still evaluated and logged with `outcome=rejected_max_duration`, so you can see which queries a higher `max_duration` would allow.
+For example, this LogQL query finds queries that a `max_duration` of 7 days would newly allow:
+
+```logql
+{namespace="tempo", container="query-frontend"} |= "scanned bytes limit" | logfmt | outcome="rejected_max_duration" | passes_scanned_bytes="true" | requested_seconds <= 604800
+```
+
 ## Querier connections
 
 Queriers connect to the query frontend over streaming gRPC.

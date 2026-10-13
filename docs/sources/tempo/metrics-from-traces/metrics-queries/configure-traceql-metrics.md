@@ -49,6 +49,14 @@ The default maximum time range for a metrics query is 24 hours, configured using
 
 This is different to the default TraceQL maximum time range of 168 hours (7 days).
 
+You can also limit metrics queries by the bytes they scan with `query_frontend.metrics.max_scanned_bytes`.
+The allowed range then adapts to how much data the tenant stores,
+with `query_frontend.metrics.min_duration` as the floor and `max_duration` as the ceiling.
+For example, set `min_duration` to today's `max_duration` and raise `max_duration`,
+so tenants with little data can query longer ranges.
+Tenants with a per-tenant `max_metrics_duration` above `min_duration` also need a matching `min_metrics_duration`,
+or the scanned bytes limit can shorten the range they have today.
+
 {{< /admonition >}}
 
 The `query_frontend.metrics.query_backend_after` parameter controls the boundary between querying the live-store and backend storage.

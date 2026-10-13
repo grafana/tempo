@@ -1118,6 +1118,21 @@ query_frontend:
         # (default: 168h)
         [max_duration: <duration>]
 
+        # The maximum total size, in bytes, of the backend blocks a search range may overlap.
+        # The allowed range is the longest window ending at the search end whose overlapping blocks
+        # stay within this budget, raised to min_duration and capped at max_duration.
+        # Searches longer than the allowed range are rejected (HTTP 400 or gRPC InvalidArgument) with an error that reports the allowed range.
+        # Only backend blocks that start before now minus query_backend_after count.
+        # 0 disables this limit.
+        # (default: 0)
+        [max_scanned_bytes: <int>]
+
+        # The time range always allowed for a search when max_scanned_bytes is set,
+        # even if the blocks in that range exceed max_scanned_bytes.
+        # 0 disables the floor.
+        # (default: 0s)
+        [min_duration: <duration>]
+
         # query_backend_after controls where the query-frontend searches for traces.
         # Time ranges newer than query_backend_after will be searched in the live-stores only.
         # Time ranges older than query_backend_after will be searched in the backend/object storage only.
@@ -1206,6 +1221,20 @@ query_frontend:
         # The maximum allowed time range for a metrics query.
         # 0 disables this limit.
         [max_duration: <duration> | default = 24h ]
+
+        # The maximum total size, in bytes, of the backend blocks a metrics query range may overlap.
+        # The allowed range is the longest window ending at the query end whose overlapping blocks
+        # stay within this budget, raised to min_duration and capped at max_duration.
+        # Queries longer than the allowed range are rejected (HTTP 400 or gRPC InvalidArgument) with an error that reports the allowed range.
+        # Only metrics-generator (RF1) backend blocks that start before now minus query_backend_after count.
+        # Search counts all backend blocks.
+        # 0 disables this limit.
+        [max_scanned_bytes: <int> | default = 0 ]
+
+        # The time range always allowed for a metrics query when max_scanned_bytes is set,
+        # even if the blocks in that range exceed max_scanned_bytes.
+        # 0 disables the floor.
+        [min_duration: <duration> | default = 0s ]
 
         # Maximum number of exemplars per range query.
         # Set to 0 to disable exemplars.
@@ -2450,10 +2479,26 @@ overrides:
       #  in the front-end configuration is used.
       [max_search_duration: <duration> | default = 0s]
 
+      # Per-user byte budget for the backend blocks a search may overlap. If this value is set to 0 (default),
+      #  then search max_scanned_bytes in the front-end configuration is used.
+      [max_search_scanned_bytes: <int> | default = 0]
+
+      # Per-user search range always allowed when a scanned bytes limit applies. If this value is set to 0 (default),
+      #  then search min_duration in the front-end configuration is used.
+      [min_search_duration: <duration> | default = 0s]
+
       # Per-user max duration for metrics queries. If this value is set to 0 (default), then metrics max_duration
       #  in the front-end configuration is used. This limit is enforced against the user-provided time range,
       #  not the post-alignment range. Queries whose entire window falls within query_end_cutoff are rejected.
       [max_metrics_duration: <duration> | default = 0s]
+
+      # Per-user byte budget for the backend blocks a metrics query may overlap. If this value is set to 0 (default),
+      #  then metrics max_scanned_bytes in the front-end configuration is used.
+      [max_metrics_scanned_bytes: <int> | default = 0]
+
+      # Per-user metrics query range always allowed when a scanned bytes limit applies. If this value is set to 0 (default),
+      #  then metrics min_duration in the front-end configuration is used.
+      [min_metrics_duration: <duration> | default = 0s]
 
       # Per-user option to left-pad trace IDs with zeros to 32 hex characters in search API responses.
       # When enabled, trace IDs like "8efff798038103d269b633813fc703" will be returned as
