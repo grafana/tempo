@@ -8,7 +8,7 @@ change_type: security
 component: deps
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Update Go to 1.26.9 to pick up standard library security fixes.
+note: Update Go to 1.26.9 and golang.org/x/net to v0.60.0 to pick up security fixes.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
