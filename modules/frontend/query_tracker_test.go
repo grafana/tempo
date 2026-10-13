@@ -3,9 +3,11 @@ package frontend
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,17 +34,17 @@ func (t *recordingQueryTracker) track(_ context.Context, method, path, query str
 	return func() {}
 }
 
-func TestActiveQueryTracker(t *testing.T) {
-	tracker := newActiveQueryTracker(QueryTrackerConfig{MaxQueriesPerTenant: 1, MaxQueryTextBytes: 8})
+func TestQueryTracker(t *testing.T) {
+	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true, MaxQueriesPerTenant: 1, MaxQueryTextBytes: 8}).(*queryTracker)
 	stop := tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", "{ .foo = \"é\" }")
 	defer stop()
 	tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), "GRPC", "/tempopb.StreamingQuerier/Search", "{ .bar }")()
 
-	queries := tracker.activeQueries("tenant-a")
+	queries := tracker.trackedQueries("tenant-a")
 	require.Len(t, queries, 1)
 	require.Equal(t, "{ .foo =", queries[0].Query)
 	require.True(t, time.Now().After(queries[0].StartedAt))
-	require.Equal(t, uint64(1), tracker.tenants()[0].Dropped)
+	require.Equal(t, uint64(1), tracker.trackedTenants()[0].Dropped)
 
 	t.Run("tenants page renders HTML", func(t *testing.T) {
 		rec := httptest.NewRecorder()
@@ -58,7 +60,7 @@ func TestActiveQueryTracker(t *testing.T) {
 		req.Header.Set("Accept", "application/json")
 		tracker.tenantsHandler().ServeHTTP(rec, req)
 		require.Equal(t, http.StatusOK, rec.Code)
-		var page activeQueriesPage
+		var page queryTrackerPage
 		require.NoError(t, json.NewDecoder(rec.Body).Decode(&page))
 		require.Len(t, page.Tenants, 1)
 	})
@@ -71,7 +73,7 @@ func TestActiveQueryTracker(t *testing.T) {
 		tracker.tenantHandler().ServeHTTP(rec, req)
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
-		var page activeQueriesPage
+		var page queryTrackerPage
 		require.NoError(t, json.NewDecoder(rec.Body).Decode(&page))
 		require.Equal(t, "tenant-a", page.Tenant)
 		require.Len(t, page.Queries, 1)
@@ -88,7 +90,7 @@ func TestActiveQueryTracker(t *testing.T) {
 	t.Run("disabled tracker is a no-op", func(t *testing.T) {
 		tracker := newQueryTracker(QueryTrackerConfig{})
 		tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", "query")()
-		_, ok := tracker.(noopQueryTracker)
+		_, ok := tracker.(noOpQueryTracker)
 		require.True(t, ok)
 	})
 
@@ -109,4 +111,40 @@ func TestHandlerTracksDecodedQueryText(t *testing.T) {
 	require.Equal(t, http.MethodGet, tracker.method)
 	require.Equal(t, "/api/search", tracker.path)
 	require.Equal(t, `{ resource.service.name = "api" }`, tracker.query)
+}
+
+func TestQueryTrackerConcurrentTenants(t *testing.T) {
+	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true}).(*queryTracker)
+	var wg sync.WaitGroup
+
+	for tenant := 0; tenant < 8; tenant++ {
+		wg.Add(1)
+		go func(tenant string) {
+			defer wg.Done()
+			ctx := user.InjectOrgID(context.Background(), tenant)
+			for query := 0; query < 100; query++ {
+				tracker.track(ctx, "GRPC", "/tempopb.StreamingQuerier/Search", "{}")()
+			}
+		}(fmt.Sprintf("tenant-%d", tenant))
+	}
+
+	wg.Wait()
+	require.Empty(t, tracker.trackedTenants())
+}
+
+func TestQueryTrackerTracksMultiTenantQueryForEachTenant(t *testing.T) {
+	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true}).(*queryTracker)
+	stop := tracker.track(user.InjectOrgID(context.Background(), "tenant-a|tenant-b"), "GRPC", "/tempopb.StreamingQuerier/Search", "{}")
+	defer stop()
+
+	for _, tenant := range []string{"tenant-a", "tenant-b"} {
+		queries := tracker.trackedQueries(tenant)
+		require.Len(t, queries, 1)
+		require.Equal(t, tenant, queries[0].Tenant)
+	}
+
+	tenantStatus := tracker.trackedTenants()
+	require.Len(t, tenantStatus, 2)
+	require.Equal(t, "tenant-a", tenantStatus[0].Name)
+	require.Equal(t, "tenant-b", tenantStatus[1].Name)
 }

@@ -1,11 +1,14 @@
-{{- /*gotype: github.com/grafana/tempo/v3/modules/frontend.activeQueriesPage*/ -}}
+{{- /*gotype: github.com/grafana/tempo/v3/modules/frontend.queryTrackerPage*/ -}}
 <!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Active queries</title></head><body>
-<h1>Active queries{{ if .Tenant }}: {{ .Tenant }}{{ end }}</h1>
+<h1>Active Queries Tracker {{ if .Tenant }}: {{ .Tenant }}{{ end }}</h1>
 <p>Current time: {{ .Now }}</p>
 <p>Maximum tracked queries per tenant: {{ .MaxQueriesPerTenant }}. Maximum query text size: {{ .MaxQueryTextBytes }} bytes.</p>
 {{ if .Tenant }}
-<table border="1" cellpadding="5" style="border-collapse: collapse"><thead><tr><th>ID</th><th>Method</th><th>Path</th><th>Query</th><th>Started</th></tr></thead><tbody>{{ range .Queries }}<tr><td>{{ .ID }}</td><td>{{ .Method }}</td><td>{{ .Path }}</td><td>{{ .Query }}</td><td>{{ .StartedAt }}</td></tr>{{ end }}</tbody></table>
+<table border="1" cellpadding="5" style="border-collapse: collapse">
+    <thead><tr><th>ID</th><th>Method</th><th>Path</th><th>Query</th><th>Started</th></tr></thead>
+    <tbody>{{ range .Queries }}<tr><td>{{ .ID }}</td><td>{{ .Method }}</td><td>{{ .Path }}</td><td>{{ .Query }}</td><td>{{ .StartedAt }}</td></tr>{{ end }}</tbody>
+</table>
 {{ else }}
 <table border="1" cellpadding="5" style="border-collapse: collapse"><thead><tr><th>Tenant</th><th>Active queries</th><th>Dropped queries</th></tr></thead><tbody>{{ range .Tenants }}<tr><td><a href="active-queries/{{ .Name }}">{{ .Name }}</a></td><td>{{ .Active }}</td><td>{{ .Dropped }}</td></tr>{{ end }}</tbody></table>
 {{ end }}</body></html>

@@ -68,13 +68,13 @@ func newTestStore(t *testing.T, tmpDir string) storage.Store {
 	return s
 }
 
-func TestRegisterActiveQueriesHandler(t *testing.T) {
+func TestRegisterQueryTrackerHandlers(t *testing.T) {
 	router := mux.NewRouter()
 	app := &App{
 		cfg:    *NewDefaultConfig(),
 		Server: &fakeTempoServer{router: router},
 	}
-	app.registerActiveQueriesHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	app.registerQueryTrackerHandlers(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusAccepted) }))
 
@@ -90,14 +90,14 @@ func TestRegisterActiveQueriesHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(tt.method, api.PathActiveQueries, nil)
+			req := httptest.NewRequest(tt.method, api.PathQueryTracker, nil)
 			app.Server.HTTPHandler().ServeHTTP(rec, req)
 			require.Equal(t, tt.statusCode, rec.Code)
 		})
 	}
 
 	rec := httptest.NewRecorder()
-	app.Server.HTTPHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, api.PathActiveQueries+"/tenant-a", nil))
+	app.Server.HTTPHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, api.PathQueryTracker+"/tenant-a", nil))
 	require.Equal(t, http.StatusAccepted, rec.Code)
 }
 

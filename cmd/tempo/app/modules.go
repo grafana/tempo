@@ -511,7 +511,7 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryInstant), base.Wrap(queryFrontend.MetricsQueryInstantHandler))
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange), base.Wrap(queryFrontend.MetricsQueryRangeHandler))
 	if t.cfg.Frontend.QueryTracker.Enabled {
-		t.registerActiveQueriesHandler(queryFrontend.ActiveQueriesHandler, queryFrontend.ActiveQueriesTenantHandler)
+		t.registerQueryTrackerHandlers(queryFrontend.QueryTrackerHandler, queryFrontend.QueryTrackerTenantHandler)
 	}
 
 	// http mcp endpoint
@@ -532,9 +532,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	return t.frontend, nil
 }
 
-func (t *App) registerActiveQueriesHandler(tenantsHandler, tenantHandler http.Handler) {
-	t.Server.HTTPRouter().Path(api.PathActiveQueries).Methods(http.MethodGet).Handler(tenantsHandler)
-	t.Server.HTTPRouter().Path(api.PathActiveQueries + "/{tenant}").Methods(http.MethodGet).Handler(tenantHandler)
+func (t *App) registerQueryTrackerHandlers(tenantsHandler, tenantHandler http.Handler) {
+	t.Server.HTTPRouter().Path(api.PathQueryTracker).Methods(http.MethodGet).Handler(tenantsHandler)
+	t.Server.HTTPRouter().Path(api.PathQueryTracker + "/{tenant}").Methods(http.MethodGet).Handler(tenantHandler)
 }
 
 //go:embed static

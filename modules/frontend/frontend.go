@@ -50,7 +50,7 @@ type QueryFrontend struct {
 	TraceByIDHandler, TraceByIDHandlerV2, TraceDiffHandler, SearchHandler                      http.Handler
 	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
 	MetricsQueryInstantHandler, MetricsQueryRangeHandler                                       http.Handler
-	ActiveQueriesHandler, ActiveQueriesTenantHandler                                           http.Handler
+	QueryTrackerHandler, QueryTrackerTenantHandler                                             http.Handler
 	MCPHandler                                                                                 http.Handler
 	cacheProvider                                                                              cache.Provider
 	streamingSearch                                                                            streamingSearchHandler
@@ -60,7 +60,7 @@ type QueryFrontend struct {
 	streamingTagValuesV2                                                                       streamingTagValuesV2Handler
 	streamingQueryRange                                                                        streamingQueryRangeHandler
 	streamingQueryInstant                                                                      streamingQueryInstantHandler
-	activeQueries                                                                              queryTracker
+	queryTracker                                                                               tracker
 	logger                                                                                     log.Logger
 }
 
@@ -250,9 +250,9 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, o, logger, dataAccessController) // Reuses the same pipeline
 	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, o, logger, dataAccessController)
 
-	activeQueries := newQueryTracker(cfg.QueryTracker)
+	queryTrackerInstance := newQueryTracker(cfg.QueryTracker)
 	trackedHandler := func(rt http.RoundTripper) http.Handler {
-		return newHandlerWithTracker(cfg.Config.LogQueryRequestHeaders, rt, logger, activeQueries)
+		return newHandlerWithTracker(cfg.Config.LogQueryRequestHeaders, rt, logger, queryTrackerInstance)
 	}
 
 	f := &QueryFrontend{
@@ -277,13 +277,13 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, o, apiPrefix, logger, dataAccessController),
 		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, o, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
 
-		activeQueries: activeQueries,
+		queryTracker:  queryTrackerInstance,
 		cacheProvider: cacheProvider,
 		logger:        logger,
 	}
-	if tracker, ok := activeQueries.(*activeQueryTracker); ok {
-		f.ActiveQueriesHandler = tracker.tenantsHandler()
-		f.ActiveQueriesTenantHandler = tracker.tenantHandler()
+	if tracker, ok := queryTrackerInstance.(*queryTracker); ok {
+		f.QueryTrackerHandler = tracker.tenantsHandler()
+		f.QueryTrackerTenantHandler = tracker.tenantHandler()
 	}
 
 	if cfg.MCPServer.Enabled {
@@ -301,37 +301,37 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 // Search implements StreamingQuerierServer interface for streaming search
 func (q *QueryFrontend) Search(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
-	defer q.activeQueries.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/Search", req.GetQuery())()
+	defer q.queryTracker.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/Search", req.GetQuery())()
 	return q.streamingSearch(req, srv)
 }
 
 func (q *QueryFrontend) SearchTags(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
-	defer q.activeQueries.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/SearchTags", req.GetQuery())()
+	defer q.queryTracker.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/SearchTags", req.GetQuery())()
 	return q.streamingTags(req, srv)
 }
 
 func (q *QueryFrontend) SearchTagsV2(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
-	defer q.activeQueries.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/SearchTagsV2", req.GetQuery())()
+	defer q.queryTracker.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/SearchTagsV2", req.GetQuery())()
 	return q.streamingTagsV2(req, srv)
 }
 
 func (q *QueryFrontend) SearchTagValues(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
-	defer q.activeQueries.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/SearchTagValues", req.GetQuery())()
+	defer q.queryTracker.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/SearchTagValues", req.GetQuery())()
 	return q.streamingTagValues(req, srv)
 }
 
 func (q *QueryFrontend) SearchTagValuesV2(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
-	defer q.activeQueries.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/SearchTagValuesV2", req.GetQuery())()
+	defer q.queryTracker.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/SearchTagValuesV2", req.GetQuery())()
 	return q.streamingTagValuesV2(req, srv)
 }
 
 func (q *QueryFrontend) MetricsQueryRange(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error {
-	defer q.activeQueries.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/MetricsQueryRange", req.GetQuery())()
+	defer q.queryTracker.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/MetricsQueryRange", req.GetQuery())()
 	return q.streamingQueryRange(req, srv)
 }
 
 func (q *QueryFrontend) MetricsQueryInstant(req *tempopb.QueryInstantRequest, srv tempopb.StreamingQuerier_MetricsQueryInstantServer) error {
-	defer q.activeQueries.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/MetricsQueryInstant", req.GetQuery())()
+	defer q.queryTracker.track(srv.Context(), "GRPC", "/tempopb.StreamingQuerier/MetricsQueryInstant", req.GetQuery())()
 	return q.streamingQueryInstant(req, srv)
 }
 
