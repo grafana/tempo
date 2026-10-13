@@ -233,6 +233,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnTraceByIDConcurrentShards)
 	}
 
+	if m := c.Frontend.Metrics.Sharder; m.MaxScannedBytes > 0 && m.MaxDuration > 0 && m.MinDuration > m.MaxDuration {
+		warnings = append(warnings, warnMetricsMinDurationAboveMaxDuration)
+	}
+
 	if c.BackendScheduler.Work.PruneAge <= (c.StorageConfig.Trace.BlocklistPoll * 2) {
 		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
 	}
@@ -255,6 +259,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 			Message: "query_frontend.rf1_after is deprecated and will be removed in a future release.",
 			Explain: "Non-metric query paths now query all blocks regardless of replication factor. This setting is ignored.",
 		})
+	}
+
+	if s := c.Frontend.Search.Sharder; s.MaxScannedBytes > 0 && s.MaxDuration > 0 && s.MinDuration > s.MaxDuration {
+		warnings = append(warnings, warnSearchMinDurationAboveMaxDuration)
 	}
 
 	return warnings
@@ -316,6 +324,11 @@ var (
 		Explain: "Please remove ConcurrentShards or set it to a value less than or equal to QueryShards",
 	}
 
+	warnMetricsMinDurationAboveMaxDuration = ConfigWarning{
+		Message: "query_frontend.metrics.min_duration is greater than query_frontend.metrics.max_duration",
+		Explain: "max_duration wins, so queries over the scanned bytes budget are limited to max_duration",
+	}
+
 	warnMCPServerEnabled = ConfigWarning{
 		Message: "c.Frontend.MCPServer.Enabled is enabled.",
 		Explain: "Querying Tempo with an LLM will result in tracing data being sent to the LLM. Review your LLM provider's documentation and confirm you are comfortable with this.",
@@ -329,6 +342,11 @@ var (
 	warnPartitionAssigmentCollision = ConfigWarning{
 		Message: "Block-builder partition assigment is configured by c.BlockBuilder.PartitionAssigment and c.BlockBuilder.PartitionsPerInstance",
 		Explain: "When both parameters are used c.BlockBuilder.PartitionAssigment takes precedence over c.BlockBuilder.PartitionsPerInstance",
+	}
+
+	warnSearchMinDurationAboveMaxDuration = ConfigWarning{
+		Message: "query_frontend.search.min_duration is greater than query_frontend.search.max_duration",
+		Explain: "max_duration wins, so searches over the scanned bytes budget are limited to max_duration",
 	}
 )
 

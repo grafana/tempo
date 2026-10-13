@@ -88,6 +88,64 @@ func TestConfig_CheckConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "metrics scanned bytes limit floor above the ceiling",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.Frontend.Metrics.Sharder.MaxScannedBytes = 1
+				cfg.Frontend.Metrics.Sharder.MinDuration = cfg.Frontend.Metrics.Sharder.MaxDuration + time.Hour
+				cfg.Frontend.Search.Sharder.MinDuration = cfg.Frontend.Search.Sharder.MaxDuration + time.Hour
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnMetricsMinDurationAboveMaxDuration},
+		},
+		{
+			name: "search scanned bytes limit floor above the ceiling",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.Frontend.Metrics.Sharder.MinDuration = cfg.Frontend.Metrics.Sharder.MaxDuration + time.Hour
+				cfg.Frontend.Search.Sharder.MaxScannedBytes = 1
+				cfg.Frontend.Search.Sharder.MinDuration = cfg.Frontend.Search.Sharder.MaxDuration + time.Hour
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnSearchMinDurationAboveMaxDuration},
+		},
+		{
+			name: "scanned bytes limit floor equal to the ceiling",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.Frontend.Metrics.Sharder.MaxScannedBytes = 1
+				cfg.Frontend.Metrics.Sharder.MinDuration = cfg.Frontend.Metrics.Sharder.MaxDuration
+				cfg.Frontend.Search.Sharder.MaxScannedBytes = 1
+				cfg.Frontend.Search.Sharder.MinDuration = cfg.Frontend.Search.Sharder.MaxDuration
+				return cfg
+			}(),
+			expect: nil,
+		},
+		{
+			name: "floor above the ceiling without a scanned bytes limit",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.Frontend.Metrics.Sharder.MinDuration = cfg.Frontend.Metrics.Sharder.MaxDuration + time.Hour
+				cfg.Frontend.Search.Sharder.MinDuration = cfg.Frontend.Search.Sharder.MaxDuration + time.Hour
+				return cfg
+			}(),
+			expect: nil,
+		},
+		{
+			name: "scanned bytes limit floor without a ceiling",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.Frontend.Metrics.Sharder.MaxScannedBytes = 1
+				cfg.Frontend.Metrics.Sharder.MaxDuration = 0
+				cfg.Frontend.Metrics.Sharder.MinDuration = time.Hour
+				cfg.Frontend.Search.Sharder.MaxScannedBytes = 1
+				cfg.Frontend.Search.Sharder.MaxDuration = 0
+				cfg.Frontend.Search.Sharder.MinDuration = time.Hour
+				return cfg
+			}(),
+			expect: nil,
+		},
+		{
 			name: "hit local backend warnings",
 			config: func() *Config {
 				cfg := NewDefaultConfig()
