@@ -14,7 +14,9 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -487,6 +489,9 @@ func TestCompactionMetrics(t *testing.T) {
 	bytesStart, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 
+	traceSizeStart := &dto.Metric{}
+	require.NoError(t, metricCompactionTraceSize.WithLabelValues(testTenantID, "0").(prometheus.Histogram).Write(traceSizeStart))
+
 	// compact everything
 	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	assert.NoError(t, err)
@@ -503,6 +508,11 @@ func TestCompactionMetrics(t *testing.T) {
 	bytesEnd, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 	assert.Greater(t, bytesEnd, bytesStart) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
+
+	traceSizeEnd := &dto.Metric{}
+	require.NoError(t, metricCompactionTraceSize.WithLabelValues(testTenantID, "0").(prometheus.Histogram).Write(traceSizeEnd))
+	require.Equal(t, uint64(blockCount*recordCount), traceSizeEnd.Histogram.GetSampleCount()-traceSizeStart.Histogram.GetSampleCount())
+	require.Greater(t, traceSizeEnd.Histogram.GetSampleSum(), traceSizeStart.Histogram.GetSampleSum())
 }
 
 func TestCompactionIteratesThroughTenants(t *testing.T) {
