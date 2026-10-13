@@ -59,12 +59,6 @@ type Work struct {
 	pendingByTenant map[string]map[tempopb.JobType][]string
 	pendingMtx      sync.Mutex
 
-	// redactionInFlight counts redaction jobs per tenant that have been popped from
-	// the pending queue by NextPendingJob but not yet promoted to the active map
-	// via AddJob. Not persisted; reset to 0 on restart (channels are empty after
-	// restart so the count is naturally 0). Guarded by pendingMtx.
-	redactionInFlight map[string]int
-
 	// registeredJobs tracks jobs registered by providers before they enter the channel
 	// pipeline. Cleared in AddJob when the job is promoted to active. Not persisted.
 	// Guarded by pendingMtx.
@@ -116,7 +110,6 @@ func New(cfg Config) Interface {
 	}
 	sw.pendingBlocks = make(map[string]string)
 	sw.pendingByTenant = make(map[string]map[tempopb.JobType][]string)
-	sw.redactionInFlight = make(map[string]int)
 	sw.registeredJobs = make(map[string]*Job)
 	sw.workerJobs = make(map[string]string)
 	sw.runningBlocks = make(map[string]*Job)
@@ -147,7 +140,7 @@ func (w *Work) AddJob(j *Job) error {
 		// is skipped by this early return, and without the release the counter leaks and
 		// HasJobsForTenant wedges the tenant permanently.
 		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-			w.ReleaseRedactionInFlight(j.Tenant())
+			w.ReleaseRedactionInFlight(j)
 		}
 		return ErrJobAlreadyExists
 	}
@@ -158,13 +151,9 @@ func (w *Work) AddJob(j *Job) error {
 	shard.mtx.Unlock()
 
 	w.pendingMtx.Lock()
-	// Clear registered job now that it is promoted to active.
+	// Clear registered job now that it is promoted to active. Covers a redaction job's dequeue
+	// registration the same way it covers compaction/retention's provider-side RegisterJob.
 	delete(w.registeredJobs, j.ID)
-	// If this redaction job was previously in-flight (popped from pending but not
-	// yet active), decrement the counter now that it has been promoted to active.
-	if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-		w.decRedactionInFlightLocked(j.Tenant())
-	}
 	// Index the worker -> job assignment so GetJobForWorker is O(1).
 	if wid := j.GetWorkerID(); wid != "" {
 		w.workerJobs[wid] = j.ID
@@ -836,12 +825,12 @@ func (w *Work) NextPendingJob(jobType tempopb.JobType) *Job {
 				break
 			}
 		}
-		// Count a redaction job as in-flight in the SAME critical section as the dequeue, so it is
-		// never dequeued-but-uncounted — a window in which HasJobsForTenant could misread the batch
-		// as done and remove it. If the shard lookup below shows the entry was stale, we undo this
-		// increment before retrying.
+		// Register a placeholder in the SAME critical section as the dequeue, so the job is never
+		// dequeued-but-unregistered — a window in which HasJobsForTenant could misread the batch as
+		// done and remove it. The shard lookup below swaps in the real job; if the entry turns out to
+		// be stale, the placeholder is removed before retrying.
 		if tenantID != "" && jobType == tempopb.JobType_JOB_TYPE_REDACTION {
-			w.redactionInFlight[tenantID]++
+			w.registeredJobs[jobID] = &Job{ID: jobID, Type: jobType, JobDetail: tempopb.JobDetail{Tenant: tenantID}}
 		}
 		w.pendingMtx.Unlock()
 
@@ -858,46 +847,46 @@ func (w *Work) NextPendingJob(jobType tempopb.JobType) *Job {
 
 		if j != nil {
 			w.removePendingBlockIndex(j)
+			// Swap the placeholder for the real job, the same mechanism compaction/retention
+			// providers use via RegisterJob, so it stays visible as in-flight through AddJob's
+			// promotion rather than a redaction-specific counter.
+			if jobType == tempopb.JobType_JOB_TYPE_REDACTION {
+				w.pendingMtx.Lock()
+				w.registeredJobs[j.ID] = j
+				w.pendingMtx.Unlock()
+			}
 			return j
 		}
-		// Stale index entry (present in pendingByTenant but missing from the shard): undo the
-		// optimistic in-flight increment taken above, then retry.
+		// Stale index entry (present in pendingByTenant but missing from the shard): remove the
+		// placeholder registered above, then retry.
 		if jobType == tempopb.JobType_JOB_TYPE_REDACTION {
-			w.ReleaseRedactionInFlight(tenantID)
+			w.pendingMtx.Lock()
+			delete(w.registeredJobs, jobID)
+			w.pendingMtx.Unlock()
 		}
 	}
 }
 
-// decRedactionInFlightLocked decrements a tenant's in-flight redaction counter, guarding against
-// underflow. Caller must hold pendingMtx.
-func (w *Work) decRedactionInFlightLocked(tenantID string) {
-	if w.redactionInFlight[tenantID] > 0 {
-		w.redactionInFlight[tenantID]--
-	}
-}
-
-// ReleaseRedactionInFlight decrements the tenant's in-flight redaction counter for a job that was
-// dequeued via NextPendingJob (and thus counted) but will NOT be promoted to active — e.g. dropped
-// at assignment because its batch is gone or cancelled. AddJob performs the same decrement on the
-// normal promote path; this releases the count on a drop path so it is not leaked there.
-func (w *Work) ReleaseRedactionInFlight(tenantID string) {
+// ReleaseRedactionInFlight releases a job that was dequeued via NextPendingJob (and thus
+// registered) but will NOT be promoted to active — e.g. dropped at assignment because its batch is
+// gone or cancelled. AddJob clears the same registration on the normal promote path; this clears it
+// on a drop path so it is not leaked there. Takes the job itself, not just its tenant, so a sibling
+// in-flight job for the same tenant is left registered.
+func (w *Work) ReleaseRedactionInFlight(job *Job) {
 	w.pendingMtx.Lock()
 	defer w.pendingMtx.Unlock()
-	w.decRedactionInFlightLocked(tenantID)
+	delete(w.registeredJobs, job.ID)
 }
 
 // HasJobsForTenant returns true if there are any jobs of the given type for the tenant in any of
-// its tracked states: pending queue, in-flight (redaction jobs dequeued but not yet promoted),
-// registered, or active map.
+// its tracked states: pending queue, registered (dequeued or generated but not yet promoted), or
+// active map.
 func (w *Work) HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool {
 	w.pendingMtx.Lock()
 	hasPending := len(w.pendingByTenant[tenantID][jobType]) > 0
 	hasRunning := w.runningByTenant[tenantID][jobType] > 0
 	hasInFlight := false
-	if jobType == tempopb.JobType_JOB_TYPE_REDACTION {
-		hasInFlight = w.redactionInFlight[tenantID] > 0
-	}
-	if !hasInFlight && !hasRunning {
+	if !hasRunning {
 		for _, j := range w.registeredJobs {
 			if j.Tenant() == tenantID && j.GetType() == jobType {
 				hasInFlight = true

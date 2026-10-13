@@ -11,6 +11,24 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
+// TestNextPendingJobRegistersRedactionJob verifies a dequeued redaction job becomes visible through
+// the same registeredJobs mechanism compaction and retention providers already use (RegisterJob),
+// rather than only through the redaction-specific redactionInFlight counter. This is the first step
+// of retiring that bespoke counter in favor of the one general mechanism every job type should share.
+func TestNextPendingJobRegistersRedactionJob(t *testing.T) {
+	w := New(Config{}).(*Work)
+	tenant := "t"
+	require.NoError(t, w.AddPendingJobs([]*Job{createRedactionJob("j1", tenant, "blk1")}))
+
+	j := w.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
+	require.NotNil(t, j)
+
+	w.pendingMtx.Lock()
+	_, registered := w.registeredJobs[j.ID]
+	w.pendingMtx.Unlock()
+	require.True(t, registered, "dequeued redaction job must be registered like any other in-flight job")
+}
+
 // TestReleaseRedactionInFlight verifies a redaction job dequeued via NextPendingJob (now counted
 // in-flight) can be released without ever reaching AddJob — the case of a job dropped at
 // assignment. Without the release, the counter leaks and HasJobsForTenant stays true forever.
@@ -23,20 +41,21 @@ func TestReleaseRedactionInFlight(t *testing.T) {
 	require.NotNil(t, j)
 	require.True(t, w.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION), "dequeued job is counted in-flight")
 
-	// The job is dropped at assignment (never promoted via AddJob): release its in-flight count.
-	w.ReleaseRedactionInFlight(tenant)
+	// The job is dropped at assignment (never promoted via AddJob): release it.
+	w.ReleaseRedactionInFlight(j)
 	require.False(t, w.HasJobsForTenant(tenant, tempopb.JobType_JOB_TYPE_REDACTION), "released job no longer counts; no leak")
 }
 
-// TestNextPendingJobCountsInFlightOnDequeue verifies a dequeued redaction job is counted in-flight
-// as soon as it leaves the pending queue, so HasJobsForTenant keeps reporting the tenant busy before
-// the job is promoted via AddJob.
+// TestNextPendingJobCountsInFlightOnDequeue verifies a dequeued redaction job is registered as
+// in-flight as soon as it leaves the pending queue, so HasJobsForTenant keeps reporting the tenant
+// busy before the job is promoted via AddJob.
 //
-// Note: this asserts the count is set on dequeue; it does NOT prove the increment shares the dequeue's
-// critical section (the TOCTOU the fix closes). That atomicity is a structural property — increment
-// and dequeue are under one pendingMtx hold in NextPendingJob — and is not observable through the
-// public API, since HasJobsForTenant serializes on the same mutex and so can never see the interior
-// of a single critical section either way. It is verified by inspection, not by this test.
+// Note: this asserts the registration is visible after dequeue; it does NOT prove the placeholder
+// registration shares the dequeue's critical section (the TOCTOU the fix closes). That atomicity is
+// a structural property — the placeholder write and the dequeue's queue removal are under one
+// pendingMtx hold in NextPendingJob — and is not observable through the public API, since
+// HasJobsForTenant serializes on the same mutex and so can never see the interior of a single
+// critical section either way. It is verified by inspection, not by this test.
 func TestNextPendingJobCountsInFlightOnDequeue(t *testing.T) {
 	w := New(Config{}).(*Work)
 	tenant := "t"
@@ -47,10 +66,10 @@ func TestNextPendingJobCountsInFlightOnDequeue(t *testing.T) {
 }
 
 // TestAddJobDuplicateReleasesInFlight covers the leak path where a redaction job is dequeued (and
-// thus counted in-flight) but AddJob then finds an identical job ID already active and returns
-// ErrJobAlreadyExists before the promote-path decrement. Reachable in normal operation because
+// thus registered) but AddJob then finds an identical job ID already active and returns
+// ErrJobAlreadyExists before the promote-path deregistration. Reachable in normal operation because
 // AddPendingJobs dedups only against shard.Pending, so an active ID can be re-enqueued and
-// re-dequeued. Without releasing on the duplicate path the count leaks permanently and
+// re-dequeued. Without releasing on the duplicate path the registration leaks permanently and
 // HasJobsForTenant stays true forever, wedging the tenant's future redactions.
 func TestAddJobDuplicateReleasesInFlight(t *testing.T) {
 	w := New(Config{}).(*Work)
@@ -59,18 +78,18 @@ func TestAddJobDuplicateReleasesInFlight(t *testing.T) {
 	// An identical job ID is already active.
 	require.NoError(t, w.AddJob(createRedactionJob("dup", tenant, "blkA")))
 
-	// Re-enqueue the same ID and dequeue it: NextPendingJob counts it in-flight.
+	// Re-enqueue the same ID and dequeue it: NextPendingJob registers it as in-flight.
 	require.NoError(t, w.AddPendingJobs([]*Job{createRedactionJob("dup", tenant, "blkB")}))
 	dup := w.NextPendingJob(tempopb.JobType_JOB_TYPE_REDACTION)
 	require.NotNil(t, dup)
 
-	// AddJob rejects the duplicate; it must still release the in-flight count it did not promote.
+	// AddJob rejects the duplicate; it must still release the unpromoted registration.
 	require.ErrorIs(t, w.AddJob(dup), ErrJobAlreadyExists)
 
 	w.pendingMtx.Lock()
-	inFlight := w.redactionInFlight[tenant]
+	_, stillRegistered := w.registeredJobs[dup.ID]
 	w.pendingMtx.Unlock()
-	require.Zero(t, inFlight, "duplicate AddJob must release the unpromoted in-flight count, else the tenant wedges")
+	require.False(t, stillRegistered, "duplicate AddJob must release the unpromoted registration, else the tenant wedges")
 }
 
 // TestRedactionInFlightAccountingNoLeakUnderRace drains a queue by dequeuing then dropping each job
@@ -111,7 +130,7 @@ func TestRedactionInFlightAccountingNoLeakUnderRace(t *testing.T) {
 			if j == nil {
 				break
 			}
-			w.ReleaseRedactionInFlight(j.Tenant()) // dropped, not promoted
+			w.ReleaseRedactionInFlight(j) // dropped, not promoted
 		}
 		close(stop)
 	}()
