@@ -112,6 +112,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewBadRequest(errors.New("step must be greater than 0")), nil
 	}
 
+	// TODO: the handler already aligned req, and aligning again widens start by one more step.
 	traceql.AlignRequest(req)
 
 	// Instant queries must not compute exemplars
