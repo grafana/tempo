@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/dustin/go-humanize"
 
@@ -23,16 +24,24 @@ type benchmarkRunCmd struct {
 	MaxSeries             int    `help:"series a metrics query returns" default:"1000"`
 	Exemplars             int    `help:"exemplars a metrics query collects" default:"0"`
 
-	ReadBufferSize     int    `help:"read buffer size in bytes, 0 for the default"`
-	ReadBufferCount    int    `help:"number of read buffers, 0 for the default"`
-	ChunkSizeBytes     uint32 `help:"chunk size in bytes, 0 for the default"`
-	PrefetchTraceCount int    `help:"traces to prefetch, 0 for the default"`
+	ReadBufferSize string `help:"read buffer size, e.g. 8MiB, 0 for the default" default:"0"`
+
+	BackendLatency   time.Duration `help:"latency added to every backend request, simulating an object store"`
+	BackendBandwidth string        `help:"per-request backend bandwidth per second, e.g. 100MiB, simulating an object store; 0 for unlimited" default:"0"`
 }
 
 func (cmd *benchmarkRunCmd) Run(_ *globalOptions) error {
 	targetBytes, err := humanize.ParseBytes(cmd.TargetBytesPerRequest)
 	if err != nil {
 		return fmt.Errorf("invalid --target-bytes-per-request: %w", err)
+	}
+	readBufferSize, err := humanize.ParseBytes(cmd.ReadBufferSize)
+	if err != nil {
+		return fmt.Errorf("invalid --read-buffer-size: %w", err)
+	}
+	bandwidth, err := humanize.ParseBytes(cmd.BackendBandwidth)
+	if err != nil {
+		return fmt.Errorf("invalid --backend-bandwidth: %w", err)
 	}
 
 	f, err := os.Open(cmd.Profile)
@@ -53,10 +62,9 @@ func (cmd *benchmarkRunCmd) Run(_ *globalOptions) error {
 		SearchLimit:           cmd.SearchLimit,
 		MaxSeries:             cmd.MaxSeries,
 		Exemplars:             cmd.Exemplars,
-		ReadBufferSize:        cmd.ReadBufferSize,
-		ReadBufferCount:       cmd.ReadBufferCount,
-		ChunkSizeBytes:        cmd.ChunkSizeBytes,
-		PrefetchTraceCount:    cmd.PrefetchTraceCount,
+		ReadBufferSize:        int(readBufferSize),
+		BackendLatency:        cmd.BackendLatency,
+		BackendBandwidth:      int64(bandwidth),
 	})
 	if err != nil {
 		return err

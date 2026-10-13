@@ -298,7 +298,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		))
 
 		// Verify the trace is findable before redaction by querying object storage directly.
-		tempodbReader.EnablePolling(ctx, nil, false)
+		tempodbReader.EnablePolling(ctx, nil)
 		var trs []*tempopb.TraceByIDResponse
 		var failedBlocks []error
 		// tempodbReader's poll can still race the writer's last block - retry like the post-redaction check below.
@@ -411,7 +411,7 @@ func TestBackendSchedulerRedactionQuery(t *testing.T) {
 		))
 
 		// Both traces must be findable before redaction.
-		tempodbReader.EnablePolling(ctx, nil, false)
+		tempodbReader.EnablePolling(ctx, nil)
 		for _, id := range []common.ID{matchID, keepID} {
 			// tempodbReader's poll can still race the writer's last block, as in TestBackendSchedulerRedaction
 			require.Eventually(t, func() bool {

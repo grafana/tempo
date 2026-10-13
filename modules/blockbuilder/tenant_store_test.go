@@ -164,7 +164,7 @@ func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDura
 	var (
 		ctx   = t.Context()
 		log   = log.NewNopLogger()
-		store = newStoreWithLogger(ctx, t, log, false)
+		store = newStoreWithLogger(ctx, t, log)
 	)
 
 	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
@@ -201,7 +201,7 @@ func TestTenantStoreNoCompactFlag(t *testing.T) {
 		traceEnd      = startTime.Add(time.Minute)
 
 		log   = log.NewNopLogger()
-		store = newStoreWithLogger(ctx, t, log, true)
+		store = newStoreWithLogger(ctx, t, log)
 	)
 
 	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
@@ -220,15 +220,17 @@ func TestTenantStoreNoCompactFlag(t *testing.T) {
 
 	store.PollNow(ctx)
 	metas := store.BlockMetas(ts.tenantID)
-	require.Equal(t, 0, len(metas))
+	require.Equal(t, 1, len(metas))
+	require.Equal(t, []backend.UUID{metas[0].BlockID}, store.NoCompactBlocks(ts.tenantID))
 
-	// block should be available for polling after compaction is allowed
+	// block should be compactable after compaction is allowed
 	err = ts.AllowCompaction(ctx, store)
 	require.NoError(t, err)
 
 	store.PollNow(ctx)
 	metas = store.BlockMetas(ts.tenantID)
 	require.Equal(t, 1, len(metas))
+	require.Empty(t, store.NoCompactBlocks(ts.tenantID))
 
 	actualMeta := metas[0]
 

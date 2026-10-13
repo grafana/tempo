@@ -2760,7 +2760,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	// Write to wal
 	wal := w.WAL()

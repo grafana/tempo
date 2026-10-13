@@ -51,7 +51,7 @@ func (cmd *searchBlocksCmd) Run(opts *globalOptions) error {
 
 	ctx := context.Background()
 
-	blockIDs, _, err := r.Blocks(ctx, cmd.TenantID)
+	blockIDs, _, _, err := r.Blocks(ctx, cmd.TenantID)
 	if err != nil {
 		return err
 	}

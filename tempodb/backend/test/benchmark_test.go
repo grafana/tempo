@@ -45,7 +45,7 @@ func BenchmarkIndexLoad(b *testing.B) {
 	require.NoError(b, err)
 
 	w := backend.NewWriter(rw)
-	err = w.WriteTenantIndex(ctx, tenant, blockMeta, nil)
+	err = w.WriteTenantIndex(ctx, tenant, blockMeta, nil, nil)
 	require.NoError(b, err)
 
 	r := backend.NewReader(rr)

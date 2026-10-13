@@ -1982,7 +1982,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 	rw := r.(*readerWriter)
 
 	wantID, wantTr, start, end, wantMeta := makeExpectedTrace(nil)
@@ -2052,7 +2052,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 	rw := r.(*readerWriter)
 
 	wantID, wantTr, start, end, wantMeta := makeExpectedTrace(nil)
@@ -2533,7 +2533,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	err := c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
+	r.EnablePolling(context.Background(), &mockJobSharder{})
 
 	blockID := backend.NewUUID()
 
@@ -2693,7 +2693,7 @@ func TestSearchByShortTraceID(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := t.Context()
-		r.EnablePolling(ctx, &mockJobSharder{}, false)
+		r.EnablePolling(ctx, &mockJobSharder{})
 		wantID, wantTr, start, end, wantMeta := makeExpectedTrace(traceID)
 
 		// Write to wal

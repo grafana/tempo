@@ -333,8 +333,16 @@ func TestSplitReqConditionGroups(t *testing.T) {
 		},
 		{
 			name:     "one OR is opnone query",
-			query:    `{.attr || .foo = "bar" }`,
+			query:    `{.attr = .other || .foo = "bar" }`,
 			expected: nil,
+		},
+		{
+			name:  "bare attribute in OR is treated as attr = true",
+			query: `{.attr || .foo = "bar" }`,
+			expected: [][]Condition{
+				{newCondition(NewAttribute("attr"), OpEqual, NewStaticBool(true))},
+				{newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar"))},
+			},
 		},
 		{
 			name:  "incomplete intrinsic matcher keeps other conditions",

@@ -3,8 +3,14 @@ global:
   clusterDomain: 'cluster.local'
 gateway:
   enabled: true
-minio:
-  enabled: true
+ingest:
+  kafka:
+    address: 'kafka:9092'
+    auto_create_topic_default_partitions: 1
+blockBuilder:
+  replicas: 1
+liveStore:
+  replicas: 1
 storage:
   trace:
     backend: s3
@@ -12,7 +18,7 @@ storage:
       access_key: 'grafana-tempo'
       secret_key: 'supersecret'
       bucket: 'tempo-traces'
-      endpoint: 'tempo-minio:9000'
+      endpoint: 'rustfs:9000'
       insecure: true
 traces:
   otlp:

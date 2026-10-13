@@ -57,7 +57,7 @@ func TestWriter(t *testing.T) {
 	tenantIndexPath := filepath.Join("test", TenantIndexName)
 	tenantIndexPathPb := filepath.Join("test", TenantIndexNamePb)
 	// Write the tenant index to the backend and validate the payloads.
-	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
+	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil, nil)
 	assert.NoError(t, err)
 
 	// proto
@@ -81,7 +81,7 @@ func TestWriter(t *testing.T) {
 	// When there are no blocks, the tenant index should be deleted
 	assert.Equal(t, map[string]map[string]int(nil), w.(*writer).w.(*MockRawWriter).deleteCalls)
 
-	err = w.WriteTenantIndex(ctx, "test", nil, nil)
+	err = w.WriteTenantIndex(ctx, "test", nil, nil, nil)
 	assert.NoError(t, err)
 
 	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}, TenantIndexNamePb: {"test": 1}}
@@ -90,7 +90,7 @@ func TestWriter(t *testing.T) {
 	// When a backend returns ErrDoesNotExist, the tenant index should be deleted, but no error should be returned if the tenant index does not exist
 	m = &MockRawWriter{err: ErrDoesNotExist}
 	w = NewWriter(m)
-	err = w.WriteTenantIndex(ctx, "test", nil, nil)
+	err = w.WriteTenantIndex(ctx, "test", nil, nil, nil)
 	assert.NoError(t, err)
 }
 
@@ -124,7 +124,7 @@ func TestReader(t *testing.T) {
 	m.BlockIDs = append(m.BlockIDs, uuid2)
 	m.CompactedBlockIDs = append(m.CompactedBlockIDs, uuid3)
 
-	actualBlocks, actualCompactedBlocks, err := r.Blocks(ctx, "test")
+	actualBlocks, actualCompactedBlocks, _, err := r.Blocks(ctx, "test")
 	assert.NoError(t, err)
 	assert.Equal(t, expectedBlocks, actualBlocks)
 	assert.Equal(t, expectedCompactedBlocks, actualCompactedBlocks)
@@ -145,7 +145,7 @@ func TestReader(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, idx)
 
-	expectedIdx := newTenantIndex([]*BlockMeta{expectedMeta}, nil)
+	expectedIdx := newTenantIndex([]*BlockMeta{expectedMeta}, nil, nil)
 	m.R, _ = expectedIdx.marshalPb()
 	idx, err = r.TenantIndex(ctx, "test")
 	assert.NoError(t, err)
@@ -253,10 +253,10 @@ func TestTenantIndexFallback(t *testing.T) {
 
 		u           = uuid.New()
 		meta        = NewBlockMeta(tenantID, u, "blerg")
-		expectedIdx = newTenantIndex([]*BlockMeta{meta}, nil)
+		expectedIdx = newTenantIndex([]*BlockMeta{meta}, nil, nil)
 	)
 
-	err := w.WriteTenantIndex(ctx, tenantID, []*BlockMeta{meta}, nil)
+	err := w.WriteTenantIndex(ctx, tenantID, []*BlockMeta{meta}, nil, nil)
 	assert.NoError(t, err)
 
 	mr.R, err = expectedIdx.marshal()

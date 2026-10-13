@@ -3,11 +3,15 @@ package vparquet3
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -15,7 +19,9 @@ import (
 	"github.com/grafana/tempo/v3/pkg/model"
 	"github.com/grafana/tempo/v3/pkg/model/trace"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
@@ -571,4 +577,196 @@ func BenchmarkWalSearchTagValues(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestWalBlockFetchTagValuesWithIDIntrinsics(t *testing.T) {
+	testWalBlock(t, func(w *walBlock, ids []common.ID, trs []*tempopb.Trace) {
+		var spanIDs []string
+		for _, rs := range trs[0].ResourceSpans {
+			for _, ss := range rs.ScopeSpans {
+				for _, s := range ss.Spans {
+					spanIDs = append(spanIDs, util.SpanIDToHexString(s.SpanId))
+				}
+			}
+		}
+		sort.Strings(spanIDs)
+
+		// HexStringToSpanID drops leading zeros, so those span IDs can't be matched
+		filterSpanID := ""
+		for _, id := range spanIDs {
+			if !strings.HasPrefix(id, "00") {
+				filterSpanID = id
+				break
+			}
+		}
+		require.NotEmpty(t, filterSpanID)
+
+		testCases := []struct {
+			name, tag, query string
+			expected         []string
+		}{
+			{
+				name:     "span:id with empty trace:id and incomplete span:id",
+				tag:      "span:id",
+				query:    `{ trace:id = "" && span:id = }`,
+				expected: []string{},
+			},
+			{
+				name:     "span:id filtered by trace:id",
+				tag:      "span:id",
+				query:    `{ trace:id = "` + util.TraceIDToHexString(ids[0]) + `" }`,
+				expected: spanIDs,
+			},
+			{
+				name:     "trace:id filtered by span:id",
+				tag:      "trace:id",
+				query:    `{ span:id = "` + filterSpanID + `" }`,
+				expected: []string{util.TraceIDToHexString(ids[0])},
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				conditionGroups, err := traceql.ExtractConditionGroups(tc.query, traceql.DefaultMaxConditionGroupsPerTagQuery)
+				require.NoError(t, err)
+
+				tag, err := traceql.ParseIdentifier(tc.tag)
+				require.NoError(t, err)
+
+				var (
+					distinctValues = collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+					fetcher        = traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+						return w.FetchTagValues(ctx, req, cb, func(uint64) {}, common.DefaultSearchOptions())
+					})
+				)
+
+				err = traceql.NewEngine().ExecuteTagValues(t.Context(), tag, conditionGroups, traceql.MakeCollectTagValueFunc(distinctValues.Collect), fetcher, 0)
+				require.NoError(t, err)
+
+				actual := []string{}
+				for _, v := range distinctValues.Values() {
+					actual = append(actual, v.Value)
+				}
+				sort.Strings(actual)
+				require.Equal(t, tc.expected, actual)
+			})
+		}
+	})
+}
+
+func TestWalBlockFetchTagsAllConditionsUnsupported(t *testing.T) {
+	// A group of only start time conditions has no iterator.
+	testWalBlock(t, func(w *walBlock, _ []common.ID, _ []*tempopb.Trace) {
+		for _, intrinsic := range []traceql.Intrinsic{traceql.IntrinsicTraceStartTime, traceql.IntrinsicSpanStartTime} {
+			t.Run(intrinsic.String(), func(t *testing.T) {
+				attr := traceql.NewIntrinsic(intrinsic)
+				req := traceql.FetchTagValuesRequest{
+					TagName: attr,
+					ConditionGroups: [][]traceql.Condition{{
+						{Attribute: attr, Op: traceql.OpGreater, Operands: traceql.Operands{traceql.NewStaticDuration(0)}},
+						{Attribute: attr, Op: traceql.OpNone},
+					}},
+				}
+
+				err := w.FetchTagValues(t.Context(), req, func(traceql.Static) bool { return false }, func(uint64) {}, common.DefaultSearchOptions())
+				require.NoError(t, err)
+			})
+		}
+
+		t.Run("tag names", func(t *testing.T) {
+			req := traceql.FetchTagsRequest{
+				Scope: traceql.AttributeScopeTrace,
+				ConditionGroups: [][]traceql.Condition{{
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceStartTime), Op: traceql.OpGreater, Operands: traceql.Operands{traceql.NewStaticDuration(0)}},
+				}},
+			}
+
+			err := w.FetchTagNames(t.Context(), req, func(string, traceql.AttributeScope) bool { return false }, func(uint64) {}, common.DefaultSearchOptions())
+			require.NoError(t, err)
+		})
+	})
+}
+
+func TestWalBlockFetchTagsUnfilteredGroupFallsBackBeforeAnyGroupRuns(t *testing.T) {
+	// No group runs before falling back to the unfiltered search, so an extra group reads nothing.
+	testWalBlock(t, func(w *walBlock, _ []common.ID, _ []*tempopb.Trace) {
+		var (
+			startTime   = traceql.NewIntrinsic(traceql.IntrinsicSpanStartTime)
+			unsupported = traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceStartTime), Op: traceql.OpGreater, Operands: traceql.Operands{traceql.NewStaticDuration(0)}}
+		)
+
+		type readStats struct{ calls, bytes uint64 }
+		measure := func(fetch func(common.MetricsCallback) error) readStats {
+			var st readStats
+			require.NoError(t, fetch(func(bytes uint64) {
+				st.calls++
+				st.bytes += bytes
+			}))
+			return st
+		}
+
+		t.Run("tag values", func(t *testing.T) {
+			var (
+				tagCond  = traceql.Condition{Attribute: startTime, Op: traceql.OpNone}
+				filtered = traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicName), Op: traceql.OpEqual, Operands: traceql.Operands{traceql.NewStaticString("foo")}}
+			)
+			fetch := func(groups [][]traceql.Condition) func(common.MetricsCallback) error {
+				return func(mcb common.MetricsCallback) error {
+					req := traceql.FetchTagValuesRequest{TagName: startTime, ConditionGroups: groups}
+					return w.FetchTagValues(t.Context(), req, func(traceql.Static) bool { return false }, mcb, common.DefaultSearchOptions())
+				}
+			}
+
+			alone := measure(fetch([][]traceql.Condition{{unsupported, tagCond}}))
+			withGroup := measure(fetch([][]traceql.Condition{{filtered, tagCond}, {unsupported, tagCond}}))
+
+			require.Equal(t, alone, withGroup)
+		})
+
+		t.Run("tag names", func(t *testing.T) {
+			filtered := traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), Op: traceql.OpGreater, Operands: traceql.Operands{traceql.NewStaticDuration(1000 * time.Hour)}}
+			fetch := func(groups [][]traceql.Condition) func(common.MetricsCallback) error {
+				return func(mcb common.MetricsCallback) error {
+					req := traceql.FetchTagsRequest{Scope: traceql.AttributeScopeTrace, ConditionGroups: groups}
+					return w.FetchTagNames(t.Context(), req, func(string, traceql.AttributeScope) bool { return false }, mcb, common.DefaultSearchOptions())
+				}
+			}
+
+			alone := measure(fetch([][]traceql.Condition{{unsupported}}))
+			withGroup := measure(fetch([][]traceql.Condition{{filtered}, {unsupported}}))
+
+			require.Equal(t, alone, withGroup)
+		})
+	})
+}
+
+func TestWalBlockFetchTagValuesClosesGroupBeforeNextRuns(t *testing.T) {
+	exporter := testSpans(t)
+
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+	w, err := createWALBlock(meta, t.TempDir(), model.CurrentEncoding, 0)
+	require.NoError(t, err)
+
+	id := test.ValidTraceID(nil)
+	tr := test.MakeTrace(2, id)
+	for i, rs := range tr.ResourceSpans {
+		for _, a := range rs.Resource.Attributes {
+			if a.Key == "service.name" {
+				a.Value = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: fmt.Sprintf("svc-%d", i)}}
+			}
+		}
+		for _, ss := range rs.ScopeSpans {
+			for _, sp := range ss.Spans {
+				sp.Name = fmt.Sprintf("name-%d", i)
+			}
+		}
+	}
+	trace.SortTrace(tr)
+	require.NoError(t, w.AppendTrace(id, tr, 0, 0, true))
+	require.NoError(t, w.Flush())
+
+	ended := runTwoGroups(t, exporter, "svc-0", "svc-1", "name-1", func(req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+		return w.FetchTagValues(t.Context(), req, cb, func(uint64) {}, common.DefaultSearchOptions())
+	})
+	require.Positive(t, ended)
 }

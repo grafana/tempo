@@ -67,6 +67,59 @@ func TestEncoderDecoder(t *testing.T) {
 	}
 }
 
+func TestEncodeManySmallTracesStayWithinProducerBatchLimit(t *testing.T) {
+	const traceCount = 15685
+	traceBytes := make([]byte, 1000)
+	req := &tempopb.PushBytesRequest{
+		Traces: make([]tempopb.PreallocBytes, traceCount),
+		Ids:    make([][]byte, traceCount),
+	}
+	for i := range req.Traces {
+		req.Traces[i].Slice = traceBytes
+		id := make([]byte, 16)
+		id[14] = byte(i >> 8)
+		id[15] = byte(i)
+		req.Ids[i] = id
+	}
+
+	records, err := Encode(0, "1395099", req, maxProducerRecordDataBytesLimit)
+	require.NoError(t, err)
+
+	decoder := NewDecoder()
+	decodedTraces := 0
+	for _, record := range records {
+		require.LessOrEqual(t, len(record.Value), maxProducerRecordDataBytesLimit)
+		require.Less(t, len(record.Value)+len(record.Key), producerBatchMaxBytes)
+		decoder.Reset()
+		decoded, err := decoder.Decode(record.Value)
+		require.NoError(t, err)
+		decodedTraces += len(decoded.Traces)
+	}
+	require.Equal(t, traceCount, decodedTraces)
+}
+
+func TestEncodeSplitPreservesSkipMetricsGeneration(t *testing.T) {
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{Slice: []byte("trace-a")},
+			{Slice: []byte("trace-b")},
+		},
+		Ids:                   [][]byte{[]byte("trace-id-0000001"), []byte("trace-id-0000002")},
+		SkipMetricsGeneration: true,
+	}
+
+	records, err := Encode(0, "tenant", req, 32)
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	decoder := NewDecoder()
+	for _, record := range records {
+		decoder.Reset()
+		decoded, err := decoder.Decode(record.Value)
+		require.NoError(t, err)
+		require.True(t, decoded.SkipMetricsGeneration)
+	}
+}
+
 func TestEncoderSingleEntryTooLarge(t *testing.T) {
 	stream := generateRequest(1, 1000)
 

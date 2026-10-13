@@ -282,7 +282,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 	}, nil, log)
 	require.NoError(t, err)
 
-	s.EnablePolling(ctx, &ownsEverythingSharder{}, false)
+	s.EnablePolling(ctx, &ownsEverythingSharder{})
 
 	return s
 }

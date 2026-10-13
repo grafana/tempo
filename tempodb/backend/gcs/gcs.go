@@ -209,7 +209,7 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 }
 
 // ListBlocks implements backend.Reader
-func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error) {
+func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
 	ctx, span := tracer.Start(ctx, "readerWriter.ListBlocks")
 	defer span.End()
 
@@ -223,6 +223,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 		maxID             uuid.UUID
 		blockIDs          = make([]uuid.UUID, 0, 1000)
 		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+		noCompactBlockIDs = make([]uuid.UUID, 0)
 	)
 
 	prefix := path.Join(keypath...)
@@ -280,6 +281,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 				switch parts[1] {
 				case backend.MetaName:
 				case backend.CompactedMetaName:
+				case backend.NoCompactFileName:
 				default:
 					continue
 				}
@@ -306,6 +308,8 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 					blockIDs = append(blockIDs, id)
 				case backend.CompactedMetaName:
 					compactedBlockIDs = append(compactedBlockIDs, id)
+				case backend.NoCompactFileName:
+					noCompactBlockIDs = append(noCompactBlockIDs, id)
 				}
 				mtx.Unlock()
 			}
@@ -320,10 +324,10 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 	}
 
 	if len(errs) > 0 {
-		return nil, nil, errors.Join(errs...)
+		return nil, nil, nil, errors.Join(errs...)
 	}
 
-	return blockIDs, compactedBlockIDs, nil
+	return blockIDs, compactedBlockIDs, noCompactBlockIDs, nil
 }
 
 // Find implements backend.Reader

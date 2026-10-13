@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/v3/modules/backendscheduler/work"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/modules/storage"
@@ -322,6 +323,47 @@ func TestCompactionProvider_MeasureTenantsIgnoresTenantPending(t *testing.T) {
 	require.Greater(t, measureLen, 0, "newBlockSelectorForMeasurement should return blocks even while TenantPending")
 }
 
+func TestCompactionProvider_SkipsNoCompactBlocks(t *testing.T) {
+	const testTenant = "test-tenant"
+	cfg := CompactionConfig{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	tmpDir := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	store, _, ww := newStore(ctx, t, tmpDir)
+	defer store.Shutdown()
+
+	writer := backend.NewWriter(ww)
+	writeTenantBlocks(ctx, t, writer, testTenant, 5)
+	store.PollNow(ctx)
+
+	metas := store.BlockMetas(testTenant)
+	require.Len(t, metas, 5)
+	flagged := map[backend.UUID]struct{}{}
+	for _, m := range metas[:2] {
+		require.NoError(t, writer.WriteNoCompactFlag(ctx, uuid.UUID(m.BlockID), testTenant))
+		flagged[m.BlockID] = struct{}{}
+	}
+	store.PollNow(ctx)
+	require.Len(t, store.BlockMetas(testTenant), 5)
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	p := NewCompactionProvider(cfg, test.NewTestingLogger(t), store, limits, work.New(work.Config{}))
+
+	selector, blocklistLen := p.newBlockSelector(testTenant)
+	require.Equal(t, 3, blocklistLen)
+	for _, m := range collectAllMetas(selector) {
+		require.NotContains(t, flagged, m.BlockID)
+	}
+
+	_, measureLen := p.newBlockSelectorForMeasurement(testTenant)
+	require.Equal(t, 3, measureLen)
+}
+
 func TestCompactionProvider_InFlightJobsPreventDuplicates(t *testing.T) {
 	const tenant = "test-tenant"
 	cfg := CompactionConfig{}
@@ -444,7 +486,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 	}, nil, log)
 	require.NoError(t, err)
 
-	s.EnablePolling(ctx, &ownsEverythingSharder{}, false)
+	s.EnablePolling(ctx, &ownsEverythingSharder{})
 
 	return s
 }

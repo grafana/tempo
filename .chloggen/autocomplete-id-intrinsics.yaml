@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: storage
+
+note: Fix a querier panic in tag values search when every condition in a group is `trace:id` or `span:id`, e.g. `{ trace:id = "" && span:id = }`.
+
+issues: []
+
+subtext:
+
+user: zhxiaogg

@@ -180,7 +180,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 			}, r, c, w, log.NewNopLogger())
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			actualList, actualCompactedList, err := poller.Do(ctx, b)
+			actualList, actualCompactedList, _, err := poller.Do(ctx, b)
 
 			// confirm return as expected
 			assert.Equal(t, tc.expectedList, actualList)
@@ -289,7 +289,7 @@ func TestTenantIndexFallback(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			_, _, err := poller.Do(ctx, b)
+			_, _, _, err := poller.Do(ctx, b)
 
 			assert.Equal(t, tc.expectsError, err != nil)
 			assert.Equal(t, tc.expectsTenantIndexWritten, w.IndexCompactedMeta != nil)
@@ -392,110 +392,53 @@ func TestPollBlock(t *testing.T) {
 	}
 }
 
-func TestPollBlockWithNoCompactFlag(t *testing.T) {
-	blockID := backend.MustParse("00000000-0000-0000-0000-000000000001")
-	blockUUID := uuid.MustParse(blockID.String())
-	tenantID := "test"
+func TestPollNoCompactFlag(t *testing.T) {
+	var (
+		tenantID  = "test"
+		knownID   = backend.MustParse("00000000-0000-0000-0000-000000000001")
+		unknownID = backend.MustParse("00000000-0000-0000-0000-000000000002")
+		unflagged = backend.MustParse("00000000-0000-0000-0000-000000000003")
+		notLiveID = backend.MustParse("00000000-0000-0000-0000-000000000004")
+		knownMeta = &backend.BlockMeta{BlockID: knownID, TenantID: tenantID}
+		otherMeta = &backend.BlockMeta{BlockID: unflagged, TenantID: tenantID}
+		current   = PerTenant{tenantID: {knownMeta, {BlockID: unknownID, TenantID: tenantID}, otherMeta}}
+		noCompact = []uuid.UUID{uuid.UUID(knownID), uuid.UUID(unknownID), uuid.UUID(notLiveID)}
+		r         = newMockReader(current, nil, false).(*backend.MockReader)
+		w         = &backend.MockWriter{}
+		previous  = newBlocklist(PerTenant{tenantID: {knownMeta, otherMeta}}, PerTenantCompacted{})
+		blocksFn  = r.BlocksFn
+	)
 
-	tests := []struct {
-		name                   string
-		hasNoCompactFlag       bool
-		noCompactFlagError     error
-		skipNoCompactBlocks    bool
-		expectedMeta           *backend.BlockMeta
-		expectedNoCompactCalls int
-		expectedBlockMetaCalls int
-		wantErr                bool
-	}{
-		{
-			name:                   "block without nocompact flag is included",
-			hasNoCompactFlag:       false,
-			skipNoCompactBlocks:    true,
-			expectedMeta:           &backend.BlockMeta{BlockID: blockID, TenantID: tenantID},
-			expectedNoCompactCalls: 1,
-			expectedBlockMetaCalls: 1,
-			wantErr:                false,
-		},
-		{
-			name:                   "block with nocompact flag is excluded",
-			hasNoCompactFlag:       true,
-			skipNoCompactBlocks:    true,
-			expectedMeta:           nil,
-			expectedNoCompactCalls: 1,
-			expectedBlockMetaCalls: 0, // no calls for excluded block
-			wantErr:                false,
-		},
-		{
-			name:                   "block with nocompact flag is included if skipNoCompactBlocks is false",
-			hasNoCompactFlag:       true,
-			skipNoCompactBlocks:    false,
-			expectedMeta:           &backend.BlockMeta{BlockID: blockID, TenantID: tenantID},
-			expectedNoCompactCalls: 0, // no compact check calls
-			expectedBlockMetaCalls: 1,
-			wantErr:                false,
-		},
-		{
-			name:                   "block with nocompact flag check error is excluded",
-			hasNoCompactFlag:       false,
-			skipNoCompactBlocks:    true,
-			noCompactFlagError:     errors.New("flag check error"),
-			expectedMeta:           nil,
-			expectedNoCompactCalls: 1,
-			expectedBlockMetaCalls: 0, // no calls for errored block
-			wantErr:                true,
-		},
+	r.BlocksFn = func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
+		ids, compactedIDs, _, err := blocksFn(ctx, tenantID)
+		return ids, compactedIDs, noCompact, err
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			r := &backend.MockReader{
-				T: []string{tenantID},
-				BlockMetaFn: func(_ context.Context, blockID uuid.UUID, tID string) (*backend.BlockMeta, error) {
-					if blockID == blockUUID && tID == tenantID {
-						return &backend.BlockMeta{BlockID: backend.UUID(blockID), TenantID: tID}, nil
-					}
-					return nil, backend.ErrDoesNotExist
-				},
-				HasNoCompactFlagFn: func(_ context.Context, _ uuid.UUID, _ string) (bool, error) {
-					if tc.noCompactFlagError != nil {
-						return false, tc.noCompactFlagError
-					}
-					return tc.hasNoCompactFlag, nil
-				},
-			}
+	poller := NewPoller(&PollerConfig{
+		PollConcurrency:       testPollConcurrency,
+		TenantPollConcurrency: testTenantPollConcurrency,
+		PollFallback:          testPollFallback,
+		TenantIndexBuilders:   testBuilders,
+	}, &mockJobSharder{owns: true}, r, newMockCompactor(nil, false), w, log.NewNopLogger())
 
-			c := &backend.MockCompactor{
-				BlockMetaFn: func(_ uuid.UUID, _ string) (*backend.CompactedBlockMeta, error) {
-					return nil, backend.ErrDoesNotExist
-				},
-			}
+	// Flags of known and unknown live blocks are returned and written to the tenant
+	// index. A flag without a live block is dropped.
+	metas, _, noCompactList, err := poller.Do(context.Background(), previous)
+	require.NoError(t, err)
+	require.Len(t, metas[tenantID], 3)
+	require.ElementsMatch(t, []backend.UUID{knownID, unknownID}, noCompactList[tenantID])
+	require.ElementsMatch(t, []backend.UUID{knownID, unknownID}, w.IndexNoCompact[tenantID])
 
-			w := &backend.MockWriter{}
+	// Metas are passed through unchanged.
+	require.Same(t, knownMeta, metas[tenantID][0])
+	require.Same(t, otherMeta, metas[tenantID][1])
 
-			poller := NewPoller(&PollerConfig{
-				PollConcurrency:       testPollConcurrency,
-				TenantPollConcurrency: testTenantPollConcurrency,
-				PollFallback:          testPollFallback,
-				TenantIndexBuilders:   testBuilders,
-				SkipNoCompactBlocks:   tc.skipNoCompactBlocks,
-			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
-
-			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tenantID, blockUUID, false)
-			if tc.wantErr {
-				assert.Error(t, err, "expected error for block with nocompact flag or error checking the flag")
-			} else {
-				assert.NoError(t, err)
-			}
-
-			assert.Nil(t, actualCompactedMeta)
-
-			assert.Equal(t, tc.expectedMeta, actualMeta, "block without nocompact flag should be included")
-
-			// Verify the methods were called the expected number of times
-			assert.Equal(t, tc.expectedBlockMetaCalls, r.BlockMetaCalls[tenantID][blockUUID], "BlockMeta should be called expected number of times")
-			assert.Equal(t, tc.expectedNoCompactCalls, r.HasNoCompactFlagCalls[tenantID][blockUUID], "HasNoCompactFlag should be called expected number of times")
-		})
-	}
+	// Deleting the flags clears them on the next poll.
+	noCompact = nil
+	_, _, noCompactList, err = poller.Do(context.Background(), newBlocklist(metas, PerTenantCompacted{}))
+	require.NoError(t, err)
+	require.Empty(t, noCompactList[tenantID])
+	require.Empty(t, w.IndexNoCompact[tenantID])
 }
 
 func TestTenantIndexPollError(t *testing.T) {
@@ -722,7 +665,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 
 			// This mock reader returns error or nil based on the tenant ID
 			r := &backend.MockReader{
-				BlocksFn: func(_ context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+				BlocksFn: func(_ context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
 					mtx.Lock()
 					defer func() {
 						callCounter[tenantID]++
@@ -738,13 +681,13 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 
 					if errs, ok := tc.tenantErrors[tenantID]; ok {
 						if len(errs) > count {
-							return nil, nil, errs[count]
+							return nil, nil, nil, errs[count]
 						}
 					}
 
 					// i, _ := strconv.Atoi(tenantID)
 					// return nil, nil, tc.tenantErrors[i]
-					return nil, nil, nil
+					return nil, nil, nil, nil
 				},
 			}
 			// Tenant ID for each index in the slice
@@ -764,7 +707,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			_, _, err := poller.Do(ctx, b)
+			_, _, _, err := poller.Do(ctx, b)
 
 			if tc.expectedError != nil {
 				assert.ErrorContains(t, err, tc.expectedError.Error())
@@ -822,7 +765,7 @@ func TestPollerDoSpanParenting(t *testing.T) {
 		EmptyTenantDeletionAge: testEmptyTenantIndexAge,
 	}, s, r, c, w, log.NewNopLogger())
 
-	_, _, err := poller.Do(context.Background(), b)
+	_, _, _, err := poller.Do(context.Background(), b)
 	require.NoError(t, err)
 
 	spans := exporter.GetSpans()
@@ -881,8 +824,8 @@ func TestPollerSpansRecordErrorStatus(t *testing.T) {
 			b = newBlocklist(PerTenant{}, PerTenantCompacted{})
 			r = &backend.MockReader{
 				T: []string{"test"},
-				BlocksFn: func(context.Context, string) ([]uuid.UUID, []uuid.UUID, error) {
-					return nil, nil, errors.New("boom")
+				BlocksFn: func(context.Context, string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
+					return nil, nil, nil, errors.New("boom")
 				},
 			}
 		)
@@ -897,7 +840,7 @@ func TestPollerSpansRecordErrorStatus(t *testing.T) {
 			EmptyTenantDeletionAge:    testEmptyTenantIndexAge,
 		}, s, r, c, w, log.NewNopLogger())
 
-		_, _, err := poller.Do(context.Background(), b)
+		_, _, _, err := poller.Do(context.Background(), b)
 		require.NoError(t, err, "one tolerated tenant failure should not fail the whole poll")
 
 		spans := exporter.GetSpans()
@@ -927,7 +870,7 @@ func TestPollerSpansRecordErrorStatus(t *testing.T) {
 			EmptyTenantDeletionAge: testEmptyTenantIndexAge,
 		}, s, r, c, w, log.NewNopLogger())
 
-		_, _, err := poller.Do(context.Background(), b)
+		_, _, _, err := poller.Do(context.Background(), b)
 		require.NoError(t, err)
 
 		spans := exporter.GetSpans()
@@ -955,7 +898,7 @@ func TestPollerSpansRecordErrorStatus(t *testing.T) {
 			EmptyTenantDeletionAge: testEmptyTenantIndexAge,
 		}, s, r, c, w, log.NewNopLogger())
 
-		_, _, err := poller.Do(context.Background(), b)
+		_, _, _, err := poller.Do(context.Background(), b)
 		require.Error(t, err)
 
 		spans := exporter.GetSpans()
@@ -1240,7 +1183,7 @@ func TestPollComparePreviousResults(t *testing.T) {
 				TolerateTenantFailures:    tc.tollerateTenantFailures,
 			}, s, r, c, w, log.NewNopLogger())
 
-			metas, compactedMetas, err := poller.Do(ctx, previous)
+			metas, compactedMetas, _, err := poller.Do(ctx, previous)
 			require.Equal(t, tc.err, err)
 
 			require.Equal(t, len(tc.expectedPerTenant), len(metas))
@@ -1322,7 +1265,7 @@ func TestPollLiveToCompactedSynthesized(t *testing.T) {
 	}, s, r, c, w, log.NewNopLogger())
 
 	before := time.Now()
-	_, compactedMetas, err := poller.Do(context.Background(), previous)
+	_, compactedMetas, _, err := poller.Do(context.Background(), previous)
 	require.NoError(t, err)
 
 	// Block should appear in the compacted list.
@@ -1478,22 +1421,22 @@ func BenchmarkFullPoller(b *testing.B) {
 			b.Run("initial", func(b *testing.B) {
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					ml, cl, _ = poller.Do(ctx, list)
+					ml, cl, _, _ = poller.Do(ctx, list)
 				}
 				b.StopTimer()
 
-				list.ApplyPollResults(ml, cl)
+				list.ApplyPollResults(ml, cl, nil)
 			})
 
 			// No change to the list
 			b.Run("second", func(b *testing.B) {
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					ml, cl, _ = poller.Do(ctx, list)
+					ml, cl, _, _ = poller.Do(ctx, list)
 				}
 				b.StopTimer()
 
-				list.ApplyPollResults(ml, cl)
+				list.ApplyPollResults(ml, cl, nil)
 			})
 
 			for i := 0; i < bc.iterations; i++ {
@@ -1514,11 +1457,11 @@ func BenchmarkFullPoller(b *testing.B) {
 				b.Run(fmt.Sprintf("grow%d", i), func(b *testing.B) {
 					b.ResetTimer()
 					for i := 0; i < b.N; i++ {
-						ml, cl, _ = poller.Do(ctx, list)
+						ml, cl, _, _ = poller.Do(ctx, list)
 					}
 					b.StopTimer()
 
-					list.ApplyPollResults(ml, cl)
+					list.ApplyPollResults(ml, cl, nil)
 				})
 			}
 		})
@@ -1528,7 +1471,7 @@ func BenchmarkFullPoller(b *testing.B) {
 func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *List) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		_, _, err := poller.pollTenantBlocks(context.Background(), tenant, previous)
+		_, _, _, err := poller.pollTenantBlocks(context.Background(), tenant, previous)
 		require.NoError(b, err)
 	}
 }
@@ -1650,9 +1593,9 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 
 	return &backend.MockReader{
 		T: tenants,
-		BlocksFn: func(_ context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+		BlocksFn: func(_ context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
 			if expectsError {
-				return nil, nil, errors.New("err")
+				return nil, nil, nil, errors.New("err")
 			}
 			blocks := list[tenantID]
 			uuids := []uuid.UUID{}
@@ -1665,7 +1608,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 				compactedUUIDs = append(compactedUUIDs, uuid.UUID(b.BlockID))
 			}
 
-			return uuids, compactedUUIDs, nil
+			return uuids, compactedUUIDs, nil, nil
 		},
 		BlockMetaCalls: make(map[string]map[uuid.UUID]int),
 		BlockMetaFn: func(_ context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
@@ -1692,7 +1635,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 func newBlocklist(metas PerTenant, compactedMetas PerTenantCompacted) *List {
 	l := New()
 
-	l.ApplyPollResults(metas, compactedMetas)
+	l.ApplyPollResults(metas, compactedMetas, nil)
 
 	return l
 }

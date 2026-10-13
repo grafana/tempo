@@ -107,7 +107,7 @@ func TestApplyPollResults(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			l := New()
-			l.ApplyPollResults(tc.metas, tc.compacted)
+			l.ApplyPollResults(tc.metas, tc.compacted, nil)
 
 			actualTenants := l.Tenants()
 			sort.Slice(actualTenants, func(i, j int) bool { return actualTenants[i] < actualTenants[j] })
@@ -475,7 +475,7 @@ func TestUpdatesSaved(t *testing.T) {
 	for i, tc := range tests {
 		t.Logf("step %d", i+1)
 
-		l.ApplyPollResults(tc.applyMetas, tc.applyCompacted)
+		l.ApplyPollResults(tc.applyMetas, tc.applyCompacted, nil)
 		if tc.updateTenant != "" {
 			l.Update(tc.updateTenant, tc.addMetas, tc.removeMetas, tc.addCompacted, nil)
 		}

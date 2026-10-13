@@ -41,7 +41,7 @@ func TestParquetGoSetsMetadataSections(t *testing.T) {
 	r := backend.NewReader(rawR)
 	ctx := context.Background()
 
-	blocks, _, err := r.Blocks(ctx, tenantID)
+	blocks, _, _, err := r.Blocks(ctx, tenantID)
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 

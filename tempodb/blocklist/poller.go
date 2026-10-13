@@ -100,7 +100,6 @@ type PollerConfig struct {
 	TolerateTenantFailures     int
 	EmptyTenantDeletionAge     time.Duration
 	EmptyTenantDeletionEnabled bool
-	SkipNoCompactBlocks        bool
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -146,7 +145,7 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 }
 
 // Do does the doing of getting a blocklist
-func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ PerTenantCompacted, err error) {
+func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ PerTenantCompacted, _ PerTenantNoCompact, err error) {
 	start := time.Now()
 
 	parentCtx, cancel := context.WithCancel(parentCtx)
@@ -158,7 +157,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ P
 	tenants, err := p.reader.Tenants(parentCtx)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues("").Inc()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	var (
@@ -167,6 +166,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ P
 
 		blocklist          = PerTenant{}
 		compactedBlocklist = PerTenantCompacted{}
+		noCompactBlocklist = PerTenantNoCompact{}
 
 		tenantFailuresRemaining = atomic.NewInt32(int32(p.cfg.TolerateTenantFailures))
 
@@ -181,7 +181,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ P
 		if parentCtx.Err() != nil {
 			// Wait for our work to complete.
 			wg.Wait()
-			return nil, nil, parentCtx.Err()
+			return nil, nil, nil, parentCtx.Err()
 		}
 
 		// Exit early if we have exceeded our tolerance for number of failing tenants.
@@ -205,10 +205,11 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ P
 				consecutiveErrorsRemaining = p.cfg.TolerateConsecutiveErrors
 				newBlockList               = make([]*backend.BlockMeta, 0)
 				newCompactedBlockList      = make([]*backend.CompactedBlockMeta, 0)
+				newNoCompactBlockList      []backend.UUID
 			)
 
 			for consecutiveErrorsRemaining >= 0 {
-				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(bgCtx, tenantID, previous)
+				newBlockList, newCompactedBlockList, newNoCompactBlockList, err = p.pollTenantAndCreateIndex(bgCtx, tenantID, previous)
 				if err == nil {
 					break
 				}
@@ -223,6 +224,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ P
 				level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
 				blocklist[tenantID] = previous.Metas(tenantID)
 				compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
+				noCompactBlocklist[tenantID] = previous.NoCompact(tenantID)
 
 				tenantFailuresRemaining.Dec()
 
@@ -232,6 +234,7 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ P
 			if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
 				blocklist[tenantID] = newBlockList
 				compactedBlocklist[tenantID] = newCompactedBlockList
+				noCompactBlocklist[tenantID] = newNoCompactBlockList
 
 				metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
 
@@ -252,21 +255,21 @@ func (p *Poller) Do(parentCtx context.Context, previous *List) (_ PerTenant, _ P
 	wg.Wait()
 
 	if tenantFailuresRemaining.Load() < 0 {
-		return nil, nil, errors.New("too many tenant failures; abandoning polling cycle")
+		return nil, nil, nil, errors.New("too many tenant failures; abandoning polling cycle")
 	}
 
 	diff := time.Since(start).Seconds()
 	metricBlocklistPollDuration.Observe(diff)
 	level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
 
-	return blocklist, compactedBlocklist, nil
+	return blocklist, compactedBlocklist, noCompactBlocklist, nil
 }
 
 func (p *Poller) pollTenantAndCreateIndex(
 	ctx context.Context,
 	tenantID string,
 	previous *List,
-) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, err error) {
+) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, _ []backend.UUID, err error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollTenantAndCreateIndex", trace.WithAttributes(attribute.String("tenant", tenantID)))
 	defer tracing.EndSpan(span, &err)
 
@@ -285,7 +288,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 
 			span.SetAttributes(attribute.Int("metas", len(i.Meta)))
 			span.SetAttributes(attribute.Int("compactedMetas", len(i.CompactedMeta)))
-			return i.Meta, i.CompactedMeta, nil
+			return i.Meta, i.CompactedMeta, i.NoCompact, nil
 		}
 
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
@@ -293,7 +296,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 
 		// there was an error, return the error if we're not supposed to fallback to polling
 		if !p.cfg.PollFallback {
-			return nil, nil, fmt.Errorf("failed to pull tenant index and no fallback configured: %w", err)
+			return nil, nil, nil, fmt.Errorf("failed to pull tenant index and no fallback configured: %w", err)
 		}
 
 		// polling fallback is true, log the error and continue in this method to completely poll the backend
@@ -309,14 +312,14 @@ func (p *Poller) pollTenantAndCreateIndex(
 	defer func() {
 		metricTenantIndexBuildDuration.WithLabelValues(tenantID).Observe(time.Since(buildStart).Seconds())
 	}()
-	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
+	blocklist, compactedBlocklist, noCompactBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to poll tenant blocks: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to poll tenant blocks: %w", err)
 	}
 
 	// everything is happy, write this tenant index
-	level.Info(p.logger).Log("msg", "writing tenant index", "tenant", tenantID, "metas", len(blocklist), "compactedMetas", len(compactedBlocklist))
-	err = p.writer.WriteTenantIndex(ctx, tenantID, blocklist, compactedBlocklist)
+	level.Info(p.logger).Log("msg", "writing tenant index", "tenant", tenantID, "metas", len(blocklist), "compactedMetas", len(compactedBlocklist), "noCompact", len(noCompactBlocklist))
+	err = p.writer.WriteTenantIndex(ctx, tenantID, blocklist, compactedBlocklist, noCompactBlocklist)
 	if err != nil {
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
@@ -325,26 +328,26 @@ func (p *Poller) pollTenantAndCreateIndex(
 	if len(blocklist) == 0 && len(compactedBlocklist) == 0 {
 		err := p.deleteTenant(ctx, tenantID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to delete tenant: %w", err)
+			return nil, nil, nil, fmt.Errorf("failed to delete tenant: %w", err)
 		}
 	}
 
 	metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(0)
 
-	return blocklist, compactedBlocklist, nil
+	return blocklist, compactedBlocklist, noCompactBlocklist, nil
 }
 
 func (p *Poller) pollTenantBlocks(
 	ctx context.Context,
 	tenantID string,
 	previous *List,
-) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, err error) {
+) (_ []*backend.BlockMeta, _ []*backend.CompactedBlockMeta, _ []backend.UUID, err error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollTenantBlocks")
 	defer tracing.EndSpan(span, &err)
 
-	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(derivedCtx, tenantID)
+	currentBlockIDs, currentCompactedBlockIDs, noCompactBlockIDs, err := p.reader.Blocks(derivedCtx, tenantID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed listing tenant blocks: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed listing tenant blocks: %w", err)
 	}
 
 	var (
@@ -404,13 +407,13 @@ func (p *Poller) pollTenantBlocks(
 
 	newM, newCm, err := p.pollUnknown(derivedCtx, unknownBlockIDs, tenantID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed reading unknown blocks: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed reading unknown blocks: %w", err)
 	}
 
 	newBlockList = append(newBlockList, newM...)
 	newCompactedBlocklist = append(newCompactedBlocklist, newCm...)
 
-	return newBlockList, newCompactedBlocklist, nil
+	return newBlockList, newCompactedBlocklist, liveNoCompact(newBlockList, noCompactBlockIDs), nil
 }
 
 func (p *Poller) pollUnknown(
@@ -494,15 +497,6 @@ func (p *Poller) pollBlock(
 	var blockMeta *backend.BlockMeta
 	var compactedBlockMeta *backend.CompactedBlockMeta
 
-	if !compacted && p.cfg.SkipNoCompactBlocks {
-		noCompact, flagErr := p.reader.HasNoCompactFlag(derivedCtx, blockID, tenantID)
-		if flagErr != nil {
-			return nil, nil, fmt.Errorf("failed to check nocompact flag: %w", flagErr)
-		}
-		if noCompact {
-			return nil, nil, nil
-		}
-	}
 	if !compacted {
 		blockMeta, err = p.reader.BlockMeta(derivedCtx, blockID, tenantID)
 	}
@@ -523,6 +517,27 @@ func (p *Poller) pollBlock(
 	}
 
 	return blockMeta, compactedBlockMeta, nil
+}
+
+// liveNoCompact returns the IDs of the live blocks that have a nocompact flag. A flag
+// without a live block, such as one written before meta.json, is dropped.
+func liveNoCompact(metas []*backend.BlockMeta, noCompactBlockIDs []uuid.UUID) []backend.UUID {
+	if len(noCompactBlockIDs) == 0 {
+		return nil
+	}
+
+	live := make(map[backend.UUID]struct{}, len(metas))
+	for _, m := range metas {
+		live[m.BlockID] = struct{}{}
+	}
+
+	var out []backend.UUID
+	for _, id := range noCompactBlockIDs {
+		if _, ok := live[backend.UUID(id)]; ok {
+			out = append(out, backend.UUID(id))
+		}
+	}
+	return out
 }
 
 // tenantIndexBuilder returns true if this poller owns this tenant

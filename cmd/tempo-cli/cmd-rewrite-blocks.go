@@ -179,7 +179,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 // open each block and skip any of the trace IDs which are passed into the
 // command.
 func (cmd *dropTracesCmd) blocksWithAnyTraceID(ctx context.Context, r backend.Reader, logger log.Logger, tenantID string, traceIDs ...common.ID) ([]*backend.BlockMeta, error) {
-	blockIDs, _, err := r.Blocks(ctx, tenantID)
+	blockIDs, _, _, err := r.Blocks(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
