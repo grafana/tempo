@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/grafana/dskit/multierror"
 )
@@ -70,6 +71,12 @@ func (a *File) Close() error {
 	}
 
 	cleanup = false
+	// Windows opens a directory read-only and FlushFileBuffers needs write access, so the
+	// directory fsync below would fail there: skip it.
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+
 	// After writing the file and calling fsync on it, fsync the containing directory
 	// to ensure the directory entry is persisted to disk.
 	//
@@ -96,8 +103,9 @@ func CreateFile(filePath string, data io.Reader) error {
 		return err
 	}
 
-	_, err = io.Copy(f, data)
-	merr := multierror.New(err)
-	merr.Add(f.Close())
-	return merr.Err()
+	if _, err := io.Copy(f, data); err != nil {
+		// Close would rename the partial temporary file into place: discard it instead.
+		return multierror.New(err, f.File.Close(), os.Remove(f.Name())).Err()
+	}
+	return f.Close()
 }
