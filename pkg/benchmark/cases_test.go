@@ -47,7 +47,7 @@ func TestPhase2Cases(t *testing.T) {
 			prof: ranked(
 				attr(attributes.ScopeSpan, "key", attributes.TypeString, 100, 0.9, "value"),
 				attr(attributes.ScopeResource, "service.name", attributes.TypeString, 50, 0.9, "test-service"),
-				attr(attributes.ScopeSpan, "http.status_code", attributes.TypeInt, 40, 0.3, "200"),
+				attr(attributes.ScopeSpan, "http.status_code", attributes.TypeInt, 40, 0.5, "200"),
 				attr(attributes.ScopeSpan, "error", attributes.TypeBool, 10, 0.01, "true"),
 			),
 			want: []struct{ id, query string }{
@@ -71,7 +71,7 @@ func TestPhase2Cases(t *testing.T) {
 			name: "intrinsics are referenced bare, each type in its literal syntax",
 			prof: ranked(
 				attr(attributes.ScopeIntrinsic, "name", attributes.TypeString, 40, 0.9, "test"),
-				attr(attributes.ScopeIntrinsic, "duration", attributes.TypeDuration, 30, 0.3, "1.5s"),
+				attr(attributes.ScopeIntrinsic, "duration", attributes.TypeDuration, 30, 0.5, "1.5s"),
 				attr(attributes.ScopeIntrinsic, "status", attributes.TypeStatus, 20, 0.01, "ok"),
 			),
 			want: []struct{ id, query string }{
