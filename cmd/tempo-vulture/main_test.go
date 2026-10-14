@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -239,7 +240,7 @@ func TestDoWrite(t *testing.T) {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	logger = zap.NewNop()
 
-	doWrite(&mockJaegerClient, ticker, config.tempoWriteBackoffDuration, config, logger)
+	doWrite(&mockJaegerClient, ticker, config.tempoWriteBackoffDuration, config, newTraceWriteTracker(time.Hour), logger)
 
 	time.Sleep(time.Second)
 	ticker.Stop()
@@ -257,7 +258,7 @@ func TestDoWriteWithError(t *testing.T) {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	logger = zap.NewNop()
 
-	doWrite(&mockJaegerClient, ticker, config.tempoWriteBackoffDuration, config, logger)
+	doWrite(&mockJaegerClient, ticker, config.tempoWriteBackoffDuration, config, newTraceWriteTracker(time.Hour), logger)
 	ticker.Stop()
 	assert.Equal(t, len(mockJaegerClient.GetEmittedBatches()), 0)
 }
@@ -274,14 +275,14 @@ func TestQueueFutureBatches(t *testing.T) {
 	traceInfo := util.NewTraceInfoWithMaxLongWrites(seed, 1, "test")
 	logger = zap.NewNop()
 
-	queueFutureBatches(&mockJaegerClient, traceInfo, config, logger)
+	queueFutureBatches(context.Background(), &mockJaegerClient, traceInfo, config, newTraceWriteTracker(time.Hour), logger)
 	time.Sleep(time.Second)
 	require.Greater(t, len(mockJaegerClient.GetEmittedBatches()), 0)
 
 	// Assert an error
 	mockJaegerClient = MockReporter{err: errors.New("an error")}
 
-	queueFutureBatches(&mockJaegerClient, traceInfo, config, logger)
+	queueFutureBatches(context.Background(), &mockJaegerClient, traceInfo, config, newTraceWriteTracker(time.Hour), logger)
 	time.Sleep(time.Second)
 	require.Equal(t, len(mockJaegerClient.batchesEmitted), 0)
 }
@@ -842,7 +843,7 @@ func TestRunCheckerWithNilTicker(t *testing.T) {
 		checkerCalled = true
 	}
 
-	runChecker(nil, config, selectPastTimestamp, checker, logger)
+	runChecker(nil, config, selectPastTimestamp, checker, newTraceWriteTracker(time.Hour), logger)
 	assert.False(t, checkerCalled)
 }
 
@@ -866,7 +867,7 @@ func TestRunCheckerWithSkip(t *testing.T) {
 		return time.Now(), time.Now(), true
 	}
 
-	runChecker(ticker, config, alwaysSkip, checker, logger)
+	runChecker(ticker, config, alwaysSkip, checker, newTraceWriteTracker(time.Hour), logger)
 	time.Sleep(5 * time.Millisecond)
 	// Ensure the checker was not called due to skip=true
 	assert.False(t, checkerCalled)
@@ -894,7 +895,7 @@ func TestRunCheckerTraceNotReady(t *testing.T) {
 	selectPastTimestamp := func(_ time.Time) (newStart, ts time.Time, skip bool) {
 		return seed, seed, false
 	}
-	runChecker(ticker, config, selectPastTimestamp, checker, logger)
+	runChecker(ticker, config, selectPastTimestamp, checker, newTraceWriteTracker(time.Hour), logger)
 	time.Sleep(5 * time.Millisecond)
 	// Ensure the checker was not called because trace is not ready
 	assert.False(t, checkerCalled)
@@ -935,7 +936,7 @@ func TestRunCheckerSuccess(t *testing.T) {
 	selectPastTimestamp := func(_ time.Time) (newStart, ts time.Time, skip bool) {
 		return startTime, seed, false
 	}
-	runChecker(mockTicker, config, selectPastTimestamp, checker, logger)
+	runChecker(mockTicker, config, selectPastTimestamp, checker, newTraceWriteTracker(2*365*24*time.Hour), logger)
 	time.Sleep(10 * time.Millisecond)
 
 	mx.Lock()

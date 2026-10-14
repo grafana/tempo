@@ -215,29 +215,32 @@ func main() {
 		os.Exit(exitCode)
 	}
 
-	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
+	// Old checks sample relative to now - recent cutoff; allow one additional
+	// write interval for timestamp rounding when expiring write outcomes.
+	writes := newTraceWriteTracker(vultureConfig.tempoRetentionDuration + vultureConfig.tempoRecentTracesCutoffDuration + interval)
+	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, writes, logger)
 
 	// Recent traces
 	runChecker(tickerRead, vultureConfig, selectRecentTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
 		doRead(httpClient, vultureConfig, info, l)
-	}, logger)
+	}, writes, logger)
 	runChecker(tickerSearch, vultureConfig, selectRecentTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
 		doSearch(httpClient, vultureConfig, info, l)
-	}, logger)
+	}, writes, logger)
 	runChecker(tickerMetrics, vultureConfig, selectRecentTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
 		doMetrics(httpClient, vultureConfig, info, l)
-	}, logger)
+	}, writes, logger)
 
 	// Old traces
 	runChecker(tickerRead, vultureConfig, selectOldTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
 		doRead(httpClient, vultureConfig, info, l)
-	}, logger)
+	}, writes, logger)
 	runChecker(tickerSearch, vultureConfig, selectOldTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
 		doSearch(httpClient, vultureConfig, info, l)
-	}, logger)
+	}, writes, logger)
 	runChecker(tickerMetrics, vultureConfig, selectOldTimestamp, func(info *util.TraceInfo, l *zap.Logger) {
 		doMetrics(httpClient, vultureConfig, info, l)
-	}, logger)
+	}, writes, logger)
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
@@ -304,30 +307,37 @@ func traceIsReady(info *util.TraceInfo, now time.Time, startTime time.Time, writ
 	return info.Ready(now, writeBackoff, longBackoff)
 }
 
-func doWrite(jaegerClient util.JaegerClient, tickerWrite *time.Ticker, interval time.Duration, config vultureConfiguration, l *zap.Logger) {
+func doWrite(jaegerClient util.JaegerClient, tickerWrite *time.Ticker, interval time.Duration, config vultureConfiguration, writes *traceWriteTracker, l *zap.Logger) {
 	go func() {
 		for now := range tickerWrite.C {
+			writes.prune(now)
 			timestamp := now.Round(interval)
 			info := util.NewTraceInfo(timestamp, config.tempoOrgID)
 
-			logger := l.With(
-				zap.String("org_id", config.tempoOrgID),
-				zap.Int64("seed", info.Timestamp().Unix()),
-			)
-
-			logger.Info("sending trace")
-
-			err := info.EmitBatches(context.Background(), jaegerClient)
-			if err != nil {
-				metricErrorTotal.Inc()
-			}
-			queueFutureBatches(jaegerClient, info, config, l)
+			writeTrace(context.Background(), jaegerClient, info, config, writes, l)
 		}
 	}()
 }
 
-func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config vultureConfiguration, l *zap.Logger) {
+func writeTrace(ctx context.Context, client util.JaegerClient, info *util.TraceInfo, config vultureConfiguration, writes *traceWriteTracker, l *zap.Logger) {
+	writes.startWrite(config.tempoOrgID, info)
+	logger := l.With(
+		zap.String("org_id", config.tempoOrgID),
+		zap.Int64("seed", info.Timestamp().Unix()),
+	)
+	logger.Info("sending trace")
+
+	err := info.EmitBatches(ctx, client)
+	if err != nil {
+		writes.failWrite(config.tempoOrgID, info)
+		metricErrorTotal.Inc()
+	}
+	queueFutureBatches(ctx, client, info, config, writes, l)
+}
+
+func queueFutureBatches(ctx context.Context, client util.JaegerClient, info *util.TraceInfo, config vultureConfiguration, writes *traceWriteTracker, l *zap.Logger) {
 	if info.LongWritesRemaining() == 0 {
+		writes.finishWrite(config.tempoOrgID, info)
 		return
 	}
 
@@ -342,7 +352,15 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 	info.Done()
 
 	go func() {
-		time.Sleep(config.tempoLongWriteBackoffDuration)
+		timer := time.NewTimer(config.tempoLongWriteBackoffDuration)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			writes.failWrite(config.tempoOrgID, info)
+			writes.finishWrite(config.tempoOrgID, info)
+			return
+		case <-timer.C:
+		}
 
 		logger := l.With(
 			zap.String("org_id", config.tempoOrgID),
@@ -352,15 +370,16 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 		)
 		logger.Info("sending trace")
 
-		err := info.EmitBatches(context.Background(), client)
+		err := info.EmitBatches(ctx, client)
 		if err != nil {
+			writes.failWrite(config.tempoOrgID, info)
 			logger.Error(
 				"failed to queue batches",
 				zap.Error(err),
 			)
 		}
 
-		queueFutureBatches(client, info, config, l)
+		queueFutureBatches(ctx, client, info, config, writes, l)
 	}()
 }
 
@@ -369,6 +388,7 @@ func runChecker(
 	config vultureConfiguration,
 	selectPastTimestamp func(now time.Time) (newStart, ts time.Time, skip bool),
 	checker func(*util.TraceInfo, *zap.Logger),
+	writes *traceWriteTracker,
 	l *zap.Logger,
 ) {
 	if ticker == nil {
@@ -376,27 +396,41 @@ func runChecker(
 	}
 	go func() {
 		for now := range ticker.C {
-			startTime, seed, skip := selectPastTimestamp(now)
-			if skip {
-				continue
-			}
-
-			logger := l.With(
-				zap.String("org_id", config.tempoOrgID),
-				zap.Int64("seed", seed.Unix()),
-			)
-
-			info := util.NewTraceInfo(seed, config.tempoOrgID)
-
-			// Don't query for a trace we don't expect to be complete
-			if !traceIsReady(info, now, startTime,
-				config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
-				continue
-			}
-
-			checker(info, logger)
+			checkTrace(now, config, selectPastTimestamp, checker, writes, l)
 		}
 	}()
+}
+
+func checkTrace(
+	now time.Time,
+	config vultureConfiguration,
+	selectPastTimestamp func(now time.Time) (newStart, ts time.Time, skip bool),
+	checker func(*util.TraceInfo, *zap.Logger),
+	writes *traceWriteTracker,
+	l *zap.Logger,
+) {
+	writes.prune(now)
+	startTime, seed, skip := selectPastTimestamp(now)
+	if skip {
+		return
+	}
+
+	logger := l.With(
+		zap.String("org_id", config.tempoOrgID),
+		zap.Int64("seed", seed.Unix()),
+	)
+	info := util.NewTraceInfo(seed, config.tempoOrgID)
+
+	// Time-based readiness alone cannot establish whether every batch was written.
+	if !traceIsReady(info, now, startTime,
+		config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
+		return
+	}
+	if !writes.canCheck(config.tempoOrgID, info) {
+		logger.Debug("skipping trace with incomplete or failed writes")
+		return
+	}
+	checker(info, logger)
 }
 
 func doRead(httpClient httpclient.TempoHTTPClient, _ vultureConfiguration, info *util.TraceInfo, l *zap.Logger) {
