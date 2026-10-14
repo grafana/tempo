@@ -1,0 +1,6 @@
+change_type: enhancement
+component: backend-scheduler
+note: "Allow the existence check `attr != nil` in a redaction query selector."
+issues: []
+subtext:
+user: zalegrala

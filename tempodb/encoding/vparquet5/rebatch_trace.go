@@ -94,15 +94,6 @@ func rebatchTrace(trace *Trace) {
 			rs.ScopeSpans = rs.ScopeSpans[:len(uniqueIndexes)]
 		}
 	}
-
-	// Sort spans by time
-	/*for _, rs := range trace.ResourceSpans {
-		for _, ss := range rs.ScopeSpans {
-			slices.SortFunc(ss.Spans, func(i, j Span) int {
-				return cmp.Compare(i.StartTimeUnixNano, j.StartTimeUnixNano)
-			})
-		}
-	}*/
 }
 
 func scopeSpanHash(ss *ScopeSpans) uint64 {
@@ -136,6 +127,16 @@ func resourceSpanHash(rs *ResourceSpans) uint64 {
 	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String08...)
 	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String09...)
 	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String10...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String11...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String12...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String13...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String14...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String15...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String16...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String17...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String18...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String19...)
+	hash = addHashStr(hash, rs.Resource.DedicatedAttributes.String20...)
 
 	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int01...)
 	hash = addHashInt(hash, rs.Resource.DedicatedAttributes.Int02...)

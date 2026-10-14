@@ -625,7 +625,6 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 }
 
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
-	defer s.decoder.Reset()
 	ctx, span := tracer.Start(ctx, "LiveStore.consume")
 	defer span.End()
 
@@ -648,7 +647,6 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			continue
 		}
 
-		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.Value)
 		if err != nil {
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()

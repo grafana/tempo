@@ -117,7 +117,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 			// parquet fields
 			RowGroupSizeBytes: 100_000_000, // default
 
-			// vParquet3 fields
+			// dedicated columns
 			DedicatedColumns: meta.DedicatedColumns,
 		},
 		OutputBlocks:     1,

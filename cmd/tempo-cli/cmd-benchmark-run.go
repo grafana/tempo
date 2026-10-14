@@ -9,6 +9,7 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark"
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
 )
 
 type benchmarkRunCmd struct {
@@ -17,7 +18,6 @@ type benchmarkRunCmd struct {
 	Out     string `short:"o" help:"file to write the result to, instead of stdout" default:""`
 
 	Repeat int `help:"passes over the query set" default:"1"`
-	Warmup int `help:"passes to run and discard first, paying the cold-read cost outside the measurement" default:"1"`
 
 	TargetBytesPerRequest string `help:"bytes per search shard, mirroring the query frontend option of the same name" default:"100MiB"`
 	SearchLimit           int    `help:"traces a search returns per shard" default:"20"`
@@ -50,14 +50,13 @@ func (cmd *benchmarkRunCmd) Run(_ *globalOptions) error {
 	}
 	defer f.Close()
 
-	profile, err := benchmark.LoadProfile(f)
+	prof, err := profile.Load(f)
 	if err != nil {
 		return fmt.Errorf("reading profile %s: %w", cmd.Profile, err)
 	}
 
-	result, err := benchmark.Run(context.Background(), cmd.Block, profile, benchmark.RunOptions{
+	result, err := benchmark.Run(context.Background(), cmd.Block, prof, benchmark.RunOptions{
 		Repeat:                cmd.Repeat,
-		Warmup:                cmd.Warmup,
 		TargetBytesPerRequest: int(targetBytes),
 		SearchLimit:           cmd.SearchLimit,
 		MaxSeries:             cmd.MaxSeries,

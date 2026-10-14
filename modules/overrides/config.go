@@ -76,6 +76,9 @@ type IngestionOverrides struct {
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user,omitempty" json:"max_traces_per_user,omitempty"`
 	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user,omitempty" json:"max_global_traces_per_user,omitempty"`
 
+	// Number of partitions the tenant is sharded across. 0 uses all partitions.
+	// A good starting value is 1 shard per 5MB/s of ingest, e.g. 2MB/s => 1 shard,
+	// 100MB/s => 20 shards.
 	TenantShardSize   int            `yaml:"tenant_shard_size,omitempty" json:"tenant_shard_size,omitempty"`
 	MaxAttributeBytes int            `yaml:"max_attribute_bytes,omitempty" json:"max_attribute_bytes,omitempty"`
 	ArtificialDelay   *time.Duration `yaml:"artificial_delay,omitempty" json:"artificial_delay,omitempty"`

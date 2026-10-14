@@ -310,6 +310,7 @@ querier:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
     partition_ring:
+        read_lookback_period: 0s
         minimize_requests: true
         hedging_delay: 3s
     max_concurrent_queries: 20
@@ -350,6 +351,7 @@ querier:
     shuffle_sharding_ingesters_enabled: false
     shuffle_sharding_ingesters_lookback_period: 1h0m0s
     query_relevant_ingesters: false
+    blocklist_polling: true
 query_frontend:
     max_outstanding_per_tenant: 2000
     max_batch_size: 7
@@ -371,7 +373,7 @@ query_frontend:
         blocks_per_shard: 30
     metrics:
         concurrent_jobs: 1000
-        target_bytes_per_job: 104857600
+        target_bytes_per_job: 629145600
         max_duration: 24h0m0s
         query_backend_after: 15m0s
         interval: 5m0s
@@ -581,7 +583,7 @@ block_builder:
         max_block_bytes: 20971520
     wal:
         path: /var/tempo/block-builder/traces
-        ingestion_time_range_slack: 2m0s
+        ingestion_time_range_slack: 2h0m0s
 storage:
     trace:
         pool:

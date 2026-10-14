@@ -1,0 +1,5 @@
+change_type: enhancement
+component: tempo-cli
+note: "Add generated searches to `tempo-cli benchmark run`: one search case per selectivity band, running each top-ranked attribute's equality for the band's own profiled values."
+issues: []
+user: mapno

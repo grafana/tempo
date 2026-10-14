@@ -29,6 +29,22 @@ For detailed information about any release, refer to the [Release notes](https:/
 You can check your configuration options using the [`status` API endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) in your Tempo installation.
 {{< /admonition >}}
 
+## Upgrade to Tempo 3.2
+
+### vParquet3 removed
+
+Tempo 3.2 removes support for the vParquet3 block format.
+This means that:
+
+- Tempo can no longer read existing vParquet3 blocks.
+- Tempo refuses to start if configured to write vParquet3 blocks.
+- `tempo-cli parquet convert-3to4` is removed.
+
+Before upgrading, convert any remaining vParquet3 blocks to vParquet4 or later using `tempo-cli parquet convert-3to4` from Tempo 3.1, or wait for them to pass retention.
+If your storage configuration specifies `vParquet3`, change the block version to `vParquet5` (default) or `vParquet4`.
+
+Refer to [Apache Parquet block format](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/) for version details.
+
 ## Upgrade to Tempo 3.1
 
 ### Default block format is now vParquet5
@@ -205,8 +221,9 @@ Block-builders, live-stores, and a backend scheduler replace ingesters and the c
 
 {{< admonition type="caution" >}}
 `vParquet3` is deprecated.
-Tempo 3.x still reads existing vParquet3 blocks, so you don't need to convert them.
+Tempo 3.0 and 3.1 still read existing vParquet3 blocks, so you don't need to convert them before upgrading to those versions.
 If your storage configuration specifies `vParquet3`, change the write format to `vParquet4` or later.
+Tempo 3.2 removes vParquet3 support, so convert remaining vParquet3 blocks before upgrading further.
 Refer to [Change the block format version](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#change-the-block-format-version).
 {{< /admonition >}}
 

@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-kit/log"
 	uuid "github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -441,6 +442,111 @@ func TestPollNoCompactFlag(t *testing.T) {
 	require.Empty(t, w.IndexNoCompact[tenantID])
 }
 
+// A single unreadable meta.json should not stop the tenant's valid blocks from being
+// discovered or the tenant index from being written, even with errors tolerated.
+func TestPollEmptyBlockMeta(t *testing.T) {
+	const (
+		tenantID   = "test"
+		validCount = 4
+	)
+
+	rr, ww, cc, err := local.New(&local.Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	var (
+		ctx = context.Background()
+		r   = backend.NewReader(rr)
+		w   = backend.NewWriter(ww)
+	)
+
+	metas := newBlockMetas(validCount+1, tenantID)
+	for _, m := range metas {
+		require.NoError(t, w.WriteBlockMeta(ctx, m))
+	}
+
+	// Empty the last block's meta.json, as seen after an interrupted write.
+	bad := metas[validCount]
+	err = ww.Write(ctx, backend.MetaName, backend.KeyPathForBlock(uuid.UUID(bad.BlockID), tenantID), bytes.NewReader(nil), 0, nil)
+	require.NoError(t, err)
+
+	poller := NewPoller(&PollerConfig{
+		PollConcurrency:           testPollConcurrency,
+		TenantPollConcurrency:     testTenantPollConcurrency,
+		PollFallback:              testPollFallback,
+		TenantIndexBuilders:       testBuilders,
+		TolerateConsecutiveErrors: 2,
+	}, &mockJobSharder{owns: true}, r, cc, w, log.NewNopLogger())
+
+	skipped := metricCorruptBlockMeta.WithLabelValues(tenantID)
+	skippedBefore := testutil.ToFloat64(skipped)
+
+	// Cold start: no previous blocklist to fall back on.
+	listed, _, _, err := poller.Do(ctx, New())
+	require.NoError(t, err)
+	require.Equal(t, skippedBefore+1, testutil.ToFloat64(skipped), "the corrupt meta should be counted")
+
+	ids := make([]backend.UUID, 0, validCount)
+	for _, m := range listed[tenantID] {
+		ids = append(ids, m.BlockID)
+	}
+	expected := make([]backend.UUID, 0, validCount)
+	for _, m := range metas[:validCount] {
+		expected = append(expected, m.BlockID)
+	}
+	require.ElementsMatch(t, expected, ids, "valid blocks should be listed despite one empty meta.json")
+
+	idx, err := r.TenantIndex(ctx, tenantID)
+	require.NoError(t, err, "tenant index should be written")
+	require.Len(t, idx.Meta, validCount)
+}
+
+// A tenant whose blocks all have unreadable metas must not look empty, or its tenant index
+// would be deleted and empty tenant deletion could remove its objects.
+func TestPollAllBlockMetasCorrupt(t *testing.T) {
+	const tenantID = "test"
+
+	rr, ww, cc, err := local.New(&local.Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	var (
+		ctx = context.Background()
+		r   = backend.NewReader(rr)
+		w   = backend.NewWriter(ww)
+	)
+
+	poller := NewPoller(&PollerConfig{
+		PollConcurrency:        testPollConcurrency,
+		TenantPollConcurrency:  testTenantPollConcurrency,
+		PollFallback:           testPollFallback,
+		TenantIndexBuilders:    testBuilders,
+		TolerateTenantFailures: 1,
+	}, &mockJobSharder{owns: true}, r, cc, w, log.NewNopLogger())
+
+	metas := newBlockMetas(2, tenantID)
+	for _, m := range metas {
+		require.NoError(t, w.WriteBlockMeta(ctx, m))
+	}
+
+	_, _, _, err = poller.Do(ctx, New())
+	require.NoError(t, err)
+	idx, err := r.TenantIndex(ctx, tenantID)
+	require.NoError(t, err)
+	require.Len(t, idx.Meta, len(metas))
+
+	for _, m := range metas {
+		err = ww.Write(ctx, backend.MetaName, backend.KeyPathForBlock(uuid.UUID(m.BlockID), tenantID), bytes.NewReader(nil), 0, nil)
+		require.NoError(t, err)
+	}
+
+	// Cold start, so every block is read again.
+	_, _, _, err = poller.Do(ctx, New())
+	require.NoError(t, err)
+
+	idx, err = r.TenantIndex(ctx, tenantID)
+	require.NoError(t, err, "tenant index should survive when no block meta can be read")
+	require.Len(t, idx.Meta, len(metas))
+}
+
 func TestTenantIndexPollError(t *testing.T) {
 	p := NewPoller(&PollerConfig{
 		StaleTenantIndex: time.Minute,
@@ -469,14 +575,16 @@ func TestTenantIndexPollError(t *testing.T) {
 
 func TestBlockListBackendMetrics(t *testing.T) {
 	tests := []struct {
-		name                                 string
-		list                                 PerTenant
-		compactedList                        PerTenantCompacted
-		testType                             string
-		expectedBackendObjectsTotal          int
-		expectedBackendBytesTotal            uint64
-		expectedCompactedBackendObjectsTotal int
-		expectedCompacteddBackendBytesTotal  uint64
+		name                                     string
+		list                                     PerTenant
+		compactedList                            PerTenantCompacted
+		testType                                 string
+		expectedBackendObjectsTotal              int
+		expectedBackendBytesTotal                uint64
+		expectedCompactedBackendObjectsTotal     int
+		expectedCompacteddBackendBytesTotal      uint64
+		expectedBackendBloomShardsTotal          uint64
+		expectedCompactedBackendBloomShardsTotal uint64
 	}{
 		{
 			name: "total backend objects calculation is correct",
@@ -568,6 +676,36 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			expectedCompacteddBackendBytesTotal:  1250,
 			testType:                             "backend bytes",
 		},
+		{
+			name: "total bloom shards calculation is correct",
+			list: PerTenant{
+				"test": []*backend.BlockMeta{
+					{
+						BloomShardCount: 4,
+					},
+					{
+						BloomShardCount: 8,
+					},
+				},
+			},
+			compactedList: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{
+						BlockMeta: backend.BlockMeta{
+							BloomShardCount: 16,
+						},
+					},
+					{
+						BlockMeta: backend.BlockMeta{
+							BloomShardCount: 32,
+						},
+					},
+				},
+			},
+			expectedBackendBloomShardsTotal:          12,
+			expectedCompactedBackendBloomShardsTotal: 48,
+			testType:                                 "bloom shards",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -578,6 +716,8 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			assert.Equal(t, tc.expectedCompactedBackendObjectsTotal, backendMetaMetrics.compactedBlockMetaTotalObjects)
 			assert.Equal(t, tc.expectedBackendBytesTotal, backendMetaMetrics.blockMetaTotalBytes)
 			assert.Equal(t, tc.expectedCompacteddBackendBytesTotal, backendMetaMetrics.compactedBlockMetaTotalBytes)
+			assert.Equal(t, tc.expectedBackendBloomShardsTotal, backendMetaMetrics.blockMetaTotalBloomShards)
+			assert.Equal(t, tc.expectedCompactedBackendBloomShardsTotal, backendMetaMetrics.compactedBlockMetaTotalBloomShards)
 		})
 	}
 }

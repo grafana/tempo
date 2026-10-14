@@ -62,7 +62,7 @@ Explanation of the query:
 - The second and third `label_join` copy the client and server labels to source and target respectively, as these names are also required by Node graph panel.
 - `traces_service_graph_request_total` is queried twice with the `OR` operator to get a combination of requests from and to all of the selected services.
 
-This query gets most of the job done. However, it's limitations can't be compensated for even using the Grafana transform data feature.
+This query gets most of the job done. However, its limitations can't be compensated for even using the Grafana transform data feature.
 These limitations include:
 
 - Unable to add request stats to nodes and edges, such as req/sec and error rates

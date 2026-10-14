@@ -32,7 +32,6 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
-	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
 	"github.com/grafana/tempo/v3/tempodb/wal"
@@ -363,11 +362,9 @@ func traceQLNilRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 		{Query: "{ resource.service.name = `RootService` && resource.foobar=nil}"},
 	}
 
-	if meta.Version != vparquet3.VersionString {
-		searchesThatMatch = append(searchesThatMatch, []*tempopb.SearchRequest{
-			{Query: "{ resource.service.name = `MyService` && instrumentation.foobar=nil }"},
-		}...)
-	}
+	searchesThatMatch = append(searchesThatMatch, []*tempopb.SearchRequest{
+		{Query: "{ resource.service.name = `MyService` && instrumentation.foobar=nil }"},
+	}...)
 
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		{Query: "{ resource.service.name = `MyService` && resource.bat=nil }"},
@@ -391,6 +388,27 @@ func traceQLNilRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 		}
 		require.NoError(t, err, "search request: %+v", req)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
+	}
+}
+
+func sortSearchResultsForTesting(traces []*tempopb.TraceSearchMetadata) {
+	for _, tr := range traces {
+		for _, ss := range tr.SpanSets {
+			sort.Slice(ss.Spans, func(i, j int) bool {
+				return ss.Spans[i].SpanID < ss.Spans[j].SpanID
+			})
+		}
+		sort.Slice(tr.SpanSets, func(i, j int) bool {
+			left := tr.SpanSets[i].Spans
+			right := tr.SpanSets[j].Spans
+			if len(left) == 0 {
+				return len(right) > 0
+			}
+			if len(right) == 0 {
+				return false
+			}
+			return left[0].SpanID < right[0].SpanID
+		})
 	}
 }
 
@@ -577,6 +595,8 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)
+		sortSearchResultsForTesting(tc.expected)
+		sortSearchResultsForTesting(res.Traces)
 		require.Equal(t, tc.expected, res.Traces, "search request", tc.req)
 	}
 
