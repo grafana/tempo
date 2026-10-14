@@ -1501,6 +1501,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 		maxScannedBytes uint64
 		maxDuration     time.Duration
 		minDuration     time.Duration
+		overrides       overrides.ReadOverrides
 		wantErr         string
 		wantOutcome     string
 		wantCalls       int
@@ -1525,7 +1526,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			query:           "/?start=1&end=8200",
 			maxScannedBytes: 150,
 			maxDuration:     168 * time.Hour,
-			// The floor binds above the 1h43m19s the budget allows, so the config min_duration must reach the decision.
+			// min_duration applies above the 1h43m19s the budget allows, so the config value must reach the decision.
 			minDuration: 2 * time.Hour,
 			wantErr:     "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes)",
 			wantOutcome: scannedBytesOutcomeRejected,
@@ -1550,6 +1551,28 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			wantCalls:       1,
 		},
 		{
+			// Each override must replace its config value, or the search fits the 10,000 byte budget.
+			name:            "overrides beat the config",
+			query:           "/?start=1&end=8200",
+			maxScannedBytes: 10_000,
+			maxDuration:     168 * time.Hour,
+			minDuration:     time.Hour,
+			overrides:       overrides.ReadOverrides{MaxSearchScannedBytes: 150, MinSearchDuration: model.Duration(2 * time.Hour)},
+			wantErr:         "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes)",
+			wantOutcome:     scannedBytesOutcomeRejected,
+			wantCalls:       1,
+		},
+		{
+			name:            "max_duration override beats the config",
+			query:           "/?start=1&end=8200",
+			maxScannedBytes: 150,
+			maxDuration:     168 * time.Hour,
+			overrides:       overrides.ReadOverrides{MaxSearchDuration: model.Duration(time.Hour)},
+			wantErr:         "range specified by start and end exceeds 1h0m0s. received start=1 end=8200",
+			wantOutcome:     scannedBytesOutcomeRejectedMaxDuration,
+			wantCalls:       1,
+		},
+		{
 			// The scanned bytes check and the backend scan share one blocklist copy.
 			name:            "within the budget",
 			query:           "/?start=1&end=8200",
@@ -1562,7 +1585,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+			o, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{Read: tc.overrides}}, nil, prometheus.NewRegistry())
 			require.NoError(t, err)
 			rdr := &countingMockReader{mockReader: mockReader{metas: metas}}
 			var buf bytes.Buffer
