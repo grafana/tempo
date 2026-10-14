@@ -180,9 +180,9 @@ func TestRunRepeatMultipliesExecutions(t *testing.T) {
 	}
 }
 
-// A profile with ranked attributes generates a search per selectivity band,
-// each an equality the profile proves matches: its band's most sizeable
-// attribute against that attribute's most common value.
+// A profile with ranked attributes generates searches over its top
+// attributes, one case per band of each attribute's own profiled values,
+// each an equality the profile proves matches.
 func TestRunGeneratesAttributeCases(t *testing.T) {
 	ctx := context.Background()
 	meta, r, bucket := benchtest.Block(t, 300)
@@ -195,22 +195,27 @@ func TestRunGeneratesAttributeCases(t *testing.T) {
 
 	generated := map[string]CaseResult{}
 	for _, c := range result.Cases {
-		if !strings.HasPrefix(c.ID, "search/attr/") {
+		if !strings.HasPrefix(c.ID, "search/ranked/") {
 			continue
 		}
 		generated[c.ID] = c
 	}
 
-	// The fixture's attributes are carried by either every span or one trace,
-	// so it has a high band and a low one, and nothing in between. The high
-	// band holds the duration intrinsic, the most sizeable attribute every
-	// span carries; the low one holds the biggest span attribute, whose
-	// values are one per trace.
-	require.Len(t, generated, 2)
+	// Every attribute the picker keeps gets one case per band of its own
+	// values; the same function computes what unit tests check, so here the
+	// count keys the whole group to the profile.
+	require.Len(t, generated, len(attributeCases(prof)))
 
-	high := generated["search/attr/high"]
+	// The duration intrinsic is the most sizeable attribute every span
+	// carries, and all spans carry the same one.
+	high := generated["search/ranked/high/intrinsic.duration"]
 	require.Equal(t, `{ duration = 1s }`, high.Query)
-	low := generated["search/attr/low"]
+
+	// The biggest span attribute's values are one per trace, so its cases
+	// span all three bands.
+	require.Contains(t, generated, "search/ranked/high/span.attr.a")
+	require.Contains(t, generated, "search/ranked/medium/span.attr.a")
+	low := generated["search/ranked/low/span.attr.a"]
 	require.True(t, strings.HasPrefix(low.Query, `{ span.attr.a = "`), low.Query)
 
 	for id, c := range generated {

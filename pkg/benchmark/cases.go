@@ -1,16 +1,10 @@
 package benchmark
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
-	"slices"
-	"strconv"
-	"strings"
-	"unicode"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
-	"github.com/grafana/tempo/v3/pkg/benchmark/profile/attributes"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
@@ -117,115 +111,4 @@ func fixedCases() []benchCase {
 	}
 
 	return cases
-}
-
-// selectivityBand names the band a selectivity falls in, at cuts where a
-// predicate's cost changes character: high reads about everything it scans,
-// low is rejected early, medium filters as it goes.
-func selectivityBand(s float64) string {
-	switch {
-	case s >= 0.9:
-		return "high"
-	case s >= 0.5:
-		return "medium"
-	default:
-		return "low"
-	}
-}
-
-// generatedCases generates a search per selectivity band: high, medium, low.
-// The selectivity indicates a predicate's cost.
-func generatedCases(prof *profile.BlockProfile) []benchCase {
-	if prof.Attributes == nil {
-		return nil
-	}
-
-	byBand := map[string]string{}
-	for _, a := range prof.Attributes.Ranked {
-		if len(a.Values) == 0 {
-			continue // quantiles stand for `>` predicates, a later change
-		}
-		ref, ok := attributeReference(a.Scope, a.Name)
-		if !ok {
-			continue
-		}
-		if band := selectivityBand(a.Values[0].Selectivity); byBand[band] == "" {
-			byBand[band] = fmt.Sprintf("{ %s = %s }", ref, valueLiteral(a.Type, a.Values[0].Value))
-		}
-	}
-
-	var cases []benchCase
-	for _, band := range []string{"high", "medium", "low"} {
-		query := byBand[band]
-		if query == "" {
-			continue // a block can lack a band entirely
-		}
-		cases = append(cases, benchCase{
-			id:    "search/attr/" + band,
-			api:   apiSearch,
-			query: query,
-			executions: func(_ *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				return searchExecutions(query, shards, prof.Block, opts.searchOptions()), nil
-			},
-		})
-	}
-	return cases
-}
-
-// allCases is every case a run measures: the fixed set with the profile's
-// generated cases, the cases of each API kept together, so a comparison
-// lists one group per API rather than one per phase. The fixed set fixes
-// the order the groups come in; generated cases of an API it lacks come
-// after, as a group of their own.
-func allCases(prof *profile.BlockProfile) []benchCase {
-	all := slices.Concat(fixedCases(), generatedCases(prof))
-
-	// The cases of an API stay together, in the order the APIs first appear
-	// in the list above — the fixed set's order — and, within an API, as given.
-	first := map[string]int{}
-	for i, c := range all {
-		if _, ok := first[c.api]; !ok {
-			first[c.api] = i
-		}
-	}
-	slices.SortStableFunc(all, func(a, b benchCase) int {
-		return cmp.Compare(first[a.api], first[b.api])
-	})
-	return all
-}
-
-// attributeReference writes a profile attribute as a TraceQL reference:
-// resource and span attributes carry their scope's prefix, intrinsics are bare.
-func attributeReference(scope, name string) (string, bool) {
-	switch scope {
-	case attributes.ScopeResource:
-		return "resource." + attributeIdentifier(name), true
-	case attributes.ScopeSpan:
-		return "span." + attributeIdentifier(name), true
-	case attributes.ScopeIntrinsic:
-		return attributeIdentifier(name), true
-	}
-	return "", false
-}
-
-// attributeIdentifier quotes a name the TraceQL lexer would not read as one token:
-// whitespace and the structural characters end an attribute,
-// and a quote starts a quoted part, where a quote and a backslash escape.
-func attributeIdentifier(name string) string {
-	if !strings.ContainsFunc(name, endsAttribute) {
-		return name
-	}
-	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(name) + `"`
-}
-
-func endsAttribute(r rune) bool {
-	return unicode.IsSpace(r) || strings.ContainsRune(`{}()=~!<>&|^,"`, r)
-}
-
-// valueLiteral quotes a string value; every other profile type is already TraceQL literal syntax.
-func valueLiteral(typ, value string) string {
-	if typ == attributes.TypeString {
-		return strconv.Quote(value)
-	}
-	return value
 }

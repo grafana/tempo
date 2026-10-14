@@ -608,16 +608,18 @@ without a change to the benchmark. Only metrics that moved are kept.
 The query set covers trace lookups by ID, present and absent; an unfiltered
 search; `rate()` and `rate() by (resource.service.name)` as metrics range
 queries; and tag-name lookups in each attribute scope. A profile with ranked
-attributes adds a search per selectivity band — `search/attr/high`,
-`search/attr/medium`, `search/attr/low` — the selectivity being what informs a
-predicate's cost: a high-selectivity value is carried by most spans, so the
-query reads about everything it scans; a low-selectivity one is rejected early.
-Each band's query is an equality over its most sizeable attribute, against the
-attribute's most common value, the value the profile proves the block holds,
-so the query matches. The query field records which attribute and value a case
-picked; a band with nothing to match is left out, and a profile built with
-`--attributes 0` generates no such searches. Generated cases can be shown
-alone with `--case 'search/attr/*'`. Metrics queries run over
+attributes adds generated searches: each of the top 10 attributes with a
+dedicated column, and the top 10 without, is queried against up to three of
+its own profiled values, one per selectivity band relative to the attribute —
+`high` is its most common value, `medium` the middle of its profiled values,
+and `low` the least common value the profile kept. (Bands over all spans
+would leave most top-ranked attributes with only a low value, since few have
+a value on most or half of the spans.) Each query is an equality the profile
+proves the block holds, so the query matches. A case's ID names its band and
+attribute, such as `search/ranked/high/span.key`; the query field holds the
+value. Attributes with only quantile values generate no searches yet, and a
+profile built with `--attributes 0` generates none at all. Generated cases can
+be shown alone with `--case 'search/ranked/*'`. Metrics queries run over
 the block's whole time range, stepping at `max(60s, window/30)` to land about 30
 points. Searches and metrics queries are split into shards of row groups,
 mirroring how the query frontend splits a job.

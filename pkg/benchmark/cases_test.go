@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,16 +20,7 @@ func ranked(attrs ...attributes.Profile) *profile.BlockProfile {
 	}
 }
 
-// attr builds a ranked attribute with one value, carried by the given share of
-// spans, worth the given bytes.
-func attr(scope, name, typ string, totalBytes uint64, sel float64, value string) attributes.Profile {
-	return attributes.Profile{
-		Scope: scope, Name: name, Type: typ, TotalBytes: totalBytes,
-		Values: []attributes.Value{{Value: value, Selectivity: sel}},
-	}
-}
-
-func TestGeneratedCases(t *testing.T) {
+func TestSearchCases(t *testing.T) {
 	tests := []struct {
 		name string
 		prof *profile.BlockProfile
@@ -43,94 +35,70 @@ func TestGeneratedCases(t *testing.T) {
 			prof: ranked(),
 		},
 		{
-			name: "one case per band, each over the band's most sizeable attribute",
+			name: "one case per attribute per band of its own values",
 			prof: ranked(
-				attr(attributes.ScopeSpan, "key", attributes.TypeString, 100, 0.9, "value"),
-				attr(attributes.ScopeResource, "service.name", attributes.TypeString, 50, 0.9, "test-service"),
-				attr(attributes.ScopeSpan, "http.status_code", attributes.TypeInt, 40, 0.5, "200"),
-				attr(attributes.ScopeSpan, "error", attributes.TypeBool, 10, 0.01, "true"),
+				profileAttr(attributes.ScopeSpan, "key", attributes.TypeString, false, "v1", "v2", "v3", "v4"),
+				profileAttr(attributes.ScopeResource, "service.name", attributes.TypeString, false, "svc"),
 			),
 			want: []struct{ id, query string }{
-				{"search/attr/high", `{ span.key = "value" }`},
-				{"search/attr/medium", `{ span.http.status_code = 200 }`},
-				{"search/attr/low", `{ span.error = true }`},
-			},
-		},
-		{
-			name: "cases are ordered high, medium, low, whatever the byte order",
-			prof: ranked(
-				attr(attributes.ScopeSpan, "lowbig", attributes.TypeString, 100, 0.01, "x"),
-				attr(attributes.ScopeSpan, "highsmall", attributes.TypeString, 10, 0.9, "y"),
-			),
-			want: []struct{ id, query string }{
-				{"search/attr/high", `{ span.highsmall = "y" }`},
-				{"search/attr/low", `{ span.lowbig = "x" }`},
+				{"search/ranked/high/span.key", `{ span.key = "v1" }`},
+				{"search/ranked/medium/span.key", `{ span.key = "v2" }`},
+				{"search/ranked/low/span.key", `{ span.key = "v4" }`},
+				{"search/ranked/high/resource.service.name", `{ resource.service.name = "svc" }`},
 			},
 		},
 		{
 			name: "intrinsics are referenced bare, each type in its literal syntax",
 			prof: ranked(
-				attr(attributes.ScopeIntrinsic, "name", attributes.TypeString, 40, 0.9, "test"),
-				attr(attributes.ScopeIntrinsic, "duration", attributes.TypeDuration, 30, 0.5, "1.5s"),
-				attr(attributes.ScopeIntrinsic, "status", attributes.TypeStatus, 20, 0.01, "ok"),
+				profileAttr(attributes.ScopeIntrinsic, "name", attributes.TypeString, true, "test"),
+				profileAttr(attributes.ScopeIntrinsic, "duration", attributes.TypeDuration, true, "1.5s"),
+				profileAttr(attributes.ScopeIntrinsic, "status", attributes.TypeStatus, true, "ok"),
 			),
 			want: []struct{ id, query string }{
-				{"search/attr/high", `{ name = "test" }`},
-				{"search/attr/medium", `{ duration = 1.5s }`},
-				{"search/attr/low", `{ status = ok }`},
+				{"search/ranked/high/intrinsic.name", `{ name = "test" }`},
+				{"search/ranked/high/intrinsic.duration", `{ duration = 1.5s }`},
+				{"search/ranked/high/intrinsic.status", `{ status = ok }`},
 			},
 		},
 		{
-			name: "a kind intrinsic is its own literal syntax",
+			name: "the same attribute in two types lands a case each",
 			prof: ranked(
-				attr(attributes.ScopeIntrinsic, "kind", attributes.TypeKind, 10, 0.9, "server"),
+				profileAttr(attributes.ScopeSpan, "foo", attributes.TypeString, false, "bar"),
+				profileAttr(attributes.ScopeSpan, "foo", attributes.TypeInt, false, "42"),
 			),
 			want: []struct{ id, query string }{
-				{"search/attr/high", `{ kind = server }`},
-			},
-		},
-		{
-			name: "a quantile-only attribute generates nothing yet",
-			prof: ranked(
-				attributes.Profile{
-					Scope: attributes.ScopeSpan, Name: "latency", Type: attributes.TypeInt,
-					Quantiles: []attributes.Quantile{{Q: 0.99, Value: "100", Selectivity: 0.01}},
-				},
-			),
-		},
-		{
-			name: "the same attribute in two types lands per its selectivity",
-			prof: ranked(
-				attr(attributes.ScopeSpan, "foo", attributes.TypeString, 100, 0.9, "bar"),
-				attr(attributes.ScopeSpan, "foo", attributes.TypeInt, 50, 0.01, "42"),
-			),
-			want: []struct{ id, query string }{
-				{"search/attr/high", `{ span.foo = "bar" }`},
-				{"search/attr/low", `{ span.foo = 42 }`},
+				{"search/ranked/high/span.foo.string", `{ span.foo = "bar" }`},
+				{"search/ranked/high/span.foo.int", `{ span.foo = 42 }`},
 			},
 		},
 		{
 			name: "names and values the lexer would split are quoted",
 			prof: ranked(
-				attr(attributes.ScopeSpan, `foo bar"`, attributes.TypeString, 10, 0.01, `say "hi"\`),
-				attr(attributes.ScopeResource, "a=b", attributes.TypeString, 20, 0.9, "x"),
+				profileAttr(attributes.ScopeSpan, `foo bar"`, attributes.TypeString, false, `say "hi"\`),
+				profileAttr(attributes.ScopeResource, "a=b", attributes.TypeString, false, "x"),
 			),
 			want: []struct{ id, query string }{
-				{`search/attr/high`, `{ resource."a=b" = "x" }`},
-				{`search/attr/low`, `{ span."foo bar\"" = "say \"hi\"\\" }`},
+				{`search/ranked/high/span.foo bar"`, `{ span."foo bar\"" = "say \"hi\"\\" }`},
+				{`search/ranked/high/resource.a=b`, `{ resource."a=b" = "x" }`},
 			},
+		},
+		{
+			name: "a quantile-only attribute generates nothing yet",
+			prof: ranked(
+				profileAttr(attributes.ScopeSpan, "latency", attributes.TypeInt, false),
+			),
 		},
 		{
 			name: "a scope with no TraceQL reference is skipped",
 			prof: ranked(
-				attr("event", "foo", attributes.TypeString, 10, 0.9, "x"),
+				profileAttr("event", "foo", attributes.TypeString, false, "x"),
 			),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := generatedCases(tt.prof)
+			got := attributeCases(tt.prof)
 			require.Len(t, got, len(tt.want))
 
 			for i, c := range got {
@@ -147,13 +115,35 @@ func TestGeneratedCases(t *testing.T) {
 	}
 }
 
+// Each group of attributes — a dedicated column or not — contributes at most
+// rankedAttributesPerGroup cases' worth of attributes, dedicated first.
+func TestSearchCasesCapsEachGroup(t *testing.T) {
+	var attrs []attributes.Profile
+	for i := range rankedAttributesPerGroup + 2 {
+		attrs = append(attrs,
+			profileAttr(attributes.ScopeSpan, fmt.Sprintf("dedicated%d", i), attributes.TypeString, true, "v"),
+			profileAttr(attributes.ScopeSpan, fmt.Sprintf("generic%d", i), attributes.TypeString, false, "v"),
+		)
+	}
+
+	cases := attributeCases(ranked(attrs...))
+	require.Len(t, cases, 2*rankedAttributesPerGroup)
+	for i, c := range cases {
+		if i < rankedAttributesPerGroup {
+			require.Equal(t, fmt.Sprintf("search/ranked/high/span.dedicated%d", i), c.id)
+		} else {
+			require.Equal(t, fmt.Sprintf("search/ranked/high/span.generic%d", i-rankedAttributesPerGroup), c.id)
+		}
+	}
+}
+
 // Generated cases shard the way the fixed search case does: one execution per
 // shard, over the block's own window.
-func TestGeneratedCasesShard(t *testing.T) {
-	prof := ranked(attr(attributes.ScopeSpan, "key", attributes.TypeString, 10, 0.9, "value"))
+func TestSearchCasesShard(t *testing.T) {
+	prof := ranked(profileAttr(attributes.ScopeSpan, "key", attributes.TypeString, false, "value"))
 	prof.Block = &backend.BlockMeta{}
 
-	cases := generatedCases(prof)
+	cases := attributeCases(prof)
 	require.Len(t, cases, 1)
 
 	shards := []Shard{{Index: 0, StartPage: 0, TotalPages: 2}, {Index: 1, StartPage: 2, TotalPages: 2}}
@@ -167,9 +157,8 @@ func TestGeneratedCasesShard(t *testing.T) {
 // not a group of their own after the metadata cases.
 func TestAllCasesKeepsAPIsTogether(t *testing.T) {
 	prof := ranked(
-		attr(attributes.ScopeSpan, "most", attributes.TypeString, 30, 0.95, "x"),
-		attr(attributes.ScopeSpan, "some", attributes.TypeString, 20, 0.6, "y"),
-		attr(attributes.ScopeSpan, "few", attributes.TypeString, 10, 0.01, "z"),
+		profileAttr(attributes.ScopeSpan, "most", attributes.TypeString, false, "a", "b", "c"),
+		profileAttr(attributes.ScopeSpan, "some", attributes.TypeString, false, "x"),
 	)
 
 	var got []string
@@ -178,25 +167,10 @@ func TestAllCasesKeepsAPIsTogether(t *testing.T) {
 	}
 	require.Equal(t, []string{
 		"traceid/present", "traceid/absent",
-		"search/nopredicate", "search/attr/high", "search/attr/medium", "search/attr/low",
+		"search/nopredicate", "search/ranked/high/span.most", "search/ranked/medium/span.most",
+		"search/ranked/low/span.most", "search/ranked/high/span.some",
 		"metrics/rate", "metrics/rate-by-service",
 		"metadata/tagnames/none", "metadata/tagnames/resource", "metadata/tagnames/span",
 		"metadata/tagnames/event", "metadata/tagnames/link", "metadata/tagnames/instrumentation",
 	}, got)
-}
-
-func TestSelectivityBand(t *testing.T) {
-	for _, tt := range []struct {
-		sel  float64
-		want string
-	}{
-		{1.0, "high"},
-		{0.9, "high"},
-		{0.899, "medium"},
-		{0.5, "medium"},
-		{0.099, "low"},
-		{0, "low"},
-	} {
-		require.Equal(t, tt.want, selectivityBand(tt.sel), "selectivity %v", tt.sel)
-	}
 }
