@@ -523,6 +523,14 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			wantLog: `level=info msg="scanned bytes limit" tenant=mixed op=metrics requested_seconds=21600 estimated_scanned_bytes=700 derived_seconds=3599 min_seconds=18000 max_seconds=21600 result=rejected passes_scanned_bytes=false
 `,
 		},
+		{
+			// A range past math.MaxInt64 nanoseconds must not wrap negative and slip under the allowed range.
+			name:    "huge range",
+			cfg:     QueryRangeSharderConfig{MaxScannedBytes: 1},
+			start:   1,
+			end:     math.MaxUint64,
+			wantErr: "metrics query time range of 2562047h47m16s exceeds the maximum allowed range of 2561047h47m16s for tenant foo (limited by scanned bytes)",
+		},
 	}
 
 	for _, tc := range tcs {
