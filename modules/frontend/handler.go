@@ -45,13 +45,13 @@ type handler struct {
 }
 
 // newHandler creates a handler
-func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
-	return newHandlerWithTracker(LogQueryRequestHeaders, rt, logger, noOpQueryTracker{})
+func newHandler(logQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
+	return newHandlerWithTracker(logQueryRequestHeaders, rt, logger, noOpQueryTracker{})
 }
 
-func newHandlerWithTracker(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger, queryTracker tracker) http.Handler {
+func newHandlerWithTracker(logQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger, queryTracker tracker) http.Handler {
 	return &handler{
-		logQueryRequestHeaders: LogQueryRequestHeaders,
+		logQueryRequestHeaders: logQueryRequestHeaders,
 		roundTripper:           rt,
 		logger:                 logger,
 		queryTracker:           queryTracker,
