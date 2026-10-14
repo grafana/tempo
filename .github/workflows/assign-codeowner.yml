@@ -13,6 +13,7 @@ jobs:
   assign:
     if: github.repository == 'grafana/tempo' && !contains(github.event.pull_request.user.login, 'renovate')
     runs-on: ubuntu-latest
+    # PR listing uses the Pulls API; assignment uses the Issues API.
     permissions:
       contents: read
       issues: write
