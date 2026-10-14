@@ -99,18 +99,46 @@ func TestQueryTracker(t *testing.T) {
 }
 
 func TestHandlerTracksDecodedQueryText(t *testing.T) {
-	tracker := &recordingQueryTracker{}
-	handler := newHandlerWithTracker(nil, testRoundTripper(func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusInternalServerError, Header: make(http.Header), Body: http.NoBody}, nil
-	}), log.NewNopLogger(), tracker)
+	for _, tc := range []struct {
+		name     string
+		request  string
+		path     string
+		expected string
+	}{
+		{
+			name:     "search q parameter",
+			request:  "/api/search?q=%7B+resource.service.name+%3D+%22api%22+%7D",
+			path:     "/api/search",
+			expected: `{ resource.service.name = "api" }`,
+		},
+		{
+			name:     "metrics query parameter",
+			request:  "/api/metrics/query_range?query=%7B+.status+%3D+%22error%22+%7D",
+			path:     "/api/metrics/query_range",
+			expected: `{ .status = "error" }`,
+		},
+		{
+			name:     "q parameter takes precedence",
+			request:  "/api/search?q=%7B+.service.name+%3D+%22api%22+%7D&query=%7B+.service.name+%3D+%22worker%22+%7D",
+			path:     "/api/search",
+			expected: `{ .service.name = "api" }`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tracker := &recordingQueryTracker{}
+			handler := newHandlerWithTracker(nil, testRoundTripper(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusInternalServerError, Header: make(http.Header), Body: http.NoBody}, nil
+			}), log.NewNopLogger(), tracker)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/search?q=%7B+resource.service.name+%3D+%22api%22+%7D", nil)
-	req = req.WithContext(user.InjectOrgID(req.Context(), "tenant-a"))
-	handler.ServeHTTP(httptest.NewRecorder(), req)
+			req := httptest.NewRequest(http.MethodGet, tc.request, nil)
+			req = req.WithContext(user.InjectOrgID(req.Context(), "tenant-a"))
+			handler.ServeHTTP(httptest.NewRecorder(), req)
 
-	require.Equal(t, http.MethodGet, tracker.method)
-	require.Equal(t, "/api/search", tracker.path)
-	require.Equal(t, `{ resource.service.name = "api" }`, tracker.query)
+			require.Equal(t, http.MethodGet, tracker.method)
+			require.Equal(t, tc.path, tracker.path)
+			require.Equal(t, tc.expected, tracker.query)
+		})
+	}
 }
 
 func TestQueryTrackerConcurrentTenants(t *testing.T) {
