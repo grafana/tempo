@@ -1652,7 +1652,7 @@ func TestQueryRangeScannedBytesLimit(t *testing.T) {
 			start:           hoursAgo(4),
 			end:             scannedBytesTestEnd,
 			maxScannedBytes: 350,
-			wantErr:         "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant foo (limited by scanned bytes)",
+			wantErr:         "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant foo (limited by scanned bytes), reduce the time range to 2h59m59s or less",
 		},
 		{
 			// Unaligned start and end would push the aligned range past min_duration.

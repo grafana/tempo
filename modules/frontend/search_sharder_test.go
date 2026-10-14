@@ -1528,7 +1528,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			maxDuration:     168 * time.Hour,
 			// min_duration applies above the 1h43m19s the budget allows, so the config value must reach the decision.
 			minDuration: 2 * time.Hour,
-			wantErr:     "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes)",
+			wantErr:     "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes), reduce the time range to 2h0m0s or less",
 			wantResult:  scannedBytesResultRejected,
 			wantCalls:   1,
 		},
@@ -1558,7 +1558,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			maxDuration:     168 * time.Hour,
 			minDuration:     time.Hour,
 			overrides:       overrides.ReadOverrides{MaxSearchScannedBytes: 150, MinSearchDuration: model.Duration(2 * time.Hour)},
-			wantErr:         "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes)",
+			wantErr:         "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes), reduce the time range to 2h0m0s or less",
 			wantResult:      scannedBytesResultRejected,
 			wantCalls:       1,
 		},
@@ -1649,6 +1649,6 @@ func TestSearchSharderScannedBytesLimitCutoff(t *testing.T) {
 		req := httptest.NewRequest("GET", fmt.Sprintf("/?start=%d&end=%d", now.Add(-time.Hour).Unix(), now.Add(-2*time.Minute).Unix()), nil)
 		req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 		resp, err := sharder.Wrap(next).RoundTrip(pipeline.NewHTTPRequest(req))
-		testBadRequestFromResponses(t, resp, err, "search time range of 58m0s exceeds the maximum allowed range of 28m0s for tenant blerg (limited by scanned bytes)")
+		testBadRequestFromResponses(t, resp, err, "search time range of 58m0s exceeds the maximum allowed range of 28m0s for tenant blerg (limited by scanned bytes), reduce the time range to 28m0s or less")
 	})
 }

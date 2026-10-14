@@ -195,7 +195,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxDuration: 24 * time.Hour, maxScannedBytes: 450},
 			requested: 6 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, allowed: 4*time.Hour - time.Nanosecond, derived: 4*time.Hour - time.Nanosecond, estimatedBytes: 700},
-			wantErr:   "metrics query time range of 6h0m0s exceeds the maximum allowed range of 3h59m59s for tenant foo (limited by scanned bytes)",
+			wantErr:   "metrics query time range of 6h0m0s exceeds the maximum allowed range of 3h59m59s for tenant foo (limited by scanned bytes), reduce the time range to 3h59m59s or less",
 		},
 		{
 			name:      "requested rounds up and allowed rounds down in the error",
@@ -203,7 +203,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxScannedBytes: 450},
 			requested: 4*time.Hour + 500*time.Millisecond,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, allowed: 4*time.Hour - time.Nanosecond, derived: 4*time.Hour - time.Nanosecond, estimatedBytes: 500},
-			wantErr:   "metrics query time range of 4h0m1s exceeds the maximum allowed range of 3h59m59s for tenant foo (limited by scanned bytes)",
+			wantErr:   "metrics query time range of 4h0m1s exceeds the maximum allowed range of 3h59m59s for tenant foo (limited by scanned bytes), reduce the time range to 3h59m59s or less",
 		},
 		{
 			name:      "raised to min_duration",
@@ -218,7 +218,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxDuration: 24 * time.Hour, minDuration: 6 * time.Hour, maxScannedBytes: 150},
 			requested: 7 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, allowed: 6 * time.Hour, derived: time.Hour - time.Nanosecond, estimatedBytes: 800},
-			wantErr:   "metrics query time range of 7h0m0s exceeds the maximum allowed range of 6h0m0s for tenant foo (limited by scanned bytes)",
+			wantErr:   "metrics query time range of 7h0m0s exceeds the maximum allowed range of 6h0m0s for tenant foo (limited by scanned bytes), reduce the time range to 6h0m0s or less",
 		},
 		{
 			name:      "max_duration below min_duration wins",
@@ -264,7 +264,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			cutoff:    hoursAgo(1),
 			requested: 2 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, allowed: time.Hour, derived: time.Hour, estimatedBytes: 300},
-			wantErr:   "metrics query time range of 2h0m0s exceeds the maximum allowed range of 1h0m0s for tenant foo (limited by scanned bytes)",
+			wantErr:   "metrics query time range of 2h0m0s exceeds the maximum allowed range of 1h0m0s for tenant foo (limited by scanned bytes), reduce the time range to 1h0m0s or less",
 		},
 		{
 			name:      "a prefix of blocks equal to the budget fits",
@@ -272,7 +272,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxScannedBytes: 100},
 			requested: 2 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, allowed: time.Hour - time.Nanosecond, derived: time.Hour - time.Nanosecond, estimatedBytes: 250},
-			wantErr:   "metrics query time range of 2h0m0s exceeds the maximum allowed range of 59m59s for tenant foo (limited by scanned bytes)",
+			wantErr:   "metrics query time range of 2h0m0s exceeds the maximum allowed range of 59m59s for tenant foo (limited by scanned bytes), reduce the time range to 59m59s or less",
 		},
 		{
 			name:      "one byte over the budget",
@@ -280,7 +280,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxScannedBytes: 250},
 			requested: 2 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, allowed: time.Hour - time.Nanosecond, derived: time.Hour - time.Nanosecond, estimatedBytes: 251},
-			wantErr:   "metrics query time range of 2h0m0s exceeds the maximum allowed range of 59m59s for tenant foo (limited by scanned bytes)",
+			wantErr:   "metrics query time range of 2h0m0s exceeds the maximum allowed range of 59m59s for tenant foo (limited by scanned bytes), reduce the time range to 59m59s or less",
 		},
 		{
 			name:      "one block larger than the budget",
@@ -288,7 +288,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxDuration: 24 * time.Hour, maxScannedBytes: 500},
 			requested: time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, estimatedBytes: 1000},
-			wantErr:   "metrics query time range of 1h0m0s exceeds the maximum allowed range of 0s for tenant foo (limited by scanned bytes)",
+			wantErr:   "metrics query time range of 1h0m0s exceeds the maximum allowed range of 0s for tenant foo (limited by scanned bytes), reduce the time range to 0s or less",
 		},
 		{
 			name:      "range after the cutoff is free",
@@ -297,7 +297,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			cutoff:    hoursAgo(1),
 			requested: 3 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, allowed: time.Hour, derived: time.Hour, estimatedBytes: 300},
-			wantErr:   "metrics query time range of 3h0m0s exceeds the maximum allowed range of 1h0m0s for tenant foo (limited by scanned bytes)",
+			wantErr:   "metrics query time range of 3h0m0s exceeds the maximum allowed range of 1h0m0s for tenant foo (limited by scanned bytes), reduce the time range to 1h0m0s or less",
 		},
 		{
 			name:      "range wholly after the cutoff fits",
@@ -314,7 +314,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxScannedBytes: 250},
 			requested: 10 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, allowed: 2*time.Hour - time.Nanosecond, derived: 2*time.Hour - time.Nanosecond, estimatedBytes: 300},
-			wantErr:   "metrics query time range of 10h0m0s exceeds the maximum allowed range of 1h59m59s for tenant foo (limited by scanned bytes)",
+			wantErr:   "metrics query time range of 10h0m0s exceeds the maximum allowed range of 1h59m59s for tenant foo (limited by scanned bytes), reduce the time range to 1h59m59s or less",
 		},
 		{
 			name:      "blocks with the same end time enter together",
@@ -322,7 +322,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxScannedBytes: 250},
 			requested: 2 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, allowed: time.Hour - time.Nanosecond, derived: time.Hour - time.Nanosecond, estimatedBytes: 300},
-			wantErr:   "metrics query time range of 2h0m0s exceeds the maximum allowed range of 59m59s for tenant foo (limited by scanned bytes)",
+			wantErr:   "metrics query time range of 2h0m0s exceeds the maximum allowed range of 59m59s for tenant foo (limited by scanned bytes), reduce the time range to 59m59s or less",
 		},
 		{
 			name:      "metrics counts only RF1 blocks",
@@ -338,7 +338,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxScannedBytes: 350},
 			requested: 2 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, estimatedBytes: 10_300},
-			wantErr:   "search time range of 2h0m0s exceeds the maximum allowed range of 0s for tenant foo (limited by scanned bytes)",
+			wantErr:   "search time range of 2h0m0s exceeds the maximum allowed range of 0s for tenant foo (limited by scanned bytes), reduce the time range to 0s or less",
 		},
 	}
 
@@ -390,13 +390,13 @@ func TestRecordScannedBytesLimit(t *testing.T) {
 				evaluated: true, result: scannedBytesResultRejected, requested: 2*time.Hour + 500*time.Millisecond, allowed: 2 * time.Hour,
 				derived: time.Hour + 500*time.Millisecond, estimatedBytes: 300, rangeLimits: rangeLimits{minDuration: 2 * time.Hour, maxDuration: 24 * time.Hour, maxScannedBytes: 250},
 			},
-			wantLog:  `level=info msg="scanned bytes limit" tenant=record op=search requested_seconds=7201 estimated_scanned_bytes=300 derived_seconds=3600 min_seconds=7200 max_seconds=86400 result=rejected passes_scanned_bytes=false`,
+			wantLog:  `level=info msg="scanned bytes limit" tenant=record op=search requested_seconds=7201 estimated_scanned_bytes=300 max_scanned_bytes=250 derived_seconds=3600 min_seconds=7200 max_seconds=86400 result=rejected passes_scanned_bytes=false`,
 			wantHist: 1,
 		},
 		{
 			name:    "fits",
 			c:       rangeCheck{evaluated: true, fits: true, result: scannedBytesResultWithin, requested: time.Hour, estimatedBytes: 100, rangeLimits: rangeLimits{maxScannedBytes: 250}},
-			wantLog: `level=info msg="scanned bytes limit" tenant=record op=search requested_seconds=3600 estimated_scanned_bytes=100 fits=true min_seconds=0 max_seconds=0 result=within passes_scanned_bytes=true`,
+			wantLog: `level=info msg="scanned bytes limit" tenant=record op=search requested_seconds=3600 estimated_scanned_bytes=100 max_scanned_bytes=250 fits=true min_seconds=0 max_seconds=0 result=within passes_scanned_bytes=true`,
 		},
 		{
 			// min_duration alone, at exactly the requested range, would allow it, so it passes on scanned bytes.
@@ -405,7 +405,7 @@ func TestRecordScannedBytesLimit(t *testing.T) {
 				evaluated: true, result: scannedBytesResultRejectedMaxDuration, requested: 6 * time.Hour, allowed: 5 * time.Hour,
 				derived: time.Hour, estimatedBytes: 700, rangeLimits: rangeLimits{minDuration: 6 * time.Hour, maxDuration: 5 * time.Hour, maxScannedBytes: 250},
 			},
-			wantLog: `level=info msg="scanned bytes limit" tenant=record op=search requested_seconds=21600 estimated_scanned_bytes=700 derived_seconds=3600 min_seconds=21600 max_seconds=18000 result=rejected_max_duration passes_scanned_bytes=true`,
+			wantLog: `level=info msg="scanned bytes limit" tenant=record op=search requested_seconds=21600 estimated_scanned_bytes=700 max_scanned_bytes=250 derived_seconds=3600 min_seconds=21600 max_seconds=18000 result=rejected_max_duration passes_scanned_bytes=true`,
 		},
 	}
 
@@ -462,9 +462,9 @@ func TestMetricsScannedBytesLimitCheck(t *testing.T) {
 			name:    "every tenant is logged and the first rejection wins",
 			orgID:   "b-fits|a-over",
 			cfg:     QueryRangeSharderConfig{MaxScannedBytes: 350},
-			wantErr: "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant a-over (limited by scanned bytes)",
-			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics requested_seconds=14400 estimated_scanned_bytes=500 derived_seconds=10799 min_seconds=0 max_seconds=0 result=rejected passes_scanned_bytes=false
-level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=14400 estimated_scanned_bytes=0 fits=true min_seconds=0 max_seconds=0 result=within passes_scanned_bytes=true
+			wantErr: "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant a-over (limited by scanned bytes), reduce the time range to 2h59m59s or less",
+			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics requested_seconds=14400 estimated_scanned_bytes=500 max_scanned_bytes=350 derived_seconds=10799 min_seconds=0 max_seconds=0 result=rejected passes_scanned_bytes=false
+level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=14400 estimated_scanned_bytes=0 max_scanned_bytes=350 fits=true min_seconds=0 max_seconds=0 result=within passes_scanned_bytes=true
 `,
 		},
 		{
@@ -474,8 +474,8 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			cfg:     QueryRangeSharderConfig{MaxScannedBytes: 350},
 			maxErr:  maxErr,
 			wantErr: maxErr.Error(),
-			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics requested_seconds=14400 estimated_scanned_bytes=500 derived_seconds=10799 min_seconds=0 max_seconds=0 result=rejected_max_duration passes_scanned_bytes=false
-level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=14400 estimated_scanned_bytes=0 fits=true min_seconds=0 max_seconds=0 result=rejected_max_duration passes_scanned_bytes=true
+			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics requested_seconds=14400 estimated_scanned_bytes=500 max_scanned_bytes=350 derived_seconds=10799 min_seconds=0 max_seconds=0 result=rejected_max_duration passes_scanned_bytes=false
+level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=14400 estimated_scanned_bytes=0 max_scanned_bytes=350 fits=true min_seconds=0 max_seconds=0 result=rejected_max_duration passes_scanned_bytes=true
 `,
 		},
 		{
@@ -519,8 +519,8 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 				MaxMetricsDuration: model.Duration(6 * time.Hour), MinMetricsDuration: model.Duration(5 * time.Hour), MaxMetricsScannedBytes: 150,
 			},
 			start:   uint64(hoursAgo(6).UnixNano()),
-			wantErr: "metrics query time range of 6h0m0s exceeds the maximum allowed range of 5h0m0s for tenant mixed (limited by scanned bytes)",
-			wantLog: `level=info msg="scanned bytes limit" tenant=mixed op=metrics requested_seconds=21600 estimated_scanned_bytes=700 derived_seconds=3599 min_seconds=18000 max_seconds=21600 result=rejected passes_scanned_bytes=false
+			wantErr: "metrics query time range of 6h0m0s exceeds the maximum allowed range of 5h0m0s for tenant mixed (limited by scanned bytes), reduce the time range to 5h0m0s or less",
+			wantLog: `level=info msg="scanned bytes limit" tenant=mixed op=metrics requested_seconds=21600 estimated_scanned_bytes=700 max_scanned_bytes=150 derived_seconds=3599 min_seconds=18000 max_seconds=21600 result=rejected passes_scanned_bytes=false
 `,
 		},
 		{
@@ -529,7 +529,7 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			cfg:     QueryRangeSharderConfig{MaxScannedBytes: 1},
 			start:   1,
 			end:     math.MaxUint64,
-			wantErr: "metrics query time range of 2562047h47m16s exceeds the maximum allowed range of 2561047h47m16s for tenant foo (limited by scanned bytes)",
+			wantErr: "metrics query time range of 2562047h47m16s exceeds the maximum allowed range of 2561047h47m16s for tenant foo (limited by scanned bytes), reduce the time range to 2561047h47m16s or less",
 		},
 	}
 
@@ -574,7 +574,7 @@ func TestMetricsScannedBytesLimitCheckCutoff(t *testing.T) {
 			Start: uint64(now.Add(-time.Hour).UnixNano()),
 			End:   uint64(now.Add(-2 * time.Minute).UnixNano()),
 		}, nil)
-		require.EqualError(t, err, "metrics query time range of 58m0s exceeds the maximum allowed range of 28m0s for tenant foo (limited by scanned bytes)")
+		require.EqualError(t, err, "metrics query time range of 58m0s exceeds the maximum allowed range of 28m0s for tenant foo (limited by scanned bytes), reduce the time range to 28m0s or less")
 	})
 }
 

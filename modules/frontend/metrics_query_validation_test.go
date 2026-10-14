@@ -146,7 +146,7 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			name:            "over the budget",
 			start:           hoursAgo(4),
 			maxScannedBytes: 350,
-			wantErr:         "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant foo (limited by scanned bytes)",
+			wantErr:         "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant foo (limited by scanned bytes), reduce the time range to 2h59m59s or less",
 			wantResult:      scannedBytesResultRejected,
 			wantCalls:       1,
 		},

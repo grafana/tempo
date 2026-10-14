@@ -134,8 +134,9 @@ func (c rangeCheck) err(kind string) error {
 		return nil
 	}
 	// Rounding in opposite directions keeps the two values distinct and the allowed one safe to retry.
-	return fmt.Errorf("%s time range of %s exceeds the maximum allowed range of %s for tenant %s (limited by scanned bytes)",
-		kind, ceilSeconds(c.requested), c.allowed.Truncate(time.Second), c.tenantID)
+	allowed := c.allowed.Truncate(time.Second)
+	return fmt.Errorf("%s time range of %s exceeds the maximum allowed range of %s for tenant %s (limited by scanned bytes), reduce the time range to %s or less",
+		kind, ceilSeconds(c.requested), allowed, c.tenantID, allowed)
 }
 
 // ceilSeconds rounds d up to whole seconds, or down where rounding up would overflow.
@@ -167,6 +168,7 @@ func recordScannedBytesLimit(ctx context.Context, logger log.Logger, c rangeChec
 		// Rounded like the rejection error: requested up, limits down.
 		"requested_seconds", int64(ceilSeconds(c.requested) / time.Second),
 		"estimated_scanned_bytes", c.estimatedBytes,
+		"max_scanned_bytes", c.maxScannedBytes,
 	}
 	if c.fits {
 		fields = append(fields, "fits", true)
