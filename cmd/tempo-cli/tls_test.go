@@ -226,17 +226,16 @@ func TestTLSHandshake(t *testing.T) {
 	untrusted := newTLSTestPKI(t)
 	for _, transport := range []string{"http", "grpc"} {
 		for _, tc := range []struct {
-			name           string
-			options        tlsOptions
-			wantErr        bool
-			errContains    string
-			errAlternative string
+			name        string
+			options     tlsOptions
+			wantErr     bool
+			errContains string
 		}{
 			{name: "valid mTLS", options: pki.options},
 			// TLS 1.3 server rejection can reach the client as EOF or a broken pipe instead of a certificate alert.
 			{name: "missing client certificate", options: tlsOptions{TLSCA: pki.options.TLSCA}, wantErr: true},
 			{name: "untrusted client certificate", options: tlsOptions{TLSCA: pki.options.TLSCA, TLSCert: untrusted.options.TLSCert, TLSKey: untrusted.options.TLSKey}, wantErr: true},
-			{name: "untrusted server", options: tlsOptions{TLSCert: pki.options.TLSCert, TLSKey: pki.options.TLSKey}, wantErr: true, errContains: "unknown authority", errAlternative: "certificate is not trusted"},
+			{name: "untrusted server", options: tlsOptions{TLSCert: pki.options.TLSCert, TLSKey: pki.options.TLSKey}, wantErr: true, errContains: "unknown authority"},
 			{name: "wrong CA", options: tlsOptions{TLSCA: untrusted.options.TLSCA, TLSCert: pki.options.TLSCert, TLSKey: pki.options.TLSKey}, wantErr: true, errContains: "unknown authority"},
 			{name: "wrong server name", options: tlsOptions{TLSCA: pki.options.TLSCA, TLSCert: pki.options.TLSCert, TLSKey: pki.options.TLSKey, TLSServerName: "wrong.test"}, wantErr: true, errContains: "wrong.test"},
 		} {
@@ -259,12 +258,7 @@ func TestTLSHandshake(t *testing.T) {
 				if tc.wantErr {
 					require.Error(t, err)
 					if tc.errContains != "" {
-						if tc.errAlternative != "" {
-							// macOS system trust verification uses a different message from Go's verifier.
-							require.True(t, strings.Contains(err.Error(), tc.errContains) || strings.Contains(err.Error(), tc.errAlternative), "unexpected certificate verification error: %v", err)
-						} else {
-							require.ErrorContains(t, err, tc.errContains)
-						}
+						require.ErrorContains(t, err, tc.errContains)
 					}
 				} else {
 					require.NoError(t, err)
