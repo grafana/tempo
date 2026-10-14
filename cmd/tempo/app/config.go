@@ -233,7 +233,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnTraceByIDConcurrentShards)
 	}
 
-	if m := c.Frontend.Metrics.Sharder; m.MaxScannedBytes > 0 && m.MaxDuration > 0 && m.MinDuration > m.MaxDuration {
+	if minAboveMax(c.Frontend.Metrics.Sharder.MinDuration, c.Frontend.Metrics.Sharder.MaxDuration) {
 		warnings = append(warnings, warnMetricsMinDurationAboveMaxDuration)
 	}
 
@@ -261,7 +261,7 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		})
 	}
 
-	if s := c.Frontend.Search.Sharder; s.MaxScannedBytes > 0 && s.MaxDuration > 0 && s.MinDuration > s.MaxDuration {
+	if minAboveMax(c.Frontend.Search.Sharder.MinDuration, c.Frontend.Search.Sharder.MaxDuration) {
 		warnings = append(warnings, warnSearchMinDurationAboveMaxDuration)
 	}
 
@@ -326,7 +326,7 @@ var (
 
 	warnMetricsMinDurationAboveMaxDuration = ConfigWarning{
 		Message: "query_frontend.metrics.min_duration is greater than query_frontend.metrics.max_duration",
-		Explain: "max_duration wins, so queries over the scanned bytes budget are limited to max_duration",
+		Explain: "min_duration is lowered to max_duration",
 	}
 
 	warnMCPServerEnabled = ConfigWarning{
@@ -346,9 +346,14 @@ var (
 
 	warnSearchMinDurationAboveMaxDuration = ConfigWarning{
 		Message: "query_frontend.search.min_duration is greater than query_frontend.search.max_duration",
-		Explain: "max_duration wins, so searches over the scanned bytes budget are limited to max_duration",
+		Explain: "min_duration is lowered to max_duration",
 	}
 )
+
+// minAboveMax reports a min_duration over max_duration. A max_duration of 0 means no max.
+func minAboveMax(minDuration, maxDuration time.Duration) bool {
+	return maxDuration > 0 && minDuration > maxDuration
+}
 
 func (c *Config) tracesAndOverridesStorageConflict() bool {
 	traceStorage := c.StorageConfig.Trace
