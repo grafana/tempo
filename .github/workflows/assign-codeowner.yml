@@ -1,7 +1,8 @@
 name: Assign a code owner to pull requests
 
 on:
-  pull_request_target:
+  # The job reads CODEOWNERS from the base commit and never runs PR code.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     types:
       - opened
       - reopened
@@ -15,6 +16,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      pull-requests: read
     steps:
       - name: Assign an available code owner
         env:
