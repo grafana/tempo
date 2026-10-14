@@ -106,24 +106,13 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	ctx, span := tracer.Start(requestCtx, "frontend.ShardSearch")
 	defer span.End()
 
-	// One cutoff, in whole seconds like backendRange, keeps the limit check and the backend scan on the same window.
+	// Whole seconds, like backendRange, so the limit check and the backend scan see the same window.
 	cutoff := time.Unix(time.Now().Add(-s.cfg.QueryBackendAfter).Unix(), 0)
 	metas := sync.OnceValue(func() []*backend.BlockMeta { return s.reader.BlockMetas(tenantID) })
 
 	// calculate and enforce max search duration and the scanned bytes limit
-	limit := evaluateScannedBytesLimit(s.overrides, scannedBytesConfig{
-		maxDuration:     s.cfg.MaxDuration,
-		minDuration:     s.cfg.MinDuration,
-		maxScannedBytes: s.cfg.MaxScannedBytes,
-	}, scannedBytesQuery{
-		op:        searchOp,
-		tenantID:  tenantID,
-		requested: time.Duration(searchReq.End-searchReq.Start) * time.Second,
-		start:     time.Unix(int64(searchReq.Start), 0),
-		end:       time.Unix(int64(searchReq.End), 0),
-		cutoff:    cutoff,
-		metas:     metas,
-	})
+	limit := checkScannedBytes(searchScannedBytesLimit{cfg: s.cfg, overrides: s.overrides}, tenantID,
+		time.Unix(int64(searchReq.Start), 0), time.Unix(int64(searchReq.End), 0), cutoff, metas)
 	if limit.outcome == scannedBytesOutcomeRejectedMaxDuration {
 		limit.record(span, s.logger)
 		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", limit.maxDuration, searchReq.Start, searchReq.End)), nil
@@ -138,7 +127,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 
 	// Recorded only now, so searches the spans per span set check rejects stay out of the metrics and log.
 	limit.record(span, s.logger)
-	if err := limit.scannedBytesErr("search"); err != nil {
+	if err := limit.err("search"); err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
 

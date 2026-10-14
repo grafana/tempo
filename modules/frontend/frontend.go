@@ -237,7 +237,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		next,
 	)
 
-	metricsScannedBytesLimiter := newScannedBytesLimiter(reader, o, cfg.Metrics.Sharder, logger)
+	metricsScannedBytesLimiter := newMetricsScannedBytesLimit(reader, o, cfg.Metrics.Sharder, cfg.MultiTenantQueriesEnabled, logger)
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
 	traceDiff := newTraceDiffHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, cacheProvider, logger, dataAccessController)

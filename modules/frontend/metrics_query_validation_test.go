@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -159,6 +160,16 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			wantCalls:       1,
 		},
 		{
+			name:            "over max_duration with a too small step keeps the max_duration error",
+			start:           hoursAgo(8),
+			maxScannedBytes: 350,
+			maxDuration:     6 * time.Hour,
+			maxIntervals:    10,
+			wantErr:         "metrics query time range exceeds the maximum allowed duration of 6h0m0s",
+			wantOutcome:     scannedBytesOutcomeRejectedMaxDuration,
+			wantCalls:       1,
+		},
+		{
 			name:            "negative max_duration fails closed without logging",
 			start:           hoursAgo(2),
 			maxScannedBytes: 350,
@@ -182,7 +193,7 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			cfg.Metrics.Sharder = QueryRangeSharderConfig{MaxDuration: tc.maxDuration, MaxScannedBytes: tc.maxScannedBytes}
 			o := &mockOverridesScannedBytes{}
 			rdr := &countingMockReader{mockReader: mockReader{metas: hourlyMetricsBlocks(scannedBytesTestEnd)}}
-			sl := newScannedBytesLimiter(rdr, o, cfg.Metrics.Sharder, log.NewLogfmtLogger(&buf))
+			sl := newMetricsScannedBytesLimit(rdr, o, cfg.Metrics.Sharder, true, log.NewLogfmtLogger(&buf))
 
 			countBefore := outcomeCount("foo", metricsOp, tc.wantOutcome)
 			err := validateQueryRangeReq(user.InjectOrgID(context.Background(), "foo"), cfg, o, sl, &tempopb.QueryRangeRequest{
@@ -195,6 +206,9 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.EqualError(t, err, tc.wantErr)
+			}
+			if strings.Contains(tc.wantErr, "maximum allowed duration") {
+				require.ErrorIs(t, err, errMetricsMaxDuration)
 			}
 			require.Equal(t, tc.wantCalls, rdr.callCount())
 			if tc.wantOutcome == "" {
