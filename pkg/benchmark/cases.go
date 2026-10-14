@@ -16,7 +16,7 @@ const (
 	apiMetadata  = "metadata"
 )
 
-// basicMetricsQueries are the phase 1 metrics queries. Phase 1 does no
+// basicMetricsQueries are the fixed metrics queries. The fixed set does no
 // attribute profiling, so the grouped query groups by a well-known attribute.
 var basicMetricsQueries = []struct {
 	id    string
@@ -48,9 +48,8 @@ type benchCase struct {
 	executions func(*profile.BlockProfile, []Shard, RunOptions) ([]execution, error)
 }
 
-// phase1Cases is the fixed query set: no generated queries, no attribute
-// profiling.
-func phase1Cases() []benchCase {
+// fixedCases is the fixed query set: no generated queries, no attribute profiling.
+func fixedCases() []benchCase {
 	cases := []benchCase{
 		{
 			id:  "traceid/present",

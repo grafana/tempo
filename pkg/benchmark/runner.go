@@ -49,7 +49,7 @@ func Run(ctx context.Context, blockPath string, prof *profile.BlockProfile, opts
 	}
 
 	start := time.Now()
-	all := phase1Cases()
+	all := allCases(prof)
 	cases := make([]CaseResult, 0, len(all))
 	for _, queryCase := range all {
 		cases = append(cases, runCase(ctx, block, prof, shards, queryCase, opts, counter, prometheus.DefaultGatherer))
