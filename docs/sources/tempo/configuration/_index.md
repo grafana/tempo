@@ -1118,11 +1118,16 @@ query_frontend:
         # (default: 168h)
         [max_duration: <duration>]
 
-        # Limits a search to the range whose backend blocks fit in this many bytes. 0 disables it.
+        # The maximum bytes of backend blocks a search may scan. The allowed range is the longest
+        # range ending at the query end whose blocks fit, raised to min_duration and capped at max_duration.
+        # A search of min_duration or shorter is always allowed, and one longer than max_duration is always rejected.
+        # Data newer than query_backend_after isn't counted. 0 disables this limit.
         # (default: 0)
         [max_scanned_bytes: <int>]
 
-        # A search of this range or shorter is always allowed, even over max_scanned_bytes.
+        # A search of this range or shorter is always allowed, even if it scans more than max_scanned_bytes.
+        # Has no effect when max_scanned_bytes is 0. If min_duration is above max_duration, max_duration wins.
+        # 0 means no minimum.
         # (default: 0s)
         [min_duration: <duration>]
 
@@ -1215,10 +1220,15 @@ query_frontend:
         # 0 disables this limit.
         [max_duration: <duration> | default = 24h ]
 
-        # Limits a metrics query to the range whose RF1 backend blocks fit in this many bytes. 0 disables it.
+        # The maximum bytes of backend blocks a metrics query may scan. The allowed range is the longest
+        # range ending at the query end whose blocks fit, raised to min_duration and capped at max_duration.
+        # A metrics query of min_duration or shorter is always allowed, and one longer than max_duration is always rejected.
+        # Data newer than query_backend_after isn't counted. 0 disables this limit.
         [max_scanned_bytes: <int> | default = 0 ]
 
-        # A metrics query of this range or shorter is always allowed, even over max_scanned_bytes.
+        # A metrics query of this range or shorter is always allowed, even if it scans more than max_scanned_bytes.
+        # Has no effect when max_scanned_bytes is 0. If min_duration is above max_duration, max_duration wins.
+        # 0 means no minimum.
         [min_duration: <duration> | default = 0s ]
 
         # Maximum number of exemplars per range query.
@@ -2464,10 +2474,14 @@ overrides:
       #  in the front-end configuration is used.
       [max_search_duration: <duration> | default = 0s]
 
-      # Per-user search max_scanned_bytes. 0 (default) uses the front-end configuration.
+      # Per-user search max_scanned_bytes. Replaces query_frontend.search.max_scanned_bytes for this tenant,
+      #  limiting the search range by the bytes of backend blocks it scans.
+      # 0 (default) uses the front-end configuration, so an override can't turn off a limit set there.
       [max_search_scanned_bytes: <int> | default = 0]
 
-      # Per-user search min_duration. 0 (default) uses the front-end configuration.
+      # Per-user search min_duration. Replaces query_frontend.search.min_duration for this tenant.
+      #  A search of this range or shorter is always allowed, unless the tenant's max_duration is lower.
+      # 0 (default) uses the front-end configuration.
       [min_search_duration: <duration> | default = 0s]
 
       # Per-user max duration for metrics queries. If this value is set to 0 (default), then metrics max_duration
@@ -2475,10 +2489,14 @@ overrides:
       #  not the post-alignment range. Queries whose entire window falls within query_end_cutoff are rejected.
       [max_metrics_duration: <duration> | default = 0s]
 
-      # Per-user metrics max_scanned_bytes. 0 (default) uses the front-end configuration.
+      # Per-user metrics max_scanned_bytes. Replaces query_frontend.metrics.max_scanned_bytes for this tenant,
+      #  limiting the metrics query range by the bytes of backend blocks it scans.
+      # 0 (default) uses the front-end configuration, so an override can't turn off a limit set there.
       [max_metrics_scanned_bytes: <int> | default = 0]
 
-      # Per-user metrics min_duration. 0 (default) uses the front-end configuration.
+      # Per-user metrics min_duration. Replaces query_frontend.metrics.min_duration for this tenant.
+      #  A metrics query of this range or shorter is always allowed, unless the tenant's max_duration is lower.
+      # 0 (default) uses the front-end configuration.
       [min_metrics_duration: <duration> | default = 0s]
 
       # Per-user option to left-pad trace IDs with zeros to 32 hex characters in search API responses.
