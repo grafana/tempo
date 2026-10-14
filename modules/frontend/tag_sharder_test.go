@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -23,6 +24,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
@@ -86,7 +88,7 @@ func (r *fakeReq) buildSearchTagRequest(subR *http.Request) (*http.Request, erro
 }
 
 func (r *fakeReq) buildTagSearchBlockRequest(subR *http.Request, blockID string,
-	startPage int, pages int, _ *backend.BlockMeta,
+	startPage int, pages int, _ *backend.BlockMeta, _ string,
 ) (*http.Request, error) {
 	newReq := subR.Clone(subR.Context())
 	q := subR.URL.Query()
@@ -382,4 +384,80 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
 	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
+}
+
+func TestTagsBackendRequestsForwardDedicatedColumns(t *testing.T) {
+	bm := backend.NewBlockMeta("test", uuid.New(), "vParquet5")
+	bm.StartTime = time.Unix(100, 0)
+	bm.EndTime = time.Unix(200, 0)
+	bm.Size_ = 1000
+	bm.TotalRecords = 1
+	bm.DedicatedColumns = backend.DefaultDedicatedColumns()
+
+	expected, err := bm.DedicatedColumns.ToTempopb()
+	require.NoError(t, err)
+
+	s := &searchTagSharder{
+		cfg:    SearchSharderConfig{},
+		reader: &mockReader{metas: []*backend.BlockMeta{bm}},
+	}
+
+	tests := []struct {
+		name    string
+		url     string
+		tagName string
+		parse   parseRequestFunction
+		// parseBlock is what the querier runs on the request it receives.
+		parseBlock func(*http.Request) ([]*tempopb.DedicatedColumn, error)
+	}{
+		{
+			name:  "tags v2",
+			url:   "/?start=100&end=200&scope=span",
+			parse: parseTagsRequest,
+			parseBlock: func(r *http.Request) ([]*tempopb.DedicatedColumn, error) {
+				req, err := api.ParseSearchTagsBlockRequest(r)
+				if err != nil {
+					return nil, err
+				}
+				return req.DedicatedColumns, nil
+			},
+		},
+		{
+			name:    "tag values v2",
+			url:     "/?start=100&end=200",
+			tagName: "span.http.request.method",
+			parse:   parseTagValuesRequestV2,
+			parseBlock: func(r *http.Request) ([]*tempopb.DedicatedColumn, error) {
+				req, err := api.ParseSearchTagValuesBlockRequestV2(mux.SetURLVars(r, map[string]string{api.MuxVarTagName: "span.http.request.method"}))
+				if err != nil {
+					return nil, err
+				}
+				return req.DedicatedColumns, nil
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", tc.url, nil)
+			if tc.tagName != "" {
+				r = mux.SetURLVars(r, map[string]string{api.MuxVarTagName: tc.tagName})
+			}
+			searchReq, err := tc.parse(r)
+			require.NoError(t, err)
+
+			reqCh := make(chan pipeline.Request)
+			s.backendRequests(context.TODO(), "test", pipeline.NewHTTPRequest(r), searchReq, reqCh, func(err error) {
+				require.NoError(t, err)
+			})
+
+			var n int
+			for pr := range reqCh {
+				n++
+				dc, err := tc.parseBlock(pr.HTTPRequest())
+				require.NoError(t, err)
+				require.Equal(t, expected, dc, "uri: %s", pr.HTTPRequest().RequestURI)
+			}
+			require.Positive(t, n)
+		})
+	}
 }
