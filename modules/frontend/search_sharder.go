@@ -153,7 +153,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	}
 
 	// pass subCtx in requests so we can cancel and exit early
-	s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, cutoff, metas, jobMetrics, reqCh, func(err error) {
+	s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, metas, jobMetrics, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
 		s.logger.Log("msg", "search: failed to build backend requests", "err", err)
 	})
@@ -166,7 +166,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, cutoff time.Time, metas func() []*backend.BlockMeta, resp *combiner.SearchJobResponse, reqCh chan<- pipeline.Request, errFn func(error)) {
+func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, metas func() []*backend.BlockMeta, resp *combiner.SearchJobResponse, reqCh chan<- pipeline.Request, errFn func(error)) {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -174,7 +174,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 	}
 
 	// calculate duration (start and end) to search the backend blocks
-	start, end := backendRange(searchReq.Start, searchReq.End, cutoff)
+	start, end := backendRange(searchReq.Start, searchReq.End, s.cfg.QueryBackendAfter)
 
 	// no need to search backend
 	if start == end {
@@ -297,10 +297,11 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 	return resp, nil
 }
 
-// backendRange returns a new start/end range for the backend based on cutoff, which is now minus
+// backendRange returns a new start/end range for the backend based on the config parameter
 // query_backend_after. If the returned start == the returned end then backend querying is not necessary.
-func backendRange(start, end uint32, cutoff time.Time) (uint32, uint32) {
-	backendAfter := uint32(cutoff.Unix())
+func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, uint32) {
+	now := time.Now()
+	backendAfter := uint32(now.Add(-queryBackendAfter).Unix())
 
 	// adjust start/end if necessary. if the entire query range was inside backendAfter then
 	// start will == end. This signals we don't need to query the backend.

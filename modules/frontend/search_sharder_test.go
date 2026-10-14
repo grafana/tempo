@@ -476,7 +476,7 @@ func TestBackendRequests(t *testing.T) {
 			pipelineRequest := pipeline.NewHTTPRequest(r)
 
 			searchJobResponse := &combiner.SearchJobResponse{}
-			s.backendRequests(ctx, "test", pipelineRequest, searchReq, time.Now().Add(-s.cfg.QueryBackendAfter), func() []*backend.BlockMeta { return s.reader.BlockMetas("test") }, searchJobResponse, reqCh, cancelCause)
+			s.backendRequests(ctx, "test", pipelineRequest, searchReq, func() []*backend.BlockMeta { return s.reader.BlockMetas("test") }, searchJobResponse, reqCh, cancelCause)
 			require.Equal(t, tc.expectedJobs, searchJobResponse.TotalJobs)
 			require.Equal(t, tc.expectedBlocks, searchJobResponse.TotalBlocks)
 			require.Equal(t, tc.expectedBlockBytes, searchJobResponse.TotalBytes)
@@ -804,7 +804,7 @@ func TestBackendRange(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		actualStart, actualEnd := backendRange(searchReq.Start, searchReq.End, time.Now().Add(-tc.queryBackendAfter))
+		actualStart, actualEnd := backendRange(searchReq.Start, searchReq.End, tc.queryBackendAfter)
 		assert.Equal(t, int(tc.expectedStart), int(actualStart))
 		assert.Equal(t, int(tc.expectedEnd), int(actualEnd))
 	}

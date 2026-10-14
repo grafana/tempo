@@ -262,7 +262,7 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 	}
 
 	// calculate duration (start and end) to search the backend blocks
-	start, end := backendRange(searchReq.start(), searchReq.end(), time.Now().Add(-s.cfg.QueryBackendAfter))
+	start, end := backendRange(searchReq.start(), searchReq.end(), s.cfg.QueryBackendAfter)
 
 	// no need to search backend
 	if start == end {
