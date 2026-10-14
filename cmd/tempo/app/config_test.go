@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/livestore"
 	"github.com/grafana/tempo/v3/tempodb/backend/s3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/modules/distributor"
 	"github.com/grafana/tempo/v3/modules/storage"
@@ -86,56 +88,6 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnBackendSchedulerPruneAgeLessThanBlocklistPoll,
 				warnPartitionAssigmentCollision,
 			},
-		},
-		{
-			name: "metrics min_duration above max_duration",
-			config: func() *Config {
-				cfg := NewDefaultConfig()
-				cfg.Frontend.Metrics.Sharder.MinDuration = cfg.Frontend.Metrics.Sharder.MaxDuration + time.Hour
-				return cfg
-			}(),
-			expect: []ConfigWarning{warnMetricsMinDurationAboveMaxDuration},
-		},
-		{
-			name: "search min_duration above max_duration",
-			config: func() *Config {
-				cfg := NewDefaultConfig()
-				cfg.Frontend.Search.Sharder.MinDuration = cfg.Frontend.Search.Sharder.MaxDuration + time.Hour
-				return cfg
-			}(),
-			expect: []ConfigWarning{warnSearchMinDurationAboveMaxDuration},
-		},
-		{
-			name: "min_duration equal to max_duration",
-			config: func() *Config {
-				cfg := NewDefaultConfig()
-				cfg.Frontend.Metrics.Sharder.MinDuration = cfg.Frontend.Metrics.Sharder.MaxDuration
-				cfg.Frontend.Search.Sharder.MinDuration = cfg.Frontend.Search.Sharder.MaxDuration
-				return cfg
-			}(),
-			expect: nil,
-		},
-		{
-			name: "min_duration below max_duration",
-			config: func() *Config {
-				cfg := NewDefaultConfig()
-				cfg.Frontend.Metrics.Sharder.MinDuration = cfg.Frontend.Metrics.Sharder.MaxDuration - time.Minute
-				cfg.Frontend.Search.Sharder.MinDuration = cfg.Frontend.Search.Sharder.MaxDuration - time.Minute
-				return cfg
-			}(),
-			expect: nil,
-		},
-		{
-			name: "min_duration without max_duration",
-			config: func() *Config {
-				cfg := NewDefaultConfig()
-				cfg.Frontend.Metrics.Sharder.MaxDuration = 0
-				cfg.Frontend.Metrics.Sharder.MinDuration = time.Hour
-				cfg.Frontend.Search.Sharder.MaxDuration = 0
-				cfg.Frontend.Search.Sharder.MinDuration = time.Hour
-				return cfg
-			}(),
-			expect: nil,
 		},
 		{
 			name: "hit local backend warnings",
@@ -233,6 +185,37 @@ func TestConfig_CheckConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			warnings := tc.config.CheckConfig()
 			assert.Equal(t, tc.expect, warnings)
+		})
+	}
+}
+
+func TestConfig_CheckConfigMinDurationAboveMaxDuration(t *testing.T) {
+	tcs := []struct {
+		name                     string
+		minDuration, maxDuration time.Duration
+		expectWarning            bool
+	}{
+		{name: "both zero"},
+		{name: "min_duration zero", maxDuration: time.Hour},
+		{name: "max_duration zero means no max", minDuration: time.Hour},
+		{name: "min_duration below max_duration", minDuration: time.Hour, maxDuration: 2 * time.Hour},
+		{name: "min_duration equal to max_duration", minDuration: time.Hour, maxDuration: time.Hour},
+		{name: "min_duration above max_duration", minDuration: 2 * time.Hour, maxDuration: time.Hour, expectWarning: true},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			metrics := NewDefaultConfig()
+			metrics.Frontend.Metrics.Sharder.MinDuration = tc.minDuration
+			metrics.Frontend.Metrics.Sharder.MaxDuration = tc.maxDuration
+			require.Equal(t, tc.expectWarning, slices.Contains(metrics.CheckConfig(), warnMetricsMinDurationAboveMaxDuration))
+			require.NotContains(t, metrics.CheckConfig(), warnSearchMinDurationAboveMaxDuration)
+
+			search := NewDefaultConfig()
+			search.Frontend.Search.Sharder.MinDuration = tc.minDuration
+			search.Frontend.Search.Sharder.MaxDuration = tc.maxDuration
+			require.Equal(t, tc.expectWarning, slices.Contains(search.CheckConfig(), warnSearchMinDurationAboveMaxDuration))
+			require.NotContains(t, search.CheckConfig(), warnMetricsMinDurationAboveMaxDuration)
 		})
 	}
 }
