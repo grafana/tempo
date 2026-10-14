@@ -1,0 +1,101 @@
+name: Assign a code owner to pull requests
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+
+permissions: {}
+
+jobs:
+  assign:
+    if: github.repository == 'grafana/tempo' && !contains(github.event.pull_request.user.login, 'renovate')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Assign an available code owner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "$(gh api "repos/$REPO/issues/$PR_NUMBER" --jq '.assignees | length')" -gt 0 ]; then
+            echo "PR already has an assignee."
+            exit 0
+          fi
+
+          # Every current CODEOWNERS rule shares these owners, so each is an
+          # owner of every file in the PR. Read the base branch's rules only.
+          owners=$(gh api "repos/$REPO/contents/CODEOWNERS?ref=$BASE_SHA" --jq '.content' |
+            base64 -d |
+            awk '
+              NF && $1 !~ /^#/ {
+                rules++
+                for (i = 2; i <= NF; i++) {
+                  if (substr($i, 1, 1) == "@" && index($i, "/") == 0)
+                    count[substr($i, 2)]++
+                }
+              }
+              END {
+                for (owner in count) if (count[owner] == rules) print owner
+              }
+            ' |
+            tr '[:upper:]' '[:lower:]' |
+            sort -u)
+
+          eligible=$(comm -12 \
+            <(printf '%s\n' "$owners" | sort -u) \
+            <(gh api --paginate "repos/$REPO/assignees?per_page=100" --jq '.[].login' |
+              tr '[:upper:]' '[:lower:]' | sort -u) |
+            awk -v author="$PR_AUTHOR" 'tolower($0) != tolower(author)')
+
+          if [ -z "$eligible" ]; then
+            echo "::error::No assignable code owner other than the PR author was found."
+            exit 1
+          fi
+
+          temp_dir=$(mktemp -d)
+          trap 'rm -rf "$temp_dir"' EXIT
+          printf '%s\n' "$eligible" > "$temp_dir/eligible"
+
+          # Recently closed PRs still count toward load after they leave the
+          # open queue. Count each PR once, using its current assignees.
+          since=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
+            --jq '.[].assignees[]?.login' > "$temp_dir/open"
+          gh api --paginate -X GET search/issues \
+            -f "q=repo:$REPO is:pr is:closed closed:>=$since" -f per_page=100 \
+            --jq '.items[].assignees[]?.login' > "$temp_dir/closed"
+
+          scores=$(awk '
+            FILENAME == ARGV[1] { eligible[$1] = 1; next }
+            FILENAME == ARGV[2] {
+              owner = tolower($1)
+              if (owner in eligible) open[owner]++
+              next
+            }
+            {
+              owner = tolower($1)
+              if (owner in eligible) closed[owner]++
+            }
+            END {
+              for (owner in eligible)
+                print open[owner] + closed[owner], open[owner] + 0, owner
+            }
+          ' "$temp_dir/eligible" "$temp_dir/open" "$temp_dir/closed" |
+            sort -k1,1n -k2,2n)
+          assignee=$(printf '%s\n' "$scores" |
+            awk 'NR == 1 { load = $1; open = $2 }
+              $1 == load && $2 == open { print $3 }' |
+            shuf -n 1)
+
+          jq -n --arg login "$assignee" '{assignees: [$login]}' |
+            gh api -X POST "repos/$REPO/issues/$PR_NUMBER/assignees" --input - > /dev/null
+          echo "Assigned @$assignee to PR #$PR_NUMBER (load: open PRs + PRs closed in the past seven days)."
