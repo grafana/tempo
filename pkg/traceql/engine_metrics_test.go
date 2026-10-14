@@ -587,6 +587,53 @@ func TestCompileMetricsQueryRangeNonRawExemplarsSafetyCap(t *testing.T) {
 	}
 }
 
+func TestCompileMetricsQueryRangeSampleHintBounds(t *testing.T) {
+	tcs := []struct {
+		query                string
+		spanSampler          bool
+		traceSampler         bool
+		expectedSamplerLimit int
+	}{
+		{query: "{} | rate() with(span_sample=0.5)", spanSampler: true, expectedSamplerLimit: 2},
+		{query: "{} | rate() with(trace_sample=0.1)", traceSampler: true, expectedSamplerLimit: 10},
+		{query: "{} | rate() with(span_sample=2)"},
+		{query: "{} | rate() with(span_sample=1.5)"},
+		{query: "{} | rate() with(span_sample=1)"},
+		{query: "{} | rate() with(span_sample=0)"},
+		{query: "{} | rate() with(span_sample=0.0)"},
+		{query: "{} | rate() with(trace_sample=2)"},
+		{query: "{} | rate() with(trace_sample=0)"},
+		{query: "{} | rate() with(sample=2)"},
+		{query: "{} | rate() with(sample=0.0)"},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.query, func(t *testing.T) {
+			eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
+				Query: tc.query,
+				Start: 1,
+				End:   2,
+				Step:  1,
+			})
+			require.NoError(t, err)
+			me, err := singleBatchMetricsEvaluator(eval)
+			require.NoError(t, err)
+
+			req := me.storageReq
+			require.Equal(t, tc.spanSampler, req.SpanSampler != nil, "span sampler")
+			require.Equal(t, tc.traceSampler, req.TraceSampler != nil, "trace sampler")
+
+			for _, s := range []Sampler{req.SpanSampler, req.TraceSampler} {
+				if s == nil {
+					continue
+				}
+				require.Equal(t, tc.expectedSamplerLimit, s.(*probabilisticSampler).lim)
+				require.True(t, s.Sample())
+			}
+		})
+	}
+}
+
 func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 	tc := map[string]struct {
 		q           string
