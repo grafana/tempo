@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -45,6 +46,7 @@ import (
 
 // These tests use the OpenTelemetry Collector Exporters to validate the different protocols
 func TestShim_integration(t *testing.T) {
+	endpoint := receiverTestEndpoint(t)
 	randomTraces := testdata.GenerateTraces(5)
 	var headers configopaque.MapList
 	headers.Set(generator.NoGenerateMetricsContextKey, "true")
@@ -61,14 +63,14 @@ func TestShim_integration(t *testing.T) {
 			receiverCfg: map[string]interface{}{
 				"otlp": map[string]interface{}{
 					"protocols": map[string]interface{}{
-						"grpc": nil,
+						"grpc": map[string]interface{}{"endpoint": endpoint},
 					},
 				},
 			},
 			factory: otlpexporter.NewFactory(),
 			exporterCfg: &otlpexporter.Config{
 				ClientConfig: configgrpc.ClientConfig{
-					Endpoint: "127.0.0.1:4317",
+					Endpoint: endpoint,
 					TLS: configtls.ClientConfig{
 						Insecure: true,
 					},
@@ -82,14 +84,14 @@ func TestShim_integration(t *testing.T) {
 			receiverCfg: map[string]interface{}{
 				"otlp": map[string]interface{}{
 					"protocols": map[string]interface{}{
-						"http": nil,
+						"http": map[string]interface{}{"endpoint": endpoint},
 					},
 				},
 			},
 			factory: otlphttpexporter.NewFactory(),
 			exporterCfg: &otlphttpexporter.Config{
 				ClientConfig: confighttp.ClientConfig{
-					Endpoint: "http://127.0.0.1:4318",
+					Endpoint: "http://" + endpoint,
 					Headers:  headers,
 				},
 				Encoding: otlphttpexporter.EncodingJSON,
@@ -101,14 +103,14 @@ func TestShim_integration(t *testing.T) {
 			receiverCfg: map[string]interface{}{
 				"otlp": map[string]interface{}{
 					"protocols": map[string]interface{}{
-						"http": nil,
+						"http": map[string]interface{}{"endpoint": endpoint},
 					},
 				},
 			},
 			factory: otlphttpexporter.NewFactory(),
 			exporterCfg: &otlphttpexporter.Config{
 				ClientConfig: confighttp.ClientConfig{
-					Endpoint: "http://127.0.0.1:4318",
+					Endpoint: "http://" + endpoint,
 					Headers:  headers,
 				},
 				Encoding: otlphttpexporter.EncodingProto,
@@ -154,6 +156,15 @@ func TestShim_integration(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+func receiverTestEndpoint(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	endpoint := listener.Addr().String()
+	require.NoError(t, listener.Close())
+	return endpoint
 }
 
 func runReceiverShim(t *testing.T, receiverCfg map[string]interface{}, pusher TracesPusher, reg prometheus.Registerer) func() {
@@ -284,10 +295,11 @@ func TestConsumeTraces_SkipsPushDurationForInvalidTenant(t *testing.T) {
 }
 
 func TestKafkaWriteTimeoutHTTPStatus(t *testing.T) {
+	endpoint := receiverTestEndpoint(t)
 	receiverCfg := map[string]interface{}{
 		"otlp": map[string]interface{}{
 			"protocols": map[string]interface{}{
-				"http": nil,
+				"http": map[string]interface{}{"endpoint": endpoint},
 			},
 		},
 	}
@@ -306,7 +318,7 @@ func TestKafkaWriteTimeoutHTTPStatus(t *testing.T) {
 
 	var resp *http.Response
 	require.Eventually(t, func() bool {
-		httpReq, reqErr := http.NewRequest(http.MethodPost, "http://127.0.0.1:4318/v1/traces", bytes.NewReader(body))
+		httpReq, reqErr := http.NewRequest(http.MethodPost, "http://"+endpoint+"/v1/traces", bytes.NewReader(body))
 		if reqErr != nil {
 			return false
 		}
@@ -322,10 +334,11 @@ func TestKafkaWriteTimeoutHTTPStatus(t *testing.T) {
 }
 
 func TestKafkaWriteTimeoutGRPCStatus(t *testing.T) {
+	endpoint := receiverTestEndpoint(t)
 	receiverCfg := map[string]interface{}{
 		"otlp": map[string]interface{}{
 			"protocols": map[string]interface{}{
-				"grpc": nil,
+				"grpc": map[string]interface{}{"endpoint": endpoint},
 			},
 		},
 	}
@@ -336,7 +349,7 @@ func TestKafkaWriteTimeoutGRPCStatus(t *testing.T) {
 	stopShim := runReceiverShim(t, receiverCfg, pusher, reg)
 	defer stopShim()
 
-	conn, err := grpc.NewClient("127.0.0.1:4317", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 

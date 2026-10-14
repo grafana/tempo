@@ -9,6 +9,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/kv/consul"
+	"github.com/grafana/dskit/middleware"
 	dskitring "github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
@@ -99,6 +100,42 @@ func TestRegisterQueryTrackerHandlers(t *testing.T) {
 	rec := httptest.NewRecorder()
 	app.Server.HTTPHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, api.PathQueryTracker+"/tenant-a", nil))
 	require.Equal(t, http.StatusAccepted, rec.Code)
+}
+
+func TestInitQueryFrontendRegistersQueryTrackerHandlersWhenEnabled(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(map[bool]string{false: "disabled", true: "enabled"}[enabled], func(t *testing.T) {
+			previous := prometheus.DefaultRegisterer
+			prometheus.DefaultRegisterer = prometheus.NewRegistry()
+			t.Cleanup(func() { prometheus.DefaultRegisterer = previous })
+			cfg := NewDefaultConfig()
+			cfg.Frontend.QueryTracker.Enabled = enabled
+			router := mux.NewRouter()
+			grpcServer := grpc.NewServer()
+			t.Cleanup(grpcServer.Stop)
+			store := newTestStore(t, t.TempDir())
+			t.Cleanup(store.Shutdown)
+			o, err := overrides.NewOverrides(cfg.Overrides, nil, prometheus.DefaultRegisterer)
+			require.NoError(t, err)
+			app := &App{
+				cfg: *cfg, Server: &fakeTempoServer{router: router, grpc: grpcServer},
+				store: store, Overrides: o,
+				HTTPAuthMiddleware: middleware.Func(func(next http.Handler) http.Handler { return next }),
+			}
+			_, err = app.initQueryFrontend()
+			require.NoError(t, err)
+			for _, path := range []string{api.PathQueryTracker, api.PathQueryTracker + "/tenant-a"} {
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+				if enabled {
+					require.Equal(t, http.StatusOK, response.Code)
+					require.Contains(t, response.Header().Get("Content-Type"), "text/html")
+				} else {
+					require.Equal(t, http.StatusNotFound, response.Code)
+				}
+			}
+		})
+	}
 }
 
 func TestConfigureGenerator(t *testing.T) {

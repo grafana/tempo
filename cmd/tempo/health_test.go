@@ -34,7 +34,25 @@ func TestRunHealthCheck(t *testing.T) {
 }
 
 func TestRunHealthCheckDefaultURL(t *testing.T) {
-	assert.Equal(t, 1, RunHealthCheck(""))
+	previous := http.DefaultTransport
+	defer func() { http.DefaultTransport = previous }()
+	for _, status := range []int{http.StatusOK, http.StatusServiceUnavailable} {
+		http.DefaultTransport = healthCheckRoundTripper(func(r *http.Request) (*http.Response, error) {
+			assert.Equal(t, defaultHealthURL, r.URL.String())
+			return &http.Response{StatusCode: status, Body: http.NoBody}, nil
+		})
+		wantExit := 1
+		if status == http.StatusOK {
+			wantExit = 0
+		}
+		assert.Equal(t, wantExit, RunHealthCheck(""))
+	}
+}
+
+type healthCheckRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f healthCheckRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
 }
 
 func TestRunHealthCheckConnectionError(t *testing.T) {
