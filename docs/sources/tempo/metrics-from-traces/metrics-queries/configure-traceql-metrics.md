@@ -49,13 +49,11 @@ The default maximum time range for a metrics query is 24 hours, configured using
 
 This is different to the default TraceQL maximum time range of 168 hours (7 days).
 
-You can also limit metrics queries by the bytes they scan with `query_frontend.metrics.max_scanned_bytes`.
-The allowed range then adapts to how much data the tenant stores,
-with `query_frontend.metrics.min_duration` as the floor and `max_duration` as the ceiling.
-For example, set `min_duration` to today's `max_duration` and raise `max_duration`,
-so tenants with little data can query longer ranges.
-Tenants with a per-tenant `max_metrics_duration` above `min_duration` also need a matching `min_metrics_duration`,
-or the scanned bytes limit can shorten the range they have today.
+A fixed `max_duration` is a poor proxy for query cost, because data volume differs by orders of magnitude between tenants.
+`query_frontend.metrics.max_scanned_bytes` limits a query by the bytes of the backend blocks it scans, so tenants with less data get longer ranges.
+The allowed range is never shorter than `min_duration` or longer than `max_duration`, and a query of `min_duration` or less is always allowed.
+Search has the same settings under `query_frontend.search`.
+Refer to [Query range limits](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/query-frontend/#query-range-limits) for details.
 
 {{< /admonition >}}
 

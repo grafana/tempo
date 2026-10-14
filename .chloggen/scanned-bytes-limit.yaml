@@ -8,7 +8,7 @@ change_type: feature
 component: query-frontend
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Limit TraceQL search and metrics query ranges by the bytes they scan, so small tenants can query longer ranges than large ones.
+note: "Add `max_scanned_bytes` to limit TraceQL search and metrics time ranges by the bytes they scan."
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
@@ -16,9 +16,7 @@ issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext: |
-  New `max_scanned_bytes` and `min_duration` settings under `query_frontend.search` and `query_frontend.metrics`,
-  with per-tenant `max_search_scanned_bytes`, `min_search_duration`, `max_metrics_scanned_bytes`, and `min_metrics_duration` overrides.
-  Disabled by default.
+  Tenants with less data get longer ranges, between `min_duration` and `max_duration`. Disabled by default.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: electron0zero
