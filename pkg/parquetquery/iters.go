@@ -681,7 +681,9 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune
 		}
 
 		cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-		if prune && !c.keepColumnChunk(cc) {
+		if !prune {
+			c.resetFilter() // keepColumnChunk resets on the pruning path
+		} else if !c.keepColumnChunk(cc) {
 			cc.Close()
 			continue
 		}
@@ -951,13 +953,6 @@ func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *Colum
 	c.currRowGroupMin = min
 	c.currRowGroupMax = max
 	c.currChunk = cc
-
-	// TEMPORARY: reset per-chunk regex/substring memoization at each chunk boundary (both
-	// iterators enter here). c.filter is the full tree, so resets cascade. Removed with
-	// predicate memoization once dictionary-index pushdown lands.
-	if r, ok := c.filter.(chunkResetter); ok {
-		r.resetForChunk()
-	}
 }
 
 func (c *SyncIterator) setPage(pg pq.Page) {
