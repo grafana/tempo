@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/grafana/e2e"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -347,43 +349,71 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 
 		apiClient := h.APIClientHTTP("")
 		end := time.Now().Unix()
-		hourAgo := end - int64(time.Hour/time.Second)
-		floorAgo := end - int64(10*time.Minute/time.Second)
+		ago := func(d time.Duration) int64 { return end - int64(d/time.Second) }
 
-		// One byte of budget makes every backend block overflow, so the 10m floor sets the allowed range.
-		_, err := apiClient.MetricsQueryRange("{} | rate()", hourAgo, end, "60s", 0)
+		// One byte of budget makes every backend block overflow, so the 10m min_duration sets the allowed range.
+		_, err := apiClient.MetricsQueryRange("{} | rate()", ago(time.Hour), end, "60s", 0)
 		require.ErrorContains(t, err, "failed with response: 400")
 		require.ErrorContains(t, err, "metrics query time range of 1h0m0s exceeds the maximum allowed range of 10m0s for tenant single-tenant (limited by scanned bytes)")
 
-		_, err = apiClient.SearchTraceQLWithRange("{}", hourAgo, end)
+		_, err = apiClient.SearchTraceQLWithRange("{}", ago(time.Hour), end)
 		require.ErrorContains(t, err, "failed with response: 400")
 		require.ErrorContains(t, err, "search time range of 1h0m0s exceeds the maximum allowed range of 10m0s for tenant single-tenant (limited by scanned bytes)")
 
-		// A query at the floor passes.
-		_, err = apiClient.MetricsQueryRange("{} | rate()", floorAgo, end, "60s", 0)
+		// A query at min_duration passes.
+		_, err = apiClient.MetricsQueryRange("{} | rate()", ago(10*time.Minute), end, "60s", 0)
 		require.NoError(t, err)
-		_, err = apiClient.SearchTraceQLWithRange("{}", floorAgo, end)
+		_, err = apiClient.SearchTraceQLWithRange("{}", ago(10*time.Minute), end)
 		require.NoError(t, err)
 
+		// A query over max_duration keeps the max_duration error.
+		_, err = apiClient.MetricsQueryRange("{} | rate()", ago(3*time.Hour), end, "60s", 0)
+		require.ErrorContains(t, err, "metrics query time range exceeds the maximum allowed duration of 2h0m0s")
+		_, err = apiClient.SearchTraceQLWithRange("{}", ago(3*time.Hour), end)
+		require.ErrorContains(t, err, "range specified by start and end exceeds 2h0m0s")
+
 		queryFrontend := h.Services[util.ServiceQueryFrontend]
-		for _, tc := range []struct{ op, outcome string }{
-			{"metrics", "rejected"},
-			{"metrics", "floored"},
-			{"search", "rejected"},
-			{"search", "floored"},
-		} {
+		waitOutcome := func(op, outcome string) {
 			require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(
 				e2e.GreaterOrEqual(1),
 				[]string{"tempo_query_frontend_scanned_bytes_limit_total"},
 				e2e.WithLabelMatchers(
-					labels.MustNewMatcher(labels.MatchEqual, "op", tc.op),
-					labels.MustNewMatcher(labels.MatchEqual, "outcome", tc.outcome),
+					labels.MustNewMatcher(labels.MatchEqual, "op", op),
+					labels.MustNewMatcher(labels.MatchEqual, "outcome", outcome),
 				),
 				e2e.WaitMissingMetrics,
-			), "op=%s outcome=%s", tc.op, tc.outcome)
+			), "op=%s outcome=%s", op, outcome)
+		}
+		for _, op := range []string{"metrics", "search"} {
+			for _, outcome := range []string{"rejected", "raised_to_min", "rejected_max_duration"} {
+				waitOutcome(op, outcome)
+			}
 		}
 
-		// A per-tenant budget, reloaded at runtime, lets the long queries through.
+		// With a 1s min_duration, the allowed range is the time since the newest block, between min and max.
+		require.NoError(t, h.UpdateOverrides(map[string]*overrides.Overrides{
+			"single-tenant": {
+				Read: overrides.ReadOverrides{
+					MinMetricsDuration: model.Duration(time.Second),
+					MinSearchDuration:  model.Duration(time.Second),
+				},
+			},
+		}))
+		allowedRange := regexp.MustCompile(`maximum allowed range of (\S+) for tenant`)
+		end = time.Now().Unix()
+		_, metricsErr := apiClient.MetricsQueryRange("{} | rate()", ago(time.Hour), end, "60s", 0)
+		_, searchErr := apiClient.SearchTraceQLWithRange("{}", ago(time.Hour), end)
+		for _, err := range []error{metricsErr, searchErr} {
+			require.ErrorContains(t, err, "(limited by scanned bytes)")
+			m := allowedRange.FindStringSubmatch(err.Error())
+			require.Len(t, m, 2, err.Error())
+			allowed, parseErr := time.ParseDuration(m[1])
+			require.NoError(t, parseErr)
+			require.Greater(t, allowed, time.Second)
+			require.Less(t, allowed, 10*time.Minute)
+		}
+
+		// A per-tenant budget, reloaded at runtime, lets a query at max_duration through.
 		require.NoError(t, h.UpdateOverrides(map[string]*overrides.Overrides{
 			"single-tenant": {
 				Read: overrides.ReadOverrides{
@@ -394,22 +424,12 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 		}))
 
 		end = time.Now().Unix()
-		hourAgo = end - int64(time.Hour/time.Second)
-		_, err = apiClient.MetricsQueryRange("{} | rate()", hourAgo, end, "60s", 0)
+		_, err = apiClient.MetricsQueryRange("{} | rate()", ago(2*time.Hour), end, "60s", 0)
 		require.NoError(t, err)
-		_, err = apiClient.SearchTraceQLWithRange("{}", hourAgo, end)
+		_, err = apiClient.SearchTraceQLWithRange("{}", ago(2*time.Hour), end)
 		require.NoError(t, err)
 
-		for _, op := range []string{"metrics", "search"} {
-			require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(
-				e2e.GreaterOrEqual(1),
-				[]string{"tempo_query_frontend_scanned_bytes_limit_total"},
-				e2e.WithLabelMatchers(
-					labels.MustNewMatcher(labels.MatchEqual, "op", op),
-					labels.MustNewMatcher(labels.MatchEqual, "outcome", "within"),
-				),
-				e2e.WaitMissingMetrics,
-			), "op=%s outcome=within", op)
-		}
+		waitOutcome("metrics", "within")
+		waitOutcome("search", "within")
 	})
 }

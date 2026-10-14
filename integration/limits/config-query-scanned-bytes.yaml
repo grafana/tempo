@@ -4,7 +4,9 @@ query_frontend:
     query_backend_after: 0s # every block counts against the budget
     max_scanned_bytes: 1 # any backend block is over budget
     min_duration: 10m
+    max_duration: 2h
   metrics:
     query_backend_after: 0s
     max_scanned_bytes: 1
     min_duration: 10m
+    max_duration: 2h
