@@ -1503,7 +1503,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 		minDuration     time.Duration
 		overrides       overrides.ReadOverrides
 		wantErr         string
-		wantOutcome     string
+		wantResult      string
 		wantCalls       int
 	}{
 		{
@@ -1518,7 +1518,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			maxScannedBytes: 150,
 			maxDuration:     time.Hour,
 			wantErr:         "range specified by start and end exceeds 1h0m0s. received start=1 end=8200",
-			wantOutcome:     scannedBytesOutcomeRejectedMaxDuration,
+			wantResult:      scannedBytesResultRejectedMaxDuration,
 			wantCalls:       1,
 		},
 		{
@@ -1529,7 +1529,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			// min_duration applies above the 1h43m19s the budget allows, so the config value must reach the decision.
 			minDuration: 2 * time.Hour,
 			wantErr:     "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes)",
-			wantOutcome: scannedBytesOutcomeRejected,
+			wantResult:  scannedBytesResultRejected,
 			wantCalls:   1,
 		},
 		{
@@ -1538,7 +1538,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			maxScannedBytes: 150,
 			maxDuration:     time.Hour,
 			wantErr:         "range specified by start and end exceeds 1h0m0s. received start=1 end=8200",
-			wantOutcome:     scannedBytesOutcomeRejectedMaxDuration,
+			wantResult:      scannedBytesResultRejectedMaxDuration,
 			wantCalls:       1,
 		},
 		{
@@ -1559,7 +1559,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			minDuration:     time.Hour,
 			overrides:       overrides.ReadOverrides{MaxSearchScannedBytes: 150, MinSearchDuration: model.Duration(2 * time.Hour)},
 			wantErr:         "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes)",
-			wantOutcome:     scannedBytesOutcomeRejected,
+			wantResult:      scannedBytesResultRejected,
 			wantCalls:       1,
 		},
 		{
@@ -1569,7 +1569,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			maxDuration:     168 * time.Hour,
 			overrides:       overrides.ReadOverrides{MaxSearchDuration: model.Duration(time.Hour)},
 			wantErr:         "range specified by start and end exceeds 1h0m0s. received start=1 end=8200",
-			wantOutcome:     scannedBytesOutcomeRejectedMaxDuration,
+			wantResult:      scannedBytesResultRejectedMaxDuration,
 			wantCalls:       1,
 		},
 		{
@@ -1578,7 +1578,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			query:           "/?start=1&end=8200",
 			maxScannedBytes: 10_000,
 			maxDuration:     168 * time.Hour,
-			wantOutcome:     scannedBytesOutcomeWithin,
+			wantResult:      scannedBytesResultWithin,
 			wantCalls:       1,
 		},
 	}
@@ -1601,7 +1601,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 
 			req := httptest.NewRequest("GET", tc.query, nil)
 			req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
-			countBefore := outcomeCount("blerg", searchOp, tc.wantOutcome)
+			countBefore := resultCount("blerg", searchOp, tc.wantResult)
 			resp, err := sharder.Wrap(next).RoundTrip(pipeline.NewHTTPRequest(req))
 			if tc.wantErr == "" {
 				require.NoError(t, err)
@@ -1610,11 +1610,11 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			}
 
 			require.Equal(t, tc.wantCalls, rdr.callCount())
-			if tc.wantOutcome == "" {
+			if tc.wantResult == "" {
 				require.Empty(t, buf.String())
 			} else {
-				require.Contains(t, buf.String(), "outcome="+tc.wantOutcome+" ")
-				require.Equal(t, 1.0, outcomeCount("blerg", searchOp, tc.wantOutcome)-countBefore)
+				require.Contains(t, buf.String(), "result="+tc.wantResult+" ")
+				require.Equal(t, 1.0, resultCount("blerg", searchOp, tc.wantResult)-countBefore)
 			}
 		})
 	}

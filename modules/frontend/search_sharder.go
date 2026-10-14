@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/http"
@@ -113,8 +114,8 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	// calculate and enforce max search duration and the scanned bytes limit
 	limit := checkScannedBytes(searchScannedBytesLimit{cfg: s.cfg, overrides: s.overrides}, tenantID,
 		time.Unix(int64(searchReq.Start), 0), time.Unix(int64(searchReq.End), 0), cutoff, metas)
-	if limit.outcome == scannedBytesOutcomeRejectedMaxDuration {
-		limit.record(span, s.logger)
+	if limit.result == scannedBytesResultRejectedMaxDuration {
+		recordScannedBytesLimit(ctx, s.logger, limit)
 		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", limit.maxDuration, searchReq.Start, searchReq.End)), nil
 	}
 
@@ -126,7 +127,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	}
 
 	// Recorded only now, so searches the spans per span set check rejects stay out of the metrics and log.
-	limit.record(span, s.logger)
+	recordScannedBytesLimit(ctx, s.logger, limit)
 	if err := limit.err("search"); err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
@@ -285,6 +286,23 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 
 	return resp, nil
 }
+
+type searchScannedBytesLimit struct {
+	cfg       SearchSharderConfig
+	overrides overrides.Interface
+}
+
+func (searchScannedBytesLimit) op() string { return searchOp }
+
+func (l searchScannedBytesLimit) limits(tenantID string) rangeLimits {
+	return rangeLimits{
+		minDuration:     cmp.Or(l.overrides.MinSearchDuration(tenantID), l.cfg.MinDuration),
+		maxDuration:     cmp.Or(l.overrides.MaxSearchDuration(tenantID), l.cfg.MaxDuration),
+		maxScannedBytes: cmp.Or(l.overrides.MaxSearchScannedBytes(tenantID), l.cfg.MaxScannedBytes),
+	}
+}
+
+func (searchScannedBytesLimit) estimatedBytes(m *backend.BlockMeta) uint64 { return m.Size_ }
 
 // backendRange returns a new start/end range for the backend based on the config parameter
 // query_backend_after. If the returned start == the returned end then backend querying is not necessary.

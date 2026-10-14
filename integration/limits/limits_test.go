@@ -373,20 +373,20 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 		require.ErrorContains(t, err, "range specified by start and end exceeds 2h0m0s")
 
 		queryFrontend := h.Services[util.ServiceQueryFrontend]
-		waitOutcome := func(op, outcome string) {
+		waitResult := func(op, result string) {
 			require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(
 				e2e.GreaterOrEqual(1),
 				[]string{"tempo_query_frontend_scanned_bytes_limit_total"},
 				e2e.WithLabelMatchers(
 					labels.MustNewMatcher(labels.MatchEqual, "op", op),
-					labels.MustNewMatcher(labels.MatchEqual, "outcome", outcome),
+					labels.MustNewMatcher(labels.MatchEqual, "result", result),
 				),
 				e2e.WaitMissingMetrics,
-			), "op=%s outcome=%s", op, outcome)
+			), "op=%s result=%s", op, result)
 		}
 		for _, op := range []string{"metrics", "search"} {
-			for _, outcome := range []string{"rejected", "raised_to_min", "rejected_max_duration"} {
-				waitOutcome(op, outcome)
+			for _, result := range []string{"rejected", "raised_to_min", "rejected_max_duration"} {
+				waitResult(op, result)
 			}
 		}
 
@@ -429,7 +429,7 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 		_, err = apiClient.SearchTraceQLWithRange("{}", ago(2*time.Hour), end)
 		require.NoError(t, err)
 
-		waitOutcome("metrics", "within")
-		waitOutcome("search", "within")
+		waitResult("metrics", "within")
+		waitResult("search", "within")
 	})
 }

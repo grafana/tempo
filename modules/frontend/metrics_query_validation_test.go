@@ -135,7 +135,7 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 		maxDuration     time.Duration
 		maxIntervals    uint64
 		wantErr         string
-		wantOutcome     string
+		wantResult      string
 		wantCalls       int
 	}{
 		{
@@ -147,7 +147,7 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			start:           hoursAgo(4),
 			maxScannedBytes: 350,
 			wantErr:         "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant foo (limited by scanned bytes)",
-			wantOutcome:     scannedBytesOutcomeRejected,
+			wantResult:      scannedBytesResultRejected,
 			wantCalls:       1,
 		},
 		{
@@ -156,7 +156,7 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			maxScannedBytes: 350,
 			maxDuration:     6 * time.Hour,
 			wantErr:         "metrics query time range exceeds the maximum allowed duration of 6h0m0s",
-			wantOutcome:     scannedBytesOutcomeRejectedMaxDuration,
+			wantResult:      scannedBytesResultRejectedMaxDuration,
 			wantCalls:       1,
 		},
 		{
@@ -166,7 +166,7 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			maxDuration:     6 * time.Hour,
 			maxIntervals:    10,
 			wantErr:         "metrics query time range exceeds the maximum allowed duration of 6h0m0s",
-			wantOutcome:     scannedBytesOutcomeRejectedMaxDuration,
+			wantResult:      scannedBytesResultRejectedMaxDuration,
 			wantCalls:       1,
 		},
 		{
@@ -191,11 +191,11 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			cfg := Config{}
 			cfg.Metrics.MaxIntervals = tc.maxIntervals
 			cfg.Metrics.Sharder = QueryRangeSharderConfig{MaxDuration: tc.maxDuration, MaxScannedBytes: tc.maxScannedBytes}
-			o := &mockOverridesScannedBytes{}
+			o := newTestOverrides(t, overrides.ReadOverrides{})
 			rdr := &countingMockReader{mockReader: mockReader{metas: hourlyMetricsBlocks(scannedBytesTestEnd)}}
 			sl := newMetricsScannedBytesLimit(rdr, o, cfg.Metrics.Sharder, true, log.NewLogfmtLogger(&buf))
 
-			countBefore := outcomeCount("foo", metricsOp, tc.wantOutcome)
+			countBefore := resultCount("foo", metricsOp, tc.wantResult)
 			err := validateQueryRangeReq(user.InjectOrgID(context.Background(), "foo"), cfg, o, sl, &tempopb.QueryRangeRequest{
 				Start: uint64(tc.start.UnixNano()),
 				End:   uint64(scannedBytesTestEnd.UnixNano()),
@@ -211,11 +211,11 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 				require.ErrorIs(t, err, errMetricsMaxDuration)
 			}
 			require.Equal(t, tc.wantCalls, rdr.callCount())
-			if tc.wantOutcome == "" {
+			if tc.wantResult == "" {
 				require.Empty(t, buf.String())
 			} else {
-				require.Contains(t, buf.String(), "outcome="+tc.wantOutcome+" ")
-				require.Equal(t, 1.0, outcomeCount("foo", metricsOp, tc.wantOutcome)-countBefore)
+				require.Contains(t, buf.String(), "result="+tc.wantResult+" ")
+				require.Equal(t, 1.0, resultCount("foo", metricsOp, tc.wantResult)-countBefore)
 			}
 		})
 	}
