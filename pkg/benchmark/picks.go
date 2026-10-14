@@ -12,6 +12,10 @@ import (
 // dedicated column and without — the generated cases cover.
 const rankedAttributesPerGroup = 10
 
+// tagValueAttributesPerGroup is how many string attributes of each group get a
+// tag-value lookup.
+const tagValueAttributesPerGroup = 20
+
 var profiledIntrinsics = []traceql.Intrinsic{
 	traceql.IntrinsicName,
 	traceql.IntrinsicStatus,
@@ -37,6 +41,10 @@ func pickAttributes(attrs *attributes.Profiles, n int, keep func(attributes.Prof
 // range predicate, not `=`.
 func hasValues(p attributes.Profile) bool {
 	return len(p.Values) > 0
+}
+
+func isStringAttribute(p attributes.Profile) bool {
+	return p.Type == attributes.TypeString
 }
 
 // queryable skips attributes a newer profile might rank that this run cannot
@@ -98,4 +106,22 @@ func valueFilter(p attributes.Profile, v string) string {
 		v = strconv.Quote(v)
 	}
 	return fmt.Sprintf("{ %s = %s }", attr, v)
+}
+
+// attributeIDs use the name, not the rank, so an attribute keeps its ID across
+// experiment variants. The type is added only to tell two picks of one name apart.
+func attributeIDs(ps []attributes.Profile) []string {
+	seen := make(map[string]int, len(ps))
+	for _, p := range ps {
+		seen[p.Scope+"."+p.Name]++
+	}
+
+	ids := make([]string, len(ps))
+	for i, p := range ps {
+		ids[i] = p.Scope + "." + p.Name
+		if seen[ids[i]] > 1 {
+			ids[i] += "." + p.Type
+		}
+	}
+	return ids
 }

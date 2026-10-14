@@ -130,7 +130,7 @@ func TestAttributeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := attributeCases(tt.prof)
+			got := casesOf(attributeCases(tt.prof), apiSearch)
 			require.Len(t, got, len(tt.want))
 			for i, c := range got {
 				require.Equal(t, tt.want[i], c.id)
@@ -150,7 +150,7 @@ func TestAttributeCasesExecutions(t *testing.T) {
 	)
 	prof.Block = &backend.BlockMeta{}
 
-	cases := attributeCases(prof)
+	cases := casesOf(attributeCases(prof), apiSearch)
 	require.Len(t, cases, 3)
 
 	shards := []Shard{{Index: 0, StartPage: 0, TotalPages: 2}, {Index: 1, StartPage: 2, TotalPages: 2}}
@@ -195,7 +195,23 @@ func TestAllCasesKeepsAPIsTogether(t *testing.T) {
 		"traceid/present", "traceid/absent",
 		"search/nopredicate", "search/ranked/high", "search/ranked/medium", "search/ranked/low",
 		"metrics/rate", "metrics/rate-by-service",
+		"metrics/drilldown/rate", "metrics/drilldown/errors", "metrics/drilldown/duration", "metrics/drilldown/by-service",
+		"metrics/ranked/rate/high/span.most", "metrics/ranked/rate/medium/span.most", "metrics/ranked/rate/low/span.most",
+		"metrics/ranked/rate/high/span.some",
+		"metrics/ranked/quantile/high/span.most", "metrics/ranked/quantile/medium/span.most", "metrics/ranked/quantile/low/span.most",
+		"metrics/ranked/quantile/high/span.some",
 		"metadata/tagnames/none", "metadata/tagnames/resource", "metadata/tagnames/span",
 		"metadata/tagnames/event", "metadata/tagnames/link", "metadata/tagnames/instrumentation",
+		"metadata/tagvalues/span.most", "metadata/tagvalues/span.some",
 	}, got)
+}
+
+func casesOf(cases []benchCase, api string) []benchCase {
+	var out []benchCase
+	for _, c := range cases {
+		if c.api == api {
+			out = append(out, c)
+		}
+	}
+	return out
 }

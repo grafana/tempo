@@ -28,10 +28,16 @@ const (
 type RunOptions struct {
 	Repeat int `json:"repeat"`
 
+	Cases []string `json:"cases,omitempty"`
+
 	TargetBytesPerRequest int `json:"targetBytesPerRequest"`
 	SearchLimit           int `json:"searchLimit"`
 	MaxSeries             int `json:"maxSeries"`
 	Exemplars             int `json:"exemplars"`
+	// Tempo has no defaults for a tag-value request's limit and maxStaleValues,
+	// so 0 means unlimited, as for a request without them.
+	MaxTagValues        uint32 `json:"maxTagValues,omitempty"`
+	StaleValueThreshold uint32 `json:"staleValueThreshold,omitempty"`
 
 	ReadBufferSize int `json:"readBufferSize,omitempty"`
 

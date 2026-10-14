@@ -40,8 +40,8 @@ func TestRun(t *testing.T) {
 	// is what makes an execution count legible next to Repeat.
 	require.Positive(t, result.Shards)
 	require.Equal(t, result.Shards, byAPI(t, result, apiSearch).Executions)
-	// 2 trace-by-ID + 1 search + 2 metrics + 6 tag name scopes.
-	require.Len(t, result.Cases, 11)
+	// 2 trace-by-ID + 1 search + 2 metrics + 4 drilldown + 6 tag name scopes.
+	require.Len(t, result.Cases, 15)
 
 	byID := map[string]CaseResult{}
 	for _, c := range result.Cases {
@@ -131,6 +131,72 @@ func TestRun(t *testing.T) {
 
 // A block reports a tag name once per row group that has it, so the count
 // must be of distinct names or it would grow with the number of row groups.
+var attributePatterns = []string{"metrics/ranked/*/*/*", "metadata/tagvalues/*"}
+
+func TestRunAttributeCases(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := benchtest.Block(t, 300)
+
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 5, NumAttributes: 100})
+	require.NoError(t, err)
+
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{Cases: attributePatterns})
+	require.NoError(t, err)
+	require.Equal(t, attributePatterns, result.Options.Cases)
+
+	cardinality := map[string]uint64{}
+	for _, p := range prof.Attributes.Ranked {
+		cardinality[p.Scope+"."+p.Name] = p.Cardinality
+	}
+
+	groups := map[string]int{}
+	for _, c := range result.Cases {
+		require.Empty(t, c.Error, "case %s", c.ID)
+		require.Equal(t, result.Shards, c.Executions, "case %s must shard", c.ID)
+
+		parts := strings.Split(c.ID, "/")
+		group := strings.Join(parts[:min(3, len(parts)-1)], "/")
+		groups[group]++
+
+		if group == "metadata/tagvalues" {
+			// Each shard reports the values it holds, so a value spread over
+			// shards is counted in each of them.
+			n := cardinality[parts[len(parts)-1]]
+			require.Positive(t, n, c.ID)
+			require.GreaterOrEqual(t, c.Matched, int64(n), c.ID)
+			require.LessOrEqual(t, c.Matched, int64(n)*int64(result.Shards), c.ID)
+			require.Positive(t, c.Metrics[metrics.PrefixResponse+"inspectedBytes"].Total, c.ID)
+			continue
+		}
+		require.Contains(t, []string{bandHigh, bandMedium, bandLow}, parts[3], c.ID)
+		// rate() returns a series per shard even when nothing matches, so the
+		// spans inspected are what show the filter matched.
+		require.Positive(t, c.Metrics[metrics.PrefixResponse+"inspectedSpans"].Total, "%s matched nothing", c.ID)
+	}
+
+	var ranked int
+	for _, p := range pickAttributes(prof.Attributes, rankedAttributesPerGroup, hasValues) {
+		ranked += len(bandValues(p))
+	}
+	require.Positive(t, ranked)
+	require.Equal(t, map[string]int{
+		"metrics/ranked/rate":     ranked,
+		"metrics/ranked/quantile": ranked,
+		"metadata/tagvalues":      len(pickAttributes(prof.Attributes, tagValueAttributesPerGroup, isStringAttribute)),
+	}, groups)
+}
+
+func TestRunRejectsInvalidCasePattern(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := benchtest.Block(t, 50)
+
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 5})
+	require.NoError(t, err)
+
+	_, err = Run(ctx, blockPath(bucket, meta), prof, RunOptions{Cases: []string{"["}})
+	require.ErrorContains(t, err, "invalid case pattern")
+}
+
 func TestTagNamesCountDistinctNames(t *testing.T) {
 	ctx := context.Background()
 	meta, r, bucket := benchtest.Block(t, 300)
