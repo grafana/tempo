@@ -101,12 +101,3 @@ func TestBandValues(t *testing.T) {
 	require.Equal(t, []string{"high=a", "medium=b", "low=d"}, bands("a", "b", "c", "d"))
 	require.Equal(t, []string{"high=a", "medium=c", "low=e"}, bands("a", "b", "c", "d", "e"))
 }
-
-func TestAttributeIDs(t *testing.T) {
-	ps := []attributes.Profile{
-		profileAttr(attributes.ScopeSpan, "x", attributes.TypeString, false, "a"),
-		profileAttr(attributes.ScopeSpan, "x", attributes.TypeInt, false, "1"),
-		profileAttr(attributes.ScopeResource, "x", attributes.TypeString, true, "a"),
-	}
-	require.Equal(t, []string{"span.x.string", "span.x.int", "resource.x"}, attributeIDs(ps))
-}

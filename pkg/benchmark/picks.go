@@ -99,21 +99,3 @@ func valueFilter(p attributes.Profile, v string) string {
 	}
 	return fmt.Sprintf("{ %s = %s }", attr, v)
 }
-
-// attributeIDs use the name, not the rank, so an attribute keeps its ID across
-// experiment variants. The type is added only to tell two picks of one name apart.
-func attributeIDs(ps []attributes.Profile) []string {
-	seen := make(map[string]int, len(ps))
-	for _, p := range ps {
-		seen[p.Scope+"."+p.Name]++
-	}
-
-	ids := make([]string, len(ps))
-	for i, p := range ps {
-		ids[i] = p.Scope + "." + p.Name
-		if seen[ids[i]] > 1 {
-			ids[i] += "." + p.Type
-		}
-	}
-	return ids
-}

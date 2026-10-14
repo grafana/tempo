@@ -180,9 +180,9 @@ func TestRunRepeatMultipliesExecutions(t *testing.T) {
 	}
 }
 
-// A profile with ranked attributes generates searches over its top
-// attributes, one case per band of each attribute's own profiled values,
-// each an equality the profile proves matches.
+// A profile with ranked attributes generates one generated search per
+// selectivity band, running every picked attribute's equality for the band's
+// value — each one the profile proves matches the block.
 func TestRunGeneratesAttributeCases(t *testing.T) {
 	ctx := context.Background()
 	meta, r, bucket := benchtest.Block(t, 300)
@@ -201,29 +201,24 @@ func TestRunGeneratesAttributeCases(t *testing.T) {
 		generated[c.ID] = c
 	}
 
-	// Every attribute the picker keeps gets one case per band of its own
-	// values; the same function computes what unit tests check, so here the
-	// count keys the whole group to the profile.
-	require.Len(t, generated, len(attributeCases(prof)))
+	// The same band grouping the cases claim to run, derived from the profile,
+	// keys each case to its queries.
+	byBand := attributeQueries(pickAttributes(prof.Attributes, rankedAttributesPerGroup, hasValues))
+	require.Len(t, generated, len(byBand))
 
-	// The duration intrinsic is the most sizeable attribute every span
-	// carries, and all spans carry the same one.
-	high := generated["search/ranked/high/intrinsic.duration"]
-	require.Equal(t, `{ duration = 1s }`, high.Query)
-
-	// The biggest span attribute's values are one per trace, so its cases
-	// span all three bands.
-	require.Contains(t, generated, "search/ranked/high/span.attr.a")
-	require.Contains(t, generated, "search/ranked/medium/span.attr.a")
-	low := generated["search/ranked/low/span.attr.a"]
-	require.True(t, strings.HasPrefix(low.Query, `{ span.attr.a = "`), low.Query)
+	// The fixture's span attributes take three bands of values: one value per
+	// trace or one value across the block.
+	require.Contains(t, generated, "search/ranked/high")
+	require.Contains(t, generated, "search/ranked/medium")
+	require.Contains(t, generated, "search/ranked/low")
 
 	for id, c := range generated {
 		require.Empty(t, c.Error, "case %s", id)
-		require.NotEmpty(t, c.Query, "case %s", id)
-		// A sharded case runs one execution per shard, like the fixed search.
-		require.Equal(t, result.Shards, c.Executions, "case %s", id)
-		require.Positive(t, c.Matched, "case %s matched nothing; the profile's value was wrong", id)
+		// A sharded case runs each of its band's queries once per shard,
+		// like the fixed search runs one per shard.
+		require.Equal(t, result.Shards*len(byBand[id[len("search/ranked/"):]]), c.Executions, "case %s", id)
+		// The profile proves every value matches, so every band matched.
+		require.Positive(t, c.Matched, "case %s matched nothing; the profile's values were wrong", id)
 	}
 }
 
