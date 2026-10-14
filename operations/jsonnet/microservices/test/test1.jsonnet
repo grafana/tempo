@@ -395,6 +395,13 @@ test.new(std.thisFile)
   )
 )
 + test.case.new(
+  'backend_worker KEDA jobs_in_flight query falls back to zero for both active and pending',
+  test.expect.eq(
+    std.length(std.findSubstr('or vector(0)', withBackendWorkerJobsInFlight().tempo_backend_worker_scaled_object.spec.triggers[1].metadata.query)),
+    2
+  )
+)
++ test.case.new(
   'backend_worker KEDA jobs_in_flight query uses the configured window',
   test.expect.eq(
     std.length(std.findSubstr('[10m]', withBackendWorkerJobsInFlight({ window: '10m' }).tempo_backend_worker_scaled_object.spec.triggers[1].metadata.query)),

@@ -97,13 +97,14 @@
           // Look-back for the max over time. Bridges the gap between one job finishing and the
           // next being created.
           window: '5m',
-          // Prometheus query returning the total number of jobs in flight. jobs_pending has no
-          // series until it is first set, hence the vector(0) fallbacks.
+          // Prometheus query returning the total number of jobs in flight. Either gauge has no
+          // series until it is first set (for example after a scheduler restart), hence the
+          // vector(0) fallbacks: an absent series must not drop the other from the sum.
           query: |||
             (
-              sum(max_over_time(tempo_backend_scheduler_jobs_active{namespace="%(namespace)s", container="backend-scheduler"}[%(window)s]))
+              (sum(max_over_time(tempo_backend_scheduler_jobs_active{namespace="%(namespace)s", container="backend-scheduler"}[%(window)s])) or vector(0))
               + (sum(max_over_time(tempo_backend_scheduler_jobs_pending{namespace="%(namespace)s", container="backend-scheduler"}[%(window)s])) or vector(0))
-            ) or vector(0)
+            )
           ||| % { namespace: $._config.namespace, window: this.window },
         },
         // Scale up in large chunks to catch up on work, but limit frequency to avoid ring churn.
