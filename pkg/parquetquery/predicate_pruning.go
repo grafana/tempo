@@ -27,6 +27,7 @@ func predicateNullValue() pq.Value { return pq.Value{} }
 // range test via KeepRange, and a null-count test via KeepValue(null). Counts into
 // c.stats when set.
 func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
+	c.resetFilter()
 	if c.filter == nil {
 		return true // no predicate: keep everything
 	}

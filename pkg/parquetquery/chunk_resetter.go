@@ -7,6 +7,16 @@ type chunkResetter interface {
 	resetForChunk()
 }
 
+// resetFilter is TEMPORARY, removed with chunkResetter: it clears the filter's
+// memoization at a chunk boundary. It runs before the dictionary scan, so the matches
+// that scan memoizes serve the chunk's rows too. c.filter is the full tree, so resets
+// cascade.
+func (c *SyncIterator) resetFilter() {
+	if r, ok := c.filter.(chunkResetter); ok {
+		r.resetForChunk()
+	}
+}
+
 func (p *regexPredicate) resetForChunk() { p.matcher.Reset() }
 
 func (p *SubstringPredicate) resetForChunk() {
