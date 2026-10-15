@@ -41,7 +41,7 @@ type SearchSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	// MaxScannedBytes is the byte budget of backend blocks a search range may overlap. 0 disables the limit.
 	MaxScannedBytes uint64 `yaml:"max_scanned_bytes,omitempty"`
-	// MinDuration is the range always allowed when MaxScannedBytes is set, even if it is over the budget.
+	// MinDuration is the range always allowed when MaxScannedBytes is set, even if it is over the budget, unless MaxDuration is lower.
 	MinDuration time.Duration `yaml:"min_duration,omitempty"`
 	// QueryBackendAfter determines when to query backend storage vs ingesters only.
 	QueryBackendAfter      time.Duration `yaml:"query_backend_after,omitempty"`
@@ -111,7 +111,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	cutoff := time.Unix(time.Now().Add(-s.cfg.QueryBackendAfter).Unix(), 0)
 	metas := sync.OnceValue(func() []*backend.BlockMeta { return s.reader.BlockMetas(tenantID) })
 
-	// calculate and enforce max search duration and the scanned bytes limit
+	// calculate and enforce max search duration
 	limit := checkScannedBytes(searchScannedBytesLimit{cfg: s.cfg, overrides: s.overrides}, tenantID,
 		time.Unix(int64(searchReq.Start), 0), time.Unix(int64(searchReq.End), 0), cutoff, metas)
 	if limit.result == scannedBytesResultRejectedMaxDuration {
@@ -126,7 +126,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 		return pipeline.NewBadRequest(fmt.Errorf("spans per span set exceeds %d. received %d", s.cfg.MaxSpansPerSpanSet, searchReq.SpansPerSpanSet)), nil
 	}
 
-	// Recorded only now, so searches the spans per span set check rejects stay out of the metrics and log.
+	// enforce the scanned bytes limit last, so searches the spans per span set check rejects stay out of the metrics and log
 	recordScannedBytesLimit(ctx, s.logger, limit)
 	if err := limit.err("search"); err != nil {
 		return pipeline.NewBadRequest(err), nil
@@ -287,6 +287,7 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 	return resp, nil
 }
 
+// searchScannedBytesLimit counts every block, since search reads all of them.
 type searchScannedBytesLimit struct {
 	cfg       SearchSharderConfig
 	overrides overrides.Interface

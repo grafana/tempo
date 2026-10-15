@@ -469,7 +469,7 @@ func (o *runtimeConfigOverridesManager) MaxMetricsScannedBytes(userID string) ui
 	return o.getOverridesForUser(userID).Read.MaxMetricsScannedBytes
 }
 
-// MinMetricsDuration is the metrics query range always allowed for this tenant, even over the scanned bytes budget.
+// MinMetricsDuration is the metrics query range always allowed for this tenant, even over the scanned bytes budget, unless max_duration is lower.
 func (o *runtimeConfigOverridesManager) MinMetricsDuration(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).Read.MinMetricsDuration)
 }
@@ -479,7 +479,7 @@ func (o *runtimeConfigOverridesManager) MaxSearchScannedBytes(userID string) uin
 	return o.getOverridesForUser(userID).Read.MaxSearchScannedBytes
 }
 
-// MinSearchDuration is the search range always allowed for this tenant, even over the scanned bytes budget.
+// MinSearchDuration is the search range always allowed for this tenant, even over the scanned bytes budget, unless max_duration is lower.
 func (o *runtimeConfigOverridesManager) MinSearchDuration(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).Read.MinSearchDuration)
 }

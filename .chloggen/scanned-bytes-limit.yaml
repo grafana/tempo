@@ -17,7 +17,7 @@ issues: []
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext: |
   Set under `query_frontend.search` and `query_frontend.metrics`, with per-tenant overrides `max_search_scanned_bytes`, `min_search_duration`, `max_metrics_scanned_bytes` and `min_metrics_duration`.
-  A tenant with less data gets a longer range, up to `max_duration`. A range of `min_duration` or shorter is always allowed. Disabled by default (`max_scanned_bytes: 0`).
+  A tenant with less data gets a longer range, up to `max_duration`. A range of `min_duration` or shorter is always allowed, unless `max_duration` is lower. Disabled by default (`max_scanned_bytes: 0`).
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: electron0zero
