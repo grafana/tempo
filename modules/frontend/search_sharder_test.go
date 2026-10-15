@@ -1601,7 +1601,10 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			}, nil, newJobsPerQueryHistogram(), log.NewLogfmtLogger(&buf))
 
 			req := httptest.NewRequest("GET", tc.query, nil)
-			req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
+			// Unblocks the sharder's sender goroutine, since passing cases never read resp.
+			ctx, cancel := context.WithCancel(user.InjectOrgID(req.Context(), "blerg"))
+			t.Cleanup(cancel)
+			req = req.WithContext(ctx)
 			countBefore := resultCount("blerg", searchOp, tc.wantResult)
 			resp, err := sharder.Wrap(nopNext).RoundTrip(pipeline.NewHTTPRequest(req))
 			if tc.wantErr == "" {
