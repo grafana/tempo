@@ -315,7 +315,7 @@ func (t *App) configureGenerator() {
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.ConsumeFromKafka = !IsSingleBinary(t.cfg.Target)
 	if t.cfg.Generator.ConsumeFromKafka && t.cfg.Generator.RingMode == generator.RingModePartition {
-		t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
+		t.cfg.Generator.Ingest.Kafka.ConsumerGroup = t.cfg.Generator.Ingest.Kafka.PrefixedConsumerGroup(generator.ConsumerGroup)
 	}
 }
 
@@ -379,9 +379,13 @@ func (t *App) initGeneratorRingWatcher() (services.Service, error) {
 	return t.generatorRingWatcher, nil
 }
 
-func (t *App) initBlockBuilder() (services.Service, error) {
+func (t *App) configureBlockBuilder() {
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
-	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
+	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = t.cfg.BlockBuilder.IngestStorageConfig.Kafka.PrefixedConsumerGroup(blockbuilder.ConsumerGroup)
+}
+
+func (t *App) initBlockBuilder() (services.Service, error) {
+	t.configureBlockBuilder()
 	// Block config and WAL version are always sourced from storage.trace.block.
 	t.cfg.BlockBuilder.BlockConfig.BlockConfig = *t.cfg.StorageConfig.Trace.Block
 	t.cfg.BlockBuilder.WAL.Version = t.cfg.StorageConfig.Trace.Block.Version

@@ -98,6 +98,31 @@ func TestLiveStoreNewWithoutKafkaDoesNotRequirePartitionStyleInstanceID(t *testi
 	require.Equal(t, int32(0), liveStore.ingestPartitionID)
 }
 
+func TestLiveStoreNewConsumerGroup(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		prefix        string
+		expectedGroup string
+	}{
+		{name: "derived from instance ID", prefix: "", expectedGroup: "live-store-zone-a"},
+		{name: "derived from instance ID with prefix", prefix: "mytenant.", expectedGroup: "mytenant.live-store-zone-a"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := defaultConfig(t, t.TempDir())
+			cfg.Ring.InstanceID = "live-store-zone-a-3"
+			cfg.IngestConfig.Kafka.ConsumerGroupPrefix = tc.prefix
+
+			limits, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+			require.NoError(t, err)
+
+			liveStore, err := New(cfg, limits, noopCompleteBlockFlusher{}, test.NewTestingLogger(t), prometheus.NewRegistry())
+			require.NoError(t, err)
+			require.Equal(t, int32(3), liveStore.ingestPartitionID)
+			require.Equal(t, tc.expectedGroup, liveStore.cfg.IngestConfig.Kafka.ConsumerGroup)
+		})
+	}
+}
+
 func TestLiveStoreNewWithoutKafkaRequiresCompleteBlockFlusher(t *testing.T) {
 	tmpDir := t.TempDir()
 

@@ -11,6 +11,7 @@ import (
 	dskitring "github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/v3/modules/blockbuilder"
 	"github.com/grafana/tempo/v3/modules/generator"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/modules/storage"
@@ -96,6 +97,19 @@ func TestConfigureGenerator(t *testing.T) {
 		assert.Equal(t, generator.ConsumerGroup, app.cfg.Generator.Ingest.Kafka.ConsumerGroup)
 	})
 
+	t.Run("partition ring mode prefixes the fixed consumer group", func(t *testing.T) {
+		cfg := NewDefaultConfig()
+		cfg.Target = MetricsGenerator
+		cfg.Generator.RingMode = generator.RingModePartition
+		cfg.Ingest.Kafka.Topic = "tempo"
+		cfg.Ingest.Kafka.ConsumerGroupPrefix = "mytenant."
+
+		app := &App{cfg: *cfg}
+		app.configureGenerator()
+
+		assert.Equal(t, "mytenant.metrics-generator", app.cfg.Generator.Ingest.Kafka.ConsumerGroup)
+	})
+
 	t.Run("generator ring mode consumes from kafka without overriding consumer group", func(t *testing.T) {
 		cfg := NewDefaultConfig()
 		cfg.Target = MetricsGenerator
@@ -108,6 +122,45 @@ func TestConfigureGenerator(t *testing.T) {
 
 		assert.True(t, app.cfg.Generator.ConsumeFromKafka)
 		assert.Equal(t, "custom", app.cfg.Generator.Ingest.Kafka.ConsumerGroup)
+	})
+
+	t.Run("generator ring mode does not prefix the configured consumer group", func(t *testing.T) {
+		cfg := NewDefaultConfig()
+		cfg.Target = MetricsGenerator
+		cfg.Generator.RingMode = generator.RingModeGenerator
+		cfg.Ingest.Kafka.Topic = "tempo"
+		cfg.Ingest.Kafka.ConsumerGroup = "custom"
+		cfg.Ingest.Kafka.ConsumerGroupPrefix = "mytenant."
+
+		app := &App{cfg: *cfg}
+		app.configureGenerator()
+
+		assert.Equal(t, "custom", app.cfg.Generator.Ingest.Kafka.ConsumerGroup)
+	})
+}
+
+func TestConfigureBlockBuilder(t *testing.T) {
+	t.Run("uses the fixed consumer group", func(t *testing.T) {
+		cfg := NewDefaultConfig()
+		cfg.Ingest.Kafka.Topic = "tempo"
+		cfg.Ingest.Kafka.ConsumerGroup = "custom"
+
+		app := &App{cfg: *cfg}
+		app.configureBlockBuilder()
+
+		assert.Equal(t, "tempo", app.cfg.BlockBuilder.IngestStorageConfig.Kafka.Topic)
+		assert.Equal(t, blockbuilder.ConsumerGroup, app.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup)
+	})
+
+	t.Run("prefixes the fixed consumer group", func(t *testing.T) {
+		cfg := NewDefaultConfig()
+		cfg.Ingest.Kafka.Topic = "tempo"
+		cfg.Ingest.Kafka.ConsumerGroupPrefix = "mytenant."
+
+		app := &App{cfg: *cfg}
+		app.configureBlockBuilder()
+
+		assert.Equal(t, "mytenant.block-builder", app.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup)
 	})
 }
 
