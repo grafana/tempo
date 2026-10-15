@@ -309,6 +309,14 @@ func TestCheckScannedBytes(t *testing.T) {
 			want:      rangeCheck{evaluated: true, fits: true, result: scannedBytesResultWithin},
 		},
 		{
+			name:      "blocks starting after the cutoff are free",
+			metas:     []*backend.BlockMeta{testBlock(3, 2, 100), {StartTime: scannedBytesTestEnd.Add(-30 * time.Minute), EndTime: scannedBytesTestEnd.Add(-10 * time.Minute), Size_: 1000, ReplicationFactor: backend.MetricsGeneratorReplicationFactor}},
+			limits:    rangeLimits{maxScannedBytes: 250},
+			cutoff:    hoursAgo(1),
+			requested: 3 * time.Hour,
+			want:      rangeCheck{evaluated: true, fits: true, result: scannedBytesResultWithin, estimatedBytes: 100},
+		},
+		{
 			name:      "range wholly after the cutoff fits",
 			metas:     []*backend.BlockMeta{testBlock(3, 0, 300)},
 			limits:    rangeLimits{maxScannedBytes: 250},
