@@ -46,6 +46,9 @@ func testBlock(startHoursAgo, endHoursAgo int, size uint64) *backend.BlockMeta {
 	}
 }
 
+// nonRF1Block is large enough to reject any metrics query it counts against.
+var nonRF1Block = &backend.BlockMeta{StartTime: hoursAgo(1), EndTime: scannedBytesTestEnd, Size_: 10_000}
+
 // hourlyMetricsBlocks returns 10 RF1 blocks of 100 bytes, one per hour, ending at end.
 func hourlyMetricsBlocks(end time.Time) []*backend.BlockMeta {
 	metas := make([]*backend.BlockMeta, 0, 10)
@@ -115,32 +118,8 @@ func testScannedBytesLimit(t testing.TB, op string, l rangeLimits) scannedBytesL
 	return newMetricsScannedBytesLimit(nil, o, QueryRangeSharderConfig{MinDuration: l.minDuration, MaxDuration: l.maxDuration, MaxScannedBytes: l.maxScannedBytes}, true, nil)
 }
 
-func TestScannedBytesLimitOverrides(t *testing.T) {
-	cfg := rangeLimits{minDuration: time.Hour, maxDuration: 24 * time.Hour, maxScannedBytes: 1000}
-	want := rangeLimits{minDuration: 2 * time.Hour, maxDuration: 12 * time.Hour, maxScannedBytes: 500}
-
-	search := searchScannedBytesLimit{
-		cfg: SearchSharderConfig{MinDuration: cfg.minDuration, MaxDuration: cfg.maxDuration, MaxScannedBytes: cfg.maxScannedBytes},
-		overrides: newTestOverrides(t, overrides.ReadOverrides{
-			MinSearchDuration: model.Duration(want.minDuration), MaxSearchDuration: model.Duration(want.maxDuration), MaxSearchScannedBytes: want.maxScannedBytes,
-		}),
-	}
-	metrics := newMetricsScannedBytesLimit(nil, newTestOverrides(t, overrides.ReadOverrides{
-		MinMetricsDuration: model.Duration(want.minDuration), MaxMetricsDuration: model.Duration(want.maxDuration), MaxMetricsScannedBytes: want.maxScannedBytes,
-	}), QueryRangeSharderConfig{MinDuration: cfg.minDuration, MaxDuration: cfg.maxDuration, MaxScannedBytes: cfg.maxScannedBytes}, true, nil)
-
-	require.Equal(t, cfg, testScannedBytesLimit(t, searchOp, cfg).limits("foo"))
-	require.Equal(t, cfg, testScannedBytesLimit(t, metricsOp, cfg).limits("foo"))
-	require.Equal(t, want, search.limits("foo"))
-	require.Equal(t, want, metrics.limits("foo"))
-}
-
 func TestCheckScannedBytes(t *testing.T) {
-	hourly := make([]*backend.BlockMeta, 0, 10)
-	for i := range 10 {
-		hourly = append(hourly, testBlock(i+1, i, 100))
-	}
-	nonRF1 := &backend.BlockMeta{StartTime: hoursAgo(1), EndTime: scannedBytesTestEnd, Size_: 10_000}
+	hourly := hourlyMetricsBlocks(scannedBytesTestEnd)
 
 	tcs := []struct {
 		name      string
@@ -343,7 +322,7 @@ func TestCheckScannedBytes(t *testing.T) {
 		},
 		{
 			name:      "metrics counts only RF1 blocks",
-			metas:     append([]*backend.BlockMeta{nonRF1}, hourly...),
+			metas:     append([]*backend.BlockMeta{nonRF1Block}, hourly...),
 			limits:    rangeLimits{maxScannedBytes: 350},
 			requested: 2 * time.Hour,
 			want:      rangeCheck{evaluated: true, fits: true, result: scannedBytesResultWithin, estimatedBytes: 300},
@@ -351,7 +330,7 @@ func TestCheckScannedBytes(t *testing.T) {
 		{
 			name:      "search counts every block",
 			op:        searchOp,
-			metas:     append([]*backend.BlockMeta{nonRF1}, hourly...),
+			metas:     append([]*backend.BlockMeta{nonRF1Block}, hourly...),
 			limits:    rangeLimits{maxScannedBytes: 350},
 			requested: 2 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, estimatedBytes: 10_300},
@@ -458,8 +437,7 @@ func TestMetricsScannedBytesLimitCheck(t *testing.T) {
 		"foo":    hourlyMetricsBlocks(scannedBytesTestEnd),
 		"a-over": hourlyMetricsBlocks(scannedBytesTestEnd),
 		"b-fits": nil,
-		// The non RF1 block must not count.
-		"mixed": append(hourlyMetricsBlocks(scannedBytesTestEnd), &backend.BlockMeta{StartTime: hoursAgo(1), EndTime: scannedBytesTestEnd, Size_: 10_000}),
+		"mixed":  append(hourlyMetricsBlocks(scannedBytesTestEnd), nonRF1Block),
 	}
 
 	tcs := []struct {

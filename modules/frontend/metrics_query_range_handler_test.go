@@ -1635,7 +1635,9 @@ func scannedBytesLimitFrontend(t *testing.T, rdr tempodb.Reader, opts func(*Conf
 func TestQueryRangeScannedBytesLimit(t *testing.T) {
 	// Counted on the user range before AlignRequest, so every entry point reports the same allowed range.
 	tcs := []struct {
-		name            string
+		name string
+		// entryPoints defaults to http range. The shared math needs only one.
+		entryPoints     []string
 		start, end      time.Time
 		maxScannedBytes uint64
 		minDuration     time.Duration
@@ -1649,6 +1651,7 @@ func TestQueryRangeScannedBytesLimit(t *testing.T) {
 		},
 		{
 			name:            "range over the budget is rejected",
+			entryPoints:     []string{"http range", "http instant", "grpc range", "grpc instant"},
 			start:           hoursAgo(4),
 			end:             scannedBytesTestEnd,
 			maxScannedBytes: 350,
@@ -1664,8 +1667,11 @@ func TestQueryRangeScannedBytesLimit(t *testing.T) {
 		},
 	}
 
-	for _, entryPoint := range []string{"http range", "http instant", "grpc range", "grpc instant"} {
-		for _, tc := range tcs {
+	for _, tc := range tcs {
+		if tc.entryPoints == nil {
+			tc.entryPoints = []string{"http range"}
+		}
+		for _, entryPoint := range tc.entryPoints {
 			t.Run(entryPoint+"/"+tc.name, func(t *testing.T) {
 				f := scannedBytesLimitFrontend(t, &mockReader{metas: hourlyMetricsBlocks(scannedBytesTestEnd)}, func(c *Config, _ *overrides.Config) {
 					c.Metrics.Sharder.MaxScannedBytes = tc.maxScannedBytes

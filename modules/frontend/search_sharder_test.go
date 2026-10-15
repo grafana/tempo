@@ -1486,10 +1486,12 @@ func urisEqual(t *testing.T, expectedURIs, actualURIs []string) {
 	}
 }
 
+// nopNext stands in for the pipeline after the sharder, whose responses these tests ignore.
+var nopNext = pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	return nil, nil
+})
+
 func TestSearchSharderScannedBytesLimit(t *testing.T) {
-	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
-		return nil, nil
-	})
 	metas := []*backend.BlockMeta{
 		{StartTime: time.Unix(3000, 0), EndTime: time.Unix(4000, 0), Size_: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")},
 		{StartTime: time.Unix(1000, 0), EndTime: time.Unix(2000, 0), Size_: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002")},
@@ -1585,8 +1587,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			o, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{Read: tc.overrides}}, nil, prometheus.NewRegistry())
-			require.NoError(t, err)
+			o := newTestOverrides(t, tc.overrides)
 			rdr := &countingMockReader{mockReader: mockReader{metas: metas}}
 			var buf bytes.Buffer
 			sharder := newAsyncSearchSharder(rdr, o, SearchSharderConfig{
@@ -1602,7 +1603,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			req := httptest.NewRequest("GET", tc.query, nil)
 			req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 			countBefore := resultCount("blerg", searchOp, tc.wantResult)
-			resp, err := sharder.Wrap(next).RoundTrip(pipeline.NewHTTPRequest(req))
+			resp, err := sharder.Wrap(nopNext).RoundTrip(pipeline.NewHTTPRequest(req))
 			if tc.wantErr == "" {
 				require.NoError(t, err)
 			} else {
@@ -1632,9 +1633,7 @@ func TestSearchSharderScannedBytesLimitCutoff(t *testing.T) {
 			Size_:     1000,
 			BlockID:   backend.MustParse("00000000-0000-0000-0000-000000000001"),
 		}}}
-		o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
-		require.NoError(t, err)
-		sharder := newAsyncSearchSharder(reader, o, SearchSharderConfig{
+		sharder := newAsyncSearchSharder(reader, newTestOverrides(t, overrides.ReadOverrides{}), SearchSharderConfig{
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			MostRecentShards:      defaultMostRecentShards,
@@ -1642,13 +1641,9 @@ func TestSearchSharderScannedBytesLimitCutoff(t *testing.T) {
 			MaxScannedBytes:       500,
 			QueryBackendAfter:     30 * time.Minute,
 		}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
-		next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
-			return nil, nil
-		})
-
 		req := httptest.NewRequest("GET", fmt.Sprintf("/?start=%d&end=%d", now.Add(-time.Hour).Unix(), now.Add(-2*time.Minute).Unix()), nil)
 		req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
-		resp, err := sharder.Wrap(next).RoundTrip(pipeline.NewHTTPRequest(req))
+		resp, err := sharder.Wrap(nopNext).RoundTrip(pipeline.NewHTTPRequest(req))
 		testBadRequestFromResponses(t, resp, err, "search time range of 58m0s exceeds the maximum allowed range of 28m0s for tenant blerg (limited by scanned bytes), reduce the time range to 28m0s or less")
 	})
 }
