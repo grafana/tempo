@@ -633,8 +633,7 @@ Generated cases, from the top 10 attributes with a dedicated column and the top
   band: `high` is its most common value, `medium` the middle of its profiled
   values, and `low` the least common value the profile kept. Every value is one
   the block holds, so every query matches.
-- `search/ranked/<band>`: one case per band, running `{ attribute = value }`
-  for every attribute's value in that band.
+- `search/ranked/<band>/<attribute>`: `{ attribute = value }`.
 - `metrics/ranked/<rate|quantile>/<band>/<attribute>`:
   `{ attribute = value } | rate()` and
   `{ attribute = value } | quantile_over_time(duration, 0.99, 0.95)`.

@@ -246,9 +246,8 @@ func TestRunRepeatMultipliesExecutions(t *testing.T) {
 	}
 }
 
-// A profile with ranked attributes generates one generated search per
-// selectivity band, running every picked attribute's equality for the band's
-// value — each one the profile proves matches the block.
+// A profile with ranked attributes generates a search per attribute and
+// selectivity band, each for a value the profile proves the block holds.
 func TestRunGeneratesAttributeCases(t *testing.T) {
 	ctx := context.Background()
 	meta, r, bucket := benchtest.Block(t, 300)
@@ -256,36 +255,22 @@ func TestRunGeneratesAttributeCases(t *testing.T) {
 	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 10, NumAttributes: 100})
 	require.NoError(t, err)
 
-	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{})
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{Cases: []string{"search/ranked/*/*"}})
 	require.NoError(t, err)
-
-	generated := map[string]CaseResult{}
-	for _, c := range result.Cases {
-		if !strings.HasPrefix(c.ID, "search/ranked/") {
-			continue
-		}
-		generated[c.ID] = c
-	}
-
-	// The same band grouping the cases claim to run, derived from the profile,
-	// keys each case to its queries.
-	byBand := attributeQueries(pickAttributes(prof.Attributes, rankedAttributesPerGroup, hasValues))
-	require.Len(t, generated, len(byBand))
+	require.Len(t, result.Cases, len(casesOf(attributeCases(prof), apiSearch)))
 
 	// The fixture's span attributes take three bands of values: one value per
 	// trace or one value across the block.
-	require.Contains(t, generated, "search/ranked/high")
-	require.Contains(t, generated, "search/ranked/medium")
-	require.Contains(t, generated, "search/ranked/low")
+	bands := map[string]bool{}
+	for _, c := range result.Cases {
+		bands[strings.Split(c.ID, "/")[2]] = true
 
-	for id, c := range generated {
-		require.Empty(t, c.Error, "case %s", id)
-		// A sharded case runs each of its band's queries once per shard,
-		// like the fixed search runs one per shard.
-		require.Equal(t, result.Shards*len(byBand[id[len("search/ranked/"):]]), c.Executions, "case %s", id)
-		// The profile proves every value matches, so every band matched.
-		require.Positive(t, c.Matched, "case %s matched nothing; the profile's values were wrong", id)
+		require.Empty(t, c.Error, "case %s", c.ID)
+		require.NotEmpty(t, c.Query, "case %s", c.ID)
+		require.Equal(t, result.Shards, c.Executions, "case %s", c.ID)
+		require.Positive(t, c.Matched, "case %s matched nothing; the profile's values were wrong", c.ID)
 	}
+	require.Equal(t, map[string]bool{bandHigh: true, bandMedium: true, bandLow: true}, bands)
 }
 
 // A profile from another block would make every lookup a miss, which would read

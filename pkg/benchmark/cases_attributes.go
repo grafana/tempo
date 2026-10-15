@@ -20,42 +20,26 @@ var rankedMetricsPipelines = []struct {
 	{"quantile", "quantile_over_time(duration, 0.99, 0.95)"},
 }
 
-// attributeCases generates the cases a profile's attributes inform: one
-// search case per selectivity band. A band's case runs every picked
-// attribute's equality for its band value — the attributes of a band are
-// summarized as one case, the way traceid/present is one case over every
-// profiled ID — since the band is what says something about a predicate's
-// cost. Every value is one the profile proves the block holds, so each
-// query matches. Metrics cases are generated per attribute and band, and tag
-// values per string attribute, since there the attribute itself drives the cost.
+// attributeCases generates the cases a profile's attributes inform: a search
+// and metrics per attribute and selectivity band, and tag values per string
+// attribute. Each case holds one attribute, since its column and values drive
+// the cost. Every value is one the profile proves the block holds, so each
+// query matches.
 func attributeCases(prof *profile.BlockProfile) []benchCase {
 	if prof.Attributes == nil {
 		return nil
 	}
 
 	ranked := pickAttributes(prof.Attributes, rankedAttributesPerGroup, hasValues)
-	byBand := attributeQueries(ranked)
+	rankedIDs := attributeIDs(ranked)
 
 	var cases []benchCase
-	for _, band := range []string{bandHigh, bandMedium, bandLow} {
-		queries := byBand[band]
-		if len(queries) == 0 {
-			continue // none of the picked attributes has a value in this band
+	for i, p := range ranked {
+		for _, v := range bandValues(p) {
+			cases = append(cases, searchCase("search/ranked/"+v.band+"/"+rankedIDs[i], valueFilter(p, v.value.Value)))
 		}
-		cases = append(cases, benchCase{
-			id:  "search/ranked/" + band,
-			api: apiSearch,
-			executions: func(_ *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				var executions []execution
-				for _, q := range queries {
-					executions = append(executions, searchExecutions(q, shards, prof.Block, opts.searchOptions())...)
-				}
-				return executions, nil
-			},
-		})
 	}
 
-	rankedIDs := attributeIDs(ranked)
 	for _, m := range rankedMetricsPipelines {
 		for i, p := range ranked {
 			for _, v := range bandValues(p) {
@@ -70,18 +54,6 @@ func attributeCases(prof *profile.BlockProfile) []benchCase {
 		cases = append(cases, tagValuesCase("metadata/tagvalues/"+id, tagged[i]))
 	}
 	return cases
-}
-
-// attributeQueries groups the picked attributes' equality filters by selectivity
-// band, in pick order within a band.
-func attributeQueries(ranked []attributes.Profile) map[string][]string {
-	byBand := map[string][]string{}
-	for _, p := range ranked {
-		for _, v := range bandValues(p) {
-			byBand[v.band] = append(byBand[v.band], valueFilter(p, v.value.Value))
-		}
-	}
-	return byBand
 }
 
 // allCases is every case a run measures: the fixed set with the profile's
@@ -104,6 +76,17 @@ func allCases(prof *profile.BlockProfile) []benchCase {
 		return cmp.Compare(first[a.api], first[b.api])
 	})
 	return all
+}
+
+func searchCase(id, query string) benchCase {
+	return benchCase{
+		id:    id,
+		api:   apiSearch,
+		query: query,
+		executions: func(prof *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
+			return searchExecutions(query, shards, prof.Block, opts.searchOptions()), nil
+		},
+	}
 }
 
 func metricsCase(id, query string) benchCase {
