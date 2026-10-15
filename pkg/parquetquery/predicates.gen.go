@@ -38,6 +38,8 @@ func (p IntEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return min <= p.value && p.value <= max
 }
 
+func (p IntEqualPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*IntNotEqualPredicate)(nil)
 
 type IntNotEqualPredicate struct {
@@ -65,6 +67,8 @@ func (p IntNotEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	max := maxV.Int64()
 	return min != p.value || p.value != max
 }
+
+func (p IntNotEqualPredicate) SupportsColumnIndexPruning() bool { return true }
 
 var _ Predicate = (*IntGreaterPredicate)(nil)
 
@@ -94,6 +98,8 @@ func (p IntGreaterPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return max > p.value
 }
 
+func (p IntGreaterPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*IntGreaterEqualPredicate)(nil)
 
 type IntGreaterEqualPredicate struct {
@@ -121,6 +127,8 @@ func (p IntGreaterEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	max := maxV.Int64()
 	return max >= p.value
 }
+
+func (p IntGreaterEqualPredicate) SupportsColumnIndexPruning() bool { return true }
 
 var _ Predicate = (*IntLessPredicate)(nil)
 
@@ -150,6 +158,8 @@ func (p IntLessPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return min < p.value
 }
 
+func (p IntLessPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*IntLessEqualPredicate)(nil)
 
 type IntLessEqualPredicate struct {
@@ -177,6 +187,8 @@ func (p IntLessEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 
 	return min <= p.value
 }
+
+func (p IntLessEqualPredicate) SupportsColumnIndexPruning() bool { return true }
 
 var _ Predicate = (*FloatEqualPredicate)(nil)
 
@@ -206,6 +218,8 @@ func (p FloatEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return min <= p.value && p.value <= max
 }
 
+func (p FloatEqualPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*FloatNotEqualPredicate)(nil)
 
 type FloatNotEqualPredicate struct {
@@ -233,6 +247,8 @@ func (p FloatNotEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	max := maxV.Double()
 	return min != p.value || p.value != max
 }
+
+func (p FloatNotEqualPredicate) SupportsColumnIndexPruning() bool { return true }
 
 var _ Predicate = (*FloatGreaterPredicate)(nil)
 
@@ -262,6 +278,8 @@ func (p FloatGreaterPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return max > p.value
 }
 
+func (p FloatGreaterPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*FloatGreaterEqualPredicate)(nil)
 
 type FloatGreaterEqualPredicate struct {
@@ -289,6 +307,8 @@ func (p FloatGreaterEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	max := maxV.Double()
 	return max >= p.value
 }
+
+func (p FloatGreaterEqualPredicate) SupportsColumnIndexPruning() bool { return true }
 
 var _ Predicate = (*FloatLessPredicate)(nil)
 
@@ -318,6 +338,8 @@ func (p FloatLessPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return min < p.value
 }
 
+func (p FloatLessPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*FloatLessEqualPredicate)(nil)
 
 type FloatLessEqualPredicate struct {
@@ -346,6 +368,8 @@ func (p FloatLessEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return min <= p.value
 }
 
+func (p FloatLessEqualPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*BoolEqualPredicate)(nil)
 
 type BoolEqualPredicate struct {
@@ -372,6 +396,8 @@ func (p BoolEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return true
 }
 
+func (p BoolEqualPredicate) SupportsColumnIndexPruning() bool { return false }
+
 var _ Predicate = (*BoolNotEqualPredicate)(nil)
 
 type BoolNotEqualPredicate struct {
@@ -397,6 +423,8 @@ func (p BoolNotEqualPredicate) KeepValue(v pq.Value) bool {
 func (p BoolNotEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return true
 }
+
+func (p BoolNotEqualPredicate) SupportsColumnIndexPruning() bool { return false }
 
 var _ Predicate = (*StringGreaterPredicate)(nil)
 
@@ -426,6 +454,8 @@ func (p StringGreaterPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return len(max) == 0 || bytes.Compare(max, p.value) > 0
 }
 
+func (p StringGreaterPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*StringGreaterEqualPredicate)(nil)
 
 type StringGreaterEqualPredicate struct {
@@ -453,6 +483,8 @@ func (p StringGreaterEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	max := maxV.ByteArray()
 	return len(max) == 0 || bytes.Compare(max, p.value) >= 0
 }
+
+func (p StringGreaterEqualPredicate) SupportsColumnIndexPruning() bool { return true }
 
 var _ Predicate = (*StringLessPredicate)(nil)
 
@@ -482,6 +514,8 @@ func (p StringLessPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return len(min) == 0 || bytes.Compare(min, p.value) < 0
 }
 
+func (p StringLessPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*StringLessEqualPredicate)(nil)
 
 type StringLessEqualPredicate struct {
@@ -509,6 +543,8 @@ func (p StringLessEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 
 	return len(min) == 0 || bytes.Compare(min, p.value) <= 0
 }
+
+func (p StringLessEqualPredicate) SupportsColumnIndexPruning() bool { return true }
 
 var _ Predicate = (*ByteEqualPredicate)(nil)
 
@@ -538,6 +574,8 @@ func (p ByteEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return (len(min) == 0 && len(max) == 0) || (bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0)
 }
 
+func (p ByteEqualPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*ByteNotEqualPredicate)(nil)
 
 type ByteNotEqualPredicate struct {
@@ -565,6 +603,8 @@ func (p ByteNotEqualPredicate) KeepRange(minV, maxV pq.Value) bool {
 	max := maxV.ByteArray()
 	return (len(min) == 0 && len(max) == 0) || (!bytes.Equal(min, p.value) || !bytes.Equal(p.value, max))
 }
+
+func (p ByteNotEqualPredicate) SupportsColumnIndexPruning() bool { return true }
 
 var _ Predicate = (*IntInPredicate)(nil)
 
@@ -602,6 +642,8 @@ func (p IntInPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return false
 }
 
+func (p IntInPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*IntNotInPredicate)(nil)
 
 type IntNotInPredicate struct {
@@ -630,6 +672,8 @@ func (p IntNotInPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p IntNotInPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
+
+func (p IntNotInPredicate) SupportsColumnIndexPruning() bool { return false }
 
 var _ Predicate = (*FloatInPredicate)(nil)
 
@@ -667,6 +711,8 @@ func (p FloatInPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return false
 }
 
+func (p FloatInPredicate) SupportsColumnIndexPruning() bool { return true }
+
 var _ Predicate = (*FloatNotInPredicate)(nil)
 
 type FloatNotInPredicate struct {
@@ -695,6 +741,8 @@ func (p FloatNotInPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p FloatNotInPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
+
+func (p FloatNotInPredicate) SupportsColumnIndexPruning() bool { return false }
 
 var _ Predicate = (*BoolInPredicate)(nil)
 
@@ -725,6 +773,8 @@ func (p BoolInPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return true
 }
 
+func (p BoolInPredicate) SupportsColumnIndexPruning() bool { return false }
+
 var _ Predicate = (*BoolNotInPredicate)(nil)
 
 type BoolNotInPredicate struct {
@@ -753,3 +803,5 @@ func (p BoolNotInPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p BoolNotInPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
+
+func (p BoolNotInPredicate) SupportsColumnIndexPruning() bool { return false }

@@ -64,6 +64,8 @@ func (p {{ $structName }}) KeepRange(minV, maxV pq.Value) bool {
 	return true
 	{{- end }}
 }
+
+func (p {{ $structName }}) SupportsColumnIndexPruning() bool { return {{ gt (.RangeCond | strlen) 0 }} }
 {{- end }}
 {{- end }}
 
@@ -112,6 +114,8 @@ func (p {{ $structName }}) KeepRange(minV, maxV pq.Value) bool {
 	{{- end }}
 }
 
+func (p {{ $structName }}) SupportsColumnIndexPruning() bool { return {{ or (eq $pred.Name "Int") (eq $pred.Name "Float") }} }
+
 {{- $structName := printf "%sNotInPredicate" $pred.Name }}
 var _ Predicate = (*{{ $structName }})(nil)
 
@@ -141,6 +145,8 @@ func (p {{ $structName }}) KeepValue(v pq.Value) bool {
 }
 
 func (p {{ $structName }}) KeepRange(pq.Value, pq.Value) bool { return true }
+
+func (p {{ $structName }}) SupportsColumnIndexPruning() bool { return false }
 {{- end }}
 {{- end }}
 `

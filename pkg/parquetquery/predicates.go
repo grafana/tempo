@@ -20,6 +20,10 @@ type Predicate interface {
 	KeepValue(pq.Value) bool
 	// KeepRange reports whether any value in the inclusive [minV,maxV] range could match.
 	KeepRange(minV, maxV pq.Value) bool
+	// SupportsColumnIndexPruning reports whether a chunk's column index can prune it: KeepRange
+	// depends on the bounds, or only nulls are kept. The index is a backend read, so when
+	// this is false keepColumnChunk skips it and calls KeepRange with null bounds instead.
+	SupportsColumnIndexPruning() bool
 }
 
 // NewStringEqualPredicate is just an alias for the equivalent byte predicate
@@ -105,6 +109,8 @@ func (p *ByteInPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return false
 }
 
+func (p *ByteInPredicate) SupportsColumnIndexPruning() bool { return true }
+
 // ByteNotInPredicate checks for any of the given strings. Case-sensitive exact byte matching
 type ByteNotInPredicate struct {
 	values    [][]byte
@@ -163,6 +169,8 @@ func (p *ByteNotInPredicate) KeepValue(v pq.Value) bool {
 
 func (p *ByteNotInPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
 
+func (p *ByteNotInPredicate) SupportsColumnIndexPruning() bool { return false }
+
 type regexPredicate struct {
 	matcher *regexp.Regexp
 }
@@ -210,6 +218,8 @@ func (p *regexPredicate) KeepValue(v pq.Value) bool {
 
 func (p *regexPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
 
+func (p *regexPredicate) SupportsColumnIndexPruning() bool { return false }
+
 type SubstringPredicate struct {
 	substring []byte
 	matches   map[string]bool
@@ -250,6 +260,8 @@ func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
 
 func (p *SubstringPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
 
+func (p *SubstringPredicate) SupportsColumnIndexPruning() bool { return false }
+
 // IntBetweenPredicate checks for int between the bounds [min,max] inclusive
 type IntBetweenPredicate struct {
 	min, max int64
@@ -277,6 +289,8 @@ func (p *IntBetweenPredicate) KeepValue(v pq.Value) bool {
 func (p *IntBetweenPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return p.max >= minV.Int64() && p.min <= maxV.Int64()
 }
+
+func (p *IntBetweenPredicate) SupportsColumnIndexPruning() bool { return true }
 
 // GenericPredicate with callbacks to evaluate data of type T
 // Fn evaluates a single data point and is required. Optionally,
@@ -315,6 +329,8 @@ func (p *GenericPredicate[T]) KeepRange(minV, maxV pq.Value) bool {
 	}
 	return p.RangeFn(p.Extract(minV), p.Extract(maxV))
 }
+
+func (p *GenericPredicate[T]) SupportsColumnIndexPruning() bool { return p.RangeFn != nil }
 
 type OrPredicate struct {
 	preds []Predicate
@@ -364,6 +380,17 @@ func (p *OrPredicate) KeepRange(minV, maxV pq.Value) bool {
 	return false
 }
 
+// SupportsColumnIndexPruning is true if any branch supports it: otherwise every branch
+// gets null bounds, which a range branch would misread.
+func (p *OrPredicate) SupportsColumnIndexPruning() bool {
+	for _, sub := range p.preds {
+		if sub != nil && sub.SupportsColumnIndexPruning() {
+			return true
+		}
+	}
+	return false
+}
+
 type SkipNilsPredicate struct{}
 
 var _ Predicate = (*SkipNilsPredicate)(nil)
@@ -382,6 +409,8 @@ func (p *SkipNilsPredicate) KeepValue(v pq.Value) bool {
 
 func (p *SkipNilsPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
 
+func (p *SkipNilsPredicate) SupportsColumnIndexPruning() bool { return false }
+
 type CallbackPredicate struct {
 	cb func() bool
 }
@@ -397,6 +426,8 @@ func (m *CallbackPredicate) String() string { return "CallbackPredicate{}" }
 func (m *CallbackPredicate) KeepValue(pq.Value) bool { return m.cb() }
 
 func (m *CallbackPredicate) KeepRange(pq.Value, pq.Value) bool { return m.cb() }
+
+func (m *CallbackPredicate) SupportsColumnIndexPruning() bool { return false }
 
 var _ Predicate = (*NilValuePredicate)(nil)
 
@@ -416,6 +447,9 @@ func (p NilValuePredicate) KeepValue(v pq.Value) bool {
 
 func (p NilValuePredicate) KeepRange(pq.Value, pq.Value) bool { return false }
 
+// SupportsColumnIndexPruning is true because the index has the null counts it prunes by.
+func (p NilValuePredicate) SupportsColumnIndexPruning() bool { return true }
+
 type IncludeNilStringEqualPredicate struct {
 	value []byte
 }
@@ -434,3 +468,5 @@ func (p IncludeNilStringEqualPredicate) KeepValue(v pq.Value) bool {
 }
 
 func (p IncludeNilStringEqualPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
+
+func (p IncludeNilStringEqualPredicate) SupportsColumnIndexPruning() bool { return false }

@@ -57,6 +57,7 @@ func (p *recordingPredicate) KeepValue(parquet.Value) bool {
 	return true
 }
 func (p *recordingPredicate) KeepRange(parquet.Value, parquet.Value) bool { return true }
+func (p *recordingPredicate) SupportsColumnIndexPruning() bool            { return false }
 func (p *recordingPredicate) resetForChunk()                              { p.events = append(p.events, "reset") }
 
 func countOf(ss []string, s string) int {

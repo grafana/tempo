@@ -462,6 +462,8 @@ func (r *reportValuesPredicate) KeepValue(v parquet.Value) bool {
 // dictionary in the generic chunk helper.
 func (r *reportValuesPredicate) KeepRange(parquet.Value, parquet.Value) bool { return true }
 
+func (r *reportValuesPredicate) SupportsColumnIndexPruning() bool { return false }
+
 func callback(cb common.TagValuesCallbackV2, v parquet.Value) (stop bool) {
 	switch v.Kind() {
 
