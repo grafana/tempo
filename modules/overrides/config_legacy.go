@@ -29,6 +29,8 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		IngestionArtificialDelay:   c.Ingestion.ArtificialDelay,
 		IngestionRetryInfoEnabled:  c.Ingestion.RetryInfoEnabled,
 
+		IngestionCreationGracePeriod: c.Ingestion.CreationGracePeriod,
+
 		Forwarders: c.Forwarders,
 
 		MetricsGeneratorRingSize:                                                    c.MetricsGenerator.RingSize,
@@ -108,6 +110,8 @@ type LegacyOverrides struct {
 	IngestionMaxAttributeBytes int            `yaml:"ingestion_max_attribute_bytes" json:"ingestion_max_attribute_bytes"`
 	IngestionArtificialDelay   *time.Duration `yaml:"ingestion_artificial_delay" json:"ingestion_artificial_delay"`
 	IngestionRetryInfoEnabled  *bool          `yaml:"ingestion_retry_info_enabled" json:"ingestion_retry_info_enabled"`
+
+	IngestionCreationGracePeriod *time.Duration `yaml:"ingestion_creation_grace_period" json:"ingestion_creation_grace_period"`
 
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
@@ -320,6 +324,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			MaxAttributeBytes:      l.IngestionMaxAttributeBytes,
 			ArtificialDelay:        l.IngestionArtificialDelay,
 			RetryInfoEnabled:       l.IngestionRetryInfoEnabled,
+			CreationGracePeriod:    l.IngestionCreationGracePeriod,
 		},
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:     l.MaxBytesPerTagValuesQuery,

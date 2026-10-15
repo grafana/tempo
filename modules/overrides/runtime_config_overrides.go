@@ -373,6 +373,19 @@ func (o *runtimeConfigOverridesManager) IngestionMaxAttributeBytes(userID string
 	return o.getOverridesForUser(userID).Ingestion.MaxAttributeBytes
 }
 
+// IngestionCreationGracePeriod is how far into the future a span's start or end time may be before it is discarded. 0 disables the check.
+func (o *runtimeConfigOverridesManager) IngestionCreationGracePeriod(userID string) time.Duration {
+	if v := o.getOverridesForUser(userID).Ingestion.CreationGracePeriod; v != nil {
+		return *v
+	}
+	// Tenant override exists but doesn't mention this field: fall back to the
+	// cluster default instead of the zero value, which would disable the check.
+	if v := o.defaultLimits.Ingestion.CreationGracePeriod; v != nil {
+		return *v
+	}
+	return 0
+}
+
 func (o *runtimeConfigOverridesManager) IngestionArtificialDelay(userID string) (time.Duration, bool) {
 	artificialDelay := o.getOverridesForUser(userID).Ingestion.ArtificialDelay
 	if artificialDelay != nil {

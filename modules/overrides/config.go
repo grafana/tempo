@@ -83,6 +83,11 @@ type IngestionOverrides struct {
 	MaxAttributeBytes int            `yaml:"max_attribute_bytes,omitempty" json:"max_attribute_bytes,omitempty"`
 	ArtificialDelay   *time.Duration `yaml:"artificial_delay,omitempty" json:"artificial_delay,omitempty"`
 	RetryInfoEnabled  *bool          `yaml:"retry_info_enabled,omitempty" json:"retry_info_enabled,omitempty"`
+
+	// CreationGracePeriod controls how far into the future a span's start or end time may be, relative to the
+	// distributor's clock. Spans beyond now + CreationGracePeriod are discarded. 0 disables the check.
+	// A pointer so a tenant override that doesn't mention it falls back to the cluster default.
+	CreationGracePeriod *time.Duration `yaml:"creation_grace_period,omitempty" json:"creation_grace_period,omitempty"`
 }
 
 type ForwarderOverrides struct {
@@ -397,6 +402,10 @@ func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
 	// enabled in overrides by default, only takes effect when
 	// distributor.retry_after_on_resource_exhausted is greater than 0.cluster level default is 5s.
 	c.Defaults.Ingestion.RetryInfoEnabled = new(true)
+
+	// Distributor limit. Spans with a start or end time further than this into the future are discarded.
+	// Same default as Mimir and Loki's creation_grace_period. 0 disables the check.
+	c.Defaults.Ingestion.CreationGracePeriod = new(10 * time.Minute)
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 30e6, "Per-user ingestion rate limit in bytes per second.")
 	f.IntVar(&c.Defaults.Ingestion.BurstSizeBytes, "distributor.ingestion-burst-size-bytes", 30e6, "Per-user ingestion burst size in bytes. Should be set to the expected size (in bytes) of a single push request.")

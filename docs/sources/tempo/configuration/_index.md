@@ -2440,6 +2440,11 @@ overrides:
       # When enabled, the distributor includes retry information in rate-limit responses.
       [retry_info_enabled: <bool> | default = true]
 
+      # How far into the future a span's start or end time may be, compared to the
+      # distributor's clock. Spans beyond this are discarded and counted in
+      # tempo_discarded_spans_total with reason="too_far_in_future". 0 disables the check.
+      [creation_grace_period: <duration> | default = 10m]
+
     # Read related overrides
     read:
       # Maximum size in bytes of a tag-values query. Tag-values query is used mainly

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -867,4 +868,90 @@ func (m mockValidator) Validate(config *Overrides) (warnings []error, err error)
 		return nil, m.f(config)
 	}
 	return nil, nil
+}
+
+func TestIngestionCreationGracePeriod(t *testing.T) {
+	// The cluster default as registered by the config flags.
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+	require.NotNil(t, cfg.Defaults.Ingestion.CreationGracePeriod)
+	require.Equal(t, 10*time.Minute, *cfg.Defaults.Ingestion.CreationGracePeriod)
+
+	tests := []struct {
+		name         string
+		defaults     Overrides
+		perTenantYML string
+		expected     time.Duration
+	}{
+		{
+			name:     "flag default is 10m",
+			defaults: cfg.Defaults,
+			expected: 10 * time.Minute,
+		},
+		{
+			name:         "tenant override mentioning other fields keeps the cluster default",
+			defaults:     cfg.Defaults,
+			perTenantYML: "overrides:\n  user1:\n    ingestion:\n      rate_limit_bytes: 600000000\n",
+			expected:     10 * time.Minute,
+		},
+		{
+			name:         "tenant sets a longer period",
+			defaults:     cfg.Defaults,
+			perTenantYML: "overrides:\n  user1:\n    ingestion:\n      creation_grace_period: 2h\n",
+			expected:     2 * time.Hour,
+		},
+		{
+			name:         "tenant explicitly disables the check with 0",
+			defaults:     cfg.Defaults,
+			perTenantYML: "overrides:\n  user1:\n    ingestion:\n      creation_grace_period: 0s\n",
+			expected:     0,
+		},
+		{
+			name:         "other tenant is not affected",
+			defaults:     cfg.Defaults,
+			perTenantYML: "overrides:\n  user2:\n    ingestion:\n      creation_grace_period: 2h\n",
+			expected:     10 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var perTenantBytes []byte
+			if tt.perTenantYML != "" {
+				perTenantBytes = []byte(tt.perTenantYML)
+			}
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaults, perTenantBytes)
+			defer cleanup()
+
+			assert.Equal(t, tt.expected, overrides.IngestionCreationGracePeriod("user1"))
+
+			err := services.StopAndAwaitTerminated(context.TODO(), overrides)
+			require.NoError(t, err)
+		})
+	}
+}
+
+// Legacy format overrides that don't mention the limit must keep the cluster default,
+// not silently disable the check.
+func TestIngestionCreationGracePeriod_LegacyFormat(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	cfg.EnableLegacyOverrides = true
+	cfg.PerTenantOverrideConfig = filepath.Join(t.TempDir(), "overrides.yaml")
+	cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
+	legacy := []byte("overrides:\n  user1:\n    ingestion_rate_limit_bytes: 600000000\n  user2:\n    ingestion_creation_grace_period: 1h\n  user3:\n    ingestion_creation_grace_period: 0s\n")
+	require.NoError(t, os.WriteFile(cfg.PerTenantOverrideConfig, legacy, 0o700))
+
+	prometheus.DefaultRegisterer = prometheus.NewRegistry()
+	overrides, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(context.TODO(), overrides))
+
+	assert.Equal(t, 10*time.Minute, overrides.IngestionCreationGracePeriod("user1"))
+	assert.Equal(t, time.Hour, overrides.IngestionCreationGracePeriod("user2"))
+	assert.Equal(t, time.Duration(0), overrides.IngestionCreationGracePeriod("user3"))
+	assert.Equal(t, 10*time.Minute, overrides.IngestionCreationGracePeriod("unknown-tenant"))
+
+	require.NoError(t, services.StopAndAwaitTerminated(context.TODO(), overrides))
 }
