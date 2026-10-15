@@ -250,6 +250,10 @@ func TestBackendBlockSearch(t *testing.T) {
 }
 
 func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
+	return makeBackendBlockWithTracesWithDedicatedColumns(t, trs, test.MakeDedicatedColumns())
+}
+
+func makeBackendBlockWithTracesWithDedicatedColumns(t *testing.T, trs []*Trace, dc backend.DedicatedColumns) *backendBlock {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
@@ -266,7 +270,7 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
 	meta.TotalObjects = 1
-	meta.DedicatedColumns = test.MakeDedicatedColumns()
+	meta.DedicatedColumns = dc
 
 	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
