@@ -85,7 +85,7 @@ overrides:
       min_metrics_duration: 48h
 ```
 
-To calibrate, the frontend logs a `msg="scanned bytes limit"` line per query, including queries that `max_duration` rejects.
+To calibrate, the frontend logs a `msg="scanned bytes limit"` line for each tenant a query checks, including queries that `max_duration` rejects.
 Each line has `estimated_scanned_bytes`, the estimated bytes the requested range scans, next to `max_scanned_bytes`, so the gap shows how far to raise the limit for that query.
 Setting `min_duration` to each tenant's current `max_duration`, including per-tenant overrides, keeps every range allowed today.
 This LogQL query finds queries that a `max_duration` of 7 days would newly allow:

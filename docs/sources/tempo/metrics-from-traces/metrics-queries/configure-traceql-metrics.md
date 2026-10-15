@@ -54,7 +54,7 @@ A fixed `max_duration` is a poor proxy for query cost, because data volume diffe
 so tenants with less data get longer ranges.
 The allowed range is the longest range ending at the query end whose blocks fit in `max_scanned_bytes`,
 raised to `min_duration` and capped at `max_duration`.
-A query of `min_duration` or less is always allowed, and a longer query over the allowed range is rejected with a 400 error.
+A query of `min_duration` or less is always allowed, unless `max_duration` is lower, and a longer query over the allowed range is rejected with a 400 error.
 Data newer than `query_backend_after` isn't counted.
 The default of `0` disables the limit.
 Search has the same settings under `query_frontend.search`.
