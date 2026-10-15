@@ -236,15 +236,17 @@ func rangeWithinBudget(metas func() []*backend.BlockMeta, estimate func(m *backe
 		return cmp.Compare(b.end, a.end)
 	})
 
+	// scanned is over budget, so the walk always stops at a block.
 	var running uint64
-	for _, b := range blocks {
-		running += b.size
+	var overflow block
+	for _, overflow = range blocks {
+		running += overflow.size
 		if running > maxScannedBytes {
-			// Overlap is inclusive, so the range must start 1ns after the block's end.
-			return max(end.Sub(time.Unix(0, b.end))-time.Nanosecond, end.Sub(backendEnd), 0), scanned, false
+			break
 		}
 	}
-	return 0, scanned, true
+	// Overlap is inclusive, so the range must start 1ns after the block's end.
+	return max(end.Sub(time.Unix(0, overflow.end))-time.Nanosecond, end.Sub(backendEnd), 0), scanned, false
 }
 
 // unixNanoTime converts a request timestamp without wrapping past math.MaxInt64.
