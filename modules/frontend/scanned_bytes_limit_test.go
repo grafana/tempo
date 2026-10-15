@@ -386,7 +386,7 @@ func TestRecordScannedBytesLimit(t *testing.T) {
 				evaluated: true, result: scannedBytesResultRejected, requested: 2*time.Hour + 500*time.Millisecond, allowed: 2 * time.Hour,
 				derived: time.Hour + 500*time.Millisecond, estimatedBytes: 300, rangeLimits: rangeLimits{minDuration: 2 * time.Hour, maxDuration: 24 * time.Hour, maxScannedBytes: 250},
 			},
-			wantLog:  `level=info msg="scanned bytes limit" tenant=record op=search requested_seconds=7201 estimated_scanned_bytes=300 max_scanned_bytes=250 derived_seconds=3600 min_seconds=7200 max_seconds=86400 result=rejected passes_scanned_bytes=false`,
+			wantLog:  `level=info msg="scanned bytes limit" tenant=record op=search requested_seconds=7201 estimated_scanned_bytes=300 max_scanned_bytes=250 derived_seconds=3600 allowed_seconds=7200 min_seconds=7200 max_seconds=86400 result=rejected passes_scanned_bytes=false`,
 			wantHist: 1,
 		},
 		{
@@ -401,7 +401,7 @@ func TestRecordScannedBytesLimit(t *testing.T) {
 				evaluated: true, result: scannedBytesResultRejectedMaxDuration, requested: 6 * time.Hour, allowed: 5 * time.Hour,
 				derived: time.Hour, estimatedBytes: 700, rangeLimits: rangeLimits{minDuration: 6 * time.Hour, maxDuration: 5 * time.Hour, maxScannedBytes: 250},
 			},
-			wantLog: `level=info msg="scanned bytes limit" tenant=record op=search requested_seconds=21600 estimated_scanned_bytes=700 max_scanned_bytes=250 derived_seconds=3600 min_seconds=21600 max_seconds=18000 result=rejected_max_duration passes_scanned_bytes=true`,
+			wantLog: `level=info msg="scanned bytes limit" tenant=record op=search requested_seconds=21600 estimated_scanned_bytes=700 max_scanned_bytes=250 derived_seconds=3600 allowed_seconds=18000 min_seconds=21600 max_seconds=18000 result=rejected_max_duration passes_scanned_bytes=true`,
 		},
 	}
 
@@ -427,6 +427,9 @@ func TestRecordScannedBytesLimit(t *testing.T) {
 			require.Equal(t, tc.wantLog+"\n", buf.String())
 			require.Equal(t, countBefore+1, resultCount("record", searchOp, c.result))
 			require.Contains(t, rec.Ended()[0].Attributes(), attribute.String("result", c.result))
+			if !c.fits {
+				require.Contains(t, rec.Ended()[0].Attributes(), attribute.Int64("allowed_seconds", int64(c.allowed/time.Second)))
+			}
 		})
 	}
 }
@@ -458,7 +461,7 @@ func TestMetricsScannedBytesLimitCheck(t *testing.T) {
 			orgID:   "b-fits|a-over",
 			cfg:     QueryRangeSharderConfig{MaxScannedBytes: 350},
 			wantErr: "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant a-over (limited by scanned bytes), reduce the time range to 2h59m59s or less",
-			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics requested_seconds=14400 estimated_scanned_bytes=500 max_scanned_bytes=350 derived_seconds=10799 min_seconds=0 max_seconds=0 result=rejected passes_scanned_bytes=false
+			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics requested_seconds=14400 estimated_scanned_bytes=500 max_scanned_bytes=350 derived_seconds=10799 allowed_seconds=10799 min_seconds=0 max_seconds=0 result=rejected passes_scanned_bytes=false
 level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=14400 estimated_scanned_bytes=0 max_scanned_bytes=350 fits=true min_seconds=0 max_seconds=0 result=within passes_scanned_bytes=true
 `,
 		},
@@ -469,7 +472,7 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			cfg:     QueryRangeSharderConfig{MaxScannedBytes: 350},
 			maxErr:  maxErr,
 			wantErr: maxErr.Error(),
-			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics requested_seconds=14400 estimated_scanned_bytes=500 max_scanned_bytes=350 derived_seconds=10799 min_seconds=0 max_seconds=0 result=rejected_max_duration passes_scanned_bytes=false
+			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics requested_seconds=14400 estimated_scanned_bytes=500 max_scanned_bytes=350 derived_seconds=10799 allowed_seconds=10799 min_seconds=0 max_seconds=0 result=rejected_max_duration passes_scanned_bytes=false
 level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=14400 estimated_scanned_bytes=0 max_scanned_bytes=350 fits=true min_seconds=0 max_seconds=0 result=rejected_max_duration passes_scanned_bytes=true
 `,
 		},
@@ -515,7 +518,7 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			},
 			start:   uint64(hoursAgo(6).UnixNano()),
 			wantErr: "metrics query time range of 6h0m0s exceeds the maximum allowed range of 5h0m0s for tenant mixed (limited by scanned bytes), reduce the time range to 5h0m0s or less",
-			wantLog: `level=info msg="scanned bytes limit" tenant=mixed op=metrics requested_seconds=21600 estimated_scanned_bytes=700 max_scanned_bytes=150 derived_seconds=3599 min_seconds=18000 max_seconds=21600 result=rejected passes_scanned_bytes=false
+			wantLog: `level=info msg="scanned bytes limit" tenant=mixed op=metrics requested_seconds=21600 estimated_scanned_bytes=700 max_scanned_bytes=150 derived_seconds=3599 allowed_seconds=18000 min_seconds=18000 max_seconds=21600 result=rejected passes_scanned_bytes=false
 `,
 		},
 		{

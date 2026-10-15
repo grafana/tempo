@@ -178,7 +178,7 @@ func recordScannedBytesLimit(ctx context.Context, logger log.Logger, c rangeChec
 	if c.fits {
 		fields = append(fields, "fits", true)
 	} else {
-		fields = append(fields, "derived_seconds", int64(c.derived/time.Second))
+		fields = append(fields, "derived_seconds", int64(c.derived/time.Second), "allowed_seconds", int64(c.allowed/time.Second))
 	}
 	fields = append(fields,
 		"min_seconds", int64(c.minDuration/time.Second),
