@@ -52,6 +52,7 @@ Longer queries are rejected with a 400 error that reports the allowed range and 
 A query of `min_duration` or less is always allowed.
 If `min_duration` is above `max_duration`, `max_duration` wins.
 Data newer than `query_backend_after` isn't counted.
+Metrics queries are counted over the requested range. Step alignment can widen the scanned range by up to 4 steps, so a query with a large step can scan more than `max_scanned_bytes`, the same as with `max_duration`.
 `0` (default) disables the limit, and `min_duration` has no effect without `max_scanned_bytes`.
 
 For example, this configuration lets a search span up to 30 days when its blocks fit in 500 GB,

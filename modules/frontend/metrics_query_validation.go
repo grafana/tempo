@@ -111,6 +111,7 @@ func (l *metricsScannedBytesLimit) check(ctx context.Context, req *tempopb.Query
 	if len(tenants) > 1 && !l.multiTenantQueriesEnabled {
 		return maxErr
 	}
+	// NOTE - alignment scans up to 4 steps past this range, so a large step can exceed the budget, as with max_duration.
 	start, end := unixNanoTime(req.Start), unixNanoTime(req.End)
 	cutoff := time.Now().Add(-l.cfg.QueryBackendAfter)
 
