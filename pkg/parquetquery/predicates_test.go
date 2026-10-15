@@ -29,6 +29,7 @@ var _ Predicate = (*mockPredicate)(nil)
 func (p *mockPredicate) String() string                              { return "mockPredicate{}" }
 func (p *mockPredicate) KeepValue(parquet.Value) bool                { return p.ret }
 func (p *mockPredicate) KeepRange(parquet.Value, parquet.Value) bool { return p.ret }
+func (p *mockPredicate) SupportsColumnIndexPruning() bool            { return false }
 
 func TestKeepRange(t *testing.T) {
 	i64 := parquet.Int64Value

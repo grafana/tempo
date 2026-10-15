@@ -256,3 +256,44 @@ func oracleKeep(t *testing.T, r *parquet.File, pred Predicate) bool {
 		}
 	}
 }
+
+// countingChunk counts column index reads, each a backend request on a real block.
+type countingChunk struct {
+	parquet.ColumnChunk
+	indexReads int
+}
+
+func (c *countingChunk) ColumnIndex() (parquet.ColumnIndex, error) {
+	c.indexReads++
+	return c.ColumnChunk.ColumnIndex()
+}
+
+// TestKeepColumnChunkReadsIndexOnlyWhenNeeded: a predicate whose chunk decision
+// the index cannot help must not pay for reading it.
+func TestKeepColumnChunkReadsIndexOnlyWhenNeeded(t *testing.T) {
+	pf := createTestFile(t, 100) // plain int column A = 0..99
+
+	tests := []struct {
+		name       string
+		pred       Predicate
+		keep       bool
+		indexReads int
+	}{
+		{"range predicate in range", NewIntBetweenPredicate(10, 20), true, 1},
+		{"range predicate out of range", NewIntBetweenPredicate(500, 600), false, 1},
+		{"nil predicate needs null counts", NewNilValuePredicate(), false, 1},
+		{"skip nils", NewSkipNilsPredicate(), true, 0},
+		{"callback keeps", NewCallbackPredicate(func() bool { return true }), true, 0},
+		{"callback prunes", NewCallbackPredicate(func() bool { return false }), false, 0},
+		{"or of rangeless branches", NewOrPredicate(NewSkipNilsPredicate(), NewCallbackPredicate(func() bool { return false })), true, 0},
+		{"or with a range branch", NewOrPredicate(NewCallbackPredicate(func() bool { return false }), NewIntBetweenPredicate(500, 600)), false, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cc := &countingChunk{ColumnChunk: pf.RowGroups()[0].ColumnChunks()[0]}
+			it := &SyncIterator{filter: tt.pred}
+			require.Equal(t, tt.keep, it.keepColumnChunk(&ColumnChunkHelper{ColumnChunk: cc}))
+			require.Equal(t, tt.indexReads, cc.indexReads)
+		})
+	}
+}

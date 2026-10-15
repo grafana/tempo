@@ -41,6 +41,7 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 	}
 
 	keepNull := c.filter.KeepValue(predicateNullValue())
+	indexPrunes := c.filter.SupportsColumnIndexPruning()
 
 	if dict := cc.Dictionary(); dict != nil {
 		// Dict-encoded (string) chunk: any present value that matches lives in the
@@ -48,7 +49,13 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 		if keepDictionary(dict, c.filter.KeepValue) {
 			return true
 		}
+		// Read even when !indexPrunes: the chunk is pruned unless it has nulls.
 		return keepNull && chunkHasNulls(cc)
+	}
+
+	if !indexPrunes {
+		// The predicate's KeepRange ignores the bounds, so null ones stand in for the index.
+		return keepNull || c.filter.KeepRange(predicateNullValue(), predicateNullValue())
 	}
 
 	ci, err := cc.ColumnIndex()
