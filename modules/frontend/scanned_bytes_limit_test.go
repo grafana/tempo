@@ -483,6 +483,13 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			wantErr: `tenant ID 'foo bar' contains unsupported character ' '`,
 		},
 		{
+			name:    "invalid org ID keeps maxErr",
+			orgID:   "foo bar",
+			cfg:     QueryRangeSharderConfig{MaxScannedBytes: 350},
+			maxErr:  maxErr,
+			wantErr: maxErr.Error(),
+		},
+		{
 			// The tenant validator rejects a|b later, so no tenant is checked or logged here.
 			name:                       "multi-tenant queries disabled",
 			orgID:                      "b-fits|a-over",
