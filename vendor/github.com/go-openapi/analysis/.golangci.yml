@@ -4,7 +4,11 @@ linters:
   disable:
     - depguard
     - funlen
+    - goconst
     - godox
+    - gomoddirectives
+    - gomodguard
+    - gomodguard_v2
     - exhaustruct
     - nlreturn
     - nonamedreturns
@@ -12,7 +16,8 @@ linters:
     - paralleltest
     - recvcheck
     - testpackage
-    - thelper # investigate how to parameterize / fix. Temporarily disabled.
+    - thelper
+    - tagliatelle
     - tparallel
     - varnamelen
     - whitespace
