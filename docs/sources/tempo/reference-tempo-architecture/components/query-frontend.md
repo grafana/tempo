@@ -74,7 +74,8 @@ Per-tenant overrides replace these values for one tenant.
 They are `max_search_scanned_bytes`, `min_search_duration`, `max_metrics_scanned_bytes`, and `min_metrics_duration`,
 set under `read` in the per-tenant overrides file.
 An override of `0` uses the `query_frontend` value.
-Each tenant of a multi-tenant metrics query is checked against its own limits.
+Each tenant of a multi-tenant metrics query is checked against its own limits, including its own `max_metrics_duration`, so the query gets the lowest limit of its tenants.
+With `max_scanned_bytes` off, only the `max_duration` of the combined tenant ID applies, as before.
 
 ```yaml
 overrides:
@@ -91,6 +92,7 @@ Each line has `estimated_scanned_bytes`, the estimated bytes the requested range
 To turn the limit on without rejecting any query allowed today, set `min_duration` to the current `max_duration`.
 A tenant with a `max_search_duration` or `max_metrics_duration` override also needs `min_search_duration` or `min_metrics_duration` set to the same value.
 Otherwise, ranges between the config `min_duration` and the tenant's `max_duration` are decided by the budget.
+Multi-tenant metrics queries are the exception: one longer than a member tenant's own `max_metrics_duration` is rejected once the limit is on.
 This LogQL query finds queries that a `max_duration` of 7 days would newly allow:
 
 ```logql
