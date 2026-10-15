@@ -83,6 +83,9 @@ func (p *ByteInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 	}
 
 	for i := 0; i < ci.NumPages(); i++ {
+		if ci.NullPage(i) {
+			continue
+		}
 		minVal := ci.MinValue(i).ByteArray()
 		maxVal := ci.MaxValue(i).ByteArray()
 		if len(minVal) == 0 && len(maxVal) == 0 {
