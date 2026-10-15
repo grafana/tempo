@@ -48,7 +48,7 @@ The same range can hold gigabytes for one tenant and terabytes for another.
 `max_scanned_bytes`, under `query_frontend.search` or `query_frontend.metrics`, limits the range by the bytes of the backend blocks it scans.
 The allowed range is the longest window ending at the query end whose backend blocks fit in `max_scanned_bytes`.
 It's then raised to `min_duration` and capped at `max_duration`.
-Longer queries are rejected with a 400 error that reports the allowed range and asks the user to reduce the time range.
+Longer queries are rejected with a 400 error that reports the allowed range and asks the user to reduce the time range. If the newest data in the range is already over the limit, the error says so instead.
 A query of `min_duration` or less is always allowed.
 If `min_duration` is above `max_duration`, `max_duration` wins.
 Data newer than `query_backend_after` isn't counted.

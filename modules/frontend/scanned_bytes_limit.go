@@ -135,6 +135,11 @@ func (c rangeCheck) err(kind string) error {
 	}
 	// Rounding in opposite directions keeps the two values distinct and the allowed one safe to retry.
 	allowed := c.allowed.Truncate(time.Second)
+	// No shorter range ending at the same end passes, so a "reduce to 0s" hint would mislead.
+	if allowed == 0 {
+		return fmt.Errorf("%s time range of %s exceeds the maximum allowed range for tenant %s (limited by scanned bytes), the newest data in the range is already over the limit",
+			kind, ceilSeconds(c.requested), c.tenantID)
+	}
 	return fmt.Errorf("%s time range of %s exceeds the maximum allowed range of %s for tenant %s (limited by scanned bytes), reduce the time range to %s or less",
 		kind, ceilSeconds(c.requested), allowed, c.tenantID, allowed)
 }

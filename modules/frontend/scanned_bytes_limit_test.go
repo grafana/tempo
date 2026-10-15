@@ -288,7 +288,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxDuration: 24 * time.Hour, maxScannedBytes: 500},
 			requested: time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, estimatedBytes: 1000},
-			wantErr:   "metrics query time range of 1h0m0s exceeds the maximum allowed range of 0s for tenant foo (limited by scanned bytes), reduce the time range to 0s or less",
+			wantErr:   "metrics query time range of 1h0m0s exceeds the maximum allowed range for tenant foo (limited by scanned bytes), the newest data in the range is already over the limit",
 		},
 		{
 			name:      "range after the cutoff is free",
@@ -347,7 +347,7 @@ func TestCheckScannedBytes(t *testing.T) {
 			limits:    rangeLimits{maxScannedBytes: 350},
 			requested: 2 * time.Hour,
 			want:      rangeCheck{evaluated: true, result: scannedBytesResultRejected, estimatedBytes: 10_300},
-			wantErr:   "search time range of 2h0m0s exceeds the maximum allowed range of 0s for tenant foo (limited by scanned bytes), reduce the time range to 0s or less",
+			wantErr:   "search time range of 2h0m0s exceeds the maximum allowed range for tenant foo (limited by scanned bytes), the newest data in the range is already over the limit",
 		},
 	}
 
