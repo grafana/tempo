@@ -300,6 +300,15 @@ func TestCheckScannedBytes(t *testing.T) {
 			wantErr:   "metrics query time range of 3h0m0s exceeds the maximum allowed range of 1h0m0s for tenant foo (limited by scanned bytes), reduce the time range to 1h0m0s or less",
 		},
 		{
+			// Search start and cutoff are both whole seconds, so this edge is reachable.
+			name:      "range starting at the cutoff fits",
+			metas:     []*backend.BlockMeta{testBlock(3, 0, 300)},
+			limits:    rangeLimits{maxScannedBytes: 250},
+			cutoff:    hoursAgo(1),
+			requested: time.Hour,
+			want:      rangeCheck{evaluated: true, fits: true, result: scannedBytesResultWithin},
+		},
+		{
 			name:      "range wholly after the cutoff fits",
 			metas:     []*backend.BlockMeta{testBlock(3, 0, 300)},
 			limits:    rangeLimits{maxScannedBytes: 250},
