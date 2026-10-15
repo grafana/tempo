@@ -224,10 +224,10 @@ func TestBuildTraceSummaryTraceByIDRequest(t *testing.T) {
 	_, err := api.ParseTraceID(req)
 	require.NoError(t, err)
 
-	_, _, _, startTime, endTime, err := api.ParseTraceByIDRequest(req)
+	parsed, err := api.ParseTraceByIDRequest(req)
 	require.NoError(t, err)
-	require.Equal(t, start, startTime)
-	require.Equal(t, end, endTime)
+	require.Equal(t, start, parsed.Start)
+	require.Equal(t, end, parsed.End)
 }
 
 func TestFetchTraceForSummary(t *testing.T) {
