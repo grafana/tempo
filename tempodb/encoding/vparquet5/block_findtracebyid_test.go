@@ -8,11 +8,13 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	tempo_io "github.com/grafana/tempo/v3/pkg/io"
 	"github.com/grafana/tempo/v3/pkg/model/trace"
+	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/grafana/tempo/v3/tempodb/backend"
@@ -200,4 +202,80 @@ func BenchmarkFindTraceByID(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestFindRowGroupByStats(t *testing.T) {
+	const tracesPerRowGroup = 5
+
+	// IDs are 10, 20, ..., 150 in the first byte so there are gaps within and between row groups.
+	id := func(b byte) common.ID {
+		id := make(common.ID, 16)
+		id[0] = b
+		id[15] = 1
+		return id
+	}
+
+	writeFile := func(t *testing.T, opts ...parquet.WriterOption) (*parquet.File, *backend.BlockMeta) {
+		meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+		buf := &bytes.Buffer{}
+		w := parquet.NewGenericWriter[*Trace](buf, opts...)
+		for i := 1; i <= 15; i++ {
+			tr, _ := traceToParquet(meta, id(byte(i*10)), test.MakeTrace(1, id(byte(i*10))), nil)
+			_, err := w.Write([]*Trace{tr})
+			require.NoError(t, err)
+			if i%tracesPerRowGroup == 0 {
+				require.NoError(t, w.Flush())
+			}
+		}
+		require.NoError(t, w.Close())
+
+		pf, err := parquet.OpenFile(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+		require.NoError(t, err)
+		require.Len(t, pf.RowGroups(), 3)
+		return pf, meta
+	}
+
+	t.Run("statistics", func(t *testing.T) {
+		pf, _ := writeFile(t)
+		colIndex, _, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
+
+		testCases := []struct {
+			name     string
+			id       byte
+			rowGroup int
+		}{
+			{"before first", 5, -1},
+			{"first", 10, 0},
+			{"within first", 25, 0},
+			{"last of first", 50, 0},
+			{"between first and second", 55, -1},
+			{"first of second", 60, 1},
+			{"last", 150, 2},
+			{"after last", 155, -1},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				rowGroup, ok := findRowGroupByStats(pf, colIndex, id(tc.id))
+				require.True(t, ok)
+				require.Equal(t, tc.rowGroup, rowGroup)
+			})
+		}
+	})
+
+	t.Run("missing statistics", func(t *testing.T) {
+		pf, meta := writeFile(t, parquet.SkipPageBounds(TraceIDColumnName))
+		colIndex, _, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
+
+		_, ok := findRowGroupByStats(pf, colIndex, id(60))
+		require.False(t, ok)
+
+		for i := 1; i <= 15; i++ {
+			tr, err := findTraceByID(t.Context(), id(byte(i*10)), meta, pf, -1)
+			require.NoError(t, err)
+			require.NotNil(t, tr)
+		}
+		tr, err := findTraceByID(t.Context(), id(55), meta, pf, -1)
+		require.NoError(t, err)
+		require.Nil(t, tr)
+	})
 }
