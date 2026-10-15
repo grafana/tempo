@@ -144,6 +144,45 @@ func TestNewStringInPredicate(t *testing.T) {
 	}
 }
 
+func TestByteInPredicateKeepColumnChunkPageBounds(t *testing.T) {
+	type testString struct {
+		S string
+	}
+
+	testCases := []struct {
+		name       string
+		value      string
+		skipBounds bool
+		keep       bool
+	}{
+		{name: "within bounds", value: "b", keep: true},
+		{name: "outside bounds", value: "x", keep: false},
+		{name: "bounds skipped", value: "x", skipBounds: true, keep: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var opts []parquet.WriterOption
+			if tc.skipBounds {
+				opts = append(opts, parquet.SkipPageBounds("S"))
+			}
+
+			buf := new(bytes.Buffer)
+			w := parquet.NewGenericWriter[testString](buf, opts...)
+			_, err := w.Write([]testString{{"a"}, {"c"}})
+			require.NoError(t, err)
+			require.NoError(t, w.Close())
+
+			pf, err := parquet.OpenFile(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+			require.NoError(t, err)
+
+			cc := &ColumnChunkHelper{ColumnChunk: pf.RowGroups()[0].ColumnChunks()[0]}
+			defer cc.Close()
+			require.Equal(t, tc.keep, NewStringInPredicate([]string{tc.value}).KeepColumnChunk(cc))
+		})
+	}
+}
+
 func TestNewRegexInPredicate(t *testing.T) {
 	testCases := []predicateTestCase{
 		{
