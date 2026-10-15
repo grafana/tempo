@@ -20,6 +20,8 @@ import (
 
 	"github.com/grafana/tempo/v3/pkg/parquetquery"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/pkg/util"
@@ -570,6 +572,147 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 				}
 			}
 			require.True(t, found, "search request:%v", req)
+		})
+	}
+}
+
+// TestBackendBlockSearchTraceQLDedicatedColumnOtherType covers attributes with a dedicated column
+// whose value has another type, which the writer stores in generic attributes instead.
+func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
+	var (
+		intValue = &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}
+		strValue = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "a"}}
+		strCol   = backend.DedicatedColumnTypeString
+		intCol   = backend.DedicatedColumnTypeInt
+	)
+
+	// query uses %[1]s for the scope. A nil value means the attribute isn't written.
+	testCases := []struct {
+		name     string
+		colType  backend.DedicatedColumnType
+		value    *v1_common.AnyValue
+		onlyAttr bool
+		query    string
+		match    bool
+	}{
+		{"fits column, exists", strCol, strValue, false, `{ %[1]s.mixed != nil }`, true},
+		{"fits column, not exists", strCol, strValue, false, `{ %[1]s.mixed = nil }`, false},
+		{"fits column, exists in or", strCol, strValue, false, `{ %[1]s.mixed != nil || %[1]s.missing = "x" }`, true},
+		{"absent, exists", strCol, nil, false, `{ %[1]s.mixed != nil }`, false},
+		{"absent, not exists", strCol, nil, false, `{ %[1]s.mixed = nil }`, true},
+		{"absent, not exists in or", strCol, nil, false, `{ %[1]s.mixed = nil || %[1]s.missing = "x" }`, true},
+		{"absent, not exists and other", strCol, nil, false, `{ %[1]s.mixed = nil && %[1]s.other = "a" }`, true},
+		{"absent without other attrs, exists", strCol, nil, true, `{ %[1]s.mixed != nil }`, false},
+		{"absent without other attrs, not exists", strCol, nil, true, `{ %[1]s.mixed = nil }`, true},
+		{"int in string column, by value", strCol, intValue, false, `{ %[1]s.mixed = 1 }`, true},
+		{"int in string column, exists", strCol, intValue, false, `{ %[1]s.mixed != nil }`, true},
+		{"int in string column, not exists", strCol, intValue, false, `{ %[1]s.mixed = nil }`, false},
+		{"int in string column, exists in or", strCol, intValue, false, `{ %[1]s.mixed != nil || %[1]s.missing = "x" }`, true},
+		{"int in string column, not exists in or", strCol, intValue, false, `{ %[1]s.mixed = nil || %[1]s.missing = "x" }`, false},
+		{"int in string column, exists and value", strCol, intValue, false, `{ %[1]s.mixed != nil && %[1]s.mixed = 1 }`, true},
+		{"int in string column, exists and other", strCol, intValue, false, `{ %[1]s.mixed != nil && %[1]s.other = "a" }`, true},
+		{"int in string column, not exists and other", strCol, intValue, false, `{ %[1]s.mixed = nil && %[1]s.other = "a" }`, false},
+		{"int in string column without other attrs, exists", strCol, intValue, true, `{ %[1]s.mixed != nil }`, true},
+		{"int in string column without other attrs, not exists", strCol, intValue, true, `{ %[1]s.mixed = nil }`, false},
+		{"string in int column, by value", intCol, strValue, false, `{ %[1]s.mixed = "a" }`, true},
+		{"string in int column, exists", intCol, strValue, false, `{ %[1]s.mixed != nil }`, true},
+		{"string in int column, not exists", intCol, strValue, false, `{ %[1]s.mixed = nil }`, false},
+	}
+
+	// checkQuery writes the trace between filler traces, so iterators seek across row groups.
+	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, match bool) {
+		traces := make([]*Trace, 0, 301)
+		for i := 0; i < 300; i++ {
+			if i == 150 {
+				pt, _ := traceToParquet(&backend.BlockMeta{DedicatedColumns: dc}, id, tr, nil)
+				traces = append(traces, pt)
+			}
+			fillerID := test.ValidTraceID(nil)
+			filler, _ := traceToParquet(&backend.BlockMeta{DedicatedColumns: dc}, fillerID, test.MakeTrace(1, fillerID), nil)
+			traces = append(traces, filler)
+		}
+		b := makeBackendBlockWithTracesWithDedicatedColumns(t, traces, dc)
+
+		resp, err := b.Fetch(t.Context(), traceql.MustExtractFetchSpansRequestWithMetadata(query), common.DefaultSearchOptions())
+		require.NoError(t, err)
+
+		found := false
+		for {
+			ss, err := resp.Results.Next(t.Context())
+			require.NoError(t, err)
+			if ss == nil {
+				break
+			}
+			found = found || bytes.Equal(ss.TraceID, id)
+		}
+		require.Equal(t, match, found, query)
+	}
+
+	makeTrace := func(id []byte, resAttrs, spanAttrs []*v1_common.KeyValue) *tempopb.Trace {
+		return &tempopb.Trace{ResourceSpans: []*v1.ResourceSpans{{
+			Resource: &v1_resource.Resource{Attributes: resAttrs},
+			ScopeSpans: []*v1.ScopeSpans{{Spans: []*v1.Span{{
+				TraceId:           id,
+				SpanId:            []byte{1, 2, 3, 4, 5, 6, 7, 8},
+				Name:              "test",
+				StartTimeUnixNano: uint64(100 * time.Second),
+				EndTimeUnixNano:   uint64(200 * time.Second),
+				Attributes:        spanAttrs,
+			}}}},
+		}}}
+	}
+
+	for _, scope := range []backend.DedicatedColumnScope{backend.DedicatedColumnScopeSpan, backend.DedicatedColumnScopeResource} {
+		for _, tc := range testCases {
+			query := fmt.Sprintf(tc.query, scope)
+			t.Run(fmt.Sprintf("%s/%s", scope, tc.name), func(t *testing.T) {
+				attrs := func(s backend.DedicatedColumnScope) []*v1_common.KeyValue {
+					var kvs []*v1_common.KeyValue
+					if s != scope || !tc.onlyAttr {
+						kvs = append(kvs, &v1_common.KeyValue{Key: "other", Value: strValue})
+					}
+					if s == scope && tc.value != nil {
+						kvs = append(kvs, &v1_common.KeyValue{Key: "mixed", Value: tc.value})
+					}
+					return kvs
+				}
+
+				id := test.ValidTraceID(nil)
+				dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: tc.colType}}
+				checkQuery(t, dc, id, makeTrace(id, attrs(backend.DedicatedColumnScopeResource), attrs(backend.DedicatedColumnScopeSpan)), query, tc.match)
+			})
+		}
+	}
+
+	// Well-known columns also store values of another type in generic attributes.
+	wellKnownCases := []struct {
+		query string
+		match bool
+	}{
+		{`{ span.http.status_code = "200" }`, true},
+		{`{ span.http.status_code != nil }`, true},
+		{`{ span.http.status_code = nil }`, false},
+		{`{ span.http.method != nil }`, true},
+		{`{ span.http.method = nil }`, false},
+		{`{ span.http.url != nil }`, false},
+		{`{ span.http.url = nil }`, true},
+		{`{ resource.k8s.namespace.name != nil }`, true},
+		{`{ resource.k8s.namespace.name = nil }`, false},
+		{`{ resource.service.name != nil }`, true},
+	}
+	for _, tc := range wellKnownCases {
+		t.Run("well-known/"+tc.query, func(t *testing.T) {
+			id := test.ValidTraceID(nil)
+			tr := makeTrace(id,
+				[]*v1_common.KeyValue{
+					{Key: LabelServiceName, Value: strValue},
+					{Key: LabelK8sNamespaceName, Value: intValue},
+				},
+				[]*v1_common.KeyValue{
+					{Key: LabelHTTPStatusCode, Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "200"}}},
+					{Key: LabelHTTPMethod, Value: intValue},
+				})
+			checkQuery(t, nil, id, tr, tc.query, tc.match)
 		})
 	}
 }
