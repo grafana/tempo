@@ -40,9 +40,7 @@ func TestPickAttributes(t *testing.T) {
 
 	require.Equal(t, []string{"a", "status", "b", "d"}, pickNames(pickAttributes(attrs, 10, hasValues)))
 	require.Equal(t, []string{"a", "b"}, pickNames(pickAttributes(attrs, 1, hasValues)))
-
-	stringsOnly := func(p attributes.Profile) bool { return p.Type == attributes.TypeString }
-	require.Equal(t, []string{"a", "b"}, pickNames(pickAttributes(attrs, 10, stringsOnly)))
+	require.Equal(t, []string{"a", "b"}, pickNames(pickAttributes(attrs, 10, isStringAttribute)))
 }
 
 func TestValueFilter(t *testing.T) {
@@ -100,4 +98,13 @@ func TestBandValues(t *testing.T) {
 	require.Equal(t, []string{"high=a", "medium=b", "low=c"}, bands("a", "b", "c"))
 	require.Equal(t, []string{"high=a", "medium=b", "low=d"}, bands("a", "b", "c", "d"))
 	require.Equal(t, []string{"high=a", "medium=c", "low=e"}, bands("a", "b", "c", "d", "e"))
+}
+
+func TestAttributeIDs(t *testing.T) {
+	ps := []attributes.Profile{
+		profileAttr(attributes.ScopeSpan, "x", attributes.TypeString, false, "a"),
+		profileAttr(attributes.ScopeSpan, "x", attributes.TypeInt, false, "1"),
+		profileAttr(attributes.ScopeResource, "x", attributes.TypeString, true, "a"),
+	}
+	require.Equal(t, []string{"span.x.string", "span.x.int", "resource.x"}, attributeIDs(ps))
 }

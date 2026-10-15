@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
+	"github.com/grafana/tempo/v3/pkg/collector"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/pkg/util"
@@ -194,6 +195,38 @@ func tagNamesExecutions(scope traceql.AttributeScope, shards []Shard, baseOpts c
 			}
 
 			out := execOutput{matched: int64(len(names))}
+			if out.metrics, err = metrics.BytesRead(bytesRead); err != nil {
+				return execOutput{}, err
+			}
+			return out, nil
+		})
+	}
+	return executions
+}
+
+// tagValuesExecutions mirrors the querier's path for a request without TraceQL,
+// tempodb's SearchTagValuesV2, collector included, so the request's limits stop
+// the scan early as they do there.
+func tagValuesExecutions(attr traceql.Attribute, shards []Shard, baseOpts common.SearchOptions) []execution {
+	executions := make([]execution, 0, len(shards))
+	for _, shard := range shards {
+		readOpts := shardOptions(baseOpts, shard)
+
+		executions = append(executions, func(ctx context.Context, block common.BackendBlock, opts RunOptions) (execOutput, error) {
+			values := collector.NewDistinctValue(0, opts.MaxTagValues, opts.StaleValueThreshold,
+				func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+
+			var bytesRead int64
+			err := block.SearchTagValuesV2(ctx, attr,
+				traceql.MakeCollectTagValueFunc(values.Collect),
+				func(b uint64) { bytesRead += int64(b) },
+				readOpts,
+			)
+			if err != nil {
+				return execOutput{}, err
+			}
+
+			out := execOutput{matched: int64(len(values.Values()))}
 			if out.metrics, err = metrics.BytesRead(bytesRead); err != nil {
 				return execOutput{}, err
 			}
