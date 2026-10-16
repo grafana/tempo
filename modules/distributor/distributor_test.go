@@ -2284,6 +2284,76 @@ func TestRequestsByTraceID_CreationGracePeriod(t *testing.T) {
 	})
 }
 
+func TestRequestsByTraceID_InvalidDuration(t *testing.T) {
+	traceID := []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	now := time.Now()
+	nowNs := uint64(now.UnixNano())
+	ns := func(d time.Duration) uint64 { return uint64(now.Add(d).UnixNano()) }
+
+	tcs := []struct {
+		name       string
+		grace      time.Duration
+		start, end uint64
+		wantReason string // reason the span is discarded for, empty if kept
+	}{
+		{name: "end after start", grace: 10 * time.Minute, start: nowNs, end: ns(time.Second)},
+		{name: "end equals start", grace: 10 * time.Minute, start: nowNs, end: nowNs},
+		{name: "zero start and end", grace: 10 * time.Minute},
+		{name: "end before start by a few ms", grace: 10 * time.Minute, start: nowNs, end: ns(-7 * time.Millisecond), wantReason: overrides.ReasonInvalidDuration},
+		{name: "end before start by hours", grace: 10 * time.Minute, start: nowNs, end: ns(-5 * time.Hour), wantReason: overrides.ReasonInvalidDuration},
+		{name: "end zero, start set", grace: 10 * time.Minute, start: nowNs, end: 0, wantReason: overrides.ReasonInvalidDuration},
+		{name: "end before start with check disabled", grace: 0, start: nowNs, end: ns(-time.Second), wantReason: overrides.ReasonInvalidDuration},
+		{name: "future start takes precedence", grace: 10 * time.Minute, start: ns(time.Hour), end: nowNs, wantReason: overrides.ReasonTooFarInFuture},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tenant := "invalid-duration-" + tc.name
+			batches := []*v1.ResourceSpans{{
+				ScopeSpans: []*v1.ScopeSpans{{
+					Spans: []*v1.Span{
+						// a good span in the same request, which must always be kept
+						{TraceId: traceID, SpanId: []byte{1, 2, 3, 4, 5, 6, 7, 8}, StartTimeUnixNano: nowNs, EndTimeUnixNano: ns(time.Second)},
+						{TraceId: traceID, SpanId: []byte{8, 7, 6, 5, 4, 3, 2, 1}, StartTimeUnixNano: tc.start, EndTimeUnixNano: tc.end},
+					},
+				}},
+			}}
+
+			_, traces, _, _, err := requestsByTraceID(batches, tenant, 2, 1000, tc.grace)
+			require.NoError(t, err)
+			require.Len(t, traces, 1)
+
+			wantSpans := 2
+			if tc.wantReason != "" {
+				wantSpans = 1
+			}
+			require.Equal(t, wantSpans, traces[0].spanCount)
+			require.Len(t, traces[0].trace.ResourceSpans[0].ScopeSpans[0].Spans, wantSpans)
+
+			for _, reason := range []string{overrides.ReasonInvalidDuration, overrides.ReasonTooFarInFuture} {
+				want := 0.0
+				if reason == tc.wantReason {
+					want = 1
+				}
+				require.Equal(t, want, discardedSpans(t, reason, tenant), reason)
+			}
+		})
+	}
+
+	t.Run("all spans dropped produces no traces", func(t *testing.T) {
+		batches := []*v1.ResourceSpans{{
+			ScopeSpans: []*v1.ScopeSpans{{
+				Spans: []*v1.Span{{TraceId: traceID, SpanId: []byte{1, 2, 3, 4, 5, 6, 7, 8}, StartTimeUnixNano: nowNs, EndTimeUnixNano: ns(-time.Second)}},
+			}},
+		}}
+		keys, traces, _, _, err := requestsByTraceID(batches, "invalid-duration-all-dropped", 1, 1000, 10*time.Minute)
+		require.NoError(t, err)
+		require.Empty(t, keys)
+		require.Empty(t, traces)
+		require.Equal(t, float64(1), discardedSpans(t, overrides.ReasonInvalidDuration, "invalid-duration-all-dropped"))
+	})
+}
+
 // discardedSpans returns the current value of tempo_discarded_spans_total for the reason and tenant.
 func discardedSpans(t *testing.T, reason, tenant string) float64 {
 	t.Helper()

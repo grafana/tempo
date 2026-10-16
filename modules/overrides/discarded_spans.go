@@ -17,6 +17,8 @@ const (
 	ReasonLiveTracesExceeded = "live_traces_exceeded"
 	// ReasonTooFarInFuture indicates a span's start or end time was further into the future than the tenant's creation_grace_period allows.
 	ReasonTooFarInFuture = "too_far_in_future"
+	// ReasonInvalidDuration indicates a span was discarded because its end time was before its start time.
+	ReasonInvalidDuration = "invalid_duration"
 	// ReasonInvalidTraceID indicates a batch was rejected because it contained an invalid trace ID.
 	ReasonInvalidTraceID = "invalid_trace_id"
 	// ReasonInvalidSpanID indicates a batch was rejected because it contained an invalid span ID.

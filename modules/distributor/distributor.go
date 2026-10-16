@@ -738,16 +738,18 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 // and returns the first truncation example (if any) for diagnostic logging.
 // Spans with a start or end time further than creationGracePeriod into the future are discarded
 // and counted in the discarded spans metric. A creationGracePeriod of 0 disables the check.
+// Spans with an end time before their start time are always discarded.
 func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int, creationGracePeriod time.Duration) ([]uint32, []*rebatchedTrace, truncatedAttributesCount, *truncatedAttrInfo, error) {
 	const tracesPerBatch = 20 // map size hint and per-trace prealloc divisor
 
 	var (
-		now                 = time.Now()
-		currentTime         = uint64(now.UnixNano())
-		spansTooFarInFuture = 0
-		tracesByID          = make(map[uint64]*rebatchedTrace, tracesPerBatch)
-		truncatedCount      = truncatedAttributesCount{}
-		truncationExample   truncatedAttrInfo // truncationExample captures one example of a truncated attribute for rate-limited logging.
+		now                  = time.Now()
+		currentTime          = uint64(now.UnixNano())
+		spansTooFarInFuture  = 0
+		spansInvalidDuration = 0
+		tracesByID           = make(map[uint64]*rebatchedTrace, tracesPerBatch)
+		truncatedCount       = truncatedAttributesCount{}
+		truncationExample    truncatedAttrInfo // truncationExample captures one example of a truncated attribute for rate-limited logging.
 
 		// Estimate spans per trace, but cap it: an uncapped spanCount/tracesPerBatch
 		// would preallocate too much memory for high-cardinality requests.
@@ -780,6 +782,13 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				// discard spans too far into the future, prevent issues downstream and they are likely invalid anyway.
 				if span.StartTimeUnixNano > maxTimestamp || span.EndTimeUnixNano > maxTimestamp {
 					spansTooFarInFuture++
+					continue
+				}
+
+				// discard spans that end before they start. The negative duration wraps around
+				// to a huge unsigned value that breaks duration filters on the stored block.
+				if span.EndTimeUnixNano < span.StartTimeUnixNano {
+					spansInvalidDuration++
 					continue
 				}
 
@@ -860,6 +869,9 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 
 	if spansTooFarInFuture > 0 {
 		overrides.RecordDiscardedSpans(spansTooFarInFuture, overrides.ReasonTooFarInFuture, userID)
+	}
+	if spansInvalidDuration > 0 {
+		overrides.RecordDiscardedSpans(spansInvalidDuration, overrides.ReasonInvalidDuration, userID)
 	}
 
 	metricTracesPerBatch.Observe(float64(len(tracesByID)))

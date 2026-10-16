@@ -123,6 +123,8 @@ The following table lists the possible `reason` values:
 | `live_traces_exceeded`        | Active trace count exceeded `max_traces_per_user`.          | Live-store             |
 | `invalid_trace_id`            | Batch contained a trace ID that isn't 128 bits.             | Distributor            |
 | `invalid_span_id`             | Batch contained a span ID that isn't 64 bits or was all zeros. | Distributor         |
+| `too_far_in_future`           | Span start or end time was more than `creation_grace_period` in the future. | Distributor |
+| `invalid_duration`            | Span end time was before its start time.                    | Distributor            |
 | `trace_too_large_to_compact`  | Trace too large for the backend-worker to compact.          | Backend-worker         |
 | `unknown_error`               | Unexpected error during span processing.                    | Live-store             |
 
