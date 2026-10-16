@@ -16,6 +16,7 @@ import (
 func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 	original := &ProcessorConfig{
 		ServiceGraphs: servicegraphs.Config{
+			MaxItems:         10_000,
 			HistogramBuckets: []float64{1},
 			Dimensions:       []string{},
 			Subprocessors:    map[servicegraphs.Subprocessor]bool{},
@@ -77,6 +78,25 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, *original, copied)
+	})
+
+	t.Run("service graphs max items override", func(t *testing.T) {
+		maxItems := 42
+		o := &mockOverrides{serviceGraphsMaxItems: &maxItems}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+		require.Equal(t, 42, copied.ServiceGraphs.MaxItems)
+		require.Equal(t, 10_000, original.ServiceGraphs.MaxItems)
+	})
+
+	t.Run("service graphs max items can be explicitly zero", func(t *testing.T) {
+		maxItems := 0
+		o := &mockOverrides{serviceGraphsMaxItems: &maxItems}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+		require.Zero(t, copied.ServiceGraphs.MaxItems)
 	})
 
 	t.Run("invalid overrides", func(t *testing.T) {

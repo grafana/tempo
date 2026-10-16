@@ -42,6 +42,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorRemoteWriteHeaders:                                          c.MetricsGenerator.RemoteWriteHeaders,
 		MetricsGeneratorForwarderQueueSize:                                          c.MetricsGenerator.Forwarder.QueueSize,
 		MetricsGeneratorForwarderWorkers:                                            c.MetricsGenerator.Forwarder.Workers,
+		MetricsGeneratorProcessorServiceGraphsMaxItems:                              c.MetricsGenerator.Processor.ServiceGraphs.MaxItems,
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      c.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            c.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        c.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
@@ -133,6 +134,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
 	MetricsGeneratorRemoteWriteHeaders                                          RemoteWriteHeaders               `yaml:"metrics_generator_remote_write_headers,omitempty" json:"metrics_generator_remote_write_headers,omitempty"`
+	MetricsGeneratorProcessorServiceGraphsMaxItems                              *int                             `yaml:"metrics_generator_processor_service_graphs_max_items,omitempty" json:"metrics_generator_processor_service_graphs_max_items,omitempty"`
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets                      []float64                        `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
 	MetricsGeneratorProcessorServiceGraphsDimensions                            []string                         `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes                        []string                         `yaml:"metrics_generator_processor_service_graphs_peer_attributes" json:"metrics_generator_processor_service_graphs_peer_attributes"`
@@ -356,6 +358,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			},
 			Processor: ProcessorOverrides{
 				ServiceGraphs: ServiceGraphsOverrides{
+					MaxItems:                              l.MetricsGeneratorProcessorServiceGraphsMaxItems,
 					HistogramBuckets:                      l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
 					Dimensions:                            l.MetricsGeneratorProcessorServiceGraphsDimensions,
 					PeerAttributes:                        l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,

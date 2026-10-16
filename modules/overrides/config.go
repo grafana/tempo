@@ -91,6 +91,7 @@ type ForwarderOverrides struct {
 }
 
 type ServiceGraphsOverrides struct {
+	MaxItems                              *int                        `yaml:"max_items,omitempty" json:"max_items,omitempty"`
 	HistogramBuckets                      []float64                   `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
 	Dimensions                            []string                    `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 	PeerAttributes                        []string                    `yaml:"peer_attributes,omitempty" json:"peer_attributes,omitempty"`

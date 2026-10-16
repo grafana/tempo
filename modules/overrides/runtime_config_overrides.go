@@ -567,6 +567,15 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorForwarderWorkers(userID 
 	return o.getOverridesForUser(userID).MetricsGenerator.Forwarder.Workers
 }
 
+// MetricsGeneratorProcessorServiceGraphsMaxItems is the maximum number of items (edges) for the service graphs processor
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsMaxItems(userID string) (int, bool) {
+	maxItems := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.MaxItems
+	if maxItems != nil {
+		return *maxItems, true
+	}
+	return 0, false
+}
+
 // MetricsGeneratorProcessorServiceGraphsHistogramBuckets controls the histogram buckets to be used
 // by the service graphs processor.
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64 {
