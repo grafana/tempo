@@ -1,5 +1,21 @@
 <!-- next version -->
 
+# v3.0.4
+
+## 🔒 Security 🔒
+
+- `deps`: Update Go to 1.26.9 (CVE-2026-56858, CVE-2026-56862, CVE-2026-56860, CVE-2026-56859, CVE-2026-56853, CVE-2026-33818, CVE-2026-97031, CVE-2026-94440, CVE-2026-78669, CVE-2026-78667, CVE-2026-78660, CVE-2026-78659), google.golang.org/grpc to v1.83.2 (CVE-2026-84445, CVE-2026-84304), github.com/apache/thrift to v0.24.0 (CVE-2026-43871), golang.org/x/net to v0.60.0 (CVE-2026-39821, CVE-2026-78669, CVE-2026-78660, CVE-2026-78659, CVE-2026-46600), golang.org/x/text to v0.42.0 (CVE-2026-56851), golang.org/x/crypto to v0.57.0 (CVE-2026-56854), and the OpenTelemetry log modules to v0.21.0 ([#8099](https://github.com/grafana/tempo/issues/8099)) (@mdisibio)
+
+## 🧰 Bug fixes 🧰
+
+- `live-store`: Fix a panic in live-store `FindTraceByID` when more spans for the trace arrive while it is being combined with block data and marshalled. ([#8111](https://github.com/grafana/tempo/issues/8111)) (@KR-Ravindra)
+  The live trace's `Batches` slice was handed to the trace combiner with spare capacity, so the
+  combiner's append and the push path's append wrote different batches into the same slot of the
+  live trace's backing array. `Size()` and `Marshal()` then saw different objects and marshalling
+  panicked with `slice bounds out of range`.
+  
+- `query-frontend`: Fix rare cache collision between instant and range metrics queries. ([#7290](https://github.com/grafana/tempo/issues/7290)) (@ruslan-mikhailov)
+
 # v3.0.3
 
 ## 🔒 Security 🔒
