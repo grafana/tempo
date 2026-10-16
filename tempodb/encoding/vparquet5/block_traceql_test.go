@@ -609,8 +609,8 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 	}
 
 	// checkQuery writes the trace between filler traces, so iterators seek across row groups, and runs both fetch paths.
-	// want returns the attribute values a matched span must return.
-	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, want func(traceql.Span) map[traceql.Attribute]traceql.Static) (fetchMatch, fetchSpansMatch bool) {
+	// want returns the attribute values a matched span must return. It returns the IDs of the matched spans of the trace.
+	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, want func(traceql.Span) map[traceql.Attribute]traceql.Static) (fetchIDs, fetchSpansIDs []string) {
 		requireValues := func(path string, sp traceql.Span) {
 			if want == nil {
 				return
@@ -638,7 +638,6 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		resp, err := b.Fetch(t.Context(), req, common.DefaultSearchOptions())
 		require.NoError(t, err)
 
-		found := false
 		for {
 			ss, err := resp.Results.Next(t.Context())
 			require.NoError(t, err)
@@ -646,13 +645,12 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 				break
 			}
 			if bytes.Equal(ss.TraceID, id) {
-				found = true
 				for _, sp := range ss.Spans {
+					fetchIDs = append(fetchIDs, util.SpanIDToHexString(sp.ID()))
 					requireValues("Fetch", sp)
 				}
 			}
 		}
-		fetchMatch = found
 
 		req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
 		req.SecondPassConditions = traceql.SearchMetaConditions()
@@ -660,7 +658,6 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		require.NoError(t, err)
 		defer spansResp.Results.Close()
 
-		found = false
 		for {
 			sp, err := spansResp.Results.Next(t.Context())
 			require.NoError(t, err)
@@ -669,11 +666,11 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 			}
 			traceID, ok := sp.AttributeFor(traceql.IntrinsicTraceIDAttribute)
 			if ok && traceID.EncodeToString(false) == util.TraceIDToHexString(id) {
-				found = true
+				fetchSpansIDs = append(fetchSpansIDs, util.SpanIDToHexString(sp.ID()))
 				requireValues("FetchSpans", sp)
 			}
 		}
-		return fetchMatch, found
+		return fetchIDs, fetchSpansIDs
 	}
 
 	staticOf := map[*v1_common.AnyValue]traceql.Static{intValue: traceql.NewStaticInt(1), strValue: traceql.NewStaticString("a")}
@@ -724,9 +721,9 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 						return map[traceql.Attribute]traceql.Static{mixedAttr(scope): staticOf[tc.value]}
 					}
 				}
-				fetchMatch, fetchSpansMatch := checkQuery(t, dc, id, makeTrace(id, scope, tc.value, tc.onlyAttr, true), query, want)
-				require.Equal(t, tc.match, fetchMatch, "Fetch: %s", query)
-				require.Equal(t, tc.match, fetchSpansMatch, "FetchSpans: %s", query)
+				fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, makeTrace(id, scope, tc.value, tc.onlyAttr, true), query, want)
+				require.Equal(t, tc.match, len(fetchIDs) > 0, "Fetch: %s", query)
+				require.Equal(t, tc.match, len(fetchSpansIDs) > 0, "FetchSpans: %s", query)
 			})
 		}
 	}
@@ -735,9 +732,9 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 	t.Run("event/no events, not exists", func(t *testing.T) {
 		id := test.ValidTraceID(nil)
 		dc := backend.DedicatedColumns{{Scope: backend.DedicatedColumnScopeEvent, Name: "mixed", Type: strCol}}
-		fetchMatch, fetchSpansMatch := checkQuery(t, dc, id, makeTrace(id, backend.DedicatedColumnScopeEvent, nil, false, false), `{ event.mixed = nil }`, nil)
-		require.False(t, fetchMatch)
-		require.False(t, fetchSpansMatch)
+		fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, makeTrace(id, backend.DedicatedColumnScopeEvent, nil, false, false), `{ event.mixed = nil }`, nil)
+		require.Empty(t, fetchIDs)
+		require.Empty(t, fetchSpansIDs)
 	})
 
 	// Fetch matches = nil per event, so it can't pair the nil of one event with the other attribute of another.
@@ -757,8 +754,8 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 				{Name: "a", Attributes: []*v1_common.KeyValue{{Key: "mixed", Value: intValue}, {Key: "other", Value: strValue}}},
 				{Name: "b", Attributes: []*v1_common.KeyValue{{Key: "other", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "b"}}}}},
 			}
-			fetchMatch, _ := checkQuery(t, dc, id, tr, tc.query, nil)
-			require.Equal(t, tc.match, fetchMatch, "Fetch: %s", tc.query)
+			fetchIDs, _ := checkQuery(t, dc, id, tr, tc.query, nil)
+			require.Equal(t, tc.match, len(fetchIDs) > 0, "Fetch: %s", tc.query)
 		})
 	}
 
@@ -784,6 +781,7 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 					return &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: b}}
 				}
 				wantByRow := map[byte]traceql.Static{}
+				var wantIDs []string
 				tr := &tempopb.Trace{}
 				for i := 0; i < 8; i++ {
 					var value *v1_common.AnyValue
@@ -799,15 +797,16 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 					}
 					rowTrace := makeTrace(id, scope, value, false, true)
 					rowTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanId = []byte{1, 2, 3, 4, 5, 6, 7, byte(i)}
+					wantIDs = append(wantIDs, util.SpanIDToHexString(rowTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanId))
 					tr.ResourceSpans = append(tr.ResourceSpans, rowTrace.ResourceSpans...)
 				}
 
 				want := func(sp traceql.Span) map[traceql.Attribute]traceql.Static {
 					return map[traceql.Attribute]traceql.Static{mixedAttr(scope): wantByRow[sp.ID()[7]]}
 				}
-				fetchMatch, fetchSpansMatch := checkQuery(t, dc, id, tr, query, want)
-				require.True(t, fetchMatch, "Fetch: %s", query)
-				require.True(t, fetchSpansMatch, "FetchSpans: %s", query)
+				fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, tr, query, want)
+				require.ElementsMatch(t, wantIDs, fetchIDs, "Fetch: %s", query)
+				require.ElementsMatch(t, wantIDs, fetchSpansIDs, "FetchSpans: %s", query)
 			})
 		}
 	}
