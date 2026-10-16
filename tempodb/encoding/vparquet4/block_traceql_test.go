@@ -602,6 +602,7 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{"absent, not exists", strCol, nil, false, `{ %[1]s.mixed = nil }`, true},
 		{"absent, not exists in or", strCol, nil, false, `{ %[1]s.mixed = nil || %[1]s.missing = "x" }`, true},
 		{"absent, not exists and other", strCol, nil, false, `{ %[1]s.mixed = nil && %[1]s.other = "a" }`, true},
+		{"absent, exists or other", strCol, nil, false, `{ %[1]s.mixed != nil || %[1]s.other = "a" }`, true},
 		{"absent without other attrs, exists", strCol, nil, true, `{ %[1]s.mixed != nil }`, false},
 		{"absent without other attrs, not exists", strCol, nil, true, `{ %[1]s.mixed = nil }`, true},
 		{"int in string column, by value", strCol, intValue, false, `{ %[1]s.mixed = 1 }`, true},
@@ -620,7 +621,8 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 	}
 
 	// checkQuery writes the trace between filler traces, so iterators seek across row groups.
-	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, match bool) {
+	// want holds attribute values a matched span must return.
+	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, match bool, want map[traceql.Attribute]traceql.Static) {
 		traces := make([]*Trace, 0, 301)
 		for i := 0; i < 300; i++ {
 			if i == 150 {
@@ -643,10 +645,22 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 			if ss == nil {
 				break
 			}
-			found = found || bytes.Equal(ss.TraceID, id)
+			if !bytes.Equal(ss.TraceID, id) {
+				continue
+			}
+			found = true
+			for _, sp := range ss.Spans {
+				for a, v := range want {
+					got, ok := sp.AttributeFor(a)
+					require.True(t, ok, "%s missing for %s", a, query)
+					require.Equal(t, v.EncodeToString(true), got.EncodeToString(true), "%s for %s", a, query)
+				}
+			}
 		}
 		require.Equal(t, match, found, query)
 	}
+
+	staticOf := map[*v1_common.AnyValue]traceql.Static{intValue: traceql.NewStaticInt(1), strValue: traceql.NewStaticString("a")}
 
 	makeTrace := func(id []byte, resAttrs, spanAttrs []*v1_common.KeyValue) *tempopb.Trace {
 		return &tempopb.Trace{ResourceSpans: []*v1.ResourceSpans{{
@@ -679,7 +693,13 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 
 				id := test.ValidTraceID(nil)
 				dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: tc.colType}}
-				checkQuery(t, dc, id, makeTrace(id, attrs(backend.DedicatedColumnScopeResource), attrs(backend.DedicatedColumnScopeSpan)), query, tc.match)
+				var want map[traceql.Attribute]traceql.Static
+				if tc.match && tc.value != nil {
+					want = map[traceql.Attribute]traceql.Static{
+						traceql.NewScopedAttribute(traceql.AttributeScopeFromString(string(scope)), false, "mixed"): staticOf[tc.value],
+					}
+				}
+				checkQuery(t, dc, id, makeTrace(id, attrs(backend.DedicatedColumnScopeResource), attrs(backend.DedicatedColumnScopeSpan)), query, tc.match, want)
 			})
 		}
 	}
@@ -694,10 +714,12 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{`{ span.http.status_code = nil }`, false},
 		{`{ span.http.method != nil }`, true},
 		{`{ span.http.method = nil }`, false},
-		{`{ span.http.url != nil }`, false},
-		{`{ span.http.url = nil }`, true},
+		{`{ span.http.url != nil }`, true},
+		{`{ span.http.url = nil }`, false},
 		{`{ resource.k8s.namespace.name != nil }`, true},
 		{`{ resource.k8s.namespace.name = nil }`, false},
+		{`{ resource.k8s.pod.name != nil }`, false},
+		{`{ resource.k8s.pod.name = nil }`, true},
 		{`{ resource.service.name != nil }`, true},
 	}
 	for _, tc := range wellKnownCases {
@@ -711,8 +733,9 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 				[]*v1_common.KeyValue{
 					{Key: LabelHTTPStatusCode, Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "200"}}},
 					{Key: LabelHTTPMethod, Value: intValue},
+					{Key: LabelHTTPUrl, Value: strValue},
 				})
-			checkQuery(t, nil, id, tr, tc.query, tc.match)
+			checkQuery(t, nil, id, tr, tc.query, tc.match, nil)
 		})
 	}
 }
