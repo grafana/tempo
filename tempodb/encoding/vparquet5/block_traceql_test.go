@@ -586,6 +586,7 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{"absent, not exists", strCol, nil, false, `{ %[1]s.mixed = nil }`, true},
 		{"absent, not exists in or", strCol, nil, false, `{ %[1]s.mixed = nil || %[1]s.missing = "x" }`, true},
 		{"absent, not exists and other", strCol, nil, false, `{ %[1]s.mixed = nil && %[1]s.other = "a" }`, true},
+		{"absent, exists or other", strCol, nil, false, `{ %[1]s.mixed != nil || %[1]s.other = "a" }`, true},
 		{"absent without other attrs, exists", strCol, nil, true, `{ %[1]s.mixed != nil }`, false},
 		{"absent without other attrs, not exists", strCol, nil, true, `{ %[1]s.mixed = nil }`, true},
 		{"int in string column, by value", strCol, intValue, false, `{ %[1]s.mixed = 1 }`, true},
@@ -734,6 +735,28 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		require.False(t, fetchMatch)
 		require.False(t, fetchSpansMatch)
 	})
+
+	// Fetch matches = nil per event, so it can't pair the nil of one event with the other attribute of another.
+	// FetchSpans joins event conditions at span level, also for generic attributes, so only Fetch is checked.
+	for _, tc := range []struct {
+		query string
+		match bool
+	}{
+		{`{ event.mixed = nil && event.other = "a" }`, false},
+		{`{ event.mixed = nil && event.other = "b" }`, true},
+	} {
+		t.Run("event/two events/"+tc.query, func(t *testing.T) {
+			id := test.ValidTraceID(nil)
+			dc := backend.DedicatedColumns{{Scope: backend.DedicatedColumnScopeEvent, Name: "mixed", Type: strCol}}
+			tr := makeTrace(id, backend.DedicatedColumnScopeEvent, nil, false, false)
+			tr.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = []*v1.Span_Event{
+				{Name: "a", Attributes: []*v1_common.KeyValue{{Key: "mixed", Value: intValue}, {Key: "other", Value: strValue}}},
+				{Name: "b", Attributes: []*v1_common.KeyValue{{Key: "other", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "b"}}}}},
+			}
+			fetchMatch, _ := checkQuery(t, dc, id, tr, tc.query, nil)
+			require.Equal(t, tc.match, fetchMatch, "Fetch: %s", tc.query)
+		})
+	}
 
 	// Several rows hold different values in generic attributes, so a join or union reads ahead between them.
 	for _, scope := range scopes {
