@@ -3072,7 +3072,7 @@ func createDedicatedExistenceIterator(makeIter, makeNilIter makeIterFn, cond tra
 		// A single iterator keeps both halves required, also when the query's conditions are ORed.
 		return parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{
 			makeIter(columnPath, parquetquery.NewNilValuePredicate(), cond.Attribute.Name),
-			// Not selected so the attribute is only counted once toward minAttributes.
+			// Not selected, the dedicated half already adds the attribute to the span.
 			makeNilIter(keyPath, parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name)), ""),
 		}, nil), nil
 	default:
