@@ -27,7 +27,7 @@ spec:
       - args:
         - -config.file=/conf/tempo.yaml
         - -target=metrics-generator
-        image: grafana/tempo:3.0.3
+        image: grafana/tempo:3.0.4
         name: metrics-generator
         ports:
         - containerPort: 3200

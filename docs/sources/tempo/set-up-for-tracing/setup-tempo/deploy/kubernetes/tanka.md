@@ -227,7 +227,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcached libraries.
 
    tempo {
     _images+:: {
-          tempo: 'grafana/tempo:3.0.3',
+          tempo: 'grafana/tempo:3.0.4',
       },
 
        tempo_distributor_container+:: container.withPorts([
