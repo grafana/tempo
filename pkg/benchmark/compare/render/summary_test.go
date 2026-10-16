@@ -86,8 +86,8 @@ func TestNewSummaryRollsUpFamilies(t *testing.T) {
 	// one case cancels out quadrupling another.
 	require.Equal(t, SummaryRow{
 		Case:     -1,
-		ID:       "search/ranked/high/*",
-		Family:   "search/ranked/high",
+		ID:       "search/ranked_generic/*/*",
+		Family:   "search/ranked_generic",
 		Cases:    9,
 		Problems: []string{"leaves 1 of 9 cases out of its means"},
 		Cells: []SummaryCell{
@@ -99,15 +99,15 @@ func TestNewSummaryRollsUpFamilies(t *testing.T) {
 			},
 		},
 	}, v.Rows[2])
-	require.Equal(t, []string{"search/ranked/high/* leaves 1 of 9 cases out of its means"}, v.Notes())
+	require.Equal(t, []string{"search/ranked_generic/*/* leaves 1 of 9 cases out of its means"}, v.Notes())
 
-	family := NewCaseSummary(c, "harness.wallNs", compare.P50, 0, "search/ranked/high")
+	family := NewCaseSummary(c, "harness.wallNs", compare.P50, 0, "search/ranked_generic")
 	require.False(t, family.HasFamilies())
 	require.Len(t, family.Rows, 10, "a heading and the family's nine cases")
-	require.Equal(t, "search/ranked/high/0", family.Rows[1].ID)
+	require.Equal(t, "search/ranked_generic/high/0", family.Rows[1].ID)
 	require.Len(t, NewCaseSummary(c, "harness.wallNs", compare.P50, 0, "").Rows, 11)
 
-	// A family of RollUpOver cases stays a case a row.
-	require.NoError(t, c.FilterCases([]string{"search/ranked/high/[0-7]"}))
+	// A family of one is its case.
+	require.NoError(t, c.FilterCases([]string{"search/ranked_generic/high/0"}))
 	require.False(t, NewSummary(c, "harness.wallNs", compare.P50, 0).HasFamilies())
 }

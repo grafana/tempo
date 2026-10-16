@@ -10,11 +10,6 @@ import (
 // compared with the baseline.
 const NotComparable = "not comparable"
 
-// RollUpOver is how many cases a family needs more than for a summary to show
-// it as one row. Smaller families, like the drilldown queries, are each a
-// question of their own and read better one by one.
-const RollUpOver = 8
-
 // SummaryView is one stat of one metric for every case, as benchstat lays out
 // a comparison: the baseline's value, then each other run's value and change.
 // Cases are grouped under the API they query.
@@ -61,8 +56,7 @@ type SummaryCell struct {
 }
 
 // NewSummary lines up one stat of a metric for every case against the
-// baseline, with each family of more than RollUpOver cases rolled up into one
-// row.
+// baseline, with each family of generated cases rolled up into one row.
 func NewSummary(c *compare.Comparison, metric string, stat compare.Stat, baseline int) SummaryView {
 	return newSummary(c, metric, stat, baseline, true, "")
 }
@@ -87,7 +81,7 @@ func newSummary(c *compare.Comparison, metric string, stat compare.Stat, baselin
 	rolled := map[string]compare.FamilySummary{}
 	if rollUp {
 		for _, f := range c.Families(sm) {
-			if len(f.Cases) > RollUpOver {
+			if len(f.Cases) > 1 {
 				rolled[f.Family] = f
 			}
 		}
@@ -132,7 +126,7 @@ func (v SummaryView) HasFamilies() bool {
 }
 
 func familyRow(u compare.Unit, f compare.FamilySummary, baseline int) SummaryRow {
-	row := SummaryRow{Case: -1, ID: f.Family + "/*", Family: f.Family, Cases: len(f.Cases)}
+	row := SummaryRow{Case: -1, ID: f.Glob, Family: f.Family, Cases: len(f.Cases)}
 	if left := len(f.Cases) - f.Counted; left > 0 {
 		row.Problems = []string{fmt.Sprintf("leaves %d of %d cases out of its means", left, len(f.Cases))}
 	}

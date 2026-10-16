@@ -3,6 +3,8 @@ package compare
 import (
 	"math"
 	"strings"
+
+	"github.com/grafana/tempo/v3/pkg/benchmark"
 )
 
 // Summary is one stat of one metric for every case: each run's value, and its
@@ -72,20 +74,23 @@ func (c *Comparison) summaryCell(cs Case, s Series, stat Stat, run, baseline int
 	return cell
 }
 
-// FamilyOf is a case's ID without its last segment, the part generated cases
-// vary, like the attribute of metrics/ranked_generic/rate/high/span.foo.
+// FamilyOf is the family a case rolls up into, as benchmark.Family has it.
 func FamilyOf(id string) string {
-	i := strings.LastIndexByte(id, '/')
-	if i < 0 {
-		return ""
-	}
-	return id[:i]
+	return benchmark.Family(id)
+}
+
+// FamilyGlob is a glob over every case of a member's family, like
+// search/ranked_generic/*/*, in the syntax --case takes.
+func FamilyGlob(id string) string {
+	f := FamilyOf(id)
+	return f + strings.Repeat("/*", strings.Count(id[len(f):], "/"))
 }
 
 // FamilySummary sums up a family's cases at one stat the way benchstat sums up
 // a comparison: each run's geometric mean, and its change from the baseline's.
 type FamilySummary struct {
 	Family string
+	Glob   string
 	// Cases indexes Comparison.Cases, in case order.
 	Cases []int
 	// Counted is how many cases the means are over: those every run has a
@@ -124,7 +129,7 @@ func (c *Comparison) Families(sm Summary) []FamilySummary {
 		if !ok {
 			i = len(out)
 			index[f] = i
-			out = append(out, FamilySummary{Family: f})
+			out = append(out, FamilySummary{Family: f, Glob: FamilyGlob(c.Cases[r.Case].ID)})
 			counted = append(counted, nil)
 		}
 		out[i].Cases = append(out[i].Cases, r.Case)

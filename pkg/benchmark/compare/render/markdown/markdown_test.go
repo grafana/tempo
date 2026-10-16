@@ -52,11 +52,11 @@ func TestWriteFamilies(t *testing.T) {
 
 	summary, every, ok := strings.Cut(md, "\n<details>\n<summary>Every case</summary>\n\n")
 	require.True(t, ok, "the cases of a rolled-up family are folded away")
-	require.Contains(t, summary, "| search/ranked/high/* (9 cases) ⚠ | 10ns | 10.7ns | +7.4% [-75.0% … +300.0%] |\n")
-	require.Contains(t, summary, "- ⚠ search/ranked/high/* leaves 1 of 9 cases out of its means\n")
-	require.NotContains(t, summary, "search/ranked/high/0")
+	require.Contains(t, summary, "| search/ranked_generic/*/* (9 cases) ⚠ | 10ns | 10.7ns | +7.4% [-75.0% … +300.0%] |\n")
+	require.Contains(t, summary, "- ⚠ search/ranked_generic/*/* leaves 1 of 9 cases out of its means\n")
+	require.NotContains(t, summary, "search/ranked_generic/high/0")
 
-	require.Contains(t, every, "| search/ranked/high/0 ")
-	require.Contains(t, every, "- ⚠ search/ranked/high/8 vs next: matched 1 vs 2\n")
+	require.Contains(t, every, "| search/ranked_generic/high/0 ")
+	require.Contains(t, every, "- ⚠ search/ranked_generic/low/8 vs next: matched 1 vs 2\n")
 	require.True(t, strings.HasSuffix(every, "\n</details>\n"))
 }

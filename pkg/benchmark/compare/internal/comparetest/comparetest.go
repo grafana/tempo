@@ -65,9 +65,9 @@ func Comparison(t *testing.T) *compare.Comparison {
 	return c
 }
 
-// Family compares base and next over search/nopredicate and the nine-case
-// family search/ranked/high, all 10ns on base. Next is 4x on case 0, 1/4 on
-// case 1, +10% on six more, and matches differently on case 8.
+// Family compares base and next over search/nopredicate and nine cases of the
+// family search/ranked_generic, three per band, all 10ns on base. Next is 4x on
+// case 0, 1/4 on case 1, +10% on six more, and matches differently on case 8.
 func Family(t *testing.T) *compare.Comparison {
 	t.Helper()
 	run := func(name string, next bool) compare.Run {
@@ -86,7 +86,7 @@ func Family(t *testing.T) *compare.Comparison {
 					p50 = 11
 				}
 			}
-			r.Cases = append(r.Cases, Case(fmt.Sprintf("search/ranked/high/%d", i), matched, metrics.Set{"harness.wallNs": Measurement(p50)}))
+			r.Cases = append(r.Cases, Case(fmt.Sprintf("search/ranked_generic/%s/%d", []string{"high", "medium", "low"}[i%3], i), matched, metrics.Set{"harness.wallNs": Measurement(p50)}))
 		}
 		return compare.Run{Name: name, Result: r}
 	}

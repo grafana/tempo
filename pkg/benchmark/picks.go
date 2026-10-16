@@ -3,6 +3,7 @@ package benchmark
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/profile/attributes"
 	"github.com/grafana/tempo/v3/pkg/traceql"
@@ -37,11 +38,32 @@ func pickAttributes(attrs *attributes.Profiles, n int, keep func(attributes.Prof
 	return append(dedicated, generic...)
 }
 
+const (
+	rankedDedicated = "ranked_dedicated"
+	rankedGeneric   = "ranked_generic"
+)
+
 func rankedGroup(p attributes.Profile) string {
 	if p.Dedicated {
-		return "ranked_dedicated"
+		return rankedDedicated
 	}
-	return "ranked_generic"
+	return rankedGeneric
+}
+
+// Family is the generated query a case ID runs, without the band and
+// attribute it varies, like metrics/ranked_generic/rate: what benchmark
+// compare rolls up into one row. A fixed case has none, since each asks a
+// question of its own.
+func Family(id string) string {
+	parts := strings.Split(id, "/")
+	if len(parts) < 3 || (parts[1] != rankedDedicated && parts[1] != rankedGeneric) {
+		return ""
+	}
+	parts = parts[:len(parts)-1]
+	if b := parts[len(parts)-1]; b == bandHigh || b == bandMedium || b == bandLow {
+		parts = parts[:len(parts)-1]
+	}
+	return strings.Join(parts, "/")
 }
 
 // hasValues skips numerics with too many values to list: their quantiles suit a

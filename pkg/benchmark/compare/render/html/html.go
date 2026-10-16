@@ -202,7 +202,7 @@ func (s *server) summary(w http.ResponseWriter, r *http.Request) {
 		sm = render.NewCaseSummary(s.c, metric, v.stat, v.baseline, v.family)
 		all := v
 		all.family = ""
-		sv.Family, sv.SummaryURL = v.family+"/*", s.summaryURL(all)
+		sv.Family, sv.SummaryURL = compare.FamilyGlob(s.c.Cases[s.families[v.family][0]].ID), s.summaryURL(all)
 		title += " · " + sv.Family
 	}
 	sv.Title, sv.Notes = sm.Title, sm.Notes()
