@@ -683,17 +683,6 @@ its match or execution count per pass differs, or it is missing the case or fail
 When a run's name is too long to head a column,
 runs are numbered, and listed with their numbers.
 
-Cases generated from the profile's attributes are rolled up by family,
-every band and attribute of one generated query,
-like `metrics/ranked_generic/rate/*/*`, into one row:
-each run's geometric mean over the family's cases, its change,
-and the range of the cases' own changes.
-The fixed cases each stay a row of their own.
-The means leave out cases with a value of zero or that a run cannot be compared on,
-and the row says how many.
-In markdown, the table of every case follows, folded away;
-on the web pages, the family's row links to a page of only its cases.
-
 With `--http`, it serves the comparison as web pages instead,
 rendered on each request as pprof's web view is.
 The summary page has a table per metric, with links to switch the metric and the percentile.
