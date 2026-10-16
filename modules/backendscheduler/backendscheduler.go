@@ -404,7 +404,11 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			span.SetAttributes(attribute.Int("job_q_depth", len(s.mergedJobs)))
 			metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
 
-			return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, ErrNoJobsFound.Error())
+			// An empty queue is answered OK with no job rather than codes.NotFound. A
+			// non-OK status puts every poll of an idle cluster through the gRPC error
+			// path, where the server's request log reports it at warn level forever; the
+			// worker reads the empty JobId as "nothing to do" either way.
+			return &tempopb.NextJobResponse{}, nil
 		}
 	}
 }
