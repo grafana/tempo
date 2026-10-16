@@ -933,13 +933,15 @@ func createDistinctDedicatedIterator(makeIter, makeNilIter makeIterFn, tr tagReq
 	}
 
 	// Only the looked-up tag needs generic values, other conditions only filter.
-	genericIter := makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), "")
+	var genericIter parquetquery.Iterator
 	if isTag {
 		var err error
 		genericIter, err = createDistinctAttributeIterator(makeIter, tr, []traceql.Condition{cond}, attrDefinitionLevel, keyPath, strPath, intPath, floatPath, boolPath)
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		genericIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), "")
 	}
 	return parquetquery.NewUnionIterator(definitionLevel, []parquetquery.Iterator{
 		dedicatedIter,
