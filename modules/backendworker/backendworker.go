@@ -240,24 +240,18 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 			WorkerId: w.workerID,
 		})
 		if funcErr != nil {
-			return wrapSchedulerErr(funcErr, "error getting next job")
+			if errStatus, ok := status.FromError(funcErr); ok {
+				if errStatus.Code() == codes.NotFound {
+					return errStatus.Err()
+				}
+			}
+
+			return fmt.Errorf("error getting next job: %w", funcErr)
 		}
 
 		return nil
 	}, codes.NotFound)
 	if err != nil {
-		if isNotFound(err) {
-			// The scheduler's Next() RPC returns codes.NotFound simply to
-			// signal that no work is currently queued (it long-polls for
-			// cfg.JobTimeout and then times out). This happens on every idle
-			// poll cycle and is expected, routine behavior -- unlike
-			// NotFound on a job-completion call, it does not mean anything
-			// is wrong, so it must not be logged as an error or otherwise
-			// treated like a failure. Return quietly so running() resets its
-			// backoff and polls again immediately.
-			return nil
-		}
-
 		return fmt.Errorf("failed processing jobs: %w", err)
 	}
 
@@ -573,17 +567,17 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 					return nil
 				}
 
-				if isNotFound(err) {
+				if isExpectedSchedulerError(err, expectedErrors) {
+					level.Debug(log.Logger).Log("msg", "scheduler returned expected error", "err", err, "backoff", b.NextDelay())
+				} else if isNotFound(err) {
 					// The scheduler no longer knows about this job (e.g. it
 					// restarted and lost the in-flight assignment, or the job
 					// was already completed/removed). Retrying can never
 					// succeed, so treat it as terminal instead of retrying
-					// forever and starving the worker of new work.
+					// forever and starving the worker of new work. Next()
+					// passes NotFound in expectedErrors (empty queue), so idle
+					// polling is unaffected.
 					return err
-				}
-
-				if isExpectedSchedulerError(err, expectedErrors) {
-					level.Debug(log.Logger).Log("msg", "scheduler returned expected error", "err", err, "backoff", b.NextDelay())
 				} else {
 					level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
 					metricWorkerCallRetries.WithLabelValues().Inc()
@@ -619,12 +613,11 @@ func isExpectedSchedulerError(err error, expectedErrors []codes.Code) bool {
 
 // isNotFound reports whether err is a gRPC status error with code
 // codes.NotFound, e.g. the scheduler no longer knows about a job because it
-// restarted or the job was already removed. Such errors are terminal: they
-// will never succeed on retry, so callers should drop the job rather than
-// retrying indefinitely via callSchedulerWithBackoff.
+// restarted or the job was already removed. Unless a caller lists NotFound in
+// expectedErrors, callSchedulerWithBackoff treats it as terminal instead of
+// retrying, since it can never succeed.
 func isNotFound(err error) bool {
-	errStatus, ok := status.FromError(err)
-	return ok && errStatus.Code() == codes.NotFound
+	return isExpectedSchedulerError(err, []codes.Code{codes.NotFound})
 }
 
 // wrapSchedulerErr wraps a scheduler RPC error for propagation out of a
