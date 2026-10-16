@@ -1834,18 +1834,6 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
-	specialCase := func(cond traceql.Condition, columnPath string) (handled bool) {
-		// Operands that need special handling.
-		switch cond.Op {
-		case traceql.OpNone:
-			addPredicate(columnPath, nil) // No filtering
-			columnSelectAs[columnPath] = cond.Attribute.Name
-			return true
-		default:
-			return false
-		}
-	}
-
 	for _, cond := range conditions {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicEventName:
@@ -1876,10 +1864,6 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 			}
 			if existsIter != nil {
 				iters = append(iters, existsIter)
-				continue
-			}
-
-			if specialCase(cond, c.ColumnPath) {
 				continue
 			}
 
@@ -2081,18 +2065,6 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		}
 	}
 
-	specialCase := func(cond traceql.Condition, columnPath string) (handled bool) {
-		// Operands that need special handling.
-		switch cond.Op {
-		case traceql.OpNone:
-			addPredicate(columnPath, nil) // No filtering
-			columnSelectAs[columnPath] = cond.Attribute.Name
-			return true
-		default:
-			return false
-		}
-	}
-
 	for _, cond := range conditions {
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
@@ -2260,10 +2232,6 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 			}
 			if existsIter != nil {
 				iters = append(iters, existsIter)
-				continue
-			}
-
-			if specialCase(cond, c.ColumnPath) {
 				continue
 			}
 
@@ -2539,10 +2507,6 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 			}
 			if existsIter != nil {
 				iters = append(iters, existsIter)
-				continue
-			}
-
-			if specialCase(cond, c.ColumnPath) {
 				continue
 			}
 
@@ -3143,7 +3107,7 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	}
 }
 
-// createDedicatedExistenceIterator also reads generic attributes for != nil and = nil, because values of another type than the dedicated column are written there.
+// createDedicatedExistenceIterator also reads generic attributes for != nil, = nil and select/by, because values of another type than the dedicated column are written there.
 func createDedicatedExistenceIterator(makeIter, makeNilIter makeIterFn, cond traceql.Condition, columnPath string,
 	definitionLevel int, keyPath string, newGenericIter func() (parquetquery.Iterator, error),
 ) (parquetquery.Iterator, error) {
@@ -3168,6 +3132,19 @@ func createDedicatedExistenceIterator(makeIter, makeNilIter makeIterFn, cond tra
 			// Not selected, the dedicated half already adds the attribute to the span.
 			makeNilIter(keyPath, parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name)), ""),
 		}, nil), nil
+	case traceql.OpNone:
+		existsCond, notExistsCond := cond, cond
+		existsCond.Op, notExistsCond.Op = traceql.OpExists, traceql.OpNotExists
+		existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, columnPath, definitionLevel, keyPath, newGenericIter)
+		if err != nil {
+			return nil, err
+		}
+		notExistsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, notExistsCond, columnPath, definitionLevel, keyPath, newGenericIter)
+		if err != nil {
+			return nil, err
+		}
+		// Each row matches exactly one half, so the span gets one value and still matches when all conditions are required.
+		return parquetquery.NewUnionIterator(definitionLevel, []parquetquery.Iterator{existsIter, notExistsIter}, nil), nil
 	default:
 		return nil, nil
 	}
