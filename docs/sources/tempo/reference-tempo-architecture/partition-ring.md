@@ -41,7 +41,14 @@ This ensures that all availability zones have had time to register their live-st
 
 ### Inactive
 
-Inactive is the read-only state. Distributors stop writing to inactive partitions, but queriers can still read from them.
+Inactive is the read-only state.
+Distributors stop writing to inactive partitions, but queriers can still read from them by default.
+
+When `querier.partition_ring.read_lookback_period` is set to a non-zero duration,
+queriers stop reading INACTIVE partitions older than that period.
+Set the lookback shorter than the live-store downscale delay so queriers finish
+before the live-store exits.
+A value of `0` (the default) disables this filtering.
 
 A partition is marked inactive when scaling down.
 It must remain in this state long enough for the block-builder to flush all remaining data for this partition to object storage,
@@ -86,6 +93,8 @@ A corresponding Kafka partition must exist. Add Kafka partitions first if needed
 
 To scale down, mark the target partition as inactive while the live-store is still running.
 Distributors stop writing to it.
+Configure `querier.partition_ring.read_lookback_period` shorter than the downscale delay
+so queriers stop reading the inactive partition before the live-store exits.
 Wait for the block-builder to flush remaining data to object storage, then remove the live-store instance.
 The partition is eventually cleaned up from the ring.
 

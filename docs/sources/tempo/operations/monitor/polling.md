@@ -24,6 +24,13 @@ The index is written in two formats: both a `gzip` compressed JSON located at `/
 Due to this behavior, a given poller will always have an out-of-date blocklist.
 During normal operation, the index will be stale by at most twice the configured `blocklist_poll`. An index which is out of date by greater than the `blocklist_poll` duration and will affect which blocks are queryable, and poller configuration adjustments may need to be made in order to keep up with the size of the blocklist.
 
+If a block's `meta.json` can't be decoded as JSON during a poll,
+the poller skips that block, increments `tempodb_blocklist_corrupt_block_meta_total`,
+and continues building the tenant index for the remaining blocks.
+A full filesystem or an unclean shutdown can leave an empty or truncated `meta.json`.
+Well-formed JSON with an unexpected shape isn't treated as corruption; those errors still fail the poll.
+If every block for a tenant is skipped as corrupt and no valid blocks remain, the tenant poll fails so the tenant isn't treated as empty.
+
 {{< admonition type="note" >}}
 For details about configuring polling, refer to [polling configuration](../../../configuration/polling/).
 For an explanation of how compaction interacts with the polling cycle and blocklist staleness, refer to [Compaction](../../compaction/).
@@ -38,6 +45,9 @@ If you are building your own dashboards or alerts, here are a few relevant metri
 
 - `tempodb_blocklist_poll_errors_total`
   A holistic metric that increments for any error with polling the blocklist. Any increase in this metric should be reviewed.
+- `tempodb_blocklist_corrupt_block_meta_total`
+  Counts blocks skipped because their `meta.json` couldn't be decoded.
+  Labeled by `tenant`. Investigate increases; remaining blocks for the tenant are still indexed.
 - `tempodb_blocklist_poll_duration_seconds`
   Histogram recording the length of time in seconds to poll the entire blocklist.
 - `tempodb_blocklist_length`
