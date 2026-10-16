@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: operations
+note: "tempo-mixin: group the Backend Worker Autoscaling panel by `metric_name` so it no longer collapses multiple autoscaling triggers into one series, and use a unitless axis."
+issues: []
+subtext:
+user: zalegrala
