@@ -8,7 +8,7 @@ change_type: bug_fix
 component: traceql
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: "`!= nil` and `= nil` now find attributes that have a dedicated column, or a well-known column in vParquet4, but were sent with another type, for example an int in a string column."
+note: "`!= nil`, `= nil`, `select()`, `by()` and tag autocomplete now find attributes that have a dedicated column, or a well-known column in vParquet4, but were sent with another type, for example an int in a string column."
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
