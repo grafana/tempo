@@ -618,6 +618,10 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{"string in int column, by value", intCol, strValue, false, `{ %[1]s.mixed = "a" }`, true},
 		{"string in int column, exists", intCol, strValue, false, `{ %[1]s.mixed != nil }`, true},
 		{"string in int column, not exists", intCol, strValue, false, `{ %[1]s.mixed = nil }`, false},
+		{"fits column, select", strCol, strValue, false, `{ %[1]s.mixed }`, true},
+		{"absent, select", strCol, nil, false, `{ %[1]s.mixed }`, true},
+		{"int in string column, select", strCol, intValue, false, `{ %[1]s.mixed }`, true},
+		{"string in int column, select", intCol, strValue, false, `{ %[1]s.mixed }`, true},
 	}
 
 	// checkQuery writes the trace between filler traces, so iterators seek across row groups.
@@ -708,19 +712,24 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 	wellKnownCases := []struct {
 		query string
 		match bool
+		want  map[traceql.Attribute]traceql.Static
 	}{
-		{`{ span.http.status_code = "200" }`, true},
-		{`{ span.http.status_code != nil }`, true},
-		{`{ span.http.status_code = nil }`, false},
-		{`{ span.http.method != nil }`, true},
-		{`{ span.http.method = nil }`, false},
-		{`{ span.http.url != nil }`, true},
-		{`{ span.http.url = nil }`, false},
-		{`{ resource.k8s.namespace.name != nil }`, true},
-		{`{ resource.k8s.namespace.name = nil }`, false},
-		{`{ resource.k8s.pod.name != nil }`, false},
-		{`{ resource.k8s.pod.name = nil }`, true},
-		{`{ resource.service.name != nil }`, true},
+		{`{ span.http.status_code = "200" }`, true, nil},
+		{`{ span.http.status_code != nil }`, true, nil},
+		{`{ span.http.status_code = nil }`, false, nil},
+		{`{ span.http.method != nil }`, true, nil},
+		{`{ span.http.method = nil }`, false, nil},
+		{`{ span.http.url != nil }`, true, nil},
+		{`{ span.http.url = nil }`, false, nil},
+		{`{ resource.k8s.namespace.name != nil }`, true, nil},
+		{`{ resource.k8s.namespace.name = nil }`, false, nil},
+		{`{ resource.k8s.pod.name != nil }`, false, nil},
+		{`{ resource.k8s.pod.name = nil }`, true, nil},
+		{`{ resource.service.name != nil }`, true, nil},
+		{`{ span.http.method }`, true, map[traceql.Attribute]traceql.Static{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod): traceql.NewStaticInt(1)}},
+		{`{ span.http.url }`, true, map[traceql.Attribute]traceql.Static{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl): traceql.NewStaticString("a")}},
+		{`{ resource.k8s.namespace.name }`, true, map[traceql.Attribute]traceql.Static{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName): traceql.NewStaticInt(1)}},
+		{`{ resource.service.name }`, true, map[traceql.Attribute]traceql.Static{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName): traceql.NewStaticString("a")}},
 	}
 	for _, tc := range wellKnownCases {
 		t.Run("well-known/"+tc.query, func(t *testing.T) {
@@ -735,7 +744,7 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 					{Key: LabelHTTPMethod, Value: intValue},
 					{Key: LabelHTTPUrl, Value: strValue},
 				})
-			checkQuery(t, nil, id, tr, tc.query, tc.match, nil)
+			checkQuery(t, nil, id, tr, tc.query, tc.match, tc.want)
 		})
 	}
 }

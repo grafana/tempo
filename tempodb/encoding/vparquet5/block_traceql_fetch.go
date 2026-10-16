@@ -404,10 +404,6 @@ func createResourceIterators(
 				continue
 			}
 
-			if specialCase(cond, c.ColumnPath) {
-				continue
-			}
-
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
 			if isMatchingColumnType(typ, operandType(cond.Operands)) {
@@ -527,18 +523,6 @@ func createSpanIterators(
 		if !foundOpNone {
 			addPredicate(path, nil)
 			columnSelectAs[path] = path
-		}
-	}
-
-	specialCase := func(cond traceql.Condition, columnPath string) (handled bool) {
-		// Operands that need special handling.
-		switch cond.Op {
-		case traceql.OpNone:
-			addPredicate(columnPath, nil) // No filtering
-			columnSelectAs[columnPath] = cond.Attribute.Name
-			return true
-		default:
-			return false
 		}
 	}
 
@@ -712,10 +696,6 @@ func createSpanIterators(
 				continue
 			}
 
-			if specialCase(cond, c.ColumnPath) {
-				continue
-			}
-
 			// Compatible type?
 			typ, _ := c.Type.ToStaticType()
 			if isMatchingColumnType(typ, operandType(cond.Operands)) {
@@ -857,18 +837,6 @@ func createEventIterators(
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
-	specialCase := func(cond traceql.Condition, columnPath string) (handled bool) {
-		// Operands that need special handling.
-		switch cond.Op {
-		case traceql.OpNone:
-			addPredicate(columnPath, nil) // No filtering
-			columnSelectAs[columnPath] = cond.Attribute.Name
-			return true
-		default:
-			return false
-		}
-	}
-
 	for _, cond := range conditions {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicEventName:
@@ -900,10 +868,6 @@ func createEventIterators(
 			}
 			if existsIter != nil {
 				optional = append(optional, existsIter)
-				continue
-			}
-
-			if specialCase(cond, c.ColumnPath) {
 				continue
 			}
 

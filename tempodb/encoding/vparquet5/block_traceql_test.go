@@ -602,6 +602,10 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{"string in int column, by value", intCol, strValue, false, `{ %[1]s.mixed = "a" }`, true},
 		{"string in int column, exists", intCol, strValue, false, `{ %[1]s.mixed != nil }`, true},
 		{"string in int column, not exists", intCol, strValue, false, `{ %[1]s.mixed = nil }`, false},
+		{"fits column, select", strCol, strValue, false, `{ %[1]s.mixed }`, true},
+		{"absent, select", strCol, nil, false, `{ %[1]s.mixed }`, true},
+		{"int in string column, select", strCol, intValue, false, `{ %[1]s.mixed }`, true},
+		{"string in int column, select", intCol, strValue, false, `{ %[1]s.mixed }`, true},
 	}
 
 	// checkQuery writes the trace between filler traces, so iterators seek across row groups, and runs both fetch paths.
@@ -760,7 +764,7 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 
 	// Several rows hold different values in generic attributes, so a join or union reads ahead between them.
 	for _, scope := range scopes {
-		for _, q := range []string{`{ %[1]s.mixed != nil }`, `{ %[1]s.mixed != nil || %[1]s.missing = "x" }`} {
+		for _, q := range []string{`{ %[1]s.mixed != nil }`, `{ %[1]s.mixed != nil || %[1]s.missing = "x" }`, `{ %[1]s.mixed }`} {
 			query := fmt.Sprintf(q, scope)
 			t.Run(fmt.Sprintf("%s/several rows/%s", scope, query), func(t *testing.T) {
 				id := test.ValidTraceID(nil)
