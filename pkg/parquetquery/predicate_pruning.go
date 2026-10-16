@@ -22,10 +22,18 @@ type PredicateStats struct {
 // with per-row evaluation.
 func predicateNullValue() pq.Value { return pq.Value{} }
 
-// keepColumnChunk reports whether any value in cc can match c.filter. The decision
-// combines a dictionary match for dict-encoded (string) columns, a column-index
-// range test via KeepRange, and a null-count test via KeepValue(null). Counts into
-// c.stats when set.
+// keepColumnChunk reports whether cc may hold a value c.filter keeps, so a chunk that
+// can't is skipped before any of its pages is read. Counts into c.stats when set.
+//
+// The chunk is kept when:
+//   - there is no filter;
+//   - it is dictionary-encoded and a dictionary entry matches, or the filter keeps
+//     nulls and the column index shows the chunk has some;
+//   - the filter doesn't support column index pruning, and its KeepRange keeps
+//     regardless of bounds (always, except a CallbackPredicate whose callback is done);
+//   - it has no column index;
+//   - the column index shows a page with nulls the filter keeps, or a page whose
+//     bounds pass KeepRange.
 func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 	c.resetFilter()
 	if c.filter == nil {
@@ -49,13 +57,17 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 		if keepDictionary(dict, c.filter.KeepValue) {
 			return true
 		}
-		// Read even when !indexPrunes: the chunk is pruned unless it has nulls.
+		// No entry matches, so only nulls could. Check the index for them even if the
+		// filter doesn't otherwise use it: one small read decides whether the whole
+		// chunk is read, and a filter rejecting nulls never gets this far.
 		return keepNull && chunkHasNulls(cc)
 	}
 
 	if !indexPrunes {
-		// The predicate's KeepRange ignores the bounds, so null ones stand in for the index.
-		return keepNull || c.filter.KeepRange(predicateNullValue(), predicateNullValue())
+		// Without the index there are no bounds. Such a filter's KeepRange ignores them,
+		// so this is true for all but a CallbackPredicate, which still stops reading the
+		// chunk once its callback is done.
+		return c.filter.KeepRange(predicateNullValue(), predicateNullValue())
 	}
 
 	ci, err := cc.ColumnIndex()

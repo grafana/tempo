@@ -20,9 +20,10 @@ type Predicate interface {
 	KeepValue(pq.Value) bool
 	// KeepRange reports whether any value in the inclusive [minV,maxV] range could match.
 	KeepRange(minV, maxV pq.Value) bool
-	// SupportsColumnIndexPruning reports whether a chunk's column index can prune it: KeepRange
-	// depends on the bounds, or only nulls are kept. The index is a backend read, so when
-	// this is false keepColumnChunk skips it and calls KeepRange with null bounds instead.
+	// SupportsColumnIndexPruning reports whether a chunk's column index can prune for this
+	// predicate: KeepRange depends on the bounds, or only nulls are kept. When it can't,
+	// keepColumnChunk doesn't read the index, which is a separate backend request, and
+	// calls KeepRange with null bounds instead.
 	SupportsColumnIndexPruning() bool
 }
 

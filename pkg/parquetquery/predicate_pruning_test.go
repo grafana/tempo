@@ -2,6 +2,7 @@ package parquetquery
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"testing"
 
@@ -296,4 +297,217 @@ func TestKeepColumnChunkReadsIndexOnlyWhenNeeded(t *testing.T) {
 			require.Equal(t, tt.indexReads, cc.indexReads)
 		})
 	}
+}
+
+// noIndexChunk is a chunk written without a column index.
+type noIndexChunk struct{ parquet.ColumnChunk }
+
+func (noIndexChunk) ColumnIndex() (parquet.ColumnIndex, error) {
+	return nil, parquet.ErrMissingColumnIndex
+}
+
+// boundlessPage is a page that records no bounds.
+type boundlessPage struct{ parquet.Page }
+
+func (boundlessPage) Bounds() (parquet.Value, parquet.Value, bool) {
+	return parquet.Value{}, parquet.Value{}, false
+}
+
+// chunkOf writes rows to a file of one row group and returns its first column chunk.
+func chunkOf[T any](t *testing.T, rows []T, opts ...parquet.WriterOption) parquet.ColumnChunk {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	w := parquet.NewGenericWriter[T](buf, opts...)
+	for _, row := range rows { // one write per row, so a tiny page buffer cuts a page per row
+		_, err := w.Write([]T{row})
+		require.NoError(t, err)
+	}
+	require.NoError(t, w.Close())
+	f, err := parquet.OpenFile(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	require.NoError(t, err)
+	return f.RowGroups()[0].ColumnChunks()[0]
+}
+
+func firstPage(t *testing.T, cc parquet.ColumnChunk) parquet.Page {
+	t.Helper()
+	h := &ColumnChunkHelper{ColumnChunk: cc}
+	t.Cleanup(func() { _ = h.Close() })
+	pg, err := h.NextPage()
+	require.NoError(t, err)
+	return pg
+}
+
+func TestKeepColumnChunkDecisions(t *testing.T) {
+	s := func(v string) *string { return &v }
+	n := func(v int64) *int64 { return &v }
+	dictWithNulls := chunkOf(t, []testOptString{{s("abc")}, {nil}})
+	dictNoNulls := chunkOf(t, []testOptString{{s("abc")}, {s("bcd")}})
+	plainWithNulls := chunkOf(t, []testOptInt{{n(5)}, {nil}})
+	plainNoNulls := chunkOf(t, []testOptInt{{n(5)}, {n(6)}})
+	nullPageFirst := chunkOf(t, []testOptInt{{nil}, {n(5)}}, parquet.PageBufferSize(1))
+	// Keeps nulls without supporting column index pruning.
+	keepsNulls := NewIncludeNilStringEqualPredicate(nil)
+
+	tests := []struct {
+		name       string
+		chunk      parquet.ColumnChunk
+		pred       Predicate
+		keep       bool
+		indexReads int
+	}{
+		{"no filter", dictWithNulls, nil, true, 0},
+		{"a dictionary entry matches", dictWithNulls, NewStringInPredicate([]string{"abc"}), true, 0},
+		{"no entry matches and the filter rejects nulls", dictWithNulls, NewStringInPredicate([]string{"x"}), false, 0},
+		{"no entry matches, the filter keeps nulls and the chunk has some", dictWithNulls, NewNilValuePredicate(), true, 1},
+		{"no entry matches, the filter keeps nulls but the chunk has none", dictNoNulls, NewNilValuePredicate(), false, 1},
+		{"the null check runs for a filter without index pruning", dictWithNulls, keepsNulls, true, 1},
+		{"and prunes when there are no nulls", dictNoNulls, keepsNulls, false, 1},
+		{"no column index assumes nulls", noIndexChunk{dictNoNulls}, NewNilValuePredicate(), true, 1},
+		{"a page with nulls the filter keeps", plainWithNulls, NewNilValuePredicate(), true, 1},
+		{"page bounds pass the range", plainNoNulls, NewIntBetweenPredicate(0, 10), true, 1},
+		{"page bounds fail the range", plainNoNulls, NewIntBetweenPredicate(50, 60), false, 1},
+		// Its empty bounds read as 0, which would wrongly pass [0,3].
+		{"a null page is skipped for the range test", nullPageFirst, NewIntBetweenPredicate(0, 3), false, 1},
+		{"no column index keeps the chunk", noIndexChunk{plainNoNulls}, NewIntBetweenPredicate(50, 60), true, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cc := &countingChunk{ColumnChunk: tt.chunk}
+			it := &SyncIterator{filter: tt.pred}
+			require.Equal(t, tt.keep, it.keepColumnChunk(&ColumnChunkHelper{ColumnChunk: cc}))
+			require.Equal(t, tt.indexReads, cc.indexReads, "column index reads")
+		})
+	}
+}
+
+func TestKeepPageDecisions(t *testing.T) {
+	s := func(v string) *string { return &v }
+	n := func(v int64) *int64 { return &v }
+	mixed := firstPage(t, chunkOf(t, []testOptInt{{n(5)}, {nil}}))
+	onlyNulls := firstPage(t, chunkOf(t, []testOptInt{{nil}, {nil}}))
+	dictionary := firstPage(t, chunkOf(t, []testOptString{{s("abc")}}))
+	require.NotNil(t, dictionary.Dictionary())
+
+	tests := []struct {
+		name string
+		page parquet.Page
+		pred Predicate
+		keep bool
+	}{
+		{"nulls the filter keeps", mixed, NewNilValuePredicate(), true},
+		{"only nulls, which the filter keeps", onlyNulls, NewNilValuePredicate(), true},
+		{"only nulls, which the filter rejects", onlyNulls, NewIntBetweenPredicate(0, 10), false},
+		{"bounds pass the range", mixed, NewIntBetweenPredicate(0, 10), true},
+		{"bounds fail the range", mixed, NewIntBetweenPredicate(50, 60), false},
+		{"a dictionary page skips the range test", dictionary, NewStringInPredicate([]string{"x"}), true},
+		{"no bounds recorded", boundlessPage{mixed}, NewIntBetweenPredicate(50, 60), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			it := &SyncIterator{filter: tt.pred}
+			require.Equal(t, tt.keep, it.keepPage(tt.page))
+		})
+	}
+}
+
+// TestKeepRangeAgreesWithKeepValue checks every predicate's KeepRange against its own
+// KeepValue over each range [lo,hi] of a small sorted domain:
+//   - a range holding a value KeepValue keeps is never pruned;
+//   - on integers, where every value in a range is in the domain, a predicate that
+//     supports column index pruning keeps exactly the ranges holding such a value;
+//   - a predicate that doesn't support it answers regardless of the bounds, as
+//     keepColumnChunk relies on when it passes null ones.
+func TestKeepRangeAgreesWithKeepValue(t *testing.T) {
+	ints := []parquet.Value{parquet.Int64Value(-2), parquet.Int64Value(-1), parquet.Int64Value(0), parquet.Int64Value(1), parquet.Int64Value(2)}
+	floats := []parquet.Value{parquet.DoubleValue(-1), parquet.DoubleValue(-0.5), parquet.DoubleValue(0), parquet.DoubleValue(0.5), parquet.DoubleValue(1)}
+	strs := []parquet.Value{}
+	for _, s := range []string{"", "a", "ab", "b", "ba", "c"} {
+		strs = append(strs, parquet.ByteArrayValue([]byte(s)))
+	}
+	bools := []parquet.Value{parquet.BooleanValue(false), parquet.BooleanValue(true)}
+	regexIn, err := NewRegexInPredicate([]string{"b.*"})
+	require.NoError(t, err)
+	regexNotIn, err := NewRegexNotInPredicate([]string{"b.*"})
+	require.NoError(t, err)
+
+	tests := []struct {
+		domain []parquet.Value
+		exact  bool // every value of a range is in the domain
+		preds  []Predicate
+	}{
+		{ints, true, []Predicate{
+			NewIntEqualPredicate(0), NewIntNotEqualPredicate(0),
+			NewIntGreaterPredicate(0), NewIntGreaterEqualPredicate(0), NewIntLessPredicate(0), NewIntLessEqualPredicate(0),
+			NewIntInPredicate([]int64{-2, 1}), NewIntNotInPredicate([]int64{0}),
+			NewIntBetweenPredicate(-1, 1),
+			NewGenericPredicate(func(v int64) bool { return v == 1 }, func(lo, hi int64) bool { return lo <= 1 && 1 <= hi }, func(v parquet.Value) int64 { return v.Int64() }),
+			NewGenericPredicate(func(v int64) bool { return v == 1 }, nil, func(v parquet.Value) int64 { return v.Int64() }),
+			NewOrPredicate(NewIntEqualPredicate(-2), NewIntEqualPredicate(2)),
+		}},
+		{floats, false, []Predicate{
+			NewFloatEqualPredicate(0), NewFloatNotEqualPredicate(0),
+			NewFloatGreaterPredicate(0), NewFloatGreaterEqualPredicate(0), NewFloatLessPredicate(0), NewFloatLessEqualPredicate(0),
+			NewFloatInPredicate([]float64{-1, 0.5}), NewFloatNotInPredicate([]float64{0}),
+		}},
+		{strs, false, []Predicate{
+			NewStringEqualPredicate("b"), NewStringNotEqualPredicate("b"),
+			NewStringGreaterPredicate([]byte("b")), NewStringGreaterEqualPredicate([]byte("b")),
+			NewStringLessPredicate([]byte("b")), NewStringLessEqualPredicate([]byte("b")),
+			NewStringInPredicate([]string{"ab", "c"}), NewStringNotInPredicate([]string{"b"}),
+			NewSubstringPredicate("b"), regexIn, regexNotIn,
+			NewIncludeNilStringEqualPredicate([]byte("b")), NewSkipNilsPredicate(),
+			NewOrPredicate(NewStringEqualPredicate("a"), NewSubstringPredicate("c")),
+		}},
+		{bools, true, []Predicate{
+			NewBoolEqualPredicate(true), NewBoolNotEqualPredicate(true),
+			NewBoolInPredicate([]bool{true}), NewBoolNotInPredicate([]bool{true}),
+		}},
+	}
+
+	null := predicateNullValue()
+	for _, tc := range tests {
+		for _, p := range tc.preds {
+			t.Run(p.String(), func(t *testing.T) {
+				for i, lo := range tc.domain {
+					for _, hi := range tc.domain[i:] {
+						matches := false
+						for _, v := range tc.domain {
+							if v.Kind() == lo.Kind() && compareValues(v, lo) >= 0 && compareValues(v, hi) <= 0 && p.KeepValue(v) {
+								matches = true
+							}
+						}
+						keep := p.KeepRange(lo, hi)
+						if matches {
+							require.True(t, keep, "pruned [%v,%v] holding a match", lo, hi)
+						}
+						if !p.SupportsColumnIndexPruning() {
+							require.Equal(t, p.KeepRange(null, null), keep, "[%v,%v] depends on bounds", lo, hi)
+						} else if tc.exact {
+							require.Equal(t, matches, keep, "[%v,%v]", lo, hi)
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+func compareValues(a, b parquet.Value) int {
+	switch a.Kind() {
+	case parquet.Int64:
+		return cmp.Compare(a.Int64(), b.Int64())
+	case parquet.Double:
+		return cmp.Compare(a.Double(), b.Double())
+	case parquet.Boolean:
+		return cmp.Compare(b2i(a.Boolean()), b2i(b.Boolean()))
+	default:
+		return bytes.Compare(a.ByteArray(), b.ByteArray())
+	}
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
