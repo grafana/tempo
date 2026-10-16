@@ -564,7 +564,7 @@ Options:
 - `-p`, `--profile` Profile of the block, from `benchmark profile`. Required.
 - `-o`, `--out` File to write the result to. Defaults to stdout.
 - `-k`, `--case` Cases to run, as glob patterns over case IDs in the syntax
-  `benchmark compare` takes, such as `'metrics/ranked/*/high/*'`. Repeat the flag
+  `benchmark compare` takes, such as `'metrics/ranked_*/*/high/*'`. Repeat the flag
   or separate patterns with commas. Defaults to every case. Patterns matching
   no case are an error.
 - `--repeat` Passes over the query set. Defaults to `1`.
@@ -629,21 +629,25 @@ Fixed cases:
 Generated cases, from the top 10 attributes with a dedicated column and the top
 10 without:
 
+- `<group>` is the group an attribute was picked from: `ranked_dedicated` for
+  an attribute with a column of its own, which every intrinsic and
+  `resource.service.name` have, and `ranked_generic` for one in the generic
+  key/value columns.
 - Each attribute is queried with up to three of its values, one per selectivity
   band: `high` is its most common value, `medium` the middle of its profiled
   values, and `low` the least common value the profile kept. Every value is one
   the block holds, so every query matches.
-- `search/ranked/<band>/<attribute>`: `{ attribute = value }`.
-- `metrics/ranked/<rate|quantile>/<band>/<attribute>`:
+- `search/<group>/<band>/<attribute>`: `{ attribute = value }`.
+- `metrics/<group>/<rate|quantile>/<band>/<attribute>`:
   `{ attribute = value } | rate()` and
   `{ attribute = value } | quantile_over_time(duration, 0.99, 0.95)`.
-- `metadata/tagvalues/<attribute>`: a tag-value lookup with no TraceQL, for the
-  top 20 string attributes in each group.
+- `metadata/<group>/tagvalues/<attribute>`: a tag-value lookup with no
+  TraceQL, for the top 20 string attributes in each group.
 - Attributes with only quantile values are skipped, and a profile built with
   `--attributes 0` generates no cases.
 
 To run only some cases, pass `--case` a glob, such as
-`--case 'metrics/ranked/*/low/*'`.
+`--case 'metrics/ranked_generic/*/low/*'`.
 
 Metrics queries run over the block's whole time range, stepping at
 `max(60s, window/30)` to land about 30 points. Searches and metrics queries are

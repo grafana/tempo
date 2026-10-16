@@ -42,7 +42,7 @@ func TestAttributeCases(t *testing.T) {
 				profileAttr(attributes.ScopeSpan, "key", attributes.TypeString, false, "v1", "v2", "v3"),
 				profileAttr(attributes.ScopeResource, "service.name", attributes.TypeString, false, "svc"),
 			),
-			want:    []string{"search/ranked/high/span.key", "search/ranked/medium/span.key", "search/ranked/low/span.key", "search/ranked/high/resource.service.name"},
+			want:    []string{"search/ranked_generic/high/span.key", "search/ranked_generic/medium/span.key", "search/ranked_generic/low/span.key", "search/ranked_generic/high/resource.service.name"},
 			queries: []string{`{ span.key = "v1" }`, `{ span.key = "v2" }`, `{ span.key = "v3" }`, `{ resource.service.name = "svc" }`},
 		},
 		{
@@ -51,7 +51,7 @@ func TestAttributeCases(t *testing.T) {
 				profileAttr(attributes.ScopeSpan, "foo", attributes.TypeString, false, "bar"),
 				profileAttr(attributes.ScopeSpan, "foo", attributes.TypeInt, false, "42"),
 			),
-			want:    []string{"search/ranked/high/span.foo.string", "search/ranked/high/span.foo.int"},
+			want:    []string{"search/ranked_generic/high/span.foo.string", "search/ranked_generic/high/span.foo.int"},
 			queries: []string{`{ span.foo = "bar" }`, `{ span.foo = 42 }`},
 		},
 		{
@@ -122,17 +122,17 @@ func TestAllCasesKeepsAPIsTogether(t *testing.T) {
 	require.Equal(t, []string{
 		"traceid/present", "traceid/absent",
 		"search/nopredicate",
-		"search/ranked/high/span.most", "search/ranked/medium/span.most", "search/ranked/low/span.most",
-		"search/ranked/high/span.some",
+		"search/ranked_generic/high/span.most", "search/ranked_generic/medium/span.most", "search/ranked_generic/low/span.most",
+		"search/ranked_generic/high/span.some",
 		"metrics/rate", "metrics/rate-by-service",
 		"metrics/drilldown/rate", "metrics/drilldown/errors", "metrics/drilldown/duration", "metrics/drilldown/by-service",
-		"metrics/ranked/rate/high/span.most", "metrics/ranked/rate/medium/span.most", "metrics/ranked/rate/low/span.most",
-		"metrics/ranked/rate/high/span.some",
-		"metrics/ranked/quantile/high/span.most", "metrics/ranked/quantile/medium/span.most", "metrics/ranked/quantile/low/span.most",
-		"metrics/ranked/quantile/high/span.some",
+		"metrics/ranked_generic/rate/high/span.most", "metrics/ranked_generic/rate/medium/span.most", "metrics/ranked_generic/rate/low/span.most",
+		"metrics/ranked_generic/rate/high/span.some",
+		"metrics/ranked_generic/quantile/high/span.most", "metrics/ranked_generic/quantile/medium/span.most", "metrics/ranked_generic/quantile/low/span.most",
+		"metrics/ranked_generic/quantile/high/span.some",
 		"metadata/tagnames/none", "metadata/tagnames/resource", "metadata/tagnames/span",
 		"metadata/tagnames/event", "metadata/tagnames/link", "metadata/tagnames/instrumentation",
-		"metadata/tagvalues/span.most", "metadata/tagvalues/span.some",
+		"metadata/ranked_generic/tagvalues/span.most", "metadata/ranked_generic/tagvalues/span.some",
 	}, got)
 }
 

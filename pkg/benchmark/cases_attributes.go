@@ -20,11 +20,11 @@ var rankedMetricsPipelines = []struct {
 	{"quantile", "quantile_over_time(duration, 0.99, 0.95)"},
 }
 
-// attributeCases generates the cases a profile's attributes inform: a search
-// and metrics per attribute and selectivity band, and tag values per string
-// attribute. Each case holds one attribute, since its column and values drive
-// the cost. Every value is one the profile proves the block holds, so each
-// query matches.
+// attributeCases generates a search and metrics case per attribute and band,
+// and a tag-value case per string attribute. A case holds one attribute since
+// its column and values drive the cost, and its ID names the pick group so a
+// comparison rolls dedicated and generic attributes up apart. Every value is
+// one the block holds, so each query matches.
 func attributeCases(prof *profile.BlockProfile) []benchCase {
 	if prof.Attributes == nil {
 		return nil
@@ -36,14 +36,14 @@ func attributeCases(prof *profile.BlockProfile) []benchCase {
 	var cases []benchCase
 	for i, p := range ranked {
 		for _, v := range bandValues(p) {
-			cases = append(cases, searchCase("search/ranked/"+v.band+"/"+rankedIDs[i], valueFilter(p, v.value.Value)))
+			cases = append(cases, searchCase("search/"+rankedGroup(p)+"/"+v.band+"/"+rankedIDs[i], valueFilter(p, v.value.Value)))
 		}
 	}
 
 	for _, m := range rankedMetricsPipelines {
 		for i, p := range ranked {
 			for _, v := range bandValues(p) {
-				id := "metrics/ranked/" + m.id + "/" + v.band + "/" + rankedIDs[i]
+				id := "metrics/" + rankedGroup(p) + "/" + m.id + "/" + v.band + "/" + rankedIDs[i]
 				cases = append(cases, metricsCase(id, valueFilter(p, v.value.Value)+" | "+m.pipeline))
 			}
 		}
@@ -51,7 +51,7 @@ func attributeCases(prof *profile.BlockProfile) []benchCase {
 
 	tagged := pickAttributes(prof.Attributes, tagValueAttributesPerGroup, isStringAttribute)
 	for i, id := range attributeIDs(tagged) {
-		cases = append(cases, tagValuesCase("metadata/tagvalues/"+id, tagged[i]))
+		cases = append(cases, tagValuesCase("metadata/"+rankedGroup(tagged[i])+"/tagvalues/"+id, tagged[i]))
 	}
 	return cases
 }

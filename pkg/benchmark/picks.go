@@ -37,6 +37,13 @@ func pickAttributes(attrs *attributes.Profiles, n int, keep func(attributes.Prof
 	return append(dedicated, generic...)
 }
 
+func rankedGroup(p attributes.Profile) string {
+	if p.Dedicated {
+		return "ranked_dedicated"
+	}
+	return "ranked_generic"
+}
+
 // hasValues skips numerics with too many values to list: their quantiles suit a
 // range predicate, not `=`.
 func hasValues(p attributes.Profile) bool {

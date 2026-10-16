@@ -131,7 +131,7 @@ func TestRun(t *testing.T) {
 
 // A block reports a tag name once per row group that has it, so the count
 // must be of distinct names or it would grow with the number of row groups.
-var attributePatterns = []string{"metrics/ranked/*/*/*", "metadata/tagvalues/*"}
+var attributePatterns = []string{"metrics/ranked_*/*/*/*", "metadata/ranked_*/tagvalues/*"}
 
 func TestRunAttributeCases(t *testing.T) {
 	ctx := context.Background()
@@ -155,7 +155,9 @@ func TestRunAttributeCases(t *testing.T) {
 		require.Equal(t, result.Shards, c.Executions, "case %s must shard", c.ID)
 
 		parts := strings.Split(c.ID, "/")
-		group := strings.Join(parts[:min(3, len(parts)-1)], "/")
+		// The pick group is the second part, and every attribute fits one.
+		require.Contains(t, []string{"ranked_dedicated", "ranked_generic"}, parts[1], c.ID)
+		group := parts[0] + "/" + parts[2]
 		groups[group]++
 
 		if group == "metadata/tagvalues" {
@@ -180,9 +182,9 @@ func TestRunAttributeCases(t *testing.T) {
 	}
 	require.Positive(t, ranked)
 	require.Equal(t, map[string]int{
-		"metrics/ranked/rate":     ranked,
-		"metrics/ranked/quantile": ranked,
-		"metadata/tagvalues":      len(pickAttributes(prof.Attributes, tagValueAttributesPerGroup, isStringAttribute)),
+		"metrics/rate":       ranked,
+		"metrics/quantile":   ranked,
+		"metadata/tagvalues": len(pickAttributes(prof.Attributes, tagValueAttributesPerGroup, isStringAttribute)),
 	}, groups)
 }
 
@@ -255,7 +257,7 @@ func TestRunGeneratesAttributeCases(t *testing.T) {
 	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 10, NumAttributes: 100})
 	require.NoError(t, err)
 
-	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{Cases: []string{"search/ranked/*/*"}})
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{Cases: []string{"search/ranked_*/*/*"}})
 	require.NoError(t, err)
 	require.Len(t, result.Cases, len(casesOf(attributeCases(prof), apiSearch)))
 

@@ -29,20 +29,20 @@ func TestAttributeCasesMetricsAndTagValues(t *testing.T) {
 
 	cases := slices.Concat(casesOf(attributeCases(prof), apiMetrics), casesOf(attributeCases(prof), apiMetadata))
 	require.Equal(t, []string{
-		"metrics/ranked/rate/high/resource.service.name",
-		"metrics/ranked/rate/high/intrinsic.status",
-		"metrics/ranked/rate/high/span.http.method",
-		"metrics/ranked/rate/medium/span.http.method",
-		"metrics/ranked/rate/low/span.http.method",
-		"metrics/ranked/rate/high/span.http.status_code",
-		"metrics/ranked/quantile/high/resource.service.name",
-		"metrics/ranked/quantile/high/intrinsic.status",
-		"metrics/ranked/quantile/high/span.http.method",
-		"metrics/ranked/quantile/medium/span.http.method",
-		"metrics/ranked/quantile/low/span.http.method",
-		"metrics/ranked/quantile/high/span.http.status_code",
-		"metadata/tagvalues/resource.service.name",
-		"metadata/tagvalues/span.http.method",
+		"metrics/ranked_dedicated/rate/high/resource.service.name",
+		"metrics/ranked_dedicated/rate/high/intrinsic.status",
+		"metrics/ranked_generic/rate/high/span.http.method",
+		"metrics/ranked_generic/rate/medium/span.http.method",
+		"metrics/ranked_generic/rate/low/span.http.method",
+		"metrics/ranked_generic/rate/high/span.http.status_code",
+		"metrics/ranked_dedicated/quantile/high/resource.service.name",
+		"metrics/ranked_dedicated/quantile/high/intrinsic.status",
+		"metrics/ranked_generic/quantile/high/span.http.method",
+		"metrics/ranked_generic/quantile/medium/span.http.method",
+		"metrics/ranked_generic/quantile/low/span.http.method",
+		"metrics/ranked_generic/quantile/high/span.http.status_code",
+		"metadata/ranked_dedicated/tagvalues/resource.service.name",
+		"metadata/ranked_generic/tagvalues/span.http.method",
 	}, caseIDs(cases))
 
 	byID := map[string]benchCase{}
@@ -50,15 +50,15 @@ func TestAttributeCasesMetricsAndTagValues(t *testing.T) {
 		byID[c.id] = c
 	}
 
-	rate := byID["metrics/ranked/rate/high/resource.service.name"]
+	rate := byID["metrics/ranked_dedicated/rate/high/resource.service.name"]
 	require.Equal(t, apiMetrics, rate.api)
 	require.Equal(t, `{ resource.service.name = "svc" } | rate()`, rate.query)
-	require.Equal(t, `{ status = unset } | quantile_over_time(duration, 0.99, 0.95)`, byID["metrics/ranked/quantile/high/intrinsic.status"].query)
+	require.Equal(t, `{ status = unset } | quantile_over_time(duration, 0.99, 0.95)`, byID["metrics/ranked_dedicated/quantile/high/intrinsic.status"].query)
 
-	require.Equal(t, `{ span.http.method = "DELETE" } | rate()`, byID["metrics/ranked/rate/low/span.http.method"].query)
-	require.Equal(t, `{ span.http.method = "POST" } | rate()`, byID["metrics/ranked/rate/medium/span.http.method"].query)
+	require.Equal(t, `{ span.http.method = "DELETE" } | rate()`, byID["metrics/ranked_generic/rate/low/span.http.method"].query)
+	require.Equal(t, `{ span.http.method = "POST" } | rate()`, byID["metrics/ranked_generic/rate/medium/span.http.method"].query)
 
-	tags := byID["metadata/tagvalues/span.http.method"]
+	tags := byID["metadata/ranked_generic/tagvalues/span.http.method"]
 	require.Equal(t, apiMetadata, tags.api)
 	require.Empty(t, tags.query)
 }
@@ -68,15 +68,15 @@ func TestAttributeCasesWithoutAttributes(t *testing.T) {
 }
 
 func TestSelectCases(t *testing.T) {
-	cases := []benchCase{{id: "search/nopredicate"}, {id: "metrics/ranked/rate/span.a"}, {id: "metrics/rate"}}
+	cases := []benchCase{{id: "search/nopredicate"}, {id: "metrics/ranked_generic/rate/span.a"}, {id: "metrics/rate"}}
 
 	all, err := selectCases(cases, nil)
 	require.NoError(t, err)
 	require.Equal(t, caseIDs(cases), caseIDs(all))
 
-	ranked, err := selectCases(cases, []string{"metrics/ranked/*/*", "search/*"})
+	ranked, err := selectCases(cases, []string{"metrics/ranked_*/*/*", "search/*"})
 	require.NoError(t, err)
-	require.Equal(t, []string{"search/nopredicate", "metrics/ranked/rate/span.a"}, caseIDs(ranked))
+	require.Equal(t, []string{"search/nopredicate", "metrics/ranked_generic/rate/span.a"}, caseIDs(ranked))
 
 	_, err = selectCases(cases, []string{"["})
 	require.ErrorContains(t, err, "invalid case pattern")
