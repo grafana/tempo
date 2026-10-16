@@ -103,6 +103,10 @@ func (p *ByteInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 }
 
 func (p *ByteInPredicate) KeepValue(v pq.Value) bool {
+	// null will read as an empty byte array, return false since otherwise it'll unexpectedly match "".
+	if v.IsNull() {
+		return false
+	}
 	ba := v.ByteArray()
 	if p.valuesMap != nil {
 		_, ok := p.valuesMap[string(ba)]
@@ -168,6 +172,10 @@ func (p *ByteNotInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 }
 
 func (p *ByteNotInPredicate) KeepValue(v pq.Value) bool {
+	// null will read as an empty byte array, return false since otherwise it'll unexpectedly match any set without "".
+	if v.IsNull() {
+		return false
+	}
 	ba := v.ByteArray()
 	if p.valuesMap != nil {
 		_, ok := p.valuesMap[string(ba)]
@@ -278,6 +286,10 @@ func (p *SubstringPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 }
 
 func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
+	// null will read as an empty byte array, return false since otherwise it'll unexpectedly match an empty substring.
+	if v.IsNull() {
+		return false
+	}
 	b := v.ByteArray()
 
 	// Check uses zero alloc optimization of map[string([]byte)]
@@ -329,6 +341,10 @@ func (p *IntBetweenPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 }
 
 func (p *IntBetweenPredicate) KeepValue(v pq.Value) bool {
+	// null will read as 0, return false since otherwise it'll unexpectedly match a range including 0.
+	if v.IsNull() {
+		return false
+	}
 	vv := v.Int64()
 	return p.min <= vv && vv <= p.max
 }
@@ -398,6 +414,10 @@ func (p *GenericPredicate[T]) KeepPage(page pq.Page) bool {
 }
 
 func (p *GenericPredicate[T]) KeepValue(v pq.Value) bool {
+	// null will read as Extract's zero value, return false since otherwise it'll unexpectedly match an Fn accepting it.
+	if v.IsNull() {
+		return false
+	}
 	return p.Fn(p.Extract(v))
 }
 
