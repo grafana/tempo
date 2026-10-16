@@ -2,10 +2,12 @@ change_type: bug_fix
 
 component: storage
 
-note: Fix TraceQL metrics counting spans without a dedicated attribute for chained `!=`, e.g. `{ span.foo != "a" && span.foo != "b" } | rate()`.
+note: Fix queries matching spans that don't have the queried attribute.
 
 issues: []
 
-subtext:
+subtext: |
+  - Chained `!=`, e.g. `{ span.foo != "a" && span.foo != "b" } | rate()`, counted spans without a dedicated attribute in TraceQL metrics.
+  - Chained `=` including an empty string, e.g. `{ span.foo = "a" || span.foo = "" }`, returned spans without the attribute from storage.
 
 user: zhxiaogg
