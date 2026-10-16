@@ -683,6 +683,15 @@ its match or execution count per pass differs, or it is missing the case or fail
 When a run's name is too long to head a column,
 runs are numbered, and listed with their numbers.
 
+A family of more than 8 cases, those whose IDs differ only in their last segment,
+like `metrics/ranked_generic/rate/high/*`, is rolled up into one row:
+each run's geometric mean over the family's cases, its change,
+and the range of the cases' own changes.
+The means leave out cases with a value of zero or that a run cannot be compared on,
+and the row says how many.
+In markdown, the table of every case follows, folded away;
+on the web pages, the family's row links to a page of only its cases.
+
 With `--http`, it serves the comparison as web pages instead,
 rendered on each request as pprof's web view is.
 The summary page has a table per metric, with links to switch the metric and the percentile.

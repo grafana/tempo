@@ -44,3 +44,44 @@ func TestSummary(t *testing.T) {
 	require.Equal(t, SummaryCell{Value: 0, HasValue: true}, search[1], "no change from a baseline of zero")
 	require.Equal(t, SummaryCell{Incomparable: "matched 5 vs 6"}, search[2])
 }
+
+func TestFamilyOf(t *testing.T) {
+	require.Equal(t, "metrics/ranked_generic/rate/high", FamilyOf("metrics/ranked_generic/rate/high/span.foo"))
+	require.Equal(t, "traceid", FamilyOf("traceid/present"))
+	require.Empty(t, FamilyOf("solo"))
+}
+
+func TestFamilies(t *testing.T) {
+	run := func(name string, half, double, zero float64, matched int64) Run {
+		return Run{Name: name, Result: newResult("mac",
+			caseResult("f/half", 1, metrics.Set{"harness.wallNs": measurement(half)}),
+			caseResult("solo", 1, metrics.Set{"harness.wallNs": measurement(1)}),
+			caseResult("f/double", 1, metrics.Set{"harness.wallNs": measurement(double)}),
+			caseResult("f/zero", 1, metrics.Set{"harness.wallNs": measurement(zero)}),
+			caseResult("f/other", matched, metrics.Set{"harness.wallNs": measurement(1)}),
+			caseResult("g/one", 1, metrics.Set{"harness.wallNs": measurement(1)}),
+		)}
+	}
+	c, err := New([]Run{run("base", 100, 100, 0, 5), run("next", 50, 200, 3, 6)})
+	require.NoError(t, err)
+
+	fs := c.Families(c.Summary("harness.wallNs", P50, 0))
+	require.Len(t, fs, 2, "a case of one segment has no family")
+
+	f := fs[0]
+	require.Equal(t, "f", f.Family)
+	require.Equal(t, []int{0, 2, 3, 4}, f.Cases)
+	require.Equal(t, 2, f.Counted, "a zero and a case that cannot be compared are left out")
+	require.InDelta(t, 100, f.Cells[0].Value, 1e-9)
+	require.False(t, f.Cells[0].HasDelta)
+	// Halving one case and doubling another is no change overall, as a
+	// geometric mean has it.
+	require.InDelta(t, 100, f.Cells[1].Value, 1e-9)
+	require.True(t, f.Cells[1].HasDelta)
+	require.InDelta(t, 0, f.Cells[1].Delta, 1e-9)
+	require.InDelta(t, -50, f.Cells[1].Least, 1e-9)
+	require.InDelta(t, 100, f.Cells[1].Most, 1e-9)
+
+	require.Equal(t, "g", fs[1].Family)
+	require.Equal(t, 1, fs[1].Counted)
+}
