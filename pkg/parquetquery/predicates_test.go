@@ -144,6 +144,57 @@ func TestNewStringInPredicate(t *testing.T) {
 	}
 }
 
+func TestByteInPredicateKeepColumnChunkPageBounds(t *testing.T) {
+	type testString struct {
+		S *string
+	}
+	a, c := "a", "c"
+	values := []testString{{&a}, {&c}}
+	nulls := []testString{{nil}, {nil}}
+
+	testCases := []struct {
+		name       string
+		pages      [][]testString
+		value      string
+		skipBounds bool
+		keep       bool
+	}{
+		{name: "within bounds", pages: [][]testString{values}, value: "b", keep: true},
+		{name: "outside bounds", pages: [][]testString{values}, value: "x", keep: false},
+		{name: "bounds skipped", pages: [][]testString{values}, value: "x", skipBounds: true, keep: true},
+		{name: "null page and outside bounds", pages: [][]testString{nulls, values}, value: "x", keep: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// A tiny page buffer cuts a page per write.
+			opts := []parquet.WriterOption{parquet.PageBufferSize(1)}
+			if tc.skipBounds {
+				opts = append(opts, parquet.SkipPageBounds("S"))
+			}
+
+			buf := new(bytes.Buffer)
+			w := parquet.NewGenericWriter[testString](buf, opts...)
+			for _, page := range tc.pages {
+				_, err := w.Write(page)
+				require.NoError(t, err)
+			}
+			require.NoError(t, w.Close())
+
+			pf, err := parquet.OpenFile(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+			require.NoError(t, err)
+
+			cc := &ColumnChunkHelper{ColumnChunk: pf.RowGroups()[0].ColumnChunks()[0]}
+			defer cc.Close()
+			ci, err := cc.ColumnIndex()
+			require.NoError(t, err)
+			require.Equal(t, len(tc.pages), ci.NumPages())
+
+			require.Equal(t, tc.keep, NewStringInPredicate([]string{tc.value}).KeepColumnChunk(cc))
+		})
+	}
+}
+
 func TestNewRegexInPredicate(t *testing.T) {
 	testCases := []predicateTestCase{
 		{

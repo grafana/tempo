@@ -83,8 +83,15 @@ func (p *ByteInPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 	}
 
 	for i := 0; i < ci.NumPages(); i++ {
+		if ci.NullPage(i) {
+			continue
+		}
 		minVal := ci.MinValue(i).ByteArray()
 		maxVal := ci.MaxValue(i).ByteArray()
+		if len(minVal) == 0 && len(maxVal) == 0 {
+			// Bounds skipped at write time, e.g. blob columns
+			return true
+		}
 		for _, subs := range p.values {
 			if bytes.Compare(minVal, subs) <= 0 && bytes.Compare(maxVal, subs) >= 0 {
 				// At least one page in this chunk matches

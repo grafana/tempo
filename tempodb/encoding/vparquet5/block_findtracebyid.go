@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/google/uuid"
@@ -17,7 +18,6 @@ import (
 	"github.com/grafana/tempo/v3/pkg/cache"
 	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
-	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
@@ -150,94 +150,25 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 		return nil, fmt.Errorf("unable to get index for column: %s", TraceIDColumnName)
 	}
 
-	// If no index then fallback to binary searching the rowgroups.
+	rowGroups := pf.RowGroups()
+
 	if rowGroup == -1 {
-		var (
-			numRowGroups = len(pf.RowGroups())
-			buf          = make(parquet.Row, 1)
-			err          error
-		)
-
-		// Cache of row group bounds
-		rowGroupMins := make([]common.ID, numRowGroups+1)
-		// todo: restore using meta min/max id once it works
-		//    https://github.com/grafana/tempo/issues/1903
-		rowGroupMins[0] = bytes.Repeat([]byte{0}, 16)
-		rowGroupMins[numRowGroups] = bytes.Repeat([]byte{255}, 16) // This is actually inclusive and the logic is special for the last row group below
-
-		// Gets the minimum trace ID within the row group. Since the column is sorted
-		// ascending we just read the first value from the first page.
-		getRowGroupMin := func(rgIdx int) (common.ID, error) {
-			minID := rowGroupMins[rgIdx]
-			if len(minID) > 0 {
-				// Already loaded
-				return minID, nil
-			}
-
-			pages := pf.RowGroups()[rgIdx].ColumnChunks()[colIndex].Pages()
-			defer pages.Close()
-
-			page, err := pages.ReadPage()
-			if err != nil {
-				return nil, err
-			}
-			defer parquet.Release(page)
-
-			c, err := page.Values().ReadValues(buf)
-			if err != nil && !errors.Is(err, io.EOF) {
-				return nil, err
-			}
-			if c < 1 {
-				return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), meta.BlockID, rgIdx)
-			}
-
-			// Clone ensures that the byte array is disconnected
-			// from the underlying i/o buffers.
-			minID = buf[0].Clone().ByteArray()
-			rowGroupMins[rgIdx] = minID
-			return minID, nil
-		}
-
-		rowGroup, err = binarySearch(numRowGroups, func(rgIdx int) (int, error) {
-			rgMinID, err := getRowGroupMin(rgIdx)
-			if err != nil {
-				return 0, err
-			}
-
-			if check := bytes.Compare(traceID, rgMinID); check <= 0 {
-				// Trace is before or in this group
-				return check, nil
-			}
-
-			rgMaxID, err := getRowGroupMin(rgIdx + 1)
-			if err != nil {
-				return 0, err
-			}
-
-			// This is actually the min of the next group, so check is exclusive not inclusive like min
-			// Except for the last group, it is inclusive
-			check := bytes.Compare(traceID, rgMaxID)
-			if check > 0 || (check == 0 && rgIdx < (numRowGroups-1)) {
-				// Trace is after this group
-				return 1, nil
-			}
-
-			// Must be in this group
-			return 0, nil
-		})
-		if err != nil {
-			return nil, fmt.Errorf("error binary searching row groups: %w", err)
+		var ok bool
+		rowGroup, ok = findRowGroupByStats(pf, colIndex, traceID)
+		if ok && rowGroup == -1 {
+			return nil, nil
 		}
 	}
 
-	if rowGroup == -1 {
-		// Not within the bounds of any row group
-		return nil, nil
+	// Without statistics, scan every row group.
+	firstRowGroup := 0
+	if rowGroup != -1 {
+		firstRowGroup = rowGroup
+		rowGroups = rowGroups[rowGroup : rowGroup+1]
 	}
 
-	// Now iterate the matching row group
 	iter := pq.NewSyncIterator(
-		ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex,
+		ctx, rowGroups, colIndex,
 		pq.SyncIteratorOptPredicate(pq.NewStringInPredicate([]string{string(traceID)})),
 		pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
 	)
@@ -255,7 +186,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	// The row number coming out of the iterator is relative,
 	// so offset it using the num rows in all previous groups
 	rowMatch := int64(0)
-	for _, rg := range pf.RowGroups()[0:rowGroup] {
+	for _, rg := range pf.RowGroups()[0:firstRowGroup] {
 		rowMatch += rg.NumRows()
 	}
 	rowMatch += int64(res.RowNumber[0])
@@ -280,29 +211,22 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	return ParquetTraceToTempopbTrace(meta, tr), nil
 }
 
-// binarySearch that finds exact matching entry. Returns non-zero index when found, or -1 when not found
-// Inspired by sort.Search but makes uses of tri-state comparator to eliminate the last comparison when
-// we want to find exact match, not insertion point.
-func binarySearch(n int, compare func(int) (int, error)) (int, error) {
-	i, j := 0, n
-	for i < j {
-		h := int(uint(i+j) >> 1) // avoid overflow when computing h
-		c, err := compare(h)
-		if err != nil {
-			return -1, err
-		}
-		// i ≤ h < j
-		switch c {
-		case 0:
-			// Found exact match
-			return h, nil
-		case -1:
-			j = h
-		case 1:
-			i = h + 1
+// findRowGroupByStats returns the row group whose footer min/max contains traceID, or -1.
+// ok is false if any row group lacks statistics.
+func findRowGroupByStats(pf *parquet.File, colIndex int, traceID common.ID) (rowGroup int, ok bool) {
+	rgs := pf.Metadata().RowGroups
+	for _, rg := range rgs {
+		s := rg.Columns[colIndex].MetaData.Statistics
+		if len(s.MinValue) == 0 || len(s.MaxValue) == 0 {
+			return -1, false
 		}
 	}
 
-	// No match
-	return -1, nil
+	i := sort.Search(len(rgs), func(i int) bool {
+		return bytes.Compare(rgs[i].Columns[colIndex].MetaData.Statistics.MaxValue, traceID) >= 0
+	})
+	if i == len(rgs) || bytes.Compare(traceID, rgs[i].Columns[colIndex].MetaData.Statistics.MinValue) < 0 {
+		return -1, true
+	}
+	return i, true
 }
