@@ -40,6 +40,65 @@ As jobs complete, new ones are dispatched.
 This limits the blast radius of a single large query.
 In shared clusters, keeping this value lower ensures fair scheduling across tenants.
 
+## Query range limits
+
+A fixed `max_duration` is a poor proxy for query cost.
+The same range can hold gigabytes for one tenant and terabytes for another.
+
+`max_scanned_bytes`, under `query_frontend.search` or `query_frontend.metrics`, limits the range by the bytes of the backend blocks it scans.
+The allowed range is the longest window ending at the query end whose backend blocks fit in `max_scanned_bytes`.
+It's then raised to `min_duration` and capped at `max_duration`.
+Longer queries are rejected with a 400 error that reports the allowed range and asks the user to reduce the time range. If the newest data in the range is already over the limit, the error says so instead.
+A query of `min_duration` or less is always allowed.
+If `min_duration` is above `max_duration`, `max_duration` wins.
+Data newer than `query_backend_after` isn't counted.
+Metrics queries are counted over the requested range. Step alignment can widen the scanned range by up to 4 steps, so a query with a large step can scan more than `max_scanned_bytes`, the same as with `max_duration`.
+`0` (default) disables the limit, and `min_duration` has no effect without `max_scanned_bytes`.
+
+For example, this configuration lets a search span up to 30 days when its blocks fit in 500 GB,
+and always allows 7 days:
+
+```yaml
+query_frontend:
+  search:
+    max_duration: 720h
+    max_scanned_bytes: 500000000000  # 500 GB
+    min_duration: 168h
+  metrics:
+    max_duration: 168h
+    max_scanned_bytes: 100000000000  # 100 GB
+    min_duration: 24h
+```
+
+Per-tenant overrides replace these values for one tenant.
+They are `max_search_scanned_bytes`, `min_search_duration`, `max_metrics_scanned_bytes`, and `min_metrics_duration`,
+set under `read` in the per-tenant overrides file.
+An override of `0` uses the `query_frontend` value.
+Each tenant of a multi-tenant metrics query is checked against its own limits, including its own `max_metrics_duration`, so the query gets the lowest limit of its tenants.
+With `max_scanned_bytes` off, only the `max_duration` of the combined tenant ID applies, as before.
+
+```yaml
+overrides:
+  "<tenant-id>":
+    read:
+      max_search_scanned_bytes: 2000000000000  # 2 TB
+      min_search_duration: 72h
+      max_metrics_scanned_bytes: 200000000000  # 200 GB
+      min_metrics_duration: 48h
+```
+
+To calibrate, the frontend logs a `msg="scanned bytes limit"` line for each tenant a query checks, including queries that `max_duration` rejects.
+Each line has `estimated_scanned_bytes`, the estimated bytes the requested range scans, next to `max_scanned_bytes`, so the gap shows how far to raise the limit for that query.
+To turn the limit on without rejecting any query allowed today, set `min_duration` to the current `max_duration`.
+A tenant with a `max_search_duration` or `max_metrics_duration` override also needs `min_search_duration` or `min_metrics_duration` set to the same value.
+Otherwise, ranges between the config `min_duration` and the tenant's `max_duration` are decided by the budget.
+Multi-tenant metrics queries are the exception: one longer than a member tenant's own `max_metrics_duration` is rejected once the limit is on.
+This LogQL query finds queries that a `max_duration` of 7 days would newly allow:
+
+```logql
+{namespace="tempo", container="query-frontend"} |= "scanned bytes limit" | logfmt | result="rejected_max_duration" | passes_scanned_bytes="true" | requested_seconds <= 604800
+```
+
 ## Querier connections
 
 Queriers connect to the query frontend over streaming gRPC.

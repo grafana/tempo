@@ -29,7 +29,7 @@ import (
 var errQueryWindowWithinEndCutoff = errors.New("query window falls entirely within query_end_cutoff")
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryRangeHandler {
+func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, sl *metricsScannedBytesLimit, apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryRangeHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -60,7 +60,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
-		if err := validateQueryRangeReq(ctx, cfg, o, req); err != nil {
+		if err := validateQueryRangeReq(ctx, cfg, o, sl, req); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
@@ -111,7 +111,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 }
 
 // newMetricsQueryRangeHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, sl *metricsScannedBytesLimit, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -146,7 +146,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 			return httpInvalidRequest(err), nil
 		}
 
-		if err := validateQueryRangeReq(req.Context(), cfg, o, queryRangeReq); err != nil {
+		if err := validateQueryRangeReq(req.Context(), cfg, o, sl, queryRangeReq); err != nil {
 			return httpInvalidRequest(err), nil
 		}
 

@@ -170,8 +170,12 @@ type ReadOverrides struct {
 	MaxConditionGroupsPerTagQuery int `yaml:"max_condition_groups_per_tag_query,omitempty" json:"max_condition_groups_per_tag_query,omitempty"`
 
 	// QueryFrontend enforced overrides
-	MaxSearchDuration  model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
-	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration,omitempty" json:"max_metrics_duration,omitempty"`
+	MaxSearchDuration      model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
+	MaxMetricsDuration     model.Duration `yaml:"max_metrics_duration,omitempty" json:"max_metrics_duration,omitempty"`
+	MaxMetricsScannedBytes uint64         `yaml:"max_metrics_scanned_bytes,omitempty" json:"max_metrics_scanned_bytes,omitempty"`
+	MinMetricsDuration     model.Duration `yaml:"min_metrics_duration,omitempty" json:"min_metrics_duration,omitempty"`
+	MaxSearchScannedBytes  uint64         `yaml:"max_search_scanned_bytes,omitempty" json:"max_search_scanned_bytes,omitempty"`
+	MinSearchDuration      model.Duration `yaml:"min_search_duration,omitempty" json:"min_search_duration,omitempty"`
 
 	UnsafeQueryHints bool `yaml:"unsafe_query_hints,omitempty" json:"unsafe_query_hints,omitempty"`
 

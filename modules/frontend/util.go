@@ -34,6 +34,10 @@ func extractTenant(req *http.Request, logger log.Logger) (string, *http.Response
 
 func acceptAllBlocks(_ *backend.BlockMeta) bool { return true }
 
+func isMetricsGeneratorBlock(m *backend.BlockMeta) bool {
+	return m.ReplicationFactor == backend.MetricsGeneratorReplicationFactor
+}
+
 // setQueryShapeSpanAttrs stamps the query-shape attributes on the given span.
 func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
 	span.SetAttributes(

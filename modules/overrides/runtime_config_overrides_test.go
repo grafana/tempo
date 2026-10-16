@@ -824,6 +824,58 @@ func TestMetricsGeneratorMaxCardinalityPerLabel(t *testing.T) {
 	}
 }
 
+func TestScannedBytesLimitOverrides(t *testing.T) {
+	limits := func(scannedBytes uint64, minDuration time.Duration) ReadOverrides {
+		return ReadOverrides{
+			MaxMetricsScannedBytes: scannedBytes,
+			MinMetricsDuration:     model.Duration(minDuration),
+			MaxSearchScannedBytes:  scannedBytes * 10,
+			MinSearchDuration:      model.Duration(minDuration * 2),
+		}
+	}
+
+	tests := []struct {
+		name               string
+		defaultLimits      Overrides
+		perTenantOverrides *perTenantOverrides
+		expected           map[string]ReadOverrides
+	}{
+		{
+			name:     "unset",
+			expected: map[string]ReadOverrides{"user1": {}, "user2": {}},
+		},
+		{
+			name:          "default only",
+			defaultLimits: Overrides{Read: limits(1000, time.Hour)},
+			expected:      map[string]ReadOverrides{"user1": limits(1000, time.Hour), "user2": limits(1000, time.Hour)},
+		},
+		{
+			name:          "tenant override",
+			defaultLimits: Overrides{Read: limits(1000, time.Hour)},
+			perTenantOverrides: &perTenantOverrides{
+				TenantLimits: map[string]*Overrides{
+					"user1": {Read: limits(5000, 24*time.Hour)},
+				},
+			},
+			expected: map[string]ReadOverrides{"user1": limits(5000, 24*time.Hour), "user2": limits(1000, time.Hour)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			overrides, cleanup := createAndInitializeRuntimeOverridesManager(t, tt.defaultLimits, toYamlBytes(t, tt.perTenantOverrides))
+			defer cleanup()
+
+			for user, expected := range tt.expected {
+				require.Equal(t, expected.MaxMetricsScannedBytes, overrides.MaxMetricsScannedBytes(user), "user: %s", user)
+				require.Equal(t, time.Duration(expected.MinMetricsDuration), overrides.MinMetricsDuration(user), "user: %s", user)
+				require.Equal(t, expected.MaxSearchScannedBytes, overrides.MaxSearchScannedBytes(user), "user: %s", user)
+				require.Equal(t, time.Duration(expected.MinSearchDuration), overrides.MinSearchDuration(user), "user: %s", user)
+			}
+		})
+	}
+}
+
 func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Overrides, perTenantOverrides []byte) (Service, func()) {
 	cfg := Config{
 		Defaults: defaultLimits,
