@@ -36,6 +36,7 @@ type Interface interface {
 	MaxBytesPerTrace(userID string) int
 	IngestionArtificialDelay(userID string) (time.Duration, bool)
 	IngestionRetryInfoEnabled(userID string) bool
+	IngestionCreationGracePeriod(userID string) time.Duration
 	MaxCompactionRange(userID string) time.Duration
 	Forwarders(userID string) []string
 	MaxBytesPerTagValuesQuery(userID string) int

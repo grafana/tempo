@@ -397,6 +397,8 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		IngestionArtificialDelay:   durationPtr(5 * time.Minute),
 		IngestionRetryInfoEnabled:  new(true),
 
+		IngestionCreationGracePeriod: durationPtr(15 * time.Minute),
+
 		MaxLocalTracesPerUser:  1000,
 		MaxGlobalTracesPerUser: 2000,
 

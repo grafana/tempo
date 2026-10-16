@@ -180,8 +180,6 @@ var tracer = otel.Tracer("modules/distributor")
 type rebatchedTrace struct {
 	id        []byte
 	trace     *tempopb.Trace
-	start     uint32 // unix epoch seconds
-	end       uint32 // unix epoch seconds
 	spanCount int
 }
 
@@ -531,7 +529,9 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	maxAttributeBytes := d.getMaxAttributeBytes(userID)
 
-	ringTokens, rebatchedTraces, truncatedAttributesCount, truncationExample, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
+	creationGracePeriod := d.overrides.IngestionCreationGracePeriod(userID)
+
+	ringTokens, rebatchedTraces, truncatedAttributesCount, truncationExample, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes, creationGracePeriod)
 	if err != nil {
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
@@ -554,6 +554,12 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 				"example_field", truncationExample.field,
 				"example_orig_size", truncationExample.origSize)
 		}
+	}
+
+	if len(rebatchedTraces) == 0 {
+		// Every span in the request was discarded, e.g. all were too far in the future.
+		// Nothing to push, and the ring batch call below would otherwise wait on the context.
+		return nil, nil
 	}
 
 	if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
@@ -730,25 +736,34 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 // requestsByTraceID groups ResourceSpans by trace ID, producing hash-ring tokens and
 // rebatched traces for downstream write-path processing. It truncates oversized attributes
 // and returns the first truncation example (if any) for diagnostic logging.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, truncatedAttributesCount, *truncatedAttrInfo, error) {
+// Spans with a start or end time further than creationGracePeriod into the future are discarded
+// and counted in the discarded spans metric. A creationGracePeriod of 0 disables the check.
+// Spans with an end time before their start time are always discarded.
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int, creationGracePeriod time.Duration) ([]uint32, []*rebatchedTrace, truncatedAttributesCount, *truncatedAttrInfo, error) {
 	const tracesPerBatch = 20 // map size hint and per-trace prealloc divisor
-	tracesByID := make(map[uint64]*rebatchedTrace, tracesPerBatch)
-	truncatedCount := truncatedAttributesCount{}
 
-	// Estimate spans per trace, but cap it: an uncapped spanCount/tracesPerBatch
-	// would preallocate too much memory for high-cardinality requests.
-	perTracePrealloc := spanCount / tracesPerBatch
-	if perTracePrealloc > maxPreallocSpansPerTrace {
-		perTracePrealloc = maxPreallocSpansPerTrace
+	var (
+		now                  = time.Now()
+		currentTime          = uint64(now.UnixNano())
+		spansTooFarInFuture  = 0
+		spansInvalidDuration = 0
+		tracesByID           = make(map[uint64]*rebatchedTrace, tracesPerBatch)
+		truncatedCount       = truncatedAttributesCount{}
+		truncationExample    truncatedAttrInfo // truncationExample captures one example of a truncated attribute for rate-limited logging.
+
+		// Estimate spans per trace, but cap it: an uncapped spanCount/tracesPerBatch
+		// would preallocate too much memory for high-cardinality requests.
+		perTracePrealloc = max(min(spanCount/tracesPerBatch, maxPreallocSpansPerTrace), 1)
+	)
+
+	// Spans with a start or end above maxTimestamp are too far in the future and are discarded.
+	// Compared in uint64 nanoseconds so out-of-range timestamps (e.g. above MaxInt64) are caught
+	// without any signed conversion. Disabled (MaxUint64) unless a grace period is set.
+	maxTimestamp := uint64(math.MaxUint64)
+	if creationGracePeriod > 0 {
+		maxTimestamp = uint64(now.Add(creationGracePeriod).UnixNano())
 	}
-	if perTracePrealloc < 1 {
-		perTracePrealloc = 1
-	}
 
-	// truncationExample captures one example of a truncated attribute for rate-limited logging.
-	var truncationExample truncatedAttrInfo
-
-	currentTime := uint32(time.Now().Unix())
 	for _, b := range batches {
 		spansByILS := make(map[uint64]*v1.ScopeSpans)
 		// check resource for large attributes
@@ -764,6 +779,19 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 			}
 
 			for _, span := range ils.Spans {
+				// discard spans too far into the future, prevent issues downstream and they are likely invalid anyway.
+				if span.StartTimeUnixNano > maxTimestamp || span.EndTimeUnixNano > maxTimestamp {
+					spansTooFarInFuture++
+					continue
+				}
+
+				// discard spans that end before they start. The negative duration wraps around
+				// to a huge unsigned value that breaks duration filters on the stored block.
+				if span.EndTimeUnixNano < span.StartTimeUnixNano {
+					spansInvalidDuration++
+					continue
+				}
+
 				// check spans for large attributes
 				if maxSpanAttrSize > 0 {
 					truncatedCount.Span += processAttributes(span.Attributes, maxSpanAttrSize, &truncationExample, "span", userID)
@@ -813,21 +841,12 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 						trace: &tempopb.Trace{
 							ResourceSpans: make([]*v1.ResourceSpans, 0, perTracePrealloc),
 						},
-						start:     math.MaxUint32,
-						end:       0,
 						spanCount: 0,
 					}
 
 					tracesByID[traceKey] = existingTrace
 				}
 
-				start, end := startEndFromSpan(span)
-				if existingTrace.end < end {
-					existingTrace.end = end
-				}
-				if existingTrace.start > start {
-					existingTrace.start = start
-				}
 				if !ilsAdded {
 					existingTrace.trace.ResourceSpans = append(existingTrace.trace.ResourceSpans, &v1.ResourceSpans{
 						Resource:   b.Resource,
@@ -839,13 +858,20 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 				existingTrace.spanCount++
 
 				// Count spans with timestamps in the future
-				if end > currentTime {
-					dataquality.MetricSpanInFuture.WithLabelValues(userID).Observe(float64(end - currentTime))
+				if span.EndTimeUnixNano > currentTime {
+					dataquality.MetricSpanInFuture.WithLabelValues(userID).Observe(time.Duration(span.EndTimeUnixNano - currentTime).Seconds())
 				} else {
-					dataquality.MetricSpanInPast.WithLabelValues(userID).Observe(float64(currentTime - end))
+					dataquality.MetricSpanInPast.WithLabelValues(userID).Observe(time.Duration(currentTime - span.EndTimeUnixNano).Seconds())
 				}
 			}
 		}
+	}
+
+	if spansTooFarInFuture > 0 {
+		overrides.RecordDiscardedSpans(spansTooFarInFuture, overrides.ReasonTooFarInFuture, userID)
+	}
+	if spansInvalidDuration > 0 {
+		overrides.RecordDiscardedSpans(spansInvalidDuration, overrides.ReasonInvalidDuration, userID)
 	}
 
 	metricTracesPerBatch.Observe(float64(len(tracesByID)))
@@ -997,11 +1023,6 @@ func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
 	}
 
 	level.Info(logger).Log("spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
-}
-
-// startEndFromSpan returns a unix epoch timestamp in seconds for the start and end of a span
-func startEndFromSpan(span *v1.Span) (uint32, uint32) {
-	return uint32(span.StartTimeUnixNano / uint64(time.Second)), uint32(span.EndTimeUnixNano / uint64(time.Second))
 }
 
 func (d *Distributor) getMaxAttributeBytes(userID string) int {

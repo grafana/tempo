@@ -751,6 +751,7 @@ overrides:
             burst_size_bytes: 30000000
             max_traces_per_user: 10000
             retry_info_enabled: true
+            creation_grace_period: 10m0s
         read:
             max_bytes_per_tag_values_query: 1000000
             max_condition_groups_per_tag_query: 100
