@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
@@ -727,7 +728,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	const testTopic = "traces"
 	_, kafkaAddr := testkafka.CreateCluster(t, 1, testTopic)
 
-	cfg.IngestConfig.Kafka.Address = kafkaAddr
+	cfg.IngestConfig.Kafka.Address = flagext.StringSliceCSV{kafkaAddr}
 	cfg.IngestConfig.Kafka.Topic = testTopic
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
 
