@@ -42,6 +42,37 @@ func TestCompactedBlockMeta_NotFound(t *testing.T) {
 	require.True(t, errors.Is(err, backend.ErrDoesNotExist))
 }
 
+func TestClearBlock(t *testing.T) {
+	var (
+		blockID      = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+		otherBlockID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+		keys         []string
+		otherKeys    = []string{
+			"tempo/tenant/" + otherBlockID.String() + "/meta.json",
+			"tempo/tenant/" + otherBlockID.String() + "/data.parquet",
+		}
+	)
+	// more objects than fit in one page of the fake bucket
+	for _, name := range []string{"meta.json", "data.parquet", "bloom-0", "bloom-1", "bloom-2", "index"} {
+		keys = append(keys, "tempo/tenant/"+blockID.String()+"/"+name)
+	}
+
+	bucket, endpoint := newFakeBucket(t, true, append(keys, otherKeys...)...)
+	_, _, c, err := NewNoConfirm(&Config{
+		Region:    "blerg",
+		AccessKey: "test",
+		SecretKey: flagext.SecretWithValue("test"),
+		Bucket:    directoryBucketName,
+		Prefix:    "tempo",
+		Insecure:  true,
+		Endpoint:  endpoint,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, c.ClearBlock(blockID, "tenant"))
+	assert.ElementsMatch(t, otherKeys, bucket.remainingKeys())
+}
+
 func TestMarkBlockCompacted(t *testing.T) {
 	sseConfig := SSEConfig{
 		Type:                 SSEKMS,
