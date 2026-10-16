@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: storage
+
+note: Fix TraceQL metrics counting spans without a dedicated attribute for chained `!=`, e.g. `{ span.foo != "a" && span.foo != "b" } | rate()`.
+
+issues: []
+
+subtext:
+
+user: zhxiaogg
