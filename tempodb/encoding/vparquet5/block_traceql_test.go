@@ -603,8 +603,20 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{"string in int column, not exists", intCol, strValue, false, `{ %[1]s.mixed = nil }`, false},
 	}
 
-	// checkQuery writes the trace between filler traces, so iterators seek across row groups, and checks both fetch paths.
-	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, match bool) {
+	// checkQuery writes the trace between filler traces, so iterators seek across row groups, and runs both fetch paths.
+	// want returns the attribute values a matched span must return.
+	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, want func(traceql.Span) map[traceql.Attribute]traceql.Static) (fetchMatch, fetchSpansMatch bool) {
+		requireValues := func(path string, sp traceql.Span) {
+			if want == nil {
+				return
+			}
+			for a, v := range want(sp) {
+				got, ok := sp.AttributeFor(a)
+				require.True(t, ok, "%s: %s missing for %s", path, a, query)
+				require.Equal(t, v.EncodeToString(true), got.EncodeToString(true), "%s: %s for %s", path, a, query)
+			}
+		}
+
 		traces := make([]*Trace, 0, 301)
 		for i := 0; i < 300; i++ {
 			if i == 150 {
@@ -628,9 +640,14 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 			if ss == nil {
 				break
 			}
-			found = found || bytes.Equal(ss.TraceID, id)
+			if bytes.Equal(ss.TraceID, id) {
+				found = true
+				for _, sp := range ss.Spans {
+					requireValues("Fetch", sp)
+				}
+			}
 		}
-		require.Equal(t, match, found, "Fetch: %s", query)
+		fetchMatch = found
 
 		req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
 		req.SecondPassConditions = traceql.SearchMetaConditions()
@@ -646,10 +663,15 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 				break
 			}
 			traceID, ok := sp.AttributeFor(traceql.IntrinsicTraceIDAttribute)
-			found = found || (ok && traceID.EncodeToString(false) == util.TraceIDToHexString(id))
+			if ok && traceID.EncodeToString(false) == util.TraceIDToHexString(id) {
+				found = true
+				requireValues("FetchSpans", sp)
+			}
 		}
-		require.Equal(t, match, found, "FetchSpans: %s", query)
+		return fetchMatch, found
 	}
+
+	staticOf := map[*v1_common.AnyValue]traceql.Static{intValue: traceql.NewStaticInt(1), strValue: traceql.NewStaticString("a")}
 
 	makeTrace := func(id []byte, scope backend.DedicatedColumnScope, value *v1_common.AnyValue, onlyAttr, withEvent bool) *tempopb.Trace {
 		attrs := func(s backend.DedicatedColumnScope) []*v1_common.KeyValue {
@@ -680,13 +702,26 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		}}}
 	}
 
-	for _, scope := range []backend.DedicatedColumnScope{backend.DedicatedColumnScopeSpan, backend.DedicatedColumnScopeResource, backend.DedicatedColumnScopeEvent} {
+	scopes := []backend.DedicatedColumnScope{backend.DedicatedColumnScopeSpan, backend.DedicatedColumnScopeResource, backend.DedicatedColumnScopeEvent}
+	mixedAttr := func(scope backend.DedicatedColumnScope) traceql.Attribute {
+		return traceql.NewScopedAttribute(traceql.AttributeScopeFromString(string(scope)), false, "mixed")
+	}
+
+	for _, scope := range scopes {
 		for _, tc := range testCases {
 			query := fmt.Sprintf(tc.query, scope)
 			t.Run(fmt.Sprintf("%s/%s", scope, tc.name), func(t *testing.T) {
 				id := test.ValidTraceID(nil)
 				dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: tc.colType}}
-				checkQuery(t, dc, id, makeTrace(id, scope, tc.value, tc.onlyAttr, true), query, tc.match)
+				var want func(traceql.Span) map[traceql.Attribute]traceql.Static
+				if tc.match && tc.value != nil {
+					want = func(traceql.Span) map[traceql.Attribute]traceql.Static {
+						return map[traceql.Attribute]traceql.Static{mixedAttr(scope): staticOf[tc.value]}
+					}
+				}
+				fetchMatch, fetchSpansMatch := checkQuery(t, dc, id, makeTrace(id, scope, tc.value, tc.onlyAttr, true), query, want)
+				require.Equal(t, tc.match, fetchMatch, "Fetch: %s", query)
+				require.Equal(t, tc.match, fetchSpansMatch, "FetchSpans: %s", query)
 			})
 		}
 	}
@@ -695,8 +730,60 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 	t.Run("event/no events, not exists", func(t *testing.T) {
 		id := test.ValidTraceID(nil)
 		dc := backend.DedicatedColumns{{Scope: backend.DedicatedColumnScopeEvent, Name: "mixed", Type: strCol}}
-		checkQuery(t, dc, id, makeTrace(id, backend.DedicatedColumnScopeEvent, nil, false, false), `{ event.mixed = nil }`, false)
+		fetchMatch, fetchSpansMatch := checkQuery(t, dc, id, makeTrace(id, backend.DedicatedColumnScopeEvent, nil, false, false), `{ event.mixed = nil }`, nil)
+		require.False(t, fetchMatch)
+		require.False(t, fetchSpansMatch)
 	})
+
+	// Several rows hold different values in generic attributes, so a join or union reads ahead between them.
+	for _, scope := range scopes {
+		for _, q := range []string{`{ %[1]s.mixed != nil }`, `{ %[1]s.mixed != nil || %[1]s.missing = "x" }`} {
+			query := fmt.Sprintf(q, scope)
+			t.Run(fmt.Sprintf("%s/several rows/%s", scope, query), func(t *testing.T) {
+				id := test.ValidTraceID(nil)
+				dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: strCol}}
+
+				// Rows hold different scalars and arrays, since arrays reuse the collector's buffers.
+				array := func(values ...*v1_common.AnyValue) *v1_common.AnyValue {
+					return &v1_common.AnyValue{Value: &v1_common.AnyValue_ArrayValue{ArrayValue: &v1_common.ArrayValue{Values: values}}}
+				}
+				intOf := func(i int) *v1_common.AnyValue {
+					return &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: int64(i)}}
+				}
+				floatOf := func(f float64) *v1_common.AnyValue {
+					return &v1_common.AnyValue{Value: &v1_common.AnyValue_DoubleValue{DoubleValue: f}}
+				}
+				boolOf := func(b bool) *v1_common.AnyValue {
+					return &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: b}}
+				}
+				wantByRow := map[byte]traceql.Static{}
+				tr := &tempopb.Trace{}
+				for i := 0; i < 8; i++ {
+					var value *v1_common.AnyValue
+					switch i % 4 {
+					case 0:
+						value, wantByRow[byte(i)] = intOf(10+i), traceql.NewStaticInt(10+i)
+					case 1:
+						value, wantByRow[byte(i)] = array(intOf(10+i), intOf(20+i)), traceql.NewStaticIntArray([]int{10 + i, 20 + i})
+					case 2:
+						value, wantByRow[byte(i)] = array(floatOf(float64(i)+0.5), floatOf(float64(i)+1.5)), traceql.NewStaticFloatArray([]float64{float64(i) + 0.5, float64(i) + 1.5})
+					case 3:
+						value, wantByRow[byte(i)] = array(boolOf(i == 3), boolOf(i != 3)), traceql.NewStaticBooleanArray([]bool{i == 3, i != 3})
+					}
+					rowTrace := makeTrace(id, scope, value, false, true)
+					rowTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanId = []byte{1, 2, 3, 4, 5, 6, 7, byte(i)}
+					tr.ResourceSpans = append(tr.ResourceSpans, rowTrace.ResourceSpans...)
+				}
+
+				want := func(sp traceql.Span) map[traceql.Attribute]traceql.Static {
+					return map[traceql.Attribute]traceql.Static{mixedAttr(scope): wantByRow[sp.ID()[7]]}
+				}
+				fetchMatch, fetchSpansMatch := checkQuery(t, dc, id, tr, query, want)
+				require.True(t, fetchMatch, "Fetch: %s", query)
+				require.True(t, fetchSpansMatch, "FetchSpans: %s", query)
+			})
+		}
+	}
 }
 
 func searchesThatMatch(t *testing.T, traceIDText string) []struct {
