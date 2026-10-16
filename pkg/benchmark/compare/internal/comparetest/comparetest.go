@@ -3,6 +3,7 @@
 package comparetest
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -60,6 +61,36 @@ func Comparison(t *testing.T) *compare.Comparison {
 		run("2MiB", 2<<20, 98, 5),
 		run("4MiB", 4<<20, 87, 6),
 	})
+	require.NoError(t, err)
+	return c
+}
+
+// Family compares base and next over search/nopredicate and nine cases of the
+// family search/ranked_generic, three per band, all 10ns on base. Next is 4x on
+// case 0, 1/4 on case 1, +10% on six more, and matches differently on case 8.
+func Family(t *testing.T) *compare.Comparison {
+	t.Helper()
+	run := func(name string, next bool) compare.Run {
+		r := Result("mac", Case("search/nopredicate", 1, metrics.Set{"harness.wallNs": Measurement(10)}))
+		for i := range 9 {
+			p50, matched := 10.0, int64(1)
+			if next {
+				switch i {
+				case 0:
+					p50 = 40
+				case 1:
+					p50 = 2.5
+				case 8:
+					matched = 2
+				default:
+					p50 = 11
+				}
+			}
+			r.Cases = append(r.Cases, Case(fmt.Sprintf("search/ranked_generic/%s/%d", []string{"high", "medium", "low"}[i%3], i), matched, metrics.Set{"harness.wallNs": Measurement(p50)}))
+		}
+		return compare.Run{Name: name, Result: r}
+	}
+	c, err := compare.New([]compare.Run{run("base", false), run("next", true)})
 	require.NoError(t, err)
 	return c
 }

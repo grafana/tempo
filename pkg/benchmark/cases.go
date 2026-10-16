@@ -85,16 +85,10 @@ func fixedCases() []benchCase {
 				return traceByIDExecutions(prof.TraceIDs.Absent, opts.searchOptions())
 			},
 		},
-		{
-			// The fetch path with nothing to prune by.
-			id:    "search/nopredicate",
-			api:   apiSearch,
-			query: "{}",
-			executions: func(prof *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				return searchExecutions("{}", shards, prof.Block, opts.searchOptions()), nil
-			},
-		},
 	}
+
+	// The fetch path with nothing to prune by.
+	cases = append(cases, searchCase("search/nopredicate", "{}"))
 
 	for _, q := range basicMetricsQueries {
 		cases = append(cases, metricsCase("metrics/"+q.id, q.query))
