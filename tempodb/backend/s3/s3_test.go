@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -739,6 +740,308 @@ func TestListBlocksWithPrefix(t *testing.T) {
 			assert.ElementsMatchf(t, tc.noCompactBlockIDs, noCompactBlockIDs, "Nocompact block IDs did not match")
 		})
 	}
+}
+
+func TestListObjectsVersion(t *testing.T) {
+	const (
+		tenant   = "single-tenant"
+		liveID   = "00000000-0000-0000-0000-0000000000aa"
+		liveKey  = tenant + "/" + liveID + "/meta.json"
+		compID   = "00000000-0000-0000-0000-0000000000bb"
+		compKey  = tenant + "/" + compID + "/meta.compacted.json"
+		live2ID  = "00000000-0000-0000-0000-0000000000cc"
+		live2Key = tenant + "/" + live2ID + "/meta.json"
+	)
+
+	v1Page := func(truncated bool, nextMarker string, keys ...string) string {
+		var sb strings.Builder
+		sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>blerg</Name>`)
+		if truncated {
+			sb.WriteString(`<IsTruncated>true</IsTruncated>`)
+		} else {
+			sb.WriteString(`<IsTruncated>false</IsTruncated>`)
+		}
+		sb.WriteString(`<NextMarker>` + nextMarker + `</NextMarker>`)
+		for _, k := range keys {
+			sb.WriteString(`<Contents><Key>` + k + `</Key><LastModified>2024-03-01T00:00:00.000Z</LastModified><ETag>&quot;abc&quot;</ETag><Size>398</Size><StorageClass>STANDARD</StorageClass></Contents>`)
+		}
+		sb.WriteString(`</ListBucketResult>`)
+		return sb.String()
+	}
+
+	v2Page := func(keys ...string) string {
+		var sb strings.Builder
+		sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>blerg</Name><IsTruncated>false</IsTruncated>`)
+		for _, k := range keys {
+			sb.WriteString(`<Contents><Key>` + k + `</Key><LastModified>2024-03-01T00:00:00.000Z</LastModified><ETag>&quot;abc&quot;</ETag><Size>398</Size><StorageClass>STANDARD</StorageClass></Contents>`)
+		}
+		sb.WriteString(`</ListBucketResult>`)
+		return sb.String()
+	}
+
+	tests := []struct {
+		name               string
+		listObjectsVersion string
+		liveBlockIDs       []uuid.UUID
+		compactedBlockIDs  []uuid.UUID
+		wantErr            bool
+		httpHandler        func(t *testing.T) http.HandlerFunc
+	}{
+		{
+			// (a) default → V2 on the wire
+			name:               "default uses v2",
+			listObjectsVersion: "",
+			liveBlockIDs:       []uuid.UUID{uuid.MustParse(liveID)},
+			compactedBlockIDs:  []uuid.UUID{uuid.MustParse(compID)},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					assert.Equal(t, "2", r.URL.Query().Get("list-type"), "default must use ListObjectsV2 on the wire")
+					_, _ = w.Write([]byte(v2Page(liveKey, compKey)))
+				}
+			},
+		},
+		{
+			// (b) v1 single page → no list-type
+			name:               "v1 single page",
+			listObjectsVersion: ListObjectsVersionV1,
+			liveBlockIDs:       []uuid.UUID{uuid.MustParse(liveID)},
+			compactedBlockIDs:  []uuid.UUID{uuid.MustParse(compID)},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					assert.Equal(t, "", r.URL.Query().Get("list-type"), "v1 must not send list-type")
+					_, _ = w.Write([]byte(v1Page(false, "", liveKey, compKey)))
+				}
+			},
+		},
+		{
+			// (c) v1 truncated two-page → page 2 carries the expected marker
+			name:               "v1 truncated two pages with NextMarker",
+			listObjectsVersion: ListObjectsVersionV1,
+			liveBlockIDs:       []uuid.UUID{uuid.MustParse(liveID), uuid.MustParse(live2ID)},
+			compactedBlockIDs:  []uuid.UUID{},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				var calls int
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					assert.Equal(t, "", r.URL.Query().Get("list-type"), "v1 must not send list-type")
+					calls++
+					if calls == 1 {
+						// page 1: truncated, advertise NextMarker = liveKey
+						_, _ = w.Write([]byte(v1Page(true, liveKey, liveKey)))
+						return
+					}
+					// page 2: must carry the marker advertised by page 1
+					assert.Equal(t, liveKey, r.URL.Query().Get("marker"), "page 2 must use NextMarker from page 1")
+					_, _ = w.Write([]byte(v1Page(false, "", live2Key)))
+				}
+			},
+		},
+		{
+			// (d) v1 truncated with EMPTY NextMarker → terminates via last key
+			name:               "v1 truncated empty NextMarker terminates",
+			listObjectsVersion: ListObjectsVersionV1,
+			liveBlockIDs:       []uuid.UUID{uuid.MustParse(liveID)},
+			compactedBlockIDs:  []uuid.UUID{uuid.MustParse(compID)},
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				var calls int
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					assert.Equal(t, "", r.URL.Query().Get("list-type"), "v1 must not send list-type")
+					calls++
+					if calls == 1 {
+						// page 1: truncated, EMPTY NextMarker, single Contents (liveKey)
+						_, _ = w.Write([]byte(v1Page(true, "", liveKey)))
+						return
+					}
+					// page 2: marker must fall back to the last key of page 1
+					assert.Equal(t, liveKey, r.URL.Query().Get("marker"), "page 2 must fall back to last key when NextMarker empty")
+					_, _ = w.Write([]byte(v1Page(false, "", compKey)))
+				}
+			},
+		},
+		{
+			// (e) v1 truncated with empty NextMarker AND empty page → error, not a silently short listing
+			name:               "v1 truncated empty page fails",
+			listObjectsVersion: ListObjectsVersionV1,
+			wantErr:            true,
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				var calls int
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					calls++
+					if calls > 1 {
+						// A correct implementation cannot advance the marker on an empty,
+						// NextMarker-less truncated page, so it must stop after page 1.
+						t.Errorf("must not re-request after a non-advancing truncated page (call %d)", calls)
+						_, _ = w.Write([]byte(v1Page(false, "")))
+						return
+					}
+					// page 1: truncated, empty NextMarker, no Contents
+					_, _ = w.Write([]byte(v1Page(true, "")))
+				}
+			},
+		},
+		{
+			// (f) v1 truncated with a NextMarker that does not move forward → error, not a loop
+			name:               "v1 repeated marker fails",
+			listObjectsVersion: ListObjectsVersionV1,
+			wantErr:            true,
+			httpHandler: func(t *testing.T) http.HandlerFunc {
+				var calls int
+				return func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != getMethod {
+						return
+					}
+					calls++
+					if calls > 2 {
+						t.Errorf("must not re-request after a non-advancing truncated page (call %d)", calls)
+						_, _ = w.Write([]byte(v1Page(false, "")))
+						return
+					}
+					// every page: truncated, NextMarker stuck at the first key
+					_, _ = w.Write([]byte(v1Page(true, liveKey, liveKey)))
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := testServer(t, tc.httpHandler(t))
+			r, _, _, err := NewNoConfirm(&Config{
+				Region:                "blerg",
+				AccessKey:             "test",
+				SecretKey:             flagext.SecretWithValue("test"),
+				Bucket:                "blerg",
+				Insecure:              true,
+				Endpoint:              server.URL[7:],
+				ListBlocksConcurrency: 1,
+				ListObjectsVersion:    tc.listObjectsVersion,
+			})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			blockIDs, compactedBlockIDs, noCompactBlockIDs, err := r.ListBlocks(ctx, tenant)
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+
+			assert.ElementsMatchf(t, tc.liveBlockIDs, blockIDs, "Block IDs did not match")
+			assert.ElementsMatchf(t, tc.compactedBlockIDs, compactedBlockIDs, "Compacted block IDs did not match")
+			assert.Empty(t, noCompactBlockIDs)
+		})
+	}
+}
+
+// v1MarkerStore serves V1 listings that honour prefix and marker, two keys per page, and
+// never send NextMarker, like S3 when the request has no delimiter. It counts V2 requests.
+func v1MarkerStore(keys []string, v2Calls *atomic.Int32) http.HandlerFunc {
+	sort.Strings(keys)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != getMethod {
+			return
+		}
+		q := r.URL.Query()
+		if q.Get("list-type") == "2" {
+			v2Calls.Add(1)
+		}
+		prefix, marker := q.Get("prefix"), q.Get("marker")
+		var page []string
+		truncated := false
+		for _, k := range keys {
+			if !strings.HasPrefix(k, prefix) || k <= marker {
+				continue
+			}
+			if len(page) == 2 {
+				truncated = true
+				break
+			}
+			page = append(page, k)
+		}
+		var sb strings.Builder
+		fmt.Fprintf(&sb, `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>blerg</Name><IsTruncated>%v</IsTruncated>`, truncated)
+		for _, k := range page {
+			sb.WriteString(`<Contents><Key>` + k + `</Key><LastModified>2024-03-01T00:00:00.000Z</LastModified><Size>1</Size></Contents>`)
+		}
+		sb.WriteString(`</ListBucketResult>`)
+		_, _ = w.Write([]byte(sb.String()))
+	}
+}
+
+func TestListObjectsVersionV1Sharded(t *testing.T) {
+	var (
+		keys    []string
+		want    []uuid.UUID
+		v2Calls atomic.Int32
+	)
+	for i := 0; i < 40; i++ {
+		id := uuid.New()
+		want = append(want, id)
+		keys = append(keys, "t/"+id.String()+"/meta.json", "t/"+id.String()+"/data.parquet")
+	}
+	server := testServer(t, v1MarkerStore(keys, &v2Calls))
+	r, _, _, err := NewNoConfirm(&Config{
+		Region:                "blerg",
+		AccessKey:             "test",
+		SecretKey:             flagext.SecretWithValue("test"),
+		Bucket:                "blerg",
+		Insecure:              true,
+		Endpoint:              server.URL[7:],
+		ListBlocksConcurrency: 3,
+		ListObjectsVersion:    ListObjectsVersionV1,
+	})
+	require.NoError(t, err)
+
+	got, _, _, err := r.ListBlocks(context.Background(), "t")
+	require.NoError(t, err)
+	require.ElementsMatch(t, want, got)
+	require.Zero(t, v2Calls.Load())
+}
+
+func TestListObjectsVersionV1Find(t *testing.T) {
+	var (
+		keys    []string
+		v2Calls atomic.Int32
+	)
+	for i := 0; i < 7; i++ {
+		keys = append(keys, fmt.Sprintf("t/obj-%02d", i))
+	}
+	server := testServer(t, v1MarkerStore(keys, &v2Calls))
+	r, _, _, err := NewNoConfirm(&Config{
+		Region:             "blerg",
+		AccessKey:          "test",
+		SecretKey:          flagext.SecretWithValue("test"),
+		Bucket:             "blerg",
+		Insecure:           true,
+		Endpoint:           server.URL[7:],
+		ListObjectsVersion: ListObjectsVersionV1,
+	})
+	require.NoError(t, err)
+
+	var got []string
+	err = r.Find(context.Background(), backend.KeyPath{"t"}, func(m backend.FindMatch) { got = append(got, m.Key) })
+	require.NoError(t, err)
+	require.Equal(t, keys, got)
+	require.Zero(t, v2Calls.Load())
+}
+
+func TestListObjectsVersionInvalid(t *testing.T) {
+	_, _, _, err := NewNoConfirm(&Config{Region: "blerg", Bucket: "blerg", Endpoint: "localhost:1", ListObjectsVersion: "V1"})
+	require.Error(t, err)
 }
 
 func TestObjectStorageClass(t *testing.T) {
