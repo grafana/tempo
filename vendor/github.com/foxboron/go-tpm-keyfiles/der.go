@@ -17,7 +17,7 @@ var (
 	// id-tpmkey OBJECT IDENTIFIER ::=
 	//   {joint-iso-itu-t(2) international-organizations(23) 133 10 1}
 	// Probably not used, but here for reference
-	oidTPMKey = encasn1.ObjectIdentifier{2, 23, 133, 10, 2}
+	// oidTPMKey = encasn1.ObjectIdentifier{2, 23, 133, 10, 2}
 
 	OIDOldLoadableKey = encasn1.ObjectIdentifier{2, 23, 133, 10, 2}
 
@@ -278,7 +278,6 @@ func Marshal(key *TPMKey) []byte {
 	var b cryptobyte.Builder
 
 	b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
-
 		b.AddASN1ObjectIdentifier(key.Keytype)
 
 		if key.EmptyAuth {
