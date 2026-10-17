@@ -87,6 +87,7 @@ const (
 	PathSearchTagValues     = "/api/search/tag/" + MuxVarTagInPath + "/values"
 	PathEcho                = "/api/echo"
 	PathBuildInfo           = "/api/status/buildinfo"
+	PathQueryTracker        = "/status/active-queries"
 	PathUsageStats          = "/status/usage-stats"
 	PathMetricsQueryInstant = "/api/metrics/query"
 	PathMetricsQueryRange   = "/api/metrics/query_range"

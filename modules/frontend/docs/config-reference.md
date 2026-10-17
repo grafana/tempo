@@ -389,6 +389,10 @@ query_frontend:
         max_regex_conditions: 1
     mcp_server:
         enabled: false
+    query_tracker:
+        enabled: false
+        max_queries_per_tenant: 20
+        max_query_text_bytes: 4096
     max_grpc_streaming_packet_size: 1048576
     max_query_expression_size_bytes: 131072
     query_end_cutoff: 30s

@@ -41,19 +41,26 @@ type handler struct {
 	roundTripper           http.RoundTripper
 	logger                 log.Logger
 	logQueryRequestHeaders flagext.StringSliceCSV
+	queryTracker           tracker
 }
 
 // newHandler creates a handler
-func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
+func newHandler(logQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
+	return newHandlerWithTracker(logQueryRequestHeaders, rt, logger, noOpQueryTracker{})
+}
+
+func newHandlerWithTracker(logQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger, queryTracker tracker) http.Handler {
 	return &handler{
-		logQueryRequestHeaders: LogQueryRequestHeaders,
+		logQueryRequestHeaders: logQueryRequestHeaders,
 		roundTripper:           rt,
 		logger:                 logger,
+		queryTracker:           queryTracker,
 	}
 }
 
 // ServeHTTP implements http.Handler
 func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer f.queryTracker.track(r.Context(), r.Method, r.URL.Path, httpQueryText(r))()
 	defer func() {
 		_ = r.Body.Close()
 	}()
@@ -137,6 +144,15 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"status", statusCode,
 	)
 	level.Info(f.logger).Log(logMessage...)
+}
+
+func httpQueryText(r *http.Request) string {
+	query := r.URL.Query().Get("q")
+	if query != "" {
+		return query
+	}
+
+	return r.URL.Query().Get("query")
 }
 
 func formatRequestHeaders(h *http.Header, headersToLog []string) (fields []interface{}) {
