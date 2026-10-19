@@ -90,9 +90,24 @@ type IngestionOverrides struct {
 	CreationGracePeriod *time.Duration `yaml:"creation_grace_period,omitempty" json:"creation_grace_period,omitempty"`
 }
 
+const (
+	defaultForwarderQueueSize = 100
+	defaultForwarderWorkers   = 2
+)
+
 type ForwarderOverrides struct {
 	QueueSize int `yaml:"queue_size,omitempty" json:"queue_size,omitempty"`
 	Workers   int `yaml:"workers,omitempty" json:"workers,omitempty"`
+}
+
+func (cfg ForwarderOverrides) validate() error {
+	if cfg.QueueSize < 0 {
+		return fmt.Errorf("forwarder.queue_size must be non-negative")
+	}
+	if cfg.Workers < 0 {
+		return fmt.Errorf("forwarder.workers must be non-negative")
+	}
+	return nil
 }
 
 type ServiceGraphsOverrides struct {
@@ -237,8 +252,10 @@ type Overrides struct {
 	Compaction CompactionOverrides `yaml:"compaction,omitempty" json:"compaction,omitempty"`
 	// MetricsGenerator enforced overrides.
 	MetricsGenerator MetricsGeneratorOverrides `yaml:"metrics_generator,omitempty" json:"metrics_generator,omitempty"`
-	// Forwarders
+	// External forwarder destinations and per-tenant queue controls.
 	Forwarders []string `yaml:"forwarders,omitempty" json:"forwarders,omitempty"`
+	// The override accessors interpret zero values as 100 queued batches and 2 workers.
+	Forwarder ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 	// Global enforced overrides.
 	Global GlobalOverrides `yaml:"global,omitempty" json:"global,omitempty"`
 	// Storage enforced overrides.

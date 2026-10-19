@@ -39,6 +39,8 @@ type Interface interface {
 	IngestionCreationGracePeriod(userID string) time.Duration
 	MaxCompactionRange(userID string) time.Duration
 	Forwarders(userID string) []string
+	ForwarderQueueSize(userID string) int
+	ForwarderWorkers(userID string) int
 	MaxBytesPerTagValuesQuery(userID string) int
 	MaxBlocksPerTagValuesQuery(userID string) int
 	MaxConditionGroupsPerTagQuery() int

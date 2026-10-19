@@ -402,7 +402,9 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MaxLocalTracesPerUser:  1000,
 		MaxGlobalTracesPerUser: 2000,
 
-		Forwarders: []string{"forwarder-1", "forwarder-2"},
+		Forwarders:         []string{"forwarder-1", "forwarder-2"},
+		ForwarderQueueSize: 250,
+		ForwarderWorkers:   4,
 
 		MetricsGeneratorRingSize:                                                    3,
 		MetricsGeneratorProcessors:                                                  makeListToMap([]string{"processor-1", "processor-2"}),
