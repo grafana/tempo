@@ -56,6 +56,12 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 		}
 	}
 
+	if maxItems := config.MetricsGenerator.Processor.ServiceGraphs.MaxItems; maxItems != nil {
+		if err := validation.ValidateServiceGraphsMaxItems(*maxItems); err != nil {
+			return warnings, err
+		}
+	}
+
 	serviceBuckets := config.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets
 	if err := validation.ValidateHistogramBuckets(serviceBuckets, "metrics_generator.processor.service_graphs.histogram_buckets"); err != nil {
 		return warnings, err

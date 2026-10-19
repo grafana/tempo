@@ -185,6 +185,16 @@ func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prome
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
+	if validator != nil {
+		warnings, err := validator.Validate(&cfg.Defaults)
+		if err != nil {
+			return nil, fmt.Errorf("validating overrides defaults failed: %w", err)
+		}
+		for _, warning := range warnings {
+			level.Warn(log.Logger).Log("msg", "Overrides validation warning", "tenant", "defaults", "warning", warning)
+		}
+	}
+
 	if cfg.PerTenantOverrideConfig != "" {
 		runtimeCfg := runtimeconfig.Config{
 			LoadPath:     []string{cfg.PerTenantOverrideConfig},
@@ -611,6 +621,15 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorForwarderQueueSize(userI
 // MetricsGeneratorForwarderWorkers is the number of workers to send metrics to the metrics-generator
 func (o *runtimeConfigOverridesManager) MetricsGeneratorForwarderWorkers(userID string) int {
 	return o.getOverridesForUser(userID).MetricsGenerator.Forwarder.Workers
+}
+
+// MetricsGeneratorProcessorServiceGraphsMaxItems is the maximum number of items (edges) for the service graphs processor
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsMaxItems(userID string) (int, bool) {
+	maxItems := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.MaxItems
+	if maxItems != nil {
+		return *maxItems, true
+	}
+	return 0, false
 }
 
 // MetricsGeneratorProcessorServiceGraphsHistogramBuckets controls the histogram buckets to be used
