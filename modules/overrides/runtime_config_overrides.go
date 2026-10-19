@@ -137,6 +137,15 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool,
 			)
 		}
 
+		for tenant, tenantOverrides := range overrides.TenantLimits {
+			if tenantOverrides == nil {
+				continue
+			}
+			if err := tenantOverrides.Forwarder.validate(); err != nil {
+				return nil, fmt.Errorf("validating overrides for %s failed: %w", tenant, err)
+			}
+		}
+
 		if validator != nil {
 			for tenant, tenantOverrides := range overrides.TenantLimits {
 				warnings, err := validator.Validate(tenantOverrides)
@@ -169,6 +178,10 @@ type runtimeConfigOverridesManager struct {
 var _ Interface = (*runtimeConfigOverridesManager)(nil)
 
 func newRuntimeConfigOverrides(cfg Config, validator Validator, registerer prometheus.Registerer) (Service, error) {
+	if err := cfg.Defaults.Forwarder.validate(); err != nil {
+		return nil, fmt.Errorf("validating default overrides failed: %w", err)
+	}
+
 	var manager *runtimeconfig.Manager
 	subservices := []services.Service(nil)
 
@@ -414,6 +427,26 @@ func (o *runtimeConfigOverridesManager) MaxBytesPerTrace(userID string) int {
 // Forwarders returns the list of forwarder IDs for a user.
 func (o *runtimeConfigOverridesManager) Forwarders(userID string) []string {
 	return o.getOverridesForUser(userID).Forwarders
+}
+
+// ForwarderQueueSize returns the per-tenant external forwarder queue size in batches.
+// Zero uses the default of 100 batches.
+func (o *runtimeConfigOverridesManager) ForwarderQueueSize(userID string) int {
+	queueSize := o.getOverridesForUser(userID).Forwarder.QueueSize
+	if queueSize == 0 {
+		return defaultForwarderQueueSize
+	}
+	return queueSize
+}
+
+// ForwarderWorkers returns the number of workers per external forwarder queue.
+// Zero uses the default of 2 workers.
+func (o *runtimeConfigOverridesManager) ForwarderWorkers(userID string) int {
+	workers := o.getOverridesForUser(userID).Forwarder.Workers
+	if workers == 0 {
+		return defaultForwarderWorkers
+	}
+	return workers
 }
 
 // MaxBytesPerTagValuesQuery returns the maximum size of a response to a tag-values query allowed for a user.

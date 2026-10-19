@@ -2691,6 +2691,15 @@ overrides:
     # must refer by name to a forwarder defined in the distributor.forwarders configuration.
     forwarders: <list of string>
 
+    # Distributor -> external forwarder queue controls.
+    # Each tenant has a separate queue for each enabled forwarder on each distributor.
+    # The same settings apply to every external forwarder enabled for the tenant.
+    forwarder:
+      # Maximum queued batches, not spans or bytes. 0 uses 100; negative values are invalid.
+      [queue_size: <int> | default = 100]
+      # Parallel forwarding workers per queue. 0 uses 2; negative values are invalid.
+      [workers: <int> | default = 2]
+
     # Global enforced overrides
     global:
       # Maximum size of a single trace in bytes. A value of 0 disables the size
@@ -2804,6 +2813,11 @@ overrides:
         # Optional per-tenant remote write headers, for example for per-tenant authentication.
         remote_write_headers:
           [<header-name>: <string>]
+      # External forwarder names must match distributor.forwarders entries.
+      [forwarders: <list of strings>]
+      forwarder:
+        [queue_size: <int> | default = 100]
+        [workers: <int> | default = 2]
 
   # A "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
   "*":
@@ -2824,6 +2838,55 @@ For a complete per-tenant `metrics_generator` example, including `remote_write_h
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
 User-configurable overrides have priority over runtime overrides.
 Refer to [user-configurable overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/) for more details.
+
+#### External forwarder queues
+
+Use `overrides.defaults.forwarder` to set the queue size and worker count for external forwarders.
+These controls are separate from `overrides.defaults.metrics_generator.forwarder`.
+They are operator-controlled and aren't exposed through the user-configurable overrides API.
+
+Each distributor creates one queue per tenant and enabled forwarder.
+The tenant's `queue_size` and `workers` values apply to each of these queues,
+not to a shared tenant-wide or cluster-wide budget.
+`queue_size` counts batches, not spans or bytes.
+Larger queues retain more trace data in memory;
+more workers increase forwarding concurrency and load on the destination.
+Forwarding remains best-effort, and full queues reject new batches.
+
+Omitted or zero values select the built-in defaults of 100 batches and 2 workers.
+Negative values are invalid.
+If a tenant or wildcard override entry exists,
+omitted queue settings in that entry use these built-in defaults,
+not custom values from `overrides.defaults.forwarder`.
+
+For example, configure default queue settings and larger queues for one tenant.
+The `external-otlp` name must match a forwarder defined in `distributor.forwarders`:
+
+```yaml
+# /conf/tempo.yaml
+overrides:
+  defaults:
+    forwarders: [external-otlp]
+    forwarder:
+      queue_size: 100
+      workers: 2
+  per_tenant_override_config: /conf/overrides.yaml
+
+---
+# /conf/overrides.yaml
+overrides:
+  tenant-a:
+    forwarders: [external-otlp]
+    forwarder:
+      queue_size: 1000
+      workers: 4
+```
+
+Tenant runtime overrides can change without restarting Tempo.
+After the overrides file reloads according to `per_tenant_override_period`,
+the distributor checks existing queue settings every 10 seconds.
+When settings change, it creates replacement queues and drains the old queues asynchronously.
+Old and new workers can overlap while the old queues drain.
 
 #### Ingestion rate strategy
 

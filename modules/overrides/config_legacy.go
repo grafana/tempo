@@ -31,7 +31,9 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 
 		IngestionCreationGracePeriod: c.Ingestion.CreationGracePeriod,
 
-		Forwarders: c.Forwarders,
+		Forwarders:         c.Forwarders,
+		ForwarderQueueSize: c.Forwarder.QueueSize,
+		ForwarderWorkers:   c.Forwarder.Workers,
 
 		MetricsGeneratorRingSize:                                                    c.MetricsGenerator.RingSize,
 		MetricsGeneratorProcessors:                                                  c.MetricsGenerator.Processors,
@@ -118,7 +120,9 @@ type LegacyOverrides struct {
 	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user" json:"max_global_traces_per_user"`
 
 	// Forwarders
-	Forwarders []string `yaml:"forwarders" json:"forwarders"`
+	Forwarders         []string `yaml:"forwarders" json:"forwarders"`
+	ForwarderQueueSize int      `yaml:"forwarder_queue_size" json:"forwarder_queue_size"`
+	ForwarderWorkers   int      `yaml:"forwarder_workers" json:"forwarder_workers"`
 
 	// Metrics-generator config
 	MetricsGeneratorRingSize                                                    int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
@@ -395,6 +399,10 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			MaxCardinalityPerLabel:          l.MetricsGeneratorMaxCardinalityPerLabel,
 		},
 		Forwarders: l.Forwarders,
+		Forwarder: ForwarderOverrides{
+			QueueSize: l.ForwarderQueueSize,
+			Workers:   l.ForwarderWorkers,
+		},
 		Global: GlobalOverrides{
 			MaxBytesPerTrace: l.MaxBytesPerTrace,
 		},
