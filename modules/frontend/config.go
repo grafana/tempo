@@ -7,10 +7,10 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	v1 "github.com/grafana/tempo/modules/frontend/v1"
-	"github.com/grafana/tempo/pkg/usagestats"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	v1 "github.com/grafana/tempo/v3/modules/frontend/v1"
+	"github.com/grafana/tempo/v3/pkg/usagestats"
+	"github.com/grafana/tempo/v3/pkg/util"
 )
 
 var statVersion = usagestats.NewString("frontend_version")
@@ -130,7 +130,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 			MaxDuration:           24 * time.Hour,
 			QueryBackendAfter:     15 * time.Minute,
 			ConcurrentRequests:    defaultConcurrentRequests,
-			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+			TargetBytesPerRequest: defaultMetricsTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
 			MaxExemplars:          100,
 			MaxResponseSeries:     0,

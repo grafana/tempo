@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/overrides"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/modules/generator"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 )
 
 const tenantID = "tenant-id"
@@ -30,7 +30,7 @@ func TestForwarder(t *testing.T) {
 	require.NoError(t, err)
 
 	b := test.MakeBatch(10, id)
-	keys, rebatchedTraces, _, _, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10, 1000)
+	keys, rebatchedTraces, _, _, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10, 1000, 0)
 	require.NoError(t, err)
 
 	o, err := overrides.NewOverrides(oCfg, nil, prometheus.DefaultRegisterer)
@@ -81,7 +81,7 @@ func TestForwarder_shutdown(t *testing.T) {
 	require.NoError(t, err)
 
 	b := test.MakeBatch(10, id)
-	keys, rebatchedTraces, _, _, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10, 1000)
+	keys, rebatchedTraces, _, _, err := requestsByTraceID([]*v1.ResourceSpans{b}, tenantID, 10, 1000, 0)
 	require.NoError(t, err)
 
 	o, err := overrides.NewOverrides(oCfg, nil, prometheus.DefaultRegisterer)

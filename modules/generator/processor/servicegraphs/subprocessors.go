@@ -3,7 +3,7 @@ package servicegraphs
 import (
 	"strings"
 
-	"github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/processor"
 )
 
 type Subprocessor int

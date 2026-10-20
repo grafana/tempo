@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/v3/integration/util"
 	thrift "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -107,7 +107,9 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 			},
 		}, ""))
 
-		// also send one with timestamp 10 days in the future
+		// also send one with a timestamp 5 minutes in the future. This is beyond the generator's
+		// ingestion slack but inside the distributor's creation_grace_period (default 10m), so
+		// it reaches the generator and is discarded there.
 		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "app"},
 			Spans: []*thrift.Span{
@@ -117,7 +119,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					SpanId:        r.Int63(), // nolint:gosec // G404: Use of weak random number generator
 					ParentSpanId:  parentSpanID,
 					OperationName: "app-handle",
-					StartTime:     time.Now().Add(10 * 24 * time.Hour).UnixMicro(),
+					StartTime:     time.Now().Add(5 * time.Minute).UnixMicro(),
 					Duration:      int64(1 * time.Second / time.Microsecond),
 					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
 				},
@@ -432,7 +434,7 @@ func TestMetricsGeneratorMessagingSystemLatencyHistogramEnabled(t *testing.T) {
 			if _, ok := metricFamilies["traces_service_graph_request_messaging_system_seconds_bucket"]; ok {
 				break
 			}
-			time.Sleep(30 * time.Second)
+			time.Sleep(time.Second)
 		}
 
 		// Check that the metric exists and has a non-zero count

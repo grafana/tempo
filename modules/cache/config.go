@@ -4,11 +4,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"strings"
 
-	"github.com/grafana/tempo/modules/cache/memcached"
-	"github.com/grafana/tempo/modules/cache/redis"
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/modules/cache/memcached"
+	"github.com/grafana/tempo/v3/modules/cache/redis"
+	"github.com/grafana/tempo/v3/pkg/cache"
 )
 
 type Config struct {
@@ -17,9 +18,18 @@ type Config struct {
 }
 
 type CacheConfig struct { // nolint: revive
-	Role            []cache.Role      `yaml:"roles"`
-	MemcachedConfig *memcached.Config `yaml:"memcached"`
-	RedisConfig     *redis.Config     `yaml:"redis"`
+	Role             []cache.Role      `yaml:"roles"`
+	MemcachedConfig  *memcached.Config `yaml:"memcached"`
+	RedisConfig      *redis.Config     `yaml:"redis"`
+	StoreProbability float64           `yaml:"store_probability"`
+}
+
+// UnmarshalYAML applies the default while allowing an explicit zero probability.
+func (cfg *CacheConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	cfg.StoreProbability = 1
+
+	type rawConfig CacheConfig
+	return unmarshal((*rawConfig)(cfg))
 }
 
 // Validate validates the config.
@@ -56,6 +66,10 @@ func (cfg *Config) Validate() error {
 
 			claimedRoles[role] = struct{}{}
 		}
+		if p := cacheCfg.StoreProbability; math.IsNaN(p) || p < 0 || p > 1 {
+			return fmt.Errorf("store probability must be between 0 and 1, got %v", p)
+		}
+
 	}
 
 	return nil

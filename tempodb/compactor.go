@@ -16,12 +16,12 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/util/tracing"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/blockselector"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/dataquality"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blockselector"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 const (
@@ -83,6 +83,15 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	metricCompactionTraceSize = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       "tempodb",
+		Name:                            "compaction_trace_size_bytes",
+		Help:                            "Estimated size in bytes of each trace written by compaction.",
+		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 31), // 1KiB to 1TiB, same as the distributor trace size histogram
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	}, []string{"tenant", "level"})
 
 	errCompactionJobNoLongerOwned = fmt.Errorf("compaction job no longer owned")
 )
@@ -353,6 +362,9 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 		ObjectsWritten: func(compactionLevel, objs int) {
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 		},
+		TraceWritten: func(compactionLevel, bytes int) {
+			metricCompactionTraceSize.WithLabelValues(tenantID, strconv.Itoa(compactionLevel)).Observe(float64(bytes))
+		},
 		SpansDiscarded: func(traceId, rootSpanName, rootServiceName string, spans int) {
 			compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId, rootSpanName, rootServiceName)
 		},
@@ -421,6 +433,12 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*ba
 	for _, meta := range oldBlocks {
 		// Mark in the backend
 		if err := rw.c.MarkBlockCompacted(uuid.UUID(meta.BlockID), tenantID); err != nil {
+			if errors.Is(err, backend.ErrDoesNotExist) {
+				// A concurrent compaction or retention pass already retired this
+				// block. The desired end state (input block retired) is already
+				// true, so this isn't a real failure.
+				continue
+			}
 			errCount++
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()

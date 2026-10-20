@@ -2,13 +2,15 @@ package backend
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/cache"
 )
 
 const (
@@ -23,6 +25,8 @@ var (
 	ErrEmptyTenantID = fmt.Errorf("empty tenant id")
 	ErrEmptyBlockID  = fmt.Errorf("empty block id")
 	ErrBadSeedFile   = fmt.Errorf("bad seed file")
+	// ErrCorruptMeta is returned when a block meta was read in full but is not valid JSON.
+	ErrCorruptMeta = fmt.Errorf("corrupt block meta")
 
 	GlobalMaxBlockID = uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
 
@@ -50,8 +54,8 @@ type Writer interface {
 	Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error)
 	// CloseAppend closes any resources associated with the AppendTracker
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
-	// WriteTenantIndex writes the two meta slices as a tenant index
-	WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error
+	// WriteTenantIndex writes the metas, compacted metas and the IDs of live blocks with a nocompact flag as a tenant index
+	WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta, noCompact []UUID) error
 	// Delete deletes an object.
 	Delete(ctx context.Context, name string, keypath KeyPath) error
 	// WriteNoCompactFlag writes the nocompact flag to prevent a block from being compacted
@@ -70,8 +74,8 @@ type Reader interface {
 	ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, cacheInfo *CacheInfo) error
 	// Tenants returns a list of all tenants in a backend
 	Tenants(ctx context.Context) ([]string, error)
-	// Blocks returns the blockIDs, compactedBlockIDs and an error from the backend.
-	Blocks(ctx context.Context, tenantID string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
+	// Blocks returns the blockIDs, compactedBlockIDs, the IDs of blocks with a nocompact flag and an error from the backend.
+	Blocks(ctx context.Context, tenantID string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, noCompactBlockIDs []uuid.UUID, err error)
 	// BlockMeta returns the blockmeta given a block and tenant id
 	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
 	// TenantIndex returns lists of all metas given a tenant
@@ -92,4 +96,14 @@ type Compactor interface {
 	ClearBlock(blockID uuid.UUID, tenantID string) error
 	// CompactedBlockMeta returns the compacted blockmeta given a block and tenant id
 	CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
+}
+
+// MetaDecodeError wraps err with ErrCorruptMeta when it shows the meta is not valid JSON.
+// Valid JSON of an unexpected shape may come from a different version, so it is returned as is.
+func MetaDecodeError(err error) error {
+	var syntaxErr *json.SyntaxError
+	if errors.As(err, &syntaxErr) {
+		return fmt.Errorf("%w: %w", ErrCorruptMeta, err)
+	}
+	return err
 }

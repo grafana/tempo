@@ -76,6 +76,18 @@ You can configure the backend using the following options:
 
 Each option applies only to the command in which it's used. For example, `--backend <value>` doesn't permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 
+## TLS options
+
+All `query api` commands support these options for HTTPS and gRPC TLS connections.
+Use an `https://` URL for `trace-id`, or `--secure` for the other commands.
+
+- `--tls-cert <path>`, `--tls-key <path>` PEM client certificate and matching unencrypted private key for mutual TLS (mTLS).
+  Both must be provided together.
+- `--tls-ca <path>` PEM CA bundle used instead of the system trust roots for server certificate verification.
+- `--tls-server-name <name>` Override the server name used for certificate verification and SNI.
+
+The CA and server-name options can also be used without a client certificate.
+
 ## Query API command
 
 ### Trace ID
@@ -93,6 +105,7 @@ Arguments:
 
 Options:
 
+- [TLS options](#tls-options)
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
 - `--header <key=value>` Extra HTTP header to send with the request. Can be specified multiple times.
 - `--v1` use v1 API (use /api/traces endpoint to fetch traces, default: /api/v2/traces).
@@ -128,6 +141,7 @@ Arguments:
 
 Options:
 
+- [TLS options](#tls-options)
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
 - `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
@@ -180,6 +194,7 @@ Arguments:
 
 Options:
 
+- [TLS options](#tls-options)
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
 - `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
@@ -225,6 +240,7 @@ Arguments:
 
 Options:
 
+- [TLS options](#tls-options)
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
 - `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--query <value>` TraceQL query to filter attribute results by.
@@ -265,6 +281,7 @@ Arguments:
 
 Options:
 
+- [TLS options](#tls-options)
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
 - `--header <key=value>` Extra header to send with the request (as gRPC metadata when using `--use-grpc`). Can be specified multiple times.
 - `--use-grpc` Use GRPC streaming
@@ -487,6 +504,247 @@ Example:
 tempo-cli view schema -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b0bbf69f1
 ```
 
+## Benchmark profile
+
+Profile a local block for read-path benchmarking. Writes a JSON file recording
+what had to be measured from the block — its metadata, its row-group count,
+present and absent trace IDs to look up, and its attributes ranked by size — so
+that a benchmark run does not have to inspect the block, and every variant of an
+experiment works from the same measurements.
+
+```bash
+tempo-cli benchmark profile <block-path>
+```
+
+Arguments:
+
+- `block-path` Path to the block directory on local disk, laid out as
+  `<bucket>/<tenant-id>/<block-id>`.
+
+Options:
+
+- `--trace-ids` Number of present trace IDs to sample, or `all` to enumerate
+  every ID at run time rather than embedding them. Defaults to `10000`. One
+  absent ID is derived per present ID. Pass `0` to skip trace IDs, and with them
+  the full scan they require.
+- `--attributes` Number of attributes to profile in each scope (resource, span)
+  and kind of value (string, numeric, boolean), ranked by total bytes as
+  `analyse block` counts them: a resource attribute once per resource, a span
+  attribute once per span. The `name`, `status`, `kind` and `duration`
+  intrinsics are always included. Each records its cardinality, the
+  share of spans carrying it, and the share carrying each of its 100 most
+  frequent values, or, for a numeric attribute with more than 100 distinct
+  values, quantiles of its values. Defaults to `100`. Pass `0` to skip the full
+  scan it requires. Supported for vParquet5 blocks.
+- `-o`, `--out` File to write the profile to. Defaults to stdout.
+
+Example:
+
+```bash
+tempo-cli benchmark profile /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 --trace-ids=10000 -o profile.json
+```
+
+## Benchmark run
+
+Run read-path benchmark queries against a local block and write the measurements
+as JSON. Takes a profile from `benchmark profile`, so the run does not inspect
+the block and every variant of an experiment measures the same queries.
+
+```bash
+tempo-cli benchmark run <block-path> -p <profile.json>
+```
+
+Arguments:
+
+- `block-path` Path to the block directory on local disk, laid out as
+  `<bucket>/<tenant-id>/<block-id>`.
+
+Options:
+
+- `-p`, `--profile` Profile of the block, from `benchmark profile`. Required.
+- `-o`, `--out` File to write the result to. Defaults to stdout.
+- `-k`, `--case` Cases to run, as glob patterns over case IDs in the syntax
+  `benchmark compare` takes, such as `'metrics/ranked_*/*/high/*'`. Repeat the flag
+  or separate patterns with commas. Defaults to every case. Patterns matching
+  no case are an error.
+- `--repeat` Passes over the query set. Defaults to `1`.
+- `--target-bytes-per-request` Bytes per search shard, mirroring the query
+  frontend option of the same name. Defaults to `100MiB`.
+- `--search-limit` Traces a search returns per shard. Defaults to `20`.
+- `--max-series` Series a metrics query returns. Defaults to `1000`.
+- `--exemplars` Exemplars a metrics query collects. Defaults to `0`.
+- `--max-tag-values`, `--stale-value-threshold` A tag-value request's `limit`
+  and `maxStaleValues`. Each defaults to `0`, meaning no limit, as for a request
+  without them.
+- `--read-buffer-size` Storage read buffer size, such as `8MiB`. Defaults to
+  `0`, meaning Tempo's default. This is the knob an experiment varies.
+- `--backend-latency`, `--backend-bandwidth` Simulate an object store: every
+  backend request waits the latency plus its size over the bandwidth, a size per
+  second such as `100MiB`. Each defaults to `0`, which reads the local block as
+  is. Without them, a local read costs almost nothing, so an option that trades
+  request count for bytes read, like `--read-buffer-size`, only shows up in
+  `backend.*` and not in latency.
+
+Each case records how many results it matched, and one `metrics` map. Two runs
+are only comparable if the match counts agree, so a difference there means the
+comparison is invalid rather than interesting.
+
+Every measurement has the same shape whatever its source, so nothing reading a
+result needs a rule per source:
+
+- `total` is the sum over the case for a `counter`, or the value left behind for
+  a `gauge`.
+- `summary` describes the per-execution values, with quantiles so a box plot
+  needs nothing else. A total on its own hides the tail, which on the read path
+  is usually the interesting part.
+
+Keys are `source.name`:
+
+- `harness.*` is what the benchmark timed itself: `wallNs`, `cpuNs`,
+  `allocBytes`, `allocCount`.
+- `backend.*` is object-store traffic: `reads`, `bytes`, `timeNs`.
+- `response.*` is what a query API reported, under Tempo's own metric names. A
+  metric Tempo did not report is absent rather than zero, because the two are
+  different claims, so a summary's `count` says how many executions reported it.
+- `process.*` is what Tempo emitted to its Prometheus registry, including the Go
+  runtime and process collectors.
+
+Metrics are collected rather than listed, so a metric added to Tempo appears
+without a change to the benchmark. Only metrics that moved are kept.
+
+The query set has fixed cases, plus cases generated from the profile's ranked
+attributes.
+
+Fixed cases:
+
+- `traceid/present`, `traceid/absent`: trace lookups by ID, for IDs the block
+  holds and IDs it does not.
+- `search/nopredicate`: an unfiltered search.
+- `metrics/rate`, `metrics/rate-by-service`: `rate()` and
+  `rate() by (resource.service.name)`.
+- `metrics/drilldown/*`: the queries Traces Drilldown runs when it opens, such
+  as `{nestedSetParent<0 && true} | rate() with(sample=true)`.
+- `metadata/tagnames/<scope>`: a tag-name lookup in each attribute scope.
+
+Generated cases, from the top 10 attributes with a dedicated column and the top
+10 without:
+
+- `<group>` is the group an attribute was picked from: `ranked_dedicated` for
+  an attribute with a column of its own, which every intrinsic and
+  `resource.service.name` have, and `ranked_generic` for one in the generic
+  key/value columns.
+- Each attribute is queried with up to three of its values, one per selectivity
+  band: `high` is its most common value, `medium` the middle of its profiled
+  values, and `low` the least common value the profile kept. Every value is one
+  the block holds, so every query matches.
+- `search/<group>/<band>/<attribute>`: `{ attribute = value }`.
+- `metrics/<group>/<rate|quantile>/<band>/<attribute>`:
+  `{ attribute = value } | rate()` and
+  `{ attribute = value } | quantile_over_time(duration, 0.99, 0.95)`.
+- `metadata/<group>/tagvalues/<attribute>`: a tag-value lookup with no
+  TraceQL, for the top 20 string attributes in each group.
+- Attributes with only quantile values are skipped, and a profile built with
+  `--attributes 0` generates no cases.
+
+To run only some cases, pass `--case` a glob, such as
+`--case 'metrics/ranked_generic/*/low/*'`.
+
+Metrics queries run over the block's whole time range, stepping at
+`max(60s, window/30)` to land about 30 points. Searches and metrics queries are
+split into shards of row groups, mirroring how the query frontend splits a job.
+
+A case that fails is recorded with its error and the rest of the run continues.
+Benchmarking trace lookups reads the block's bloom filters, so a partial block
+copy without them can still be profiled but only its search cases will run.
+
+Example:
+
+```bash
+tempo-cli benchmark profile /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 -o profile.json
+tempo-cli benchmark run /data/traces/single-tenant/ca314fba-efec-4852-ba3f-8d2b0bbf69f1 -p profile.json -o result.json
+```
+
+## Benchmark compare
+
+Compare two or more results from `benchmark run`,
+and write the comparison as markdown to stdout, to read or paste into a pull request,
+or serve it as web pages to explore.
+For each metric it lays every case out as benchstat does:
+the baseline's value, then each other run's value and its change from the baseline.
+
+```bash
+tempo-cli benchmark compare <result.json> <result.json>...
+```
+
+A change of 10% or more is in bold.
+A run that cannot be compared with the baseline on a case reads `not comparable`,
+with the reason under the table:
+its match or execution count per pass differs, or it is missing the case or failed it.
+When a run's name is too long to head a column,
+runs are numbered, and listed with their numbers.
+
+With `--http`, it serves the comparison as web pages instead,
+rendered on each request as pprof's web view is.
+The summary page has a table per metric, with links to switch the metric and the percentile.
+Each case has a page with the box plots and table of every metric at once,
+and hovering a box plot's row shows its numbers.
+A box spans the 25th to 75th percentile, with a mark at the median.
+Its whisker runs from the minimum to the 99th percentile, with a tick at the 90th.
+The axis stops near the highest 99th percentile,
+so a maximum far past it is marked at the edge and written out,
+rather than squashing every box to make room for it.
+Clicking a run on either page makes it the baseline.
+As with pprof, an address without a host, like `:8080`, is served on localhost only.
+
+Arguments:
+
+- `results` Results to compare, as `name=path` or a path.
+  The first is the baseline.
+
+Options:
+
+- `-m`, `--metric` Metrics to show, as glob patterns over the metric keys.
+  Defaults to `harness.wallNs`, `harness.cpuNs`, `harness.allocBytes`,
+  `backend.bytes`, and `backend.reads`.
+- `-k`, `--case` Cases to show, as glob patterns over the case IDs,
+  for example `traceid/*`. Defaults to every case.
+- `--percentile` Percentile the summaries show:
+  `min`, `p25`, `p50`, `p75`, `p90`, `p99`, or `max`.
+  Defaults to `p99`, since tail latency is what hurts most.
+- `--http` Serve the comparison as web pages on this address, like `:8080`,
+  instead of writing markdown.
+
+A result given as a path is named after the settings that set it apart from the others:
+the run options and git SHA that differ between the runs,
+or, when those are all the same, the Go version, `GOMAXPROCS`, or host.
+When one setting differs, the name is its value, like `4MiB`.
+When several do, the name lists each, like `targetBytesPerRequest=2MiB readBufferSize=4MiB`.
+Runs set up alike, such as repeats of one setup,
+are named after their files instead.
+When the one setting that differs is a number,
+the runs are put in its order, with those left at Tempo's default first,
+so reading across the columns follows the setting as it grows.
+The baseline stays the run given first wherever it lands.
+
+Above the tables, each run has a line saying how it differs from the baseline,
+like `readBufferSize default → 4MiB`.
+The baseline's line shows what the others are measured from:
+its value of every setting that differs, then its git SHA, Go version, `GOMAXPROCS`, and host.
+A difference in where a run happened, its Go version, `GOMAXPROCS`, or host, is flagged with ⚠,
+since latencies from two environments are hard to compare.
+
+The summaries are per execution:
+one trace lookup, or one shard of a search, metrics, or tag-name query.
+The spread of a box is across those executions, not across repeated runs,
+so it describes how the inputs differ, not how noisy the measurement is.
+
+Example, where the runs are named `default`, `4MiB`, and `16MiB` from their read buffer sizes:
+
+```bash
+tempo-cli benchmark compare main.json read-buffer-4mib.json read-buffer-16mib.json -k 'traceid/*' > comparison.md
+tempo-cli benchmark compare main.json read-buffer-4mib.json read-buffer-16mib.json --http=:8080
+```
+
 ## Query search command
 
 Search blocks in a given time range for a specific key/value pair.
@@ -528,30 +786,6 @@ tempo-cli query search http.method GET 2024-01-01T00:00:00Z 2024-01-01T00:05:00Z
 Converts a vParquet file (actual data.parquet) of format A to a block of newer format B with an optional list of dedicated attribute columns.
 Actual supported versions for A and B vary by Tempo release. This utility command is useful when testing the impact of different combinations
 of dedicated columns.
-
-### Convert vParquet3 to vParquet4
-
-{{< admonition type="note" >}}
-`vParquet3` is deprecated.
-Tempo 3.x still reads existing vParquet3 blocks, so you don't need to convert them before you upgrade.
-Use this command to convert remaining vParquet3 blocks to vParquet4 or later.
-{{< /admonition >}}
-
-```bash
-tempo-cli parquet convert-3to4 <in file> [<out path>] [<list of dedicated columns>]
-```
-
-Arguments:
-
-- `in file` Path to an existing vParquet3 block directory.
-- `out path` Path to write the vParquet4 block to. The default is `./out`.
-- `list of dedicated columns` Optional list of columns to make dedicated. Columns use TraceQL syntax with scope. For example, `span.db.statement`, `resource.namespace`.
-
-Example:
-
-```bash
-tempo-cli parquet convert-3to4 ./block-in ./out span.db.statement span.db.name
-```
 
 ### Convert vParquet4 to vParquet5
 
@@ -713,7 +947,7 @@ tempo-cli migrate config --kafka-address=kafka:9092 --kafka-topic=tempo-traces o
 
 Analyses a block and outputs a summary of the block's generic attributes.
 
-It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3+.
+It's of particular use when trying to determine candidates for dedicated attribute columns.
 The output includes span, resource, and event attributes with cardinality and size information.
 
 Arguments:
@@ -751,7 +985,7 @@ tempo-cli analyse block --blob-threshold=4MiB --generate-jsonnet --backend=local
 
 Analyses all blocks in a given time range and outputs a summary of the blocks' generic attributes.
 
-It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3+.
+It's of particular use when trying to determine candidates for dedicated attribute columns.
 The output includes span, resource, and event attributes with cardinality and size information.
 
 Arguments:
@@ -862,7 +1096,7 @@ Example with intrinsic attributes:
 tempo-cli gen attr-index --add-intrinsics ./path/to/block
 ```
 
-## Experimental trace diff
+## Experimental traces diff
 
 {{< admonition type="warning" >}}
 This command is experimental. The output format and behavior may change in future releases.
@@ -875,7 +1109,7 @@ summary or a composed summary with a size-bounded patch.
 Use this command to compare traces captured at different times or from different environments, for example, to understand how a deployment changed trace structure.
 
 ```bash
-tempo-cli experimental trace-diff --trace-a <BASELINE_PATH> --trace-b <COMPARISON_PATH>
+tempo-cli experimental traces-diff --trace-a <BASELINE_PATH> --trace-b <COMPARISON_PATH>
 ```
 
 Arguments:
@@ -900,19 +1134,19 @@ included in `patch`. Otherwise, `patchOmitted` reports its size and the reason
 Example:
 
 ```bash
-tempo-cli experimental trace-diff --trace-a baseline.json --trace-b compare.json --pretty
+tempo-cli experimental traces-diff --trace-a baseline.json --trace-b compare.json --pretty
 ```
 
 Example writing output to a file:
 
 ```bash
-tempo-cli experimental trace-diff --trace-a baseline.json --trace-b compare.json -o diff-output.json
+tempo-cli experimental traces-diff --trace-a baseline.json --trace-b compare.json -o diff-output.json
 ```
 
 Example producing the native summary:
 
 ```bash
-tempo-cli experimental trace-diff \
+tempo-cli experimental traces-diff \
   --trace-a baseline.json \
   --trace-b compare.json \
   --format trace-summary-v0-native \
@@ -974,6 +1208,13 @@ tempo-cli rewrite-blocks drop-traces --drop-trace --backend=local --bucket=./cmd
 
 Remove traces containing personally identifiable information or other sensitive data from object storage without waiting for retention to expire.
 
+{{< admonition type="warning" >}}
+Redaction rewrites blocks in object storage and can't be undone.
+You're responsible for verifying the selection.
+If you redact by query, confirm in Grafana Explore that the query selects the right traces, then run it with `--dry-run` and check the match count.
+Explore shows only a sample; redaction removes every matching trace across the tenant.
+{{< /admonition >}}
+
 The `redact` command submits a redaction request to the [backend scheduler](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/#backend-scheduler). 
 The scheduler creates jobs that rewrite affected blocks in object storage to remove the specified traces. 
 Unlike [`drop-traces`](#drop-traces-by-id), which operates directly on object storage from the CLI, `redact` delegates the work to the backend scheduler over gRPC.
@@ -994,8 +1235,8 @@ Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
 - `--trace-id <value>` Trace ID to redact, in hex format. Repeat the flag for several traces in one request (`--trace-id=<ID> --trace-id=<ID>`, not comma-separated), up to 1000. Every job the redaction creates carries the whole list, so a longer list costs one copy per block; use `--query` instead. Mutually exclusive with `--query`.
-- `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter: `=` comparisons on the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`. Regular expressions, `!=` or ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
-- `--dry-run` Evaluate the selector and report match counts without rewriting any blocks (default: `false`).
+- `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter over the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`: `=` comparisons, and the existence check `attr != nil`. Regular expressions, `!=` against a value, ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
+- `--dry-run` Evaluate the selector without rewriting any blocks. After the dry-run jobs complete, match counts are added to `tempo_backend_scheduler_redaction_traces_found_total` (`mode="dry_run"`). The command doesn't print the count (default: `false`).
 - `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
 - `--end <value>` End of the time window. Same forms as `--start`. Must be given with `--start`.
 - `--tls` Use TLS for the gRPC connection (default: `false`).
@@ -1003,6 +1244,8 @@ Options:
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
 
 You must provide exactly one of `--trace-id` or `--query`. Providing both, or neither, returns an error before the request is submitted.
+
+`attr != nil` is rewritten to an existence check, so it selects spans that **have** the attribute, not the ones missing it. Other `!=` forms are refused. This can be broader than it looks on a large tenant (`span.user_id != nil` matches every span carrying a user ID), so preview with `--dry-run` first.
 
 A tenant can have only one redaction in progress at a time, dry runs included.
 A submission made while an earlier one is still running, or still in its quiescence period, is rejected.
@@ -1022,6 +1265,47 @@ batch_id:     <BATCH_ID>
 jobs_created: <COUNT>
 mode:         dry-run (jobs will report match counts; no blocks will be rewritten)
 ```
+
+### Before you submit a redaction
+
+Redaction only rewrites blocks that already exist in object storage when you submit.
+Traces still held by block-builders aren't covered, so recently ingested traces can survive a run.
+
+1. Stop ingesting the sensitive data at its source.
+1. Wait for the current blocks to flush to object storage.
+   Blocks flush on an interval of a few minutes; allow around 10 minutes to be safe, so the traces you want to remove land in blocks the redaction can reach.
+
+If you use `--query`:
+
+1. [Check your redaction query in Grafana Explore](#check-your-redaction-query-in-grafana-explore) to confirm it selects the right traces.
+1. Run the same query with `--dry-run`.
+   The command returns as soon as jobs are created; it doesn't print the match count.
+   Wait until those jobs complete.
+1. Monitor progress on the [`/status/backendscheduler`](/docs/tempo/<TEMPO_VERSION>/api_docs/#backend-scheduler-job-status) endpoint.
+1. Read `tempo_backend_scheduler_redaction_traces_found_total` for your tenant with `mode="dry_run"`.
+   The metric is a counter that increments when each job finishes, so use an increase over the run or the **Dry-run Blast Radius / h** panel on the **Tempo - Backend Work** dashboard.
+   A value of zero can mean no matches or that jobs haven't finished yet.
+   For the metric and dashboard, refer to [Key metrics](/docs/tempo/<TEMPO_VERSION>/reference-tempo-architecture/components/compaction/#key-metrics).
+   If the count is far larger than the Explore sample, narrow the query first.
+
+Then submit the redaction.
+For commands, refer to [Examples](#examples).
+
+### Check your redaction query in Grafana Explore
+
+Use this procedure when you redact with `--query`.
+Enter the same query string you pass to `--query`.
+
+1. In Grafana, go to **Explore** and select your Tempo data source.
+1. For **Query type**, select **TraceQL**, then enter your redaction query, for example `{ span.http.status_code = 500 }`.
+1. Select **Run query** and inspect the matching traces in the results.
+
+For help building and running TraceQL queries, refer to [TraceQL queries in Grafana](/docs/tempo/<TEMPO_VERSION>/traceql/).
+
+The `--query` option accepts only a restricted subset of TraceQL: a single spanset filter with positive equality matchers.
+That subset is deliberately narrow so a redaction query can't widen its own match set the way negation or regular expressions could.
+A broader query that works in Explore may be rejected at submission.
+Explore shows a sample; use `--dry-run` for the count before you apply the redaction.
 
 ### Redact a time window
 
@@ -1051,18 +1335,14 @@ before it is cleared, and a second submission for the same tenant is rejected wi
 that completes — a couple of minutes at the default maintenance interval.
 
 {{< admonition type="note" >}}
-Redaction rewrites blocks in object storage and cannot be undone. Two things bound what a single run covers:
+A single run doesn't remove everything. Two things bound what it covers:
 
-- Traces ingested during the run, or still held by ingesters, are untouched — a single pass over a live
-  tenant is never complete. Blocks produced by compactions that were running at submission *are* picked up
-  later, so the set of blocks rewritten is not exactly the set visible when you submitted.
+- Redaction snapshots the tenant's block list at submission and only rewrites those blocks (plus output from
+  compactions that were already running). Traces still held by block-builders, or ingested after you submit, are
+  untouched, so a single pass over a live tenant is never complete.
 - Search results are cached, so re-running the same search can still list redacted traces until that cache
   entry expires. To confirm a redaction, query by trace ID or vary the time range so the cache key differs.
 {{< /admonition >}}
-
-Run with `--dry-run` first to confirm the selector without rewriting anything. Dry-run counts are reported
-by the scheduler, not printed by the command: read the `tempo_backend_scheduler_redaction_traces_found_total`
-metric for the tenant.
 
 {{< admonition type="warning" >}}
 A backend-worker that predates `--start`/`--end` does not respect the window and scans each block it is
@@ -1087,16 +1367,16 @@ Redact multiple traces in one request:
 tempo-cli redact --tenant=my-tenant --trace-id=931281e2a09876de16e15f45ff86283d --trace-id=00000000000000000000000000000001 localhost:9095
 ```
 
-Redact all traces matching a TraceQL query:
-
-```bash
-tempo-cli redact --tenant=my-tenant --query='{ span.http.status_code = 500 }' localhost:9095
-```
-
 Preview the traces a query would match, without rewriting any blocks:
 
 ```bash
 tempo-cli redact --tenant=my-tenant --query='{ span.http.status_code = 500 }' --dry-run localhost:9095
+```
+
+After you preview, redact all traces matching that query:
+
+```bash
+tempo-cli redact --tenant=my-tenant --query='{ span.http.status_code = 500 }' localhost:9095
 ```
 
 With TLS and a custom CA:

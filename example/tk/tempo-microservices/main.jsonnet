@@ -2,10 +2,10 @@ local tempo = import '../../../operations/jsonnet/microservices/tempo.libsonnet'
 local dashboards = import 'dashboards/grafana.libsonnet';
 local kafka = import 'kafka/kafka.libsonnet';
 local metrics = import 'metrics/prometheus.libsonnet';
-local minio = import 'minio/minio.libsonnet';
+local rustfs = import 'rustfs/rustfs.libsonnet';
 local load = import 'synthetic-load-generator/main.libsonnet';
 
-minio + metrics + load + kafka + tempo {
+rustfs + metrics + load + kafka + tempo {
 
   dashboards:
     dashboards.deploy(),
@@ -65,12 +65,12 @@ minio + metrics + load + kafka + tempo {
     tempo_query_url: 'http://query-frontend:3200',
   },
 
-  // manually overriding to get tempo to talk to minio
+  // manually overriding to get tempo to talk to rustfs
   tempo_config+:: {
     storage+: {
       trace+: {
         s3+: {
-          endpoint: 'minio:9000',
+          endpoint: 'rustfs:9000',
           access_key: 'tempo',
           secret_key: 'supersecret',
           insecure: true,

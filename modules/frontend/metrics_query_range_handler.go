@@ -15,15 +15,15 @@ import (
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
 	"google.golang.org/grpc/codes"
 
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 var errQueryWindowWithinEndCutoff = errors.New("query window falls entirely within query_end_cutoff")
@@ -85,7 +85,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse
-		c, err := combiner.NewTypedQueryRange(req, cfg.Metrics.Sharder.MaxResponseSeries)
+		c, err := combiner.NewTypedQueryRange(req, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, tenant))
 		if err != nil {
 			return err
 		}
@@ -162,7 +162,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		req = api.BuildQueryRangeRequest(req, queryRangeReq, "")
 
 		// build and use roundtripper
-		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries)
+		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
 			return httpInvalidRequest(err), nil

@@ -17,12 +17,12 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
 	"google.golang.org/grpc/codes"
 )
 
@@ -77,7 +77,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		httpReq = httpReq.Clone(ctx)
 
 		var finalResponse *tempopb.QueryInstantResponse
-		c, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries)
+		c, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, tenant))
 		if err != nil {
 			return err
 		}
@@ -159,7 +159,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		req.URL.Path = strings.ReplaceAll(req.URL.Path, api.PathMetricsQueryInstant, api.PathMetricsQueryRange)
 		req = api.BuildQueryRangeRequest(req, qr, "") // dedicated cols are never passed from the caller
 
-		combiner, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries)
+		combiner, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "query instant: query range combiner failed", "err", err)
 			return httpInvalidRequest(err), nil

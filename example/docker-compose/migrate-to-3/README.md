@@ -5,7 +5,7 @@ migration documented at
 [Migrate from Tempo 2.x to 3.0](../../../docs/sources/tempo/set-up-for-tracing/setup-tempo/migrate-to-3.md).
 
 It runs a Tempo 2.x microservices deployment and a Tempo 3.0 microservices
-deployment side by side, both pointed at the same MinIO bucket, with Alloy as
+deployment side by side, both pointed at the same RustFS bucket, with Alloy as
 the trace router so you can flip traffic between the two with a single env-var
 change.
 
@@ -15,7 +15,7 @@ change.
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `v2`     | distributor, ingester, querier, query-frontend, compactor, metrics-generator (`grafana/tempo:2.9.2`)                                                    |
 | `v3`     | distributor, live-store ×2, block-builder ×2, querier, query-frontend, backend-scheduler, backend-worker, metrics-generator + Redpanda (`grafana/tempo:3.0.0`) |
-| _shared_ | MinIO (object storage), Prometheus, Grafana, Alloy (trace router), `xk6-client-tracing` (load generator)                            |
+| _shared_ | RustFS (object storage), Prometheus, Grafana, Alloy (trace router), `xk6-client-tracing` (load generator)                            |
 
 | URL                                            | What                          |
 | ---------------------------------------------- | ----------------------------- |
@@ -23,7 +23,7 @@ change.
 | http://localhost:3200                          | Tempo 2.x query frontend      |
 | http://localhost:3201                          | Tempo 3.0 query frontend      |
 | http://localhost:9090                          | Prometheus                    |
-| http://localhost:9001 (`tempo` / `supersecret`) | MinIO console                |
+| http://localhost:9001/rustfs/console/ (`tempo` / `supersecret`) | RustFS console |
 | http://localhost:8080                          | Redpanda console (v3 only)    |
 | http://localhost:12345                         | Alloy UI                      |
 
@@ -75,7 +75,7 @@ been touched.
 
 **First, verify that `compaction_disabled: true` is set in `tempo-v3.yaml`
 overrides** (it already is in this example). If both compactors run against
-the shared MinIO bucket at the same time, they can corrupt each other's work.
+the shared RustFS bucket at the same time, they can corrupt each other's work.
 
 Then confirm v3 is healthy before moving on. Open Grafana at
 <http://localhost:3000> → **Explore** → select the **Prometheus** datasource
@@ -127,7 +127,7 @@ tempo_vulture_trace_total
 
 ### 3. Validate the v3 deployment can read v2 blocks
 
-Pick a trace ID **that's already been flushed to MinIO** and query it through
+Pick a trace ID **that's already been flushed to RustFS** and query it through
 the **v3** frontend. "Already flushed" means older than v2's `max_block_duration`
 (5 min in `tempo-v2.yaml`) — fresher traces still live in the v2 ingester's
 memory, which v3 has no way to read.
@@ -149,7 +149,7 @@ the v3 querier successfully read a v2 block from shared object storage. (This
 example uses RF=1 for simplicity; real 2.x deployments typically use RF=3, and
 v3 transparently reads both.)
 
-> **404 from v3 even though the block is in MinIO?** The v3 querier polls
+> **404 from v3 even though the block is in RustFS?** The v3 querier polls
 > object storage on a fixed cycle (`storage.trace.blocklist_poll`, set to 1 m
 > in `tempo-v3.yaml` for this demo; 5 m by default in real deployments).
 > Newly flushed v2 blocks aren't visible to v3 until the next poll. Wait up to
@@ -186,7 +186,7 @@ Recent traces from the new pipeline should also be queryable via Grafana's
 ### 5. Drain the 2.x ingesters
 
 With no new traffic arriving, the 2.x ingesters need to flush their in-memory
-traces to MinIO. In Grafana Explore (Prometheus), watch these drift toward 0:
+traces to RustFS. In Grafana Explore (Prometheus), watch these drift toward 0:
 
 ```promql
 tempo_ingester_live_traces
@@ -266,7 +266,7 @@ Traffic flips back to v2 instantly. Stop the v3 stack with
 `docker compose --profile v3 down` if you want to abandon the migration.
 
 After step 6 there's no in-place rollback — you'd have to restart the v2 stack
-and replay everything from MinIO.
+and replay everything from RustFS.
 
 ## Tear down
 
@@ -274,7 +274,7 @@ and replay everything from MinIO.
 docker compose --profile v2 --profile v3 down -v
 ```
 
-The `-v` flag removes MinIO and Alloy data volumes.
+The `-v` flag removes RustFS and Alloy data volumes.
 
 ## Troubleshooting
 

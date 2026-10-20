@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -373,7 +373,7 @@ func (s *LiveStore) reloadBlocks() error {
 	}
 
 	for _, tenant := range tenants {
-		ids, _, err := r.Blocks(ctx, tenant)
+		ids, _, _, err := r.Blocks(ctx, tenant)
 		if err != nil {
 			return fmt.Errorf("failed to get local blocks for tenant %s: %w", tenant, err)
 		}

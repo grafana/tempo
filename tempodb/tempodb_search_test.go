@@ -17,25 +17,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/math"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet5"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/pkg/collector"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/math"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 type runnerFn func(*testing.T, *tempopb.Trace, *tempopb.TraceSearchMetadata, []*tempopb.SearchRequest, []*tempopb.SearchRequest, *backend.BlockMeta, Reader, common.BackendBlock)
@@ -363,11 +362,9 @@ func traceQLNilRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 		{Query: "{ resource.service.name = `RootService` && resource.foobar=nil}"},
 	}
 
-	if meta.Version != vparquet3.VersionString {
-		searchesThatMatch = append(searchesThatMatch, []*tempopb.SearchRequest{
-			{Query: "{ resource.service.name = `MyService` && instrumentation.foobar=nil }"},
-		}...)
-	}
+	searchesThatMatch = append(searchesThatMatch, []*tempopb.SearchRequest{
+		{Query: "{ resource.service.name = `MyService` && instrumentation.foobar=nil }"},
+	}...)
 
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		{Query: "{ resource.service.name = `MyService` && resource.bat=nil }"},
@@ -391,6 +388,27 @@ func traceQLNilRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 		}
 		require.NoError(t, err, "search request: %+v", req)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
+	}
+}
+
+func sortSearchResultsForTesting(traces []*tempopb.TraceSearchMetadata) {
+	for _, tr := range traces {
+		for _, ss := range tr.SpanSets {
+			sort.Slice(ss.Spans, func(i, j int) bool {
+				return ss.Spans[i].SpanID < ss.Spans[j].SpanID
+			})
+		}
+		sort.Slice(tr.SpanSets, func(i, j int) bool {
+			left := tr.SpanSets[i].Spans
+			right := tr.SpanSets[j].Spans
+			if len(left) == 0 {
+				return len(right) > 0
+			}
+			if len(right) == 0 {
+				return false
+			}
+			return left[0].SpanID < right[0].SpanID
+		})
 	}
 }
 
@@ -577,6 +595,8 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)
+		sortSearchResultsForTesting(tc.expected)
+		sortSearchResultsForTesting(res.Traces)
 		require.Equal(t, tc.expected, res.Traces, "search request", tc.req)
 	}
 
@@ -1982,7 +2002,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 	rw := r.(*readerWriter)
 
 	wantID, wantTr, start, end, wantMeta := makeExpectedTrace(nil)
@@ -2052,7 +2072,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	r.EnablePolling(ctx, &mockJobSharder{}, false)
+	r.EnablePolling(ctx, &mockJobSharder{})
 	rw := r.(*readerWriter)
 
 	wantID, wantTr, start, end, wantMeta := makeExpectedTrace(nil)
@@ -2533,7 +2553,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	err := c.EnableCompaction(context.Background(), testingCompactorConfig, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{}, false)
+	r.EnablePolling(context.Background(), &mockJobSharder{})
 
 	blockID := backend.NewUUID()
 
@@ -2693,7 +2713,7 @@ func TestSearchByShortTraceID(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := t.Context()
-		r.EnablePolling(ctx, &mockJobSharder{}, false)
+		r.EnablePolling(ctx, &mockJobSharder{})
 		wantID, wantTr, start, end, wantMeta := makeExpectedTrace(traceID)
 
 		// Write to wal

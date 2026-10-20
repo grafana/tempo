@@ -20,9 +20,9 @@ import (
 
 	"github.com/grafana/dskit/runutil"
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/httpclient"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/integration/util"
+	"github.com/grafana/tempo/v3/pkg/httpclient"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/credentials"
 )

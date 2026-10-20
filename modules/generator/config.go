@@ -8,14 +8,14 @@ import (
 	"slices"
 	"time"
 
-	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/modules/generator/storage"
-	"github.com/grafana/tempo/modules/generator/validation"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/ring"
+	"github.com/grafana/tempo/v3/modules/generator/processor/hostinfo"
+	"github.com/grafana/tempo/v3/modules/generator/processor/servicegraphs"
+	"github.com/grafana/tempo/v3/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/v3/modules/generator/registry"
+	"github.com/grafana/tempo/v3/modules/generator/storage"
+	"github.com/grafana/tempo/v3/modules/generator/validation"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/ring"
 )
 
 const (
@@ -175,6 +175,9 @@ func (cfg *ProcessorConfig) Validate() error {
 	if err := validation.ValidateHostInfoMetricName(cfg.HostInfo.MetricName); err != nil {
 		errs = append(errs, err)
 	}
+	if err := validation.ValidateServiceGraphsMaxItems(cfg.ServiceGraphs.MaxItems); err != nil {
+		errs = append(errs, err)
+	}
 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
@@ -186,6 +189,9 @@ func (cfg *ProcessorConfig) Validate() error {
 func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userID string) (ProcessorConfig, error) {
 	copyCfg := *cfg
 
+	if maxItems, ok := o.MetricsGeneratorProcessorServiceGraphsMaxItems(userID); ok {
+		copyCfg.ServiceGraphs.MaxItems = maxItems
+	}
 	if buckets := o.MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID); buckets != nil {
 		copyCfg.ServiceGraphs.HistogramBuckets = buckets
 	}

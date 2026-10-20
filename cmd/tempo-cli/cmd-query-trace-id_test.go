@@ -6,6 +6,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestQueryTraceIDCmdRejectsMalformedURL(t *testing.T) {
+	cmd := &queryTraceIDCmd{APIEndpoint: "http://%", TraceID: "1234"}
+	require.ErrorContains(t, cmd.Run(nil), "parsing API endpoint")
+}
+
 func TestQueryTraceIDCmdRejectsQWithV1(t *testing.T) {
 	// --q is v2-only, so combining it with --v1 must fail fast before any request is made.
 	cmd := &queryTraceIDCmd{

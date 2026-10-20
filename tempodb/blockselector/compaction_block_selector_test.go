@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -830,7 +830,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash2:  "",
 		},
 		{
-			name: "deprecated vParquet3 blocks are ignored for compaction",
+			name: "blocks with a removed vParquet3 version are ignored for compaction",
 			blocklist: []*backend.BlockMeta{
 				{
 					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"),

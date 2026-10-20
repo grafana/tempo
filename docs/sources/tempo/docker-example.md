@@ -193,3 +193,5 @@ Here are some resources to help you learn more about Tempo:
 
 - [Instrumenting your application](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/)
 - [Set up for tracing](https://grafana.com/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/)
+
+<!-- INTERACTIVE page finish.md END -->

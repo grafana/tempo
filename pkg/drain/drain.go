@@ -229,40 +229,44 @@ func (d *Drain) findMatchingClusterForTokens(content string, tokens []string) *L
 		return d.idToCluster.Get(curNode.clusterIDs[0])
 	}
 
-	// otherwise, we need to find the leaf node for this log.
-	curNodeDepth := 1
-	for _, token := range tokens {
-		// at max depth
-		if curNodeDepth >= d.maxNodeDepth {
-			break
+	return d.descend(curNode, content, tokens, tokenCount, 1)
+}
+
+// descend walks the tree towards the leaf holding candidate clusters. A node can
+// hold both a wildcard child and a literal-token child, because insertion only
+// generalizes a token the data heuristic flags. Both branches may therefore lead
+// to a match, so try the wildcard first and fall back to the literal token,
+// backtracking when a branch dead-ends.
+func (d *Drain) descend(curNode *Node, content string, tokens []string, tokenCount, depth int) *LogCluster {
+	// at max depth, or on the last token, this is the leaf
+	if depth >= d.maxNodeDepth || depth == tokenCount {
+		if cluster := d.findExactCluster(curNode, content); cluster != nil {
+			return cluster
 		}
 
-		// this is last token
-		if curNodeDepth == tokenCount {
-			break
+		// get best match among all clusters with same prefix, or None if no match is above sim_th
+		cluster := d.findBestClusterForTokens(curNode, tokens)
+		if cluster != nil && curNode.exactClusterIDByPattern != nil {
+			d.indexExactCluster(curNode, cluster, content)
 		}
-
-		keyToChildNode := curNode.keyToChildNode
-		curNode, ok = keyToChildNode[d.config.ParamString]
-		if !ok { // no wildcard node, try exact match
-			curNode, ok = keyToChildNode[token]
-		}
-		if !ok { // no existing path
-			return nil
-		}
-		curNodeDepth++
-	}
-
-	if cluster := d.findExactCluster(curNode, content); cluster != nil {
 		return cluster
 	}
 
-	// get best match among all clusters with same prefix, or None if no match is above sim_th
-	cluster := d.findBestClusterForTokens(curNode, tokens)
-	if cluster != nil && curNode.exactClusterIDByPattern != nil {
-		d.indexExactCluster(curNode, cluster, content)
+	token := tokens[depth-1]
+	for _, key := range [2]string{d.config.ParamString, token} {
+		child, ok := curNode.keyToChildNode[key]
+		if !ok {
+			continue
+		}
+		if cluster := d.descend(child, content, tokens, tokenCount, depth+1); cluster != nil {
+			return cluster
+		}
+		if key == token {
+			// the literal branch is the last one to try
+			break
+		}
 	}
-	return cluster
+	return nil
 }
 
 // findBestClusterForTokens finds the best match for a log message (represented

@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-kit/log"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 type Finder interface {
@@ -80,6 +80,7 @@ type CompactionOptions struct {
 	ObjectsCombined   func(compactionLevel, objects int)
 	ObjectsWritten    func(compactionLevel, objects int)
 	BytesWritten      func(compactionLevel, bytes int)
+	TraceWritten      func(compactionLevel, bytes int)
 	SpansDiscarded    func(traceID string, rootSpanName string, rootServiceName string, spans int)
 	DisconnectedTrace func()
 	RootlessTrace     func()

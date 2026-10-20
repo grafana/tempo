@@ -7,7 +7,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/cache"
 )
 
 type Config struct {
@@ -29,6 +29,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(_ string, _ *flag.FlagSet) {
 	cfg.ClientConfig.Timeout = 100 * time.Millisecond
 	cfg.ClientConfig.UpdateInterval = time.Minute
 	cfg.ClientConfig.ConsistentHash = true
+	cfg.ClientConfig.CBFailures = 10
+	cfg.ClientConfig.CBTimeout = 10 * time.Second
+	cfg.ClientConfig.CBInterval = 10 * time.Second
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

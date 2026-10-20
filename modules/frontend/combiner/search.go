@@ -3,12 +3,12 @@ package combiner
 import (
 	"net/http"
 
-	"github.com/grafana/tempo/modules/frontend/shardtracker"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/search"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/search"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
 )
 
 // SearchJobResponse wraps shardtracker.JobMetadata and implements PipelineResponse.
@@ -33,11 +33,11 @@ var _ PipelineResponse = (*SearchJobResponse)(nil)
 var _ GRPCCombiner[*tempopb.SearchResponse] = (*genericCombiner[*tempopb.SearchResponse])(nil)
 
 // NewSearch returns a search combiner
-func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool) Combiner {
+func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool, opts ...Option) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner(limit, keepMostRecent)
 	diffTraces := map[string]struct{}{}
 	completedThroughTracker := &shardtracker.CompletionTracker{}
-	metricsCombiner := NewSearchMetricsCombiner()
+	metricsCombiner := NewSearchMetricsCombiner(opts...)
 
 	c := &genericCombiner[*tempopb.SearchResponse]{
 		httpStatusCode: 200,
@@ -146,8 +146,8 @@ func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
 	}
 }
 
-func NewTypedSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool) GRPCCombiner[*tempopb.SearchResponse] {
-	return NewSearch(limit, keepMostRecent, marshalingFormat, padTraceIDs).(GRPCCombiner[*tempopb.SearchResponse])
+func NewTypedSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingFormat, padTraceIDs bool, opts ...Option) GRPCCombiner[*tempopb.SearchResponse] {
+	return NewSearch(limit, keepMostRecent, marshalingFormat, padTraceIDs, opts...).(GRPCCombiner[*tempopb.SearchResponse])
 }
 
 // padTraceIDsInResponse left-pads all trace IDs in the given search metadata to 32 hex characters.

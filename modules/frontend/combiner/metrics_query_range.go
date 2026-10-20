@@ -1,16 +1,18 @@
 package combiner
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"net/http"
 	"slices"
 	"sort"
 
-	"github.com/grafana/tempo/modules/frontend/shardtracker"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 // QueryRangeJobResponse wraps shardtracker.JobMetadata and implements PipelineResponse.
@@ -36,7 +38,7 @@ var (
 )
 
 // NewQueryRange returns a query range combiner.
-func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner, error) {
+func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int, opts ...Option) (Combiner, error) {
 	// if a limit is being enforced, honor the request if it is less than the limit
 	// else set it to max limit
 	maxSeries := int(req.MaxSeries)
@@ -51,7 +53,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 	completionTracker := &shardtracker.CompletionTracker{}
 	maxSeriesReachedErrorMsg := fmt.Sprintf("Response exceeds maximum series limit of %d, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", maxSeries)
 
-	metricsCombiner := NewQueryRangeMetricsCombiner()
+	metricsCombiner := NewQueryRangeMetricsCombiner(opts...)
 	lastCompletedThrough := shardtracker.TimestampNever
 	c := &genericCombiner[*tempopb.QueryRangeResponse]{
 		httpStatusCode: 200,
@@ -158,8 +160,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 	return c, nil
 }
 
-func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
-	c, err := NewQueryRange(req, maxSeries)
+func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int, opts ...Option) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
+	c, err := NewQueryRange(req, maxSeries, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -261,10 +263,8 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 				return ki < kj
 			}
 
-			si := res.Series[i].Labels[k].Value.String()
-			sj := res.Series[j].Labels[k].Value.String()
-			if si != sj {
-				return si < sj
+			if order := compareAnyValues(res.Series[i].Labels[k].Value, res.Series[j].Labels[k].Value); order != 0 {
+				return order < 0
 			}
 		}
 		return false
@@ -277,6 +277,18 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 			return series.Exemplars[i].TimestampMs < series.Exemplars[j].TimestampMs
 		})
 	}
+}
+
+func compareAnyValues(a, b *v1.AnyValue) int {
+	if a == b {
+		return 0
+	}
+	if sa, ok := a.GetValue().(*v1.AnyValue_StringValue); ok {
+		if sb, ok := b.GetValue().(*v1.AnyValue_StringValue); ok {
+			return cmp.Compare(sa.StringValue, sb.StringValue)
+		}
+	}
+	return cmp.Compare(a.String(), b.String())
 }
 
 // attachExemplars to the final series outputs. Placeholder exemplars for things like rate()

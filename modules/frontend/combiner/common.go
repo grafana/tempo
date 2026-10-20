@@ -11,14 +11,14 @@ import (
 	"sync"
 	"unsafe"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
-	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/api"
 	"google.golang.org/grpc/codes"
 )
 

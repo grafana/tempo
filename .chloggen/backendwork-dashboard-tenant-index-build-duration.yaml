@@ -1,0 +1,7 @@
+change_type: enhancement
+component: operations
+note: "tempo-mixin: add a Tenant Index Build Duration panel to the Backend Work dashboard, plotting tempodb_blocklist_tenant_index_build_duration_seconds."
+issues: []
+subtext: |
+  Surfaces the per-tenant tenant-index build/write duration added in #7923. The panel follows the dashboard's existing classic/native histogram convention, gated by the Latency metrics variable.
+user: zalegrala

@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/gogo/status"
-	"github.com/grafana/tempo/modules/frontend/shardtracker"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/search"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/search"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -856,4 +856,21 @@ func TestSegmentSearchResponse(t *testing.T) {
 		require.Equal(t, input.Metrics, out[1].Metrics)
 		require.Equal(t, input.Metrics, out[2].Metrics)
 	})
+}
+
+func TestSearchReportsInspectedBytesBeforeRequestFails(t *testing.T) {
+	var reported []uint64
+	c := NewTypedSearch(10, false, api.MarshallingFormatProtobuf, false,
+		WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) }))
+
+	ok := func(b uint64) PipelineResponse {
+		return toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{InspectedBytes: b}}, http.StatusOK, nil, api.MarshallingFormatProtobuf)
+	}
+	require.NoError(t, c.AddResponse(ok(5)))
+	require.NoError(t, c.AddResponse(toHTTPResponse(t, nil, http.StatusInternalServerError)))
+	require.NoError(t, c.AddResponse(ok(7))) // dropped: the combiner already quit
+
+	_, err := c.GRPCFinal()
+	require.Error(t, err)
+	require.Equal(t, []uint64{5}, reported)
 }

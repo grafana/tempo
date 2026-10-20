@@ -10,12 +10,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	v1resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/boundedwaitgroup"
+	v1resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 type queryTraceSummaryCmd struct {
@@ -85,7 +85,7 @@ func sortServiceNames(nameFrequencies map[string]int) PairList {
 }
 
 func queryBucketForSummary(ctx context.Context, percentage float32, r backend.Reader, c backend.Compactor, tenantID string, traceID common.ID) (*TraceSummary, error) {
-	blockIDs, _, err := r.Blocks(context.Background(), tenantID)
+	blockIDs, _, _, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
 	}

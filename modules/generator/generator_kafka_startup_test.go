@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/ingest/testkafka"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/ingest/testkafka"
 )
 
 // TestGenerator_adjustStartupOffsets_skipsStaleBacklog verifies the

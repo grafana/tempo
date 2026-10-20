@@ -12,16 +12,16 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/storage"
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/tempopb"
-	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	resource_v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/storage"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	common_v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	resource_v1 "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	trace_v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
@@ -116,6 +116,24 @@ func BenchmarkInstancePushSpansConfigurations(b *testing.B) {
 				benchmarkGeneratorProdOverrides(o)
 			},
 			request: benchmarkGeneratorSpanmetricsRequest(benchmarkGeneratorProdResource, benchmarkGeneratorProdSpan),
+		},
+		{
+			name: "spanmetrics_prod_7dims_per_label_limit",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.maxCardinalityPerLabel = 10000
+			},
+			request: benchmarkGeneratorSpanmetricsRequest(benchmarkGeneratorProdResource, benchmarkGeneratorProdSpan),
+		},
+		{
+			name: "combined_prod_7dims_per_label_limit",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.maxCardinalityPerLabel = 10000
+			},
+			request: benchmarkGeneratorServiceGraphRequest(200, false, benchmarkGeneratorProdResource, benchmarkGeneratorProdSpan),
 		},
 		{
 			name: "servicegraphs_prod_7dims_prefix",

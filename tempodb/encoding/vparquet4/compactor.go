@@ -11,13 +11,13 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/parquet-go/parquet-go"
 	"go.opentelemetry.io/otel/attribute"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func NewCompactor(opts common.CompactionOptions) *Compactor {
@@ -190,6 +190,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			if err != nil {
 				return nil, fmt.Errorf("error writing partial block: %w", err)
 			}
+		}
+
+		if c.opts.TraceWritten != nil {
+			c.opts.TraceWritten(int(compactionLevel), estimateProtoSizeFromParquetRow(lowestObject))
 		}
 
 		// Write trace.

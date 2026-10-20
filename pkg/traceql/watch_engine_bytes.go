@@ -4,7 +4,7 @@ import (
 	"fmt"
 	math_bits "math/bits"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 var _ SpanWatcher = (*engineBytesWatcher)(nil)

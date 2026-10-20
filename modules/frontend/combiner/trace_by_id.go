@@ -10,10 +10,10 @@ import (
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/tempo/pkg/api"
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/api"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 const (
@@ -39,18 +39,18 @@ type TraceByIDCombiner struct {
 // - translate tempopb.TraceByIDResponse to tempopb.Trace. all other combiners pass the same object through
 // - runs the zipkin dedupe logic on the fully combined trace
 // - encode the returned trace as either json or proto depending on the request
-func NewTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor) Combiner {
+func NewTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor, opts ...Option) Combiner {
 	return &TraceByIDCombiner{
 		c:               trace.NewCombiner(maxBytes, false),
 		code:            http.StatusNotFound,
 		contentType:     contentType,
-		MetricsCombiner: NewTraceByIDMetricsCombiner(),
+		MetricsCombiner: NewTraceByIDMetricsCombiner(opts...),
 		traceRedactor:   traceRedactor,
 	}
 }
 
-func NewTypedTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor) *TraceByIDCombiner {
-	return NewTraceByID(maxBytes, contentType, traceRedactor).(*TraceByIDCombiner)
+func NewTypedTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor, opts ...Option) *TraceByIDCombiner {
+	return NewTraceByID(maxBytes, contentType, traceRedactor, opts...).(*TraceByIDCombiner)
 }
 
 func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {

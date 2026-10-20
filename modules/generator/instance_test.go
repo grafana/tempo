@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/processor"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/prometheus/model/exemplar"
@@ -21,13 +21,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/generator/storage"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/modules/generator/processor/hostinfo"
+	"github.com/grafana/tempo/v3/modules/generator/processor/servicegraphs"
+	"github.com/grafana/tempo/v3/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/v3/modules/generator/storage"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 )
 
 func Test_instance_concurrency(t *testing.T) {
@@ -253,6 +253,29 @@ func Test_instance_updateProcessors(t *testing.T) {
 		expectedConfig.MetricName = "sample_traces_host_info"
 
 		assert.Equal(t, expectedConfig, instance.processors[processor.HostInfoName].(*hostinfo.Processor).Cfg)
+	})
+
+	t.Run("replace servicegraphs processor with max items override", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			processor.ServiceGraphsName: {},
+			processor.SpanMetricsName:   {},
+			processor.HostInfoName:      {},
+		}
+		maxItems := 42
+		overrides.serviceGraphsMaxItems = &maxItems
+		t.Cleanup(func() { overrides.serviceGraphsMaxItems = nil })
+
+		err := instance.updateProcessors()
+		require.NoError(t, err)
+
+		require.Equal(t, 42, instance.processors[processor.ServiceGraphsName].(*servicegraphs.Processor).Cfg.MaxItems)
+
+		// removing the override restores the configured default
+		overrides.serviceGraphsMaxItems = nil
+		err = instance.updateProcessors()
+		require.NoError(t, err)
+
+		require.Equal(t, cfg.Processor.ServiceGraphs.MaxItems, instance.processors[processor.ServiceGraphsName].(*servicegraphs.Processor).Cfg.MaxItems)
 	})
 
 	t.Run("remove processor", func(t *testing.T) {

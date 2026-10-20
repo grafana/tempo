@@ -1,0 +1,7 @@
+change_type: enhancement
+component: operations
+note: "Add an optional backend_worker.keda.jobs_in_flight trigger that scales backend-workers on the scheduler jobs in flight (active + pending), in addition to outstanding blocks."
+issues: [8082]
+subtext: |
+  Outstanding blocks only measures compaction backlog, so work that is not counted there, such as a redaction batch, does not hold workers up. The new trigger requests ceil(jobs / jobs_per_worker) workers and is disabled by default.
+user: zalegrala

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,18 +14,19 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/ingest/testkafka"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/ingest/testkafka"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -649,7 +651,7 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 }
 
 func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
-	// default ingestion slack is 2 minutes. create some convenient times to help the test below
+	// ingestion slack is set to 2 minutes below. create some convenient times to help the test below
 	now := time.Unix(1000000, 0)
 	oneMinuteAgo := now.Add(-time.Minute)
 	oneMinuteLater := now.Add(time.Minute)
@@ -685,7 +687,7 @@ func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 			startTime:     threeMinutesAgo,
 			endTime:       now,
 			recordTime:    now,
-			expectedStart: twoMinutesAgo, // default ingestion slack is 2 minutes
+			expectedStart: twoMinutesAgo, // ingestion slack is 2 minutes
 			expectedEnd:   now,
 		},
 	}
@@ -705,6 +707,7 @@ func TestBlockbuilder_usesRecordTimestampForBlockStartAndEnd(t *testing.T) {
 
 			store := newStore(ctx, t)
 			cfg := blockbuilderConfig(t, address, []int32{0})
+			cfg.WAL.IngestionSlack = 2 * time.Minute
 
 			client := testkafka.NewKafkaClient(t, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 
@@ -952,7 +955,7 @@ func newStore(ctx context.Context, t testing.TB) storage.Store {
 	// wait for it, and it races with t.TempDir() cleanup, writing tenant index
 	// files while os.RemoveAll runs.
 	ctx, cancel := context.WithCancel(ctx)
-	store := newStoreWithLogger(ctx, t, testLogger(t), false)
+	store := newStoreWithLogger(ctx, t, testLogger(t))
 	t.Cleanup(func() {
 		cancel()
 		store.Shutdown()
@@ -961,7 +964,7 @@ func newStore(ctx context.Context, t testing.TB) storage.Store {
 	return store
 }
 
-func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, skipNoCompactBlocks bool) storage.Store {
+func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) storage.Store {
 	tmpDir := t.TempDir()
 
 	s, err := storage.NewStore(storage.Config{
@@ -983,7 +986,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, skipN
 	}, nil, log)
 	require.NoError(t, err)
 
-	s.EnablePolling(ctx, &ownEverythingSharder{}, skipNoCompactBlocks)
+	s.EnablePolling(ctx, &ownEverythingSharder{})
 	return s
 }
 
@@ -1080,7 +1083,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		ctx        = context.Background()
 		logger     = log.NewNopLogger()
 		_, address = testkafka.CreateCluster(b, 1, testTopic)
-		store      = newStoreWithLogger(ctx, b, logger, false)
+		store      = newStoreWithLogger(ctx, b, logger)
 		cfg        = blockbuilderConfig(b, address, []int32{0})
 		client     = testkafka.NewKafkaClient(b, cfg.IngestStorageConfig.Kafka.Address, cfg.IngestStorageConfig.Kafka.Topic)
 		o          = &mockOverrides{
@@ -1322,4 +1325,62 @@ func testLogger(_ testing.TB) log.Logger {
 	// Uncomment when we need full detail.
 	// return test.NewTestingLogger(t)
 	return log.NewNopLogger()
+}
+
+// A record that fails to decode partway through must not leak its partially
+// decoded traces into the next record, which may belong to another tenant.
+func TestBlockbuilder_pushTracesAfterDecodeFailure(t *testing.T) {
+	b := &BlockBuilder{decoder: ingest.NewDecoder()}
+	w := &recordingWriter{}
+
+	// Traces are encoded before IDs, so cutting the last byte leaves every
+	// trace decoded but one ID short.
+	bad, err := (&tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: []byte("trace-a1")}, {Slice: []byte("trace-a2")}},
+		Ids:    [][]byte{[]byte("id-a1"), []byte("id-a2")},
+	}).Marshal()
+	require.NoError(t, err)
+
+	err = b.pushTraces(time.Now(), []byte("tenant-a"), bad[:len(bad)-1], w)
+	require.Error(t, err)
+	require.Empty(t, w.pushes)
+
+	good := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{{Slice: []byte("trace-b1")}},
+		Ids:    [][]byte{[]byte("id-b1")},
+	}
+	goodBytes, err := good.Marshal()
+	require.NoError(t, err)
+
+	require.NoError(t, b.pushTraces(time.Now(), []byte("tenant-b"), goodBytes, w))
+
+	require.Len(t, w.pushes, 1)
+	require.Equal(t, "tenant-b", w.pushes[0].tenant)
+	require.Equal(t, good.Traces, w.pushes[0].traces)
+	require.Equal(t, good.Ids, w.pushes[0].ids)
+}
+
+type recordedPush struct {
+	tenant string
+	traces []tempopb.PreallocBytes
+	ids    [][]byte
+}
+
+// recordingWriter is a partitionSectionWriter that records every push.
+type recordingWriter struct {
+	pushes []recordedPush
+}
+
+func (w *recordingWriter) pushBytes(_ time.Time, tenant string, req *tempopb.PushBytesRequest) error {
+	// The decoder reuses req on the next Decode, so keep copies.
+	w.pushes = append(w.pushes, recordedPush{
+		tenant: tenant,
+		traces: slices.Clone(req.Traces),
+		ids:    slices.Clone(req.Ids),
+	})
+	return nil
+}
+
+func (w *recordingWriter) flush(context.Context, tempodb.Reader, tempodb.Writer, tempodb.Compactor) error {
+	return nil
 }

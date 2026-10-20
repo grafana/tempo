@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/util/listtomap"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v3/pkg/util/listtomap"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 // Copied from Cortex
@@ -122,6 +122,7 @@ metrics_generator_forwarder_workers: 7
 metrics_generator_remote_write_headers:
   tenant-id: foo
 metrics_generator_processor_service_graphs_histogram_buckets: [1,2]
+metrics_generator_processor_service_graphs_max_items: 23
 metrics_generator_processor_service_graphs_dimensions: ['foo']
 metrics_generator_processor_service_graphs_peer_attributes: ['foo']
 metrics_generator_processor_service_graphs_enable_client_server_prefix: false
@@ -197,6 +198,7 @@ defaults:
     native_histogram_min_reset_duration: 15m
     processor:
       service_graphs:
+        max_items: 23
         histogram_buckets:
         - 1
         - 2
@@ -397,10 +399,14 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		IngestionArtificialDelay:   durationPtr(5 * time.Minute),
 		IngestionRetryInfoEnabled:  new(true),
 
+		IngestionCreationGracePeriod: durationPtr(15 * time.Minute),
+
 		MaxLocalTracesPerUser:  1000,
 		MaxGlobalTracesPerUser: 2000,
 
-		Forwarders: []string{"forwarder-1", "forwarder-2"},
+		Forwarders:         []string{"forwarder-1", "forwarder-2"},
+		ForwarderQueueSize: 250,
+		ForwarderWorkers:   4,
 
 		MetricsGeneratorRingSize:                                                    3,
 		MetricsGeneratorProcessors:                                                  makeListToMap([]string{"processor-1", "processor-2"}),
@@ -414,6 +420,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorForwarderQueueSize:                                          100,
 		MetricsGeneratorForwarderWorkers:                                            5,
 		MetricsGeneratorRemoteWriteHeaders:                                          RemoteWriteHeaders{"header-1": "value-1"},
+		MetricsGeneratorProcessorServiceGraphsMaxItems:                              new(256),
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      []float64{1.0, 2.0, 5.0},
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            []string{"dimension-1", "dimension-2"},
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},

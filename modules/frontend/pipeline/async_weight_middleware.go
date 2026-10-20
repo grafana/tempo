@@ -3,8 +3,8 @@ package pipeline
 import (
 	"context"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 type RequestType int

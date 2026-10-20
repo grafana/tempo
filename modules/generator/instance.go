@@ -11,21 +11,21 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
+	tempo_log "github.com/grafana/tempo/v3/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/tempo/modules/generator/localentitylimiter"
-	"github.com/grafana/tempo/modules/generator/localserieslimiter"
-	"github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/modules/generator/storage"
-	"github.com/grafana/tempo/modules/generator/validation"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/modules/generator/localentitylimiter"
+	"github.com/grafana/tempo/v3/modules/generator/localserieslimiter"
+	"github.com/grafana/tempo/v3/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/processor/hostinfo"
+	"github.com/grafana/tempo/v3/modules/generator/processor/servicegraphs"
+	"github.com/grafana/tempo/v3/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/v3/modules/generator/registry"
+	"github.com/grafana/tempo/v3/modules/generator/storage"
+	"github.com/grafana/tempo/v3/modules/generator/validation"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 
 	"go.uber.org/atomic"
 )
@@ -480,7 +480,7 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 		size += b.Size()
 		for _, ss := range b.ScopeSpans {
 			spanCount += len(ss.Spans)
-			// filter spans that have end time > max_age and end time more than 5 days in the future
+			// filter spans with an end time older than the ingestion slack or further than the slack in the future
 			newSpansArr := make([]*v1.Span, len(ss.Spans))
 			timeNow := time.Now()
 			maxTimePast := uint64(timeNow.UnixNano() - ingestionSlackNano)

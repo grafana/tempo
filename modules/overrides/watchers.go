@@ -1,7 +1,7 @@
 package overrides
 
 import (
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 // SpanPruningAwarenessCompileOptions builds a CompileOption that install the span-pruning awareness watcher.

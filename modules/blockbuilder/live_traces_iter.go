@@ -7,10 +7,10 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/grafana/tempo/pkg/livetraces"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/livetraces"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 type entry struct {

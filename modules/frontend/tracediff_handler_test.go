@@ -16,13 +16,13 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/model/tracediff"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempotest "github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/model/tracediff"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	tempotest "github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
@@ -46,11 +46,11 @@ func TestBuildTraceDiffTraceByIDRequest(t *testing.T) {
 	_, err := api.ParseTraceID(req)
 	require.NoError(t, err)
 
-	_, _, queryMode, startTime, endTime, err := api.ParseTraceByIDRequest(req)
+	traceByIDReq, err := api.ParseTraceByIDRequest(req)
 	require.NoError(t, err)
-	require.Equal(t, api.QueryModeAll, queryMode)
-	require.Equal(t, time.Unix(start, 0), startTime)
-	require.Equal(t, time.Unix(end, 0), endTime)
+	require.Equal(t, api.QueryModeAll, traceByIDReq.QueryMode)
+	require.Equal(t, time.Unix(start, 0), traceByIDReq.Start)
+	require.Equal(t, time.Unix(end, 0), traceByIDReq.End)
 }
 
 func TestTraceDiffHandlerFetchTraceForDiff(t *testing.T) {

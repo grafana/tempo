@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/stretchr/testify/require"
 )
 

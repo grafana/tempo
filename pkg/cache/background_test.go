@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/stretchr/testify/require"
 )
 

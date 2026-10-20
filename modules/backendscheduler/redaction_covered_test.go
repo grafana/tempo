@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 // TestCoveredRange covers the audit record that describes a redaction's blast radius.

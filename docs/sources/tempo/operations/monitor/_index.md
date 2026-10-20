@@ -104,6 +104,7 @@ This dashboard is included in the Tempo repository for two reasons:
 
 The Backend Work dashboard monitors blocklist maintenance, compaction jobs, and backend component resources.
 It tracks blocklist length and poll duration, active and completed compaction jobs, failure and retry rates, and objects written and combined during compaction.
+It also includes a **Redaction** row with per-tenant **Traces Redacted / h** and **Dry-run Blast Radius / h** panels for [`tempo-cli redact`](/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#redact-traces) jobs.
 The dashboard also shows CPU and memory usage for the backend-scheduler and backend-worker components.
 
 Use this dashboard to monitor compaction health, detect stalled or failing jobs, and right-size backend-scheduler and backend-worker resources.

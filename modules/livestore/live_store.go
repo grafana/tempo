@@ -15,14 +15,14 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/flushqueues"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/shutdownmarker"
-	"github.com/grafana/tempo/pkg/validation"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/flushqueues"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/shutdownmarker"
+	"github.com/grafana/tempo/v3/pkg/validation"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -625,7 +625,6 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 }
 
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
-	defer s.decoder.Reset()
 	ctx, span := tracer.Start(ctx, "LiveStore.consume")
 	defer span.End()
 
@@ -648,7 +647,6 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			continue
 		}
 
-		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.Value)
 		if err != nil {
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()

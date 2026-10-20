@@ -3,7 +3,7 @@ package vparquet5
 import (
 	"errors"
 
-	pq "github.com/grafana/tempo/pkg/parquetquery"
+	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
 )
 
 type rowNumberIterator struct {

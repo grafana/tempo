@@ -4,8 +4,8 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 const (
@@ -24,10 +24,8 @@ type BlockConfig struct {
 	Version             string  `yaml:"version"`
 
 	// parquet fields
-	RowGroupSizeBytes int `yaml:"parquet_row_group_size_bytes"`
-
-	// vParquet3 fields
-	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns"`
+	RowGroupSizeBytes int                      `yaml:"parquet_row_group_size_bytes"`
+	DedicatedColumns  backend.DedicatedColumns `yaml:"parquet_dedicated_columns"`
 
 	// used internally. If true, the block will be created by default with the nocompact flag set.
 	CreateWithNoCompactFlag bool `yaml:"-"`

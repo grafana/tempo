@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: storage
+
+note: Add `list_blocks_concurrency` to the azure backend to list a tenant's blocks in parallel
+
+issues: []
+
+subtext:
+
+user: zhxiaogg

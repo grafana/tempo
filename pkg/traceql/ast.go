@@ -12,7 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/grafana/tempo/pkg/regexp"
+	"github.com/grafana/tempo/v3/pkg/regexp"
 )
 
 type Element interface {
@@ -662,6 +662,11 @@ type BinaryOperation struct {
 }
 
 func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
+	if op == OpAnd || op == OpOr {
+		lhs = impliedBoolOperand(lhs)
+		rhs = impliedBoolOperand(rhs)
+	}
+
 	binop := &BinaryOperation{
 		Op:  op,
 		LHS: lhs,
@@ -691,6 +696,16 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 	}
 
 	return binop
+}
+
+// impliedBoolOperand rewrites a bare attribute used as an operand of && or ||
+// into `.foo = true`. This always gives the operand a boolean result, even when
+// the attribute is missing, and lets the fetch layer search only for bools.
+func impliedBoolOperand(e FieldExpression) FieldExpression {
+	if attr, ok := e.(Attribute); ok && attr.impliedType() == TypeAttribute {
+		return newBinaryOperation(OpEqual, attr, StaticTrue)
+	}
+	return e
 }
 
 // normalizeTraceIDOperand normalizes a Static operand for trace ID

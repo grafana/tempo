@@ -27,6 +27,8 @@ Refer to [Enable service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces
 
 ![Service graph](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-service-graph-prom.png)
 
+To view service graphs in Grafana, refer to [Service graph view](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/service-graph-view/).
+
 ## How they work
 
 The metrics-generator and Grafana Alloy both process traces and generate service graphs in the form of Prometheus metrics.
@@ -149,6 +151,8 @@ Activating this feature adds the following label and corresponding values:
 The service graphs processor has several configuration options beyond `dimensions` and `enable_virtual_node_label`.
 For the full YAML schema and defaults, refer to the [configuration reference](/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 
+You don't need to set any of them to get started; use them when you want to adjust sampling, labels, database detection, or which spans are included.
+
 ### Span multiplier
 
 When traces are sampled, the raw request counts produced by the service graph processor underrepresent actual traffic.
@@ -158,6 +162,26 @@ For example, if a span has attribute `X-SampleRatio=0.1` (10% sampling), setting
 
 The `enable_tracestate_span_multiplier` option provides an alternative approach that extracts the multiplier from the W3C tracestate header using the [OpenTelemetry probability sampling threshold](https://opentelemetry.io/docs/specs/otel/trace/tracestate-probability-sampling/) (`ot=th:<hex>`).
 When enabled, the tracestate threshold takes priority over `span_multiplier_key`.
+
+### Client and server dimension prefixes
+
+When you add extra `dimensions`, the same attribute can appear on both the client and server sides of an edge.
+By default, the processor writes one label per dimension,
+and if both sides carry the attribute the value is undetermined.
+
+Set `enable_client_server_prefix: true` to prefix those extra dimensions with `client_` and `server_`.
+The processor then emits two labels per additional dimension, for example `client_deployment_environment` and `server_deployment_environment`.
+That doubles the label count for each configured dimension, which increases cardinality.
+The default is `false`.
+
+```yaml
+metrics_generator:
+  processor:
+    service_graphs:
+      dimensions:
+        - deployment.environment
+      enable_client_server_prefix: true
+```
 
 ### Database name attributes
 
@@ -207,3 +231,11 @@ Monitor service graph filtering with:
 - `tempo_metrics_generator_spans_discarded_total{reason="service_graphs_filtered", processor="service-graphs"}`
 - `tempo_metrics_generator_processor_service_graphs_dropped_edges_total`
 - `tempo_metrics_generator_processor_service_graphs_dropped_span_side_cache_overflow_total`
+
+## Next steps
+
+- [Enable service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/enable-service-graphs/) using the metrics-generator or Grafana Alloy.
+- [View service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/service-graph-view/) in Grafana.
+- [Create custom service graphs](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/custom-service-graphs/) with the Node graph visualization.
+- [Analyze service graph data](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/service_graphs/metrics-queries/) with PromQL queries.
+- Generate [span metrics](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/span-metrics/) for RED metrics alongside service graphs.

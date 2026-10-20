@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/collector"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -244,7 +244,7 @@ func TestSearchSpecialTagValuesStopsEarly(t *testing.T) {
 	err = searchSpecialTagValues(ctx, column, pf, func(traceql.Static) bool {
 		all++
 		return false
-	})
+	}, common.SearchOptions{})
 	require.NoError(t, err)
 	require.Greater(t, all, 1, "column must report multiple values for this test to mean anything")
 
@@ -256,7 +256,7 @@ func TestSearchSpecialTagValuesStopsEarly(t *testing.T) {
 			afterStop++
 		}
 		return true // stop immediately
-	})
+	}, common.SearchOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 1, calls, "callback must be invoked exactly once when it stops on the first value")
 	require.Zero(t, afterStop, "callback must not be invoked after asking to stop")

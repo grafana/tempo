@@ -14,16 +14,16 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 	semconvnew "go.opentelemetry.io/otel/semconv/v1.34.0"
 
-	gen "github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
-	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/modules/generator/validation"
-	"github.com/grafana/tempo/pkg/spanfilter"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	gen "github.com/grafana/tempo/v3/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/processor/servicegraphs/store"
+	processor_util "github.com/grafana/tempo/v3/modules/generator/processor/util"
+	"github.com/grafana/tempo/v3/modules/generator/registry"
+	"github.com/grafana/tempo/v3/modules/generator/validation"
+	"github.com/grafana/tempo/v3/pkg/spanfilter"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	tempo_util "github.com/grafana/tempo/v3/pkg/util"
 )
 
 var (
@@ -118,6 +118,10 @@ type dimensionLabel struct {
 }
 
 func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}

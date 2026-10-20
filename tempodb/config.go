@@ -6,20 +6,20 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/modules/cache/memcached"
-	"github.com/grafana/tempo/modules/cache/redis"
+	"github.com/grafana/tempo/v3/modules/cache/memcached"
+	"github.com/grafana/tempo/v3/modules/cache/redis"
 
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/backend/s3"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/pool"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend/azure"
+	backend_cache "github.com/grafana/tempo/v3/tempodb/backend/cache"
+	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/pool"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 const (
@@ -28,6 +28,7 @@ const (
 	DefaultBlocklistPollConcurrency       = uint(50)
 	DefaultBlocklistPollTenantConcurrency = uint(1)
 	DefaultRetentionConcurrency           = uint(10)
+	DefaultRetentionBlockConcurrency      = uint(4)
 	DefaultTenantIndexBuilders            = 2
 	DefaultTolerateConsecutiveErrors      = 1
 	DefaultTolerateTenantFailures         = 1
@@ -125,14 +126,15 @@ func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
 
 // CompactorConfig contains compaction configuration options
 type CompactorConfig struct {
-	MaxCompactionRange      time.Duration `yaml:"compaction_window"`
-	MaxCompactionObjects    int           `yaml:"max_compaction_objects"`
-	MaxBlockBytes           uint64        `yaml:"max_block_bytes"`
-	BlockRetention          time.Duration `yaml:"block_retention"`
-	CompactedBlockRetention time.Duration `yaml:"compacted_block_retention"`
-	RetentionConcurrency    uint          `yaml:"retention_concurrency"`
-	MaxTimePerTenant        time.Duration `yaml:"max_time_per_tenant"`
-	CompactionCycle         time.Duration `yaml:"compaction_cycle"`
+	MaxCompactionRange        time.Duration `yaml:"compaction_window"`
+	MaxCompactionObjects      int           `yaml:"max_compaction_objects"`
+	MaxBlockBytes             uint64        `yaml:"max_block_bytes"`
+	BlockRetention            time.Duration `yaml:"block_retention"`
+	CompactedBlockRetention   time.Duration `yaml:"compacted_block_retention"`
+	RetentionConcurrency      uint          `yaml:"retention_concurrency"`
+	RetentionBlockConcurrency uint          `yaml:"retention_block_concurrency"`
+	MaxTimePerTenant          time.Duration `yaml:"max_time_per_tenant"`
+	CompactionCycle           time.Duration `yaml:"compaction_cycle"`
 }
 
 func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -141,6 +143,7 @@ func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 	cfg.CompactionCycle = DefaultCompactionCycle
 	cfg.CompactedBlockRetention = time.Hour
 	cfg.RetentionConcurrency = DefaultRetentionConcurrency
+	cfg.RetentionBlockConcurrency = DefaultRetentionBlockConcurrency
 
 	f.DurationVar(&cfg.BlockRetention, util.PrefixConfig(prefix, "block-retention"), 14*24*time.Hour, "Duration to keep blocks/traces.")
 	f.IntVar(&cfg.MaxCompactionObjects, util.PrefixConfig(prefix, "max-objects-per-block"), 6000000, "Maximum number of traces in a compacted block.")

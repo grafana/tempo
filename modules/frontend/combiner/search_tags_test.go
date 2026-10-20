@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +22,7 @@ func TestTagsCombinerProtobuf(t *testing.T) {
 func testTagsCombiner(t *testing.T, marshalingFormat api.MarshallingFormat) {
 	tests := []struct {
 		name               string
-		factory            func(int, uint32, uint32, api.MarshallingFormat) Combiner
+		factory            func(int, uint32, uint32, api.MarshallingFormat, ...Option) Combiner
 		limitBytes         int
 		maxTagsValues      uint32
 		maxCacheHits       uint32

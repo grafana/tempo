@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 )
 
 // makeRebatchRequest builds a single push request containing numTraces distinct
@@ -65,7 +65,7 @@ func BenchmarkRequestsByTraceIDScenarios(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, traces, _, _, err := requestsByTraceID(batches, "test", spanCount, 0)
+				_, traces, _, _, err := requestsByTraceID(batches, "test", spanCount, 0, 0)
 				if err != nil {
 					b.Fatal(err)
 				}

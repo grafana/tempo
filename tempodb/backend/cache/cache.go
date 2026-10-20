@@ -14,10 +14,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/cache"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 // metricsNamespace is the Prometheus namespace shared by this package's metrics.
@@ -105,7 +105,7 @@ func (r *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]str
 	return r.nextReader.List(ctx, keypath)
 }
 
-func (r *readerWriter) ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error) {
+func (r *readerWriter) ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, noCompactBlockIDs []uuid.UUID, err error) {
 	return r.nextReader.ListBlocks(ctx, tenant)
 }
 

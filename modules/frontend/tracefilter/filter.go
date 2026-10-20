@@ -11,9 +11,9 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	tracev1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 // Options holds a request's filtering options, parsed by api.ParseTraceByIDFilterParams.

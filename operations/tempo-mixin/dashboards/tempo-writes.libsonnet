@@ -1,5 +1,11 @@
 local dashboard_utils = import 'dashboard-utils.libsonnet';
 local g = import 'grafana-builder/grafana.libsonnet';
+local utils = import 'mixin-utils/utils.libsonnet';
+
+// Prefer the native histogram, but fall back to the classic one for
+// scrape configs that don't ingest native histograms. Avoids requiring a
+// dashboard-wide toggle variable just for these panels.
+local ncOrFallback(q) = '%(native)s or %(classic)s' % q;
 
 dashboard_utils {
   grafanaDashboards+: {
@@ -115,7 +121,77 @@ dashboard_utils {
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_distributor_push_duration_seconds', '{%s}' % $.jobMatcher($._config.jobs.distributor))
+          $.queryPanel(
+            [
+              ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_duration_seconds', $.jobMatcher($._config.jobs.distributor), multiplier='1e3')),
+              ncOrFallback(utils.ncHistogramQuantile('0.50', 'tempo_distributor_push_duration_seconds', $.jobMatcher($._config.jobs.distributor), multiplier='1e3')),
+              ncOrFallback(utils.ncHistogramAverageRate('tempo_distributor_push_duration_seconds', $.jobMatcher($._config.jobs.distributor), multiplier='1e3')),
+            ],
+            ['99th Percentile', '50th Percentile', 'Average']
+          ) + {
+            yaxes: $.yaxes('ms'),
+            fieldConfig+: { defaults+: { unit: 'ms' } },
+          }
+        )
+        .addPanel(
+          $.panel('Trace size') +
+          $.queryPanel(
+            [
+              ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
+              ncOrFallback(utils.ncHistogramQuantile('0.50', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
+              ncOrFallback(utils.ncHistogramAverageRate('tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
+            ],
+            ['99th Percentile', '50th Percentile', 'Average']
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
+        )
+      )
+      .addRow(
+        g.row('')
+        .addPanel(
+          $.panel('Push duration by tenant (top 10, p99)') +
+          $.queryPanel(
+            'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_duration_seconds', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'], multiplier='1e3')),
+            '{{tenant}}'
+          ) + {
+            yaxes: $.yaxes('ms'),
+            fieldConfig+: { defaults+: { unit: 'ms' } },
+          }
+        )
+        .addPanel(
+          $.panel('Push size by tenant (top 10, p99)') +
+          $.queryPanel(
+            'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
+            '{{tenant}}'
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
+        )
+      )
+      .addRow(
+        g.row('Trace & attribute size')
+        .addPanel(
+          $.panel('Trace size by tenant (top 10, p99)') +
+          $.queryPanel(
+            'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
+            '{{tenant}}'
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
+        )
+        .addPanel(
+          $.panel('Attribute size by tenant (top 10, p99)') +
+          $.queryPanel(
+            'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_attribute_size_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
+            '{{tenant}}'
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
         )
       )
       .addRow(

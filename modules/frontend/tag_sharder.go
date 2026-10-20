@@ -7,15 +7,16 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/validation"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/validation"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blocksharding"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/segmentio/fasthash/fnv1a"
 )
@@ -59,6 +60,7 @@ func (r *tagsSearchRequest) buildTagSearchBlockRequest(subR *http.Request, block
 	startPage int, pages int, m *backend.BlockMeta,
 ) (*http.Request, error) {
 	return api.BuildSearchTagsBlockRequest(subR, &tempopb.SearchTagsBlockRequest{
+		SearchReq:     &r.request,
 		BlockID:       blockID,
 		StartPage:     uint32(startPage),
 		PagesToSearch: uint32(pages),
@@ -114,6 +116,7 @@ func (r *tagValueSearchRequest) buildTagSearchBlockRequest(subR *http.Request, b
 	startPage int, pages int, m *backend.BlockMeta,
 ) (*http.Request, error) {
 	return api.BuildSearchTagValuesBlockRequest(subR, &tempopb.SearchTagValuesBlockRequest{
+		SearchReq:     &r.request,
 		BlockID:       blockID,
 		StartPage:     uint32(startPage),
 		PagesToSearch: uint32(pages),
@@ -380,7 +383,7 @@ func iterateTagJobs(metas []*backend.BlockMeta, bytesPerRequest int, jobIter tag
 	jobs := 0
 
 	for _, m := range metas {
-		pages := pagesPerRequest(m, bytesPerRequest)
+		pages := blocksharding.PagesPerRequest(m, bytesPerRequest)
 		if pages == 0 {
 			continue
 		}

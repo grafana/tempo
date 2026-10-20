@@ -3,10 +3,10 @@ package app
 import (
 	"fmt"
 
-	"github.com/grafana/tempo/modules/generator/validation"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/api"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v3/modules/generator/validation"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/api"
+	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
 )
 
 type runtimeConfigValidator struct {
@@ -53,6 +53,12 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 			if dcErr != nil {
 				return warnings, dcErr
 			}
+		}
+	}
+
+	if maxItems := config.MetricsGenerator.Processor.ServiceGraphs.MaxItems; maxItems != nil {
+		if err := validation.ValidateServiceGraphsMaxItems(*maxItems); err != nil {
+			return warnings, err
 		}
 	}
 

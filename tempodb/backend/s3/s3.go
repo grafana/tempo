@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/grafana/tempo/tempodb/backend/instrumentation"
+	"github.com/grafana/tempo/v3/tempodb/backend/instrumentation"
 
 	"github.com/cristalhq/hedgedhttp"
 	gkLog "github.com/go-kit/log"
@@ -28,10 +28,10 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/minio/minio-go/v7/pkg/encrypt"
 
-	"github.com/grafana/tempo/pkg/blockboundary"
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/pkg/blockboundary"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 // readerWriter can read/write from an s3 backend
@@ -396,7 +396,7 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 func (rw *readerWriter) ListBlocks(
 	ctx context.Context,
 	tenant string,
-) ([]uuid.UUID, []uuid.UUID, error) {
+) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
 	ctx, span := tracer.Start(ctx, "readerWriter.ListBlocks")
 	defer span.End()
 
@@ -410,6 +410,7 @@ func (rw *readerWriter) ListBlocks(
 		maxID             uuid.UUID
 		blockIDs          = make([]uuid.UUID, 0, 1000)
 		compactedBlockIDs = make([]uuid.UUID, 0, 1000)
+		noCompactBlockIDs = make([]uuid.UUID, 0)
 	)
 
 	prefix := path.Join(keypath...)
@@ -452,6 +453,7 @@ func (rw *readerWriter) ListBlocks(
 					switch parts[1] {
 					case backend.MetaName:
 					case backend.CompactedMetaName:
+					case backend.NoCompactFileName:
 					default:
 						continue
 					}
@@ -478,6 +480,8 @@ func (rw *readerWriter) ListBlocks(
 						blockIDs = append(blockIDs, id)
 					case backend.CompactedMetaName:
 						compactedBlockIDs = append(compactedBlockIDs, id)
+					case backend.NoCompactFileName:
+						noCompactBlockIDs = append(noCompactBlockIDs, id)
 					}
 					mtx.Unlock()
 				}
@@ -493,12 +497,12 @@ func (rw *readerWriter) ListBlocks(
 	}
 
 	if len(errs) > 0 {
-		return nil, nil, errors.Join(errs...)
+		return nil, nil, nil, errors.Join(errs...)
 	}
 
 	level.Debug(rw.logger).Log("msg", "listing blocks complete", "blockIDs", len(blockIDs), "compactedBlockIDs", len(compactedBlockIDs))
 
-	return blockIDs, compactedBlockIDs, nil
+	return blockIDs, compactedBlockIDs, noCompactBlockIDs, nil
 }
 
 // Find implements backend.Reader

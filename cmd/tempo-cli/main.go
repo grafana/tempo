@@ -10,12 +10,12 @@ import (
 	"github.com/alecthomas/kong"
 	"go.yaml.in/yaml/v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/cmd/tempo/app"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/azure"
+	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3"
 )
 
 type globalOptions struct {
@@ -53,7 +53,14 @@ var cli struct {
 	} `cmd:""`
 
 	View struct {
-		Schema viewSchemaCmd `cmd:"" help:"View parquet schema"`
+		Schema  viewSchemaCmd `cmd:"" help:"View parquet schema"`
+		Heatmap heatmapCmd    `cmd:"" help:"Interactive TUI showing where a TraceQL query matches within a vParquet5 block"`
+	} `cmd:""`
+
+	Benchmark struct {
+		Profile benchmarkProfileCmd `cmd:"" help:"Profile a block for read-path benchmarking"`
+		Run     benchmarkRunCmd     `cmd:"" help:"Run read-path benchmark queries against a block"`
+		Compare benchmarkCompareCmd `cmd:"" help:"Compare two or more benchmark runs"`
 	} `cmd:""`
 
 	Gen struct {
@@ -78,8 +85,8 @@ var cli struct {
 	} `cmd:""`
 
 	Parquet struct {
-		Convert3to4 convertParquet3to4 `cmd:"" help:"convert an existing vParquet3 file to vParquet4 block"`
 		Convert4to5 convertParquet4to5 `cmd:"" help:"convert an existing vParquet4 file to vParquet5 block"`
+		Rewrite     parquetRewrite     `cmd:"" help:"rewrite an existing parquet block using its detected encoding"`
 	} `cmd:""`
 
 	Migrate struct {
@@ -94,7 +101,7 @@ var cli struct {
 	} `cmd:""`
 
 	Experimental struct {
-		TraceDiff experimentalTraceDiffCmd `cmd:"" help:"Compare two local trace JSON files and emit an experimental trace-aware diff or summary"`
+		TracesDiff experimentalTraceDiffCmd `cmd:"" help:"Compare two local trace JSON files and emit an experimental trace-aware diff or summary"`
 	} `cmd:""`
 
 	Redact redactCmd `cmd:"" help:"Submit a redaction request to the backend scheduler"`
