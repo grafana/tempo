@@ -135,7 +135,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 			}
 		}
 
-		i.ingestPartitionLifecycler = ring.NewPartitionInstanceLifecycler(
+		i.ingestPartitionLifecycler, err = ring.NewPartitionInstanceLifecycler(
 			i.cfg.IngesterPartitionRing.ToLifecyclerConfig(i.ingestPartitionID, cfg.LifecyclerConfig.ID),
 			PartitionRingName,
 			PartitionRingKey,
@@ -143,6 +143,9 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 			log.Logger,
 			prometheus.WrapRegistererWithPrefix("cortex_", reg),
 		)
+		if err != nil {
+			return nil, fmt.Errorf("creating ingester partition lifecycler: %w", err)
+		}
 	}
 
 	// Now that the lifecycler has been created, we can create the limiter
