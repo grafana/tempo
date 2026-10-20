@@ -292,42 +292,36 @@ func TestPreloadOffsetIndexes(t *testing.T) {
 
 	var (
 		ctx       = context.Background()
-		numTraces = 16
+		numTraces = 256
 		r         = backend.NewReader(cr)
 		w         = backend.NewWriter(rawW)
-		cfg       = &common.BlockConfig{
-			BloomFP:             0.01,
-			BloomShardSizeBytes: 100 * 1024,
-		}
 	)
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
-	meta.TotalObjects = int64(numTraces)
-	meta.DedicatedColumns = test.MakeDedicatedColumns()
 
-	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
-
-	var (
-		buffer       = &Trace{}
-		rowGroupSize = 4
-	)
+	// Write the parquet file with a small page buffer so that the TraceID
+	// column (plain-encoded 16-byte values) spans multiple pages per column
+	// chunk: 128 rows at ~64 rows per page = 2 pages.
+	buf := &bytes.Buffer{}
+	pw := parquet.NewGenericWriter[*Trace](buf, parquet.PageBufferSize(1024))
 	for i := 0; i < numTraces; i++ {
 		id := test.ValidTraceID(nil)
-		traceToParquet(newMeta, id, test.MakeTrace(10, id), buffer)
-		require.NoError(t, s.Add(buffer, 0, 0))
-		if s.CurrentBufferedObjects() >= rowGroupSize {
-			_, err = s.Flush()
-			require.NoError(t, err)
+		tr, _ := traceToParquet(meta, id, test.MakeTrace(1, id), nil)
+		_, err := pw.Write([]*Trace{tr})
+		require.NoError(t, err)
+		if i == numTraces/2-1 {
+			require.NoError(t, pw.Flush()) // second row group
 		}
 	}
-	_, err = s.Complete()
-	require.NoError(t, err)
+	require.NoError(t, pw.Close())
+	require.NoError(t, w.Write(ctx, DataFileName, uuid.UUID(meta.BlockID), meta.TenantID, buf.Bytes(), nil))
+	meta.Size_ = uint64(buf.Len())
 
-	rr := NewBackendReaderAt(ctx, r, DataFileName, newMeta)
-	pf, err := parquet.OpenFile(rr, int64(newMeta.Size_), parquet.SkipPageIndex(true))
+	rr := NewBackendReaderAt(ctx, r, DataFileName, meta)
+	pf, err := parquet.OpenFile(rr, int64(meta.Size_), parquet.SkipPageIndex(true))
 	require.NoError(t, err)
 	numRowGroups := len(pf.RowGroups())
-	require.Greater(t, numRowGroups, 1)
+	require.Equal(t, 2, numRowGroups)
 
 	t.Run("lazy per-chunk reads without preload", func(t *testing.T) {
 		chunks := pf.RowGroups()[0].ColumnChunks()
@@ -337,6 +331,12 @@ func TestPreloadOffsetIndexes(t *testing.T) {
 			require.NoError(t, err)
 		}
 		require.Equal(t, int64(len(chunks)), cr.reads.Load()-before)
+
+		// The test is only meaningful if column chunks span multiple pages.
+		colIndex, _, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
+		oi, err := chunks[colIndex].OffsetIndex()
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, oi.NumPages(), 2)
 	})
 
 	t.Run("single read with preload", func(t *testing.T) {
