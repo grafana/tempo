@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"sort"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -266,16 +267,101 @@ func TestFindRowGroupByStats(t *testing.T) {
 		pf, meta := writeFile(t, parquet.SkipPageBounds(TraceIDColumnName))
 		colIndex, _, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 
+		rr := NewBackendReaderAt(t.Context(), backend.NewReader(&backend.MockRawReader{}), DataFileName, meta)
+
 		_, ok := findRowGroupByStats(pf, colIndex, id(60))
 		require.False(t, ok)
 
 		for i := 1; i <= 15; i++ {
-			tr, err := findTraceByID(t.Context(), id(byte(i*10)), meta, pf, -1)
+			tr, err := findTraceByID(t.Context(), id(byte(i*10)), meta, pf, rr, -1)
 			require.NoError(t, err)
 			require.NotNil(t, tr)
 		}
-		tr, err := findTraceByID(t.Context(), id(55), meta, pf, -1)
+		tr, err := findTraceByID(t.Context(), id(55), meta, pf, rr, -1)
 		require.NoError(t, err)
 		require.Nil(t, tr)
 	})
+}
+
+func TestPreloadOffsetIndexes(t *testing.T) {
+	rawR, rawW, _, err := local.New(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+	cr := &countingRawReader{RawReader: rawR}
+
+	var (
+		ctx       = context.Background()
+		numTraces = 256
+		r         = backend.NewReader(cr)
+		w         = backend.NewWriter(rawW)
+	)
+
+	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString)
+
+	// Write the parquet file with a small page buffer so that the TraceID
+	// column (plain-encoded 16-byte values) spans multiple pages per column
+	// chunk: 128 rows at ~64 rows per page = 2 pages.
+	buf := &bytes.Buffer{}
+	pw := parquet.NewGenericWriter[*Trace](buf, parquet.PageBufferSize(1024))
+	for i := 0; i < numTraces; i++ {
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(meta, id, test.MakeTrace(1, id), nil)
+		_, err := pw.Write([]*Trace{tr})
+		require.NoError(t, err)
+		if i == numTraces/2-1 {
+			require.NoError(t, pw.Flush()) // second row group
+		}
+	}
+	require.NoError(t, pw.Close())
+	require.NoError(t, w.Write(ctx, DataFileName, uuid.UUID(meta.BlockID), meta.TenantID, buf.Bytes(), nil))
+	meta.Size_ = uint64(buf.Len())
+
+	rr := NewBackendReaderAt(ctx, r, DataFileName, meta)
+	pf, err := parquet.OpenFile(rr, int64(meta.Size_), parquet.SkipPageIndex(true))
+	require.NoError(t, err)
+	numRowGroups := len(pf.RowGroups())
+	require.Equal(t, 2, numRowGroups)
+
+	t.Run("lazy per-chunk reads without preload", func(t *testing.T) {
+		chunks := pf.RowGroups()[0].ColumnChunks()
+		before := cr.reads.Load()
+		for _, cc := range chunks {
+			_, err := cc.OffsetIndex()
+			require.NoError(t, err)
+		}
+		require.Equal(t, int64(len(chunks)), cr.reads.Load()-before)
+
+		// The test is only meaningful if column chunks span multiple pages.
+		colIndex, _, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
+		oi, err := chunks[colIndex].OffsetIndex()
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, oi.NumPages(), 2)
+	})
+
+	t.Run("single read with preload", func(t *testing.T) {
+		for rowGroup := 1; rowGroup < numRowGroups; rowGroup++ {
+			before := cr.reads.Load()
+			require.NoError(t, preloadOffsetIndexes(rr, pf, rowGroup))
+			require.Equal(t, int64(1), cr.reads.Load()-before, "preload should read the offset index region once")
+
+			// All indexes are now loaded, so per-chunk OffsetIndex calls read nothing more.
+			for _, cc := range pf.RowGroups()[rowGroup].ColumnChunks() {
+				oi, err := cc.OffsetIndex()
+				require.NoError(t, err)
+				require.Positive(t, oi.NumPages())
+			}
+			require.Equal(t, int64(1), cr.reads.Load()-before, "per-chunk OffsetIndex calls should not read after preload")
+		}
+	})
+}
+
+type countingRawReader struct {
+	backend.RawReader
+	reads atomic.Int64
+}
+
+func (c *countingRawReader) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, cacheInfo *backend.CacheInfo) error {
+	c.reads.Add(1)
+	return c.RawReader.ReadRange(ctx, name, keypath, offset, buffer, cacheInfo)
 }
