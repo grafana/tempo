@@ -9,18 +9,24 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
+	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
 	// Create the test sharder with exemplars enabled
 	sharder := &queryRangeSharder{
-		logger: log.NewNopLogger(),
+		logger:    log.NewNopLogger(),
+		overrides: o,
 		cfg: QueryRangeSharderConfig{
 			MaxExemplars:    100,
 			StreamingShards: defaultMostRecentShards,
@@ -453,7 +459,23 @@ func TestHashCollision(t *testing.T) {
 	instant := queryRange
 	instant.SetInstant(true)
 
-	baseHash := hashForQueryRangeRequest(&queryRange)
-	instantHash := hashForQueryRangeRequest(&instant)
+	baseHash := hashForQueryRangeRequest(&queryRange, nil)
+	instantHash := hashForQueryRangeRequest(&instant, nil)
 	assert.False(t, baseHash == instantHash, "Hash collision detected between range and instant query")
+}
+
+func TestHashForQueryRangeRequestExtrapolate(t *testing.T) {
+	req := tempopb.QueryRangeRequest{
+		Query:     "{} | rate()",
+		Step:      60,
+		MaxSeries: 100,
+	}
+
+	unset := hashForQueryRangeRequest(&req, nil)
+	on := hashForQueryRangeRequest(&req, new(true))
+	off := hashForQueryRangeRequest(&req, new(false))
+
+	assert.NotEqual(t, unset, on)
+	assert.NotEqual(t, unset, off)
+	assert.NotEqual(t, on, off)
 }

@@ -247,7 +247,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, firstShardIdx int, blockIter func(shardIterFn, jobIterFn), reqCh chan<- pipeline.Request, getExemplarsForBlock func(*backend.BlockMeta) uint32) {
 	defer close(reqCh)
 
-	queryHash := hashForQueryRangeRequest(&searchReq)
+	queryHash := hashForQueryRangeRequest(&searchReq, s.overrides.MetricsExtrapolate(tenantID))
 	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	blockIter(nil, func(m *backend.BlockMeta, shard, startPage, pages int) {
@@ -383,7 +383,9 @@ func (s *queryRangeSharder) exemplarsForBlock(m *backend.BlockMeta, totalExempla
 	return max(uint32(math.Ceil(share)), 1)
 }
 
-func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
+// hashForQueryRangeRequest hashes the fields of req that change the response. extrapolate is the
+// tenant's metrics_extrapolate override, which also changes the response but isn't part of req.
+func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest, extrapolate *bool) uint64 {
 	if req.Query == "" {
 		return 0
 	}
@@ -413,6 +415,15 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 		hash = fnv1a.AddUint64(hash, 2147483629)
 	} else {
 		hash = fnv1a.AddUint64(hash, 1147483619)
+	}
+
+	// Only mixed in when set so that cache keys are unchanged for tenants without the override.
+	if extrapolate != nil {
+		if *extrapolate {
+			hash = fnv1a.AddUint64(hash, 3147483637)
+		} else {
+			hash = fnv1a.AddUint64(hash, 4147483621)
+		}
 	}
 
 	return hash

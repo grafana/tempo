@@ -481,6 +481,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MaxMetricsDuration:   model.Duration(30 * time.Minute),
 		UnsafeQueryHints:     true,
 		MetricsSpanOnlyFetch: boolPtr(true),
+		MetricsExtrapolate:   boolPtr(true),
 		SpanPruningAwareness: true,
 		EngineBytesTracking:  boolPtr(true),
 		SpanPruningEnabled:   boolPtr(true),

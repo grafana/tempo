@@ -87,6 +87,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		UnsafeQueryHints:              c.Read.UnsafeQueryHints,
 		LeftPadTraceIDs:               c.Read.LeftPadTraceIDs,
 		MetricsSpanOnlyFetch:          c.Read.MetricsSpanOnlyFetch,
+		MetricsExtrapolate:            c.Read.MetricsExtrapolate,
 		SpanPruningAwareness:          c.Read.SpanPruningAwareness,
 		EngineBytesTracking:           c.Read.EngineBytesTracking,
 		SpanPruningEnabled:            c.Read.SpanPruningEnabled,
@@ -182,6 +183,7 @@ type LegacyOverrides struct {
 	UnsafeQueryHints     bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
 	LeftPadTraceIDs      bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
 	MetricsSpanOnlyFetch *bool          `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
+	MetricsExtrapolate   *bool          `yaml:"metrics_extrapolate,omitempty" json:"metrics_extrapolate,omitempty"`
 	SpanPruningAwareness bool           `yaml:"span_pruning_awareness,omitempty" json:"span_pruning_awareness,omitempty"`
 	EngineBytesTracking  *bool          `yaml:"engine_bytes_tracking,omitempty" json:"engine_bytes_tracking,omitempty"`
 	SpanPruningEnabled   *bool          `yaml:"span_pruning_enabled,omitempty" json:"span_pruning_enabled,omitempty"`
@@ -341,6 +343,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			UnsafeQueryHints:              l.UnsafeQueryHints,
 			LeftPadTraceIDs:               l.LeftPadTraceIDs,
 			MetricsSpanOnlyFetch:          l.MetricsSpanOnlyFetch,
+			MetricsExtrapolate:            l.MetricsExtrapolate,
 			SpanPruningAwareness:          l.SpanPruningAwareness,
 			EngineBytesTracking:           l.EngineBytesTracking,
 			SpanPruningEnabled:            l.SpanPruningEnabled,

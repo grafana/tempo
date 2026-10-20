@@ -580,6 +580,20 @@ Applies to `rate`, `count_over_time`, `sum_over_time`, `avg_over_time`,
 and `max_over_time` are intentionally unaffected because extremes don't
 scale with sampling.
 
+Operators can turn on extrapolation by default for a tenant
+with the `metrics_extrapolate` override.
+This override doesn't require `unsafe_query_hints`.
+
+```yaml
+overrides:
+  'tenant-id':
+    read:
+      metrics_extrapolate: true
+```
+
+The `extrapolate` query hint takes precedence over the override,
+so a query can opt out with `with(extrapolate=false)`.
+
 ## The `compare` function
 
 {{< admonition type="note">}}
