@@ -559,7 +559,7 @@ Samples a fixed percentage of traces for trace-level aggregations.
 
 ## Extrapolation from ingest-time sampling: `with(extrapolate=true)` (experimental)
 
-{{< docs/experimental product="Tempo" >}}
+{{< docs/experimental product="TraceQL metrics extrapolation" >}}
 
 If your traces were sampled at ingest time by an OpenTelemetry probability
 sampler (for example, an OTel Collector `probabilistic_sampler` in

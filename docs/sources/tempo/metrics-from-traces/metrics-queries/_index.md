@@ -144,7 +144,7 @@ You can set `spanonly_fetch=false` to opt out, or `spanonly_fetch=true` to opt b
 
 ### Extrapolation from ingest-time sampling
 
-{{< docs/experimental product="Tempo" >}}
+{{< docs/experimental product="TraceQL metrics extrapolation" >}}
 
 If your traces are sampled at ingest time by an OpenTelemetry probability sampler,
 TraceQL metrics can scale each matched span by the sampling probability recorded in its W3C tracestate,
