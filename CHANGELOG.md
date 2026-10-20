@@ -1,5 +1,11 @@
 <!-- next version -->
 
+# v2.10.9
+
+## 🔒 Security 🔒
+
+- `deps`: Update Go to 1.26.9 (CVE-2026-33818, CVE-2026-39821, CVE-2026-46600, CVE-2026-56853, CVE-2026-56857, CVE-2026-56858, CVE-2026-56859, CVE-2026-56860, CVE-2026-56862, CVE-2026-56866, CVE-2026-78659, CVE-2026-78660, CVE-2026-78663, CVE-2026-78667, CVE-2026-78669, CVE-2026-94439, CVE-2026-94440, CVE-2026-94448, CVE-2026-97030, CVE-2026-97031, CVE-2026-97032), golang.org/x/net to v0.60.0 (CVE-2026-78669, CVE-2026-78659, CVE-2026-78660, CVE-2026-78663, CVE-2026-97032), google.golang.org/grpc to v1.83.2 (CVE-2026-84445), and the OpenTelemetry log and trace modules to v0.21.0 and v1.45.0 (CVE-2026-81871, CVE-2026-81872, CVE-2026-81870) ([#8126](https://github.com/grafana/tempo/issues/8126)) (@mdisibio)
+
 # v2.10.8
 
 ## 🔒 Security 🔒
