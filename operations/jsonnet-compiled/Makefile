@@ -14,7 +14,7 @@ jb-check:
 	git diff --exit-code -- jsonnetfile*.json
 
 gen-example/%:
-	jb update
+	jb install
 	tk export out-$*/ $* --format "{{.kind}}-{{or .metadata.name .metadata.generateName}}"
 	rm -rf $*/gen
 	mkdir -p $*/gen
