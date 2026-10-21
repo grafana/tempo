@@ -563,12 +563,19 @@ Options:
 
 - `-p`, `--profile` Profile of the block, from `benchmark profile`. Required.
 - `-o`, `--out` File to write the result to. Defaults to stdout.
+- `-k`, `--case` Cases to run, as glob patterns over case IDs in the syntax
+  `benchmark compare` takes, such as `'metrics/ranked_*/*/high/*'`. Repeat the flag
+  or separate patterns with commas. Defaults to every case. Patterns matching
+  no case are an error.
 - `--repeat` Passes over the query set. Defaults to `1`.
 - `--target-bytes-per-request` Bytes per search shard, mirroring the query
   frontend option of the same name. Defaults to `100MiB`.
 - `--search-limit` Traces a search returns per shard. Defaults to `20`.
 - `--max-series` Series a metrics query returns. Defaults to `1000`.
 - `--exemplars` Exemplars a metrics query collects. Defaults to `0`.
+- `--max-tag-values`, `--stale-value-threshold` A tag-value request's `limit`
+  and `maxStaleValues`. Each defaults to `0`, meaning no limit, as for a request
+  without them.
 - `--read-buffer-size` Storage read buffer size, such as `8MiB`. Defaults to
   `0`, meaning Tempo's default. This is the knob an experiment varies.
 - `--backend-latency`, `--backend-bandwidth` Simulate an object store: every
@@ -605,26 +612,46 @@ Keys are `source.name`:
 Metrics are collected rather than listed, so a metric added to Tempo appears
 without a change to the benchmark. Only metrics that moved are kept.
 
-The query set covers trace lookups by ID, present and absent; an unfiltered
-search; `rate()` and `rate() by (resource.service.name)` as metrics range
-queries; and tag-name lookups in each attribute scope. A profile with ranked
-attributes adds up to three generated searches — `search/ranked/high`,
-`search/ranked/medium` and `search/ranked/low`, one per selectivity band. A
-band's case runs, for each of the top 10 attributes with a dedicated column
-and the top 10 without, an equality against that attribute's value for the
-band: `high` is its most common value, `medium` the middle of its profiled
-values, and `low` the least common value the profile kept. (Bands over all
-spans would leave most top-ranked attributes with only a low value, since few
-have a value on most or half of the spans.) The attributes of a band are
-summarized as one case, the way traceid/present is one case over every
-profiled ID. Each query is an equality the profile proves the block holds, so
-the query matches. Attributes with only quantile values generate no searches
-yet, and a profile built with `--attributes 0` generates none at all.
-Generated cases can be shown alone with `--case 'search/ranked/*'`.
-Metrics queries run over
-the block's whole time range, stepping at `max(60s, window/30)` to land about 30
-points. Searches and metrics queries are split into shards of row groups,
-mirroring how the query frontend splits a job.
+The query set has fixed cases, plus cases generated from the profile's ranked
+attributes.
+
+Fixed cases:
+
+- `traceid/present`, `traceid/absent`: trace lookups by ID, for IDs the block
+  holds and IDs it does not.
+- `search/nopredicate`: an unfiltered search.
+- `metrics/rate`, `metrics/rate-by-service`: `rate()` and
+  `rate() by (resource.service.name)`.
+- `metrics/drilldown/*`: the queries Traces Drilldown runs when it opens, such
+  as `{nestedSetParent<0 && true} | rate() with(sample=true)`.
+- `metadata/tagnames/<scope>`: a tag-name lookup in each attribute scope.
+
+Generated cases, from the top 10 attributes with a dedicated column and the top
+10 without:
+
+- `<group>` is the group an attribute was picked from: `ranked_dedicated` for
+  an attribute with a column of its own, which every intrinsic and
+  `resource.service.name` have, and `ranked_generic` for one in the generic
+  key/value columns.
+- Each attribute is queried with up to three of its values, one per selectivity
+  band: `high` is its most common value, `medium` the middle of its profiled
+  values, and `low` the least common value the profile kept. Every value is one
+  the block holds, so every query matches.
+- `search/<group>/<band>/<attribute>`: `{ attribute = value }`.
+- `metrics/<group>/<rate|quantile>/<band>/<attribute>`:
+  `{ attribute = value } | rate()` and
+  `{ attribute = value } | quantile_over_time(duration, 0.99, 0.95)`.
+- `metadata/<group>/tagvalues/<attribute>`: a tag-value lookup with no
+  TraceQL, for the top 20 string attributes in each group.
+- Attributes with only quantile values are skipped, and a profile built with
+  `--attributes 0` generates no cases.
+
+To run only some cases, pass `--case` a glob, such as
+`--case 'metrics/ranked_generic/*/low/*'`.
+
+Metrics queries run over the block's whole time range, stepping at
+`max(60s, window/30)` to land about 30 points. Searches and metrics queries are
+split into shards of row groups, mirroring how the query frontend splits a job.
 
 A case that fails is recorded with its error and the rest of the run continues.
 Benchmarking trace lookups reads the block's bloom filters, so a partial block

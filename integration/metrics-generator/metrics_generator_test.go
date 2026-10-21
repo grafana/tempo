@@ -107,7 +107,9 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 			},
 		}, ""))
 
-		// also send one with timestamp 10 days in the future
+		// also send one with a timestamp 5 minutes in the future. This is beyond the generator's
+		// ingestion slack but inside the distributor's creation_grace_period (default 10m), so
+		// it reaches the generator and is discarded there.
 		require.NoError(t, h.WriteJaegerBatch(&thrift.Batch{
 			Process: &thrift.Process{ServiceName: "app"},
 			Spans: []*thrift.Span{
@@ -117,7 +119,7 @@ func TestMetricsGeneratorRemoteWrite(t *testing.T) {
 					SpanId:        r.Int63(), // nolint:gosec // G404: Use of weak random number generator
 					ParentSpanId:  parentSpanID,
 					OperationName: "app-handle",
-					StartTime:     time.Now().Add(10 * 24 * time.Hour).UnixMicro(),
+					StartTime:     time.Now().Add(5 * time.Minute).UnixMicro(),
 					Duration:      int64(1 * time.Second / time.Microsecond),
 					Tags:          []*thrift.Tag{{Key: "span.kind", VStr: stringPtr("server")}},
 				},

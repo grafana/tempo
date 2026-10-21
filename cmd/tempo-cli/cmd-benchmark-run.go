@@ -13,9 +13,10 @@ import (
 )
 
 type benchmarkRunCmd struct {
-	Block   string `arg:"" help:"path to the block directory, laid out as <bucket>/<tenant-id>/<block-id>"`
-	Profile string `short:"p" help:"profile of the block, from 'benchmark profile'" required:""`
-	Out     string `short:"o" help:"file to write the result to, instead of stdout" default:""`
+	Block   string   `arg:"" help:"path to the block directory, laid out as <bucket>/<tenant-id>/<block-id>"`
+	Profile string   `short:"p" help:"profile of the block, from 'benchmark profile'" required:""`
+	Out     string   `short:"o" help:"file to write the result to, instead of stdout" default:""`
+	Case    []string `short:"k" help:"cases to run, as glob patterns over IDs like metrics/ranked_*/*/high/*. Defaults to every case"`
 
 	Repeat int `help:"passes over the query set" default:"1"`
 
@@ -23,6 +24,8 @@ type benchmarkRunCmd struct {
 	SearchLimit           int    `help:"traces a search returns per shard" default:"20"`
 	MaxSeries             int    `help:"series a metrics query returns" default:"1000"`
 	Exemplars             int    `help:"exemplars a metrics query collects" default:"0"`
+	MaxTagValues          uint32 `help:"values a tag-value lookup collects before it stops, 0 for no limit" default:"0"`
+	StaleValueThreshold   uint32 `help:"repeated values a tag-value lookup tolerates before it stops, 0 for no limit" default:"0"`
 
 	ReadBufferSize string `help:"read buffer size, e.g. 8MiB, 0 for the default" default:"0"`
 
@@ -57,10 +60,13 @@ func (cmd *benchmarkRunCmd) Run(_ *globalOptions) error {
 
 	result, err := benchmark.Run(context.Background(), cmd.Block, prof, benchmark.RunOptions{
 		Repeat:                cmd.Repeat,
+		Cases:                 cmd.Case,
 		TargetBytesPerRequest: int(targetBytes),
 		SearchLimit:           cmd.SearchLimit,
 		MaxSeries:             cmd.MaxSeries,
 		Exemplars:             cmd.Exemplars,
+		MaxTagValues:          cmd.MaxTagValues,
+		StaleValueThreshold:   cmd.StaleValueThreshold,
 		ReadBufferSize:        int(readBufferSize),
 		BackendLatency:        cmd.BackendLatency,
 		BackendBandwidth:      int64(bandwidth),

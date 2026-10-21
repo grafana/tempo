@@ -40,9 +40,7 @@ func TestPickAttributes(t *testing.T) {
 
 	require.Equal(t, []string{"a", "status", "b", "d"}, pickNames(pickAttributes(attrs, 10, hasValues)))
 	require.Equal(t, []string{"a", "b"}, pickNames(pickAttributes(attrs, 1, hasValues)))
-
-	stringsOnly := func(p attributes.Profile) bool { return p.Type == attributes.TypeString }
-	require.Equal(t, []string{"a", "b"}, pickNames(pickAttributes(attrs, 10, stringsOnly)))
+	require.Equal(t, []string{"a", "b"}, pickNames(pickAttributes(attrs, 10, isStringAttribute)))
 }
 
 func TestValueFilter(t *testing.T) {
@@ -100,4 +98,39 @@ func TestBandValues(t *testing.T) {
 	require.Equal(t, []string{"high=a", "medium=b", "low=c"}, bands("a", "b", "c"))
 	require.Equal(t, []string{"high=a", "medium=b", "low=d"}, bands("a", "b", "c", "d"))
 	require.Equal(t, []string{"high=a", "medium=c", "low=e"}, bands("a", "b", "c", "d", "e"))
+}
+
+func TestAttributeIDs(t *testing.T) {
+	ps := []attributes.Profile{
+		profileAttr(attributes.ScopeSpan, "x", attributes.TypeString, false, "a"),
+		profileAttr(attributes.ScopeSpan, "x", attributes.TypeInt, false, "1"),
+		profileAttr(attributes.ScopeResource, "x", attributes.TypeString, true, "a"),
+	}
+	require.Equal(t, []string{"span.x.string", "span.x.int", "resource.x"}, attributeIDs(ps))
+}
+
+// benchmark compare rolls up only generated cases, so the fixed set must never
+// look generated.
+func TestFamily(t *testing.T) {
+	for _, c := range fixedCases() {
+		require.Empty(t, Family(c.id), c.id)
+	}
+	prof := ranked(
+		profileAttr(attributes.ScopeResource, "service.name", attributes.TypeString, true, "a", "b", "c"),
+		profileAttr(attributes.ScopeSpan, "key", attributes.TypeString, false, "x", "y"),
+	)
+	families := map[string]bool{}
+	for _, c := range attributeCases(prof) {
+		families[Family(c.id)] = true
+	}
+	require.Equal(t, map[string]bool{
+		"search/ranked_dedicated":             true,
+		"search/ranked_generic":               true,
+		"metrics/ranked_dedicated/rate":       true,
+		"metrics/ranked_generic/rate":         true,
+		"metrics/ranked_dedicated/quantile":   true,
+		"metrics/ranked_generic/quantile":     true,
+		"metadata/ranked_dedicated/tagvalues": true,
+		"metadata/ranked_generic/tagvalues":   true,
+	}, families, "bands collapse into their query's family")
 }

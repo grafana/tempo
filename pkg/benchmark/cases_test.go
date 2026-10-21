@@ -8,7 +8,6 @@ import (
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
 	"github.com/grafana/tempo/v3/pkg/benchmark/profile/attributes"
-	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
@@ -20,85 +19,14 @@ func ranked(attrs ...attributes.Profile) *profile.BlockProfile {
 	}
 }
 
-func TestAttributeQueries(t *testing.T) {
-	tests := []struct {
-		name   string
-		ranked []attributes.Profile
-		want   map[string][]string
-	}{
-		{
-			name: "no attributes gives no queries",
-			want: map[string][]string{},
-		},
-		{
-			name: "each attribute contributes its band's value to the band's queries",
-			ranked: []attributes.Profile{
-				profileAttr(attributes.ScopeSpan, "key", attributes.TypeString, false, "v1", "v2", "v3", "v4"),
-				profileAttr(attributes.ScopeResource, "service.name", attributes.TypeString, false, "svc"),
-			},
-			want: map[string][]string{
-				"high":   {`{ span.key = "v1" }`, `{ resource.service.name = "svc" }`},
-				"medium": {`{ span.key = "v2" }`},
-				"low":    {`{ span.key = "v4" }`},
-			},
-		},
-		{
-			name: "intrinsics are referenced bare, each type in its literal syntax",
-			ranked: []attributes.Profile{
-				profileAttr(attributes.ScopeIntrinsic, "name", attributes.TypeString, true, "test"),
-				profileAttr(attributes.ScopeIntrinsic, "duration", attributes.TypeDuration, true, "1.5s"),
-				profileAttr(attributes.ScopeIntrinsic, "status", attributes.TypeStatus, true, "ok"),
-			},
-			want: map[string][]string{
-				"high": {`{ name = "test" }`, `{ duration = 1.5s }`, `{ status = ok }`},
-			},
-		},
-		{
-			name: "the same attribute in two types contributes a query each",
-			ranked: []attributes.Profile{
-				profileAttr(attributes.ScopeSpan, "foo", attributes.TypeString, false, "bar"),
-				profileAttr(attributes.ScopeSpan, "foo", attributes.TypeInt, false, "42"),
-			},
-			want: map[string][]string{
-				"high": {`{ span.foo = "bar" }`, `{ span.foo = 42 }`},
-			},
-		},
-		{
-			name: "names and values the lexer would split are quoted",
-			ranked: []attributes.Profile{
-				profileAttr(attributes.ScopeSpan, `foo bar"`, attributes.TypeString, false, `say "hi"\`),
-				profileAttr(attributes.ScopeResource, "a=b", attributes.TypeString, false, "x"),
-			},
-			want: map[string][]string{
-				"high": {`{ span."foo bar\"" = "say \"hi\"\\" }`, `{ resource."a=b" = "x" }`},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := attributeQueries(tt.ranked)
-			require.Equal(t, tt.want, got)
-
-			// Every generated query has to parse: one that does not fails
-			// every execution it runs in.
-			for band, queries := range got {
-				for _, q := range queries {
-					_, err := traceql.Parse(q)
-					require.NoError(t, err, "band %s: %q", band, q)
-				}
-			}
-		})
-	}
-}
-
 func TestAttributeCases(t *testing.T) {
 	noValues := profileAttr(attributes.ScopeSpan, "latency", attributes.TypeInt, false)
 
 	tests := []struct {
-		name string
-		prof *profile.BlockProfile
-		want []string
+		name    string
+		prof    *profile.BlockProfile
+		want    []string
+		queries []string
 	}{
 		{
 			name: "profile without attributes generates nothing",
@@ -109,18 +37,22 @@ func TestAttributeCases(t *testing.T) {
 			prof: ranked(),
 		},
 		{
-			name: "one case per band the picked attributes have values for",
+			name: "one case per attribute and band it has a value for",
 			prof: ranked(
 				profileAttr(attributes.ScopeSpan, "key", attributes.TypeString, false, "v1", "v2", "v3"),
+				profileAttr(attributes.ScopeResource, "service.name", attributes.TypeString, false, "svc"),
 			),
-			want: []string{"search/ranked/high", "search/ranked/medium", "search/ranked/low"},
+			want:    []string{"search/ranked_generic/high/span.key", "search/ranked_generic/medium/span.key", "search/ranked_generic/low/span.key", "search/ranked_generic/high/resource.service.name"},
+			queries: []string{`{ span.key = "v1" }`, `{ span.key = "v2" }`, `{ span.key = "v3" }`, `{ resource.service.name = "svc" }`},
 		},
 		{
-			name: "single-value attributes generate only the high band",
+			name: "the same attribute in two types gets a case each",
 			prof: ranked(
-				profileAttr(attributes.ScopeSpan, "key", attributes.TypeString, false, "value"),
+				profileAttr(attributes.ScopeSpan, "foo", attributes.TypeString, false, "bar"),
+				profileAttr(attributes.ScopeSpan, "foo", attributes.TypeInt, false, "42"),
 			),
-			want: []string{"search/ranked/high"},
+			want:    []string{"search/ranked_generic/high/span.foo.string", "search/ranked_generic/high/span.foo.int"},
+			queries: []string{`{ span.foo = "bar" }`, `{ span.foo = 42 }`},
 		},
 		{
 			name: "quantile-only attributes generate nothing yet",
@@ -130,41 +62,39 @@ func TestAttributeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := attributeCases(tt.prof)
+			got := casesOf(attributeCases(tt.prof), apiSearch)
 			require.Len(t, got, len(tt.want))
 			for i, c := range got {
 				require.Equal(t, tt.want[i], c.id)
 				require.Equal(t, apiSearch, c.api)
+				require.Equal(t, tt.queries[i], c.query)
 			}
 		})
 	}
 }
 
-// A band case runs each picked attribute's query per shard, the way
-// traceid/present runs one execution per ID.
+// A generated search runs its query once per shard, like the fixed search.
 func TestAttributeCasesExecutions(t *testing.T) {
 	prof := ranked(
 		profileAttr(attributes.ScopeSpan, "a", attributes.TypeString, false, "v1", "v2", "v3"),
-		profileAttr(attributes.ScopeSpan, "b", attributes.TypeString, false, "w1", "w2", "w3"),
 		profileAttr(attributes.ScopeSpan, "c", attributes.TypeString, false, "x"),
 	)
 	prof.Block = &backend.BlockMeta{}
 
-	cases := attributeCases(prof)
-	require.Len(t, cases, 3)
+	cases := casesOf(attributeCases(prof), apiSearch)
+	require.Len(t, cases, 4)
 
 	shards := []Shard{{Index: 0, StartPage: 0, TotalPages: 2}, {Index: 1, StartPage: 2, TotalPages: 2}}
 	for _, c := range cases {
 		executions, err := c.executions(prof, shards, RunOptions{})
 		require.NoError(t, err, c.id)
-		queries := attributeQueries(pickAttributes(prof.Attributes, rankedAttributesPerGroup, hasValues))[c.id[len("search/ranked/"):]]
-		require.Len(t, executions, len(shards)*len(queries), c.id)
+		require.Len(t, executions, len(shards), c.id)
 	}
 }
 
 // Each group of attributes — a dedicated column or not — contributes at most
-// rankedAttributesPerGroup attributes' queries to a band's case.
-func TestAttributeQueriesCapEachGroup(t *testing.T) {
+// rankedAttributesPerGroup attributes' searches.
+func TestAttributeCasesCapEachGroup(t *testing.T) {
 	var attrs []attributes.Profile
 	for i := range rankedAttributesPerGroup + 2 {
 		attrs = append(attrs,
@@ -173,9 +103,7 @@ func TestAttributeQueriesCapEachGroup(t *testing.T) {
 		)
 	}
 
-	queries := attributeQueries(pickAttributes(ranked(attrs...).Attributes, rankedAttributesPerGroup, hasValues))
-	require.Len(t, queries, 1, "single-value attributes give only the high band")
-	require.Len(t, queries["high"], 2*rankedAttributesPerGroup)
+	require.Len(t, casesOf(attributeCases(ranked(attrs...)), apiSearch), 2*rankedAttributesPerGroup)
 }
 
 // allCases keeps the cases of an API together, so the summary of a comparison
@@ -193,9 +121,27 @@ func TestAllCasesKeepsAPIsTogether(t *testing.T) {
 	}
 	require.Equal(t, []string{
 		"traceid/present", "traceid/absent",
-		"search/nopredicate", "search/ranked/high", "search/ranked/medium", "search/ranked/low",
+		"search/nopredicate",
+		"search/ranked_generic/high/span.most", "search/ranked_generic/medium/span.most", "search/ranked_generic/low/span.most",
+		"search/ranked_generic/high/span.some",
 		"metrics/rate", "metrics/rate-by-service",
+		"metrics/drilldown/rate", "metrics/drilldown/errors", "metrics/drilldown/duration", "metrics/drilldown/by-service",
+		"metrics/ranked_generic/rate/high/span.most", "metrics/ranked_generic/rate/medium/span.most", "metrics/ranked_generic/rate/low/span.most",
+		"metrics/ranked_generic/rate/high/span.some",
+		"metrics/ranked_generic/quantile/high/span.most", "metrics/ranked_generic/quantile/medium/span.most", "metrics/ranked_generic/quantile/low/span.most",
+		"metrics/ranked_generic/quantile/high/span.some",
 		"metadata/tagnames/none", "metadata/tagnames/resource", "metadata/tagnames/span",
 		"metadata/tagnames/event", "metadata/tagnames/link", "metadata/tagnames/instrumentation",
+		"metadata/ranked_generic/tagvalues/span.most", "metadata/ranked_generic/tagvalues/span.some",
 	}, got)
+}
+
+func casesOf(cases []benchCase, api string) []benchCase {
+	var out []benchCase
+	for _, c := range cases {
+		if c.api == api {
+			out = append(out, c)
+		}
+	}
+	return out
 }

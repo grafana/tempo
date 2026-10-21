@@ -3,6 +3,7 @@ package benchmark
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/profile/attributes"
 	"github.com/grafana/tempo/v3/pkg/traceql"
@@ -11,6 +12,10 @@ import (
 // rankedAttributesPerGroup is how many attributes of each group — with a
 // dedicated column and without — the generated cases cover.
 const rankedAttributesPerGroup = 10
+
+// tagValueAttributesPerGroup is how many string attributes of each group get a
+// tag-value lookup.
+const tagValueAttributesPerGroup = 20
 
 var profiledIntrinsics = []traceql.Intrinsic{
 	traceql.IntrinsicName,
@@ -33,10 +38,42 @@ func pickAttributes(attrs *attributes.Profiles, n int, keep func(attributes.Prof
 	return append(dedicated, generic...)
 }
 
+const (
+	rankedDedicated = "ranked_dedicated"
+	rankedGeneric   = "ranked_generic"
+)
+
+func rankedGroup(p attributes.Profile) string {
+	if p.Dedicated {
+		return rankedDedicated
+	}
+	return rankedGeneric
+}
+
+// Family is the generated query a case ID runs, without the band and
+// attribute it varies, like metrics/ranked_generic/rate: what benchmark
+// compare rolls up into one row. A fixed case has none, since each asks a
+// question of its own.
+func Family(id string) string {
+	parts := strings.Split(id, "/")
+	if len(parts) < 3 || (parts[1] != rankedDedicated && parts[1] != rankedGeneric) {
+		return ""
+	}
+	parts = parts[:len(parts)-1]
+	if b := parts[len(parts)-1]; b == bandHigh || b == bandMedium || b == bandLow {
+		parts = parts[:len(parts)-1]
+	}
+	return strings.Join(parts, "/")
+}
+
 // hasValues skips numerics with too many values to list: their quantiles suit a
 // range predicate, not `=`.
 func hasValues(p attributes.Profile) bool {
 	return len(p.Values) > 0
+}
+
+func isStringAttribute(p attributes.Profile) bool {
+	return p.Type == attributes.TypeString
 }
 
 // queryable skips attributes a newer profile might rank that this run cannot
@@ -98,4 +135,22 @@ func valueFilter(p attributes.Profile, v string) string {
 		v = strconv.Quote(v)
 	}
 	return fmt.Sprintf("{ %s = %s }", attr, v)
+}
+
+// attributeIDs use the name, not the rank, so an attribute keeps its ID across
+// experiment variants. The type is added only to tell two picks of one name apart.
+func attributeIDs(ps []attributes.Profile) []string {
+	seen := make(map[string]int, len(ps))
+	for _, p := range ps {
+		seen[p.Scope+"."+p.Name]++
+	}
+
+	ids := make([]string, len(ps))
+	for i, p := range ps {
+		ids[i] = p.Scope + "." + p.Name
+		if seen[ids[i]] > 1 {
+			ids[i] += "." + p.Type
+		}
+	}
+	return ids
 }

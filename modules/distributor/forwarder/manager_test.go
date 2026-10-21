@@ -14,6 +14,8 @@ import (
 type mockWorkingOverrides struct {
 	tenantIDs            []string
 	tenantIDToForwarders map[string][]string
+	tenantIDToQueueSize  map[string]int
+	tenantIDToWorkers    map[string]int
 }
 
 func (m *mockWorkingOverrides) TenantIDs() []string {
@@ -22,6 +24,20 @@ func (m *mockWorkingOverrides) TenantIDs() []string {
 
 func (m *mockWorkingOverrides) Forwarders(tenantID string) []string {
 	return m.tenantIDToForwarders[tenantID]
+}
+
+func (m *mockWorkingOverrides) ForwarderQueueSize(tenantID string) int {
+	if size := m.tenantIDToQueueSize[tenantID]; size != 0 {
+		return size
+	}
+	return 100
+}
+
+func (m *mockWorkingOverrides) ForwarderWorkers(tenantID string) int {
+	if workers := m.tenantIDToWorkers[tenantID]; workers != 0 {
+		return workers
+	}
+	return 2
 }
 
 type mockWorkingForwarder struct{}
@@ -70,6 +86,7 @@ func newManagerWithForwarders(t *testing.T, forwarderNameToForwarder map[string]
 
 	require.NoError(t, manager.start(context.Background()))
 	t.Cleanup(func() {
+		require.NoError(t, manager.shutdown())
 		require.NoError(t, manager.stop(nil))
 	})
 
@@ -370,7 +387,7 @@ func TestManager_ForTenant_List_ForwardTraces_ReturnsNoErrorAndCorrectlyForwards
 	// Step 2 - Remove one forwarder, simulate "tick" and verify that remaining forwarders receive the trace.
 	idx := slices.Index(o.tenantIDToForwarders["testTenantID"], "testForwarder2")
 	require.NotEqual(t, -1, idx)
-	slices.Delete(o.tenantIDToForwarders["testTenantID"], idx, idx)
+	o.tenantIDToForwarders["testTenantID"] = slices.Delete(o.tenantIDToForwarders["testTenantID"], idx, idx+1)
 	manager.updateQueueLists()
 
 	// When

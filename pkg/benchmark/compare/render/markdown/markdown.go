@@ -1,5 +1,6 @@
 // Package markdown writes a comparison for a pull request or an issue: how the
-// runs differ, then a summary table of every case for each metric.
+// runs differ, then a summary table for each metric, with the cases of a
+// rolled-up family folded away under it.
 package markdown
 
 import (
@@ -30,43 +31,14 @@ func Write(w io.Writer, c *compare.Comparison, metrics []string, stat compare.St
 
 	for _, metric := range metrics {
 		v := render.NewSummary(c, metric, stat, baseline)
-		base := escape(v.Columns[baseline].Text)
-		fmt.Fprintf(&b, "\n#### %s · %s per execution\n\nChange from %s.\n\n", metric, stat, base)
+		fmt.Fprintf(&b, "\n#### %s · %s per execution\n\nChange from %s.\n\n", metric, stat, escape(v.Columns[baseline].Text))
+		summary(&b, v)
 
-		header := []string{"case", base}
-		for run, col := range v.Columns {
-			if run != baseline {
-				header = append(header, escape(col.Text), "")
-			}
-		}
-		rows := [][]string{header}
-		for _, r := range v.Rows {
-			if r.Group != "" {
-				continue
-			}
-			label := r.ID
-			if len(r.Problems) > 0 {
-				label += " " + render.Flag
-			}
-			row := []string{escape(label), r.Cells[baseline].Value}
-			for run, cell := range r.Cells {
-				switch {
-				case run == baseline:
-				case cell.Incomparable:
-					row = append(row, render.NotComparable, "")
-				default:
-					row = append(row, cell.Value, change(cell.Change))
-				}
-			}
-			rows = append(rows, row)
-		}
-		table(&b, rows, true)
-
-		if notes := v.Notes(); len(notes) > 0 {
-			b.WriteString("\n")
-			for _, n := range notes {
-				fmt.Fprintf(&b, "- %s %s\n", render.Flag, escape(n))
-			}
+		// Every case stays one click away without lengthening the pull request.
+		if v.HasFamilies() {
+			b.WriteString("\n<details>\n<summary>Every case</summary>\n\n")
+			summary(&b, render.NewCaseSummary(c, metric, stat, baseline, ""))
+			b.WriteString("\n</details>\n")
 		}
 	}
 
@@ -74,6 +46,52 @@ func Write(w io.Writer, c *compare.Comparison, metrics []string, stat compare.St
 		return fmt.Errorf("writing markdown: %w", err)
 	}
 	return nil
+}
+
+// summary writes a summary's table, and the problems of its rows under it.
+func summary(b *strings.Builder, v render.SummaryView) {
+	header := []string{"case", escape(v.Columns[v.Baseline].Text)}
+	for run, col := range v.Columns {
+		if run != v.Baseline {
+			header = append(header, escape(col.Text), "")
+		}
+	}
+	rows := [][]string{header}
+	for _, r := range v.Rows {
+		if r.Group != "" {
+			continue
+		}
+		label := r.ID
+		if r.Cases > 0 {
+			label += fmt.Sprintf(" (%d cases)", r.Cases)
+		}
+		if len(r.Problems) > 0 {
+			label += " " + render.Flag
+		}
+		row := []string{escape(label), r.Cells[v.Baseline].Value}
+		for run, cell := range r.Cells {
+			switch {
+			case run == v.Baseline:
+			case cell.Incomparable:
+				row = append(row, render.NotComparable, "")
+			default:
+				ch := change(cell.Change)
+				if cell.Range.Text != "" {
+					ch += " " + cell.Range.Text
+				}
+				row = append(row, cell.Value, ch)
+			}
+		}
+		rows = append(rows, row)
+	}
+	table(b, rows, true)
+
+	if notes := v.Notes(); len(notes) > 0 {
+		b.WriteString("\n")
+		for _, n := range notes {
+			fmt.Fprintf(b, "- %s %s\n", render.Flag, escape(n))
+		}
+	}
 }
 
 // table writes rows as a markdown table, the first its header, with each

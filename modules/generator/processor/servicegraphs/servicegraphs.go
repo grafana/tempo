@@ -118,6 +118,10 @@ type dimensionLabel struct {
 }
 
 func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	if cfg.EnableVirtualNodeLabel {
 		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
 	}

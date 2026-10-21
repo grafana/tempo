@@ -2,7 +2,6 @@ package benchmark
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
 	"github.com/grafana/tempo/v3/pkg/traceql"
@@ -16,14 +15,27 @@ const (
 	apiMetadata  = "metadata"
 )
 
+const rateCaseID = "rate"
+
 // basicMetricsQueries are the fixed metrics queries. The fixed set does no
 // attribute profiling, so the grouped query groups by a well-known attribute.
 var basicMetricsQueries = []struct {
 	id    string
 	query string
 }{
-	{"rate", "{} | rate()"},
+	{rateCaseID, "{} | rate()"},
 	{"rate-by-service", "{} | rate() by (resource.service.name)"},
+}
+
+// drilldownQueries mirror what Traces Drilldown runs when it opens.
+var drilldownQueries = []struct {
+	id    string
+	query string
+}{
+	{rateCaseID, "{nestedSetParent<0 && true} | rate() with(sample=true)"},
+	{"errors", "{nestedSetParent<0 && true && status=error} | rate() with(sample=true)"},
+	{"duration", "{nestedSetParent<0 && true} | histogram_over_time(duration) with(sample=true)"},
+	{"by-service", "{nestedSetParent<0 && true} | rate() by (resource.service.name)"},
 }
 
 // tagNameScopes are the scopes a tag-name lookup is measured over. None means
@@ -73,30 +85,16 @@ func fixedCases() []benchCase {
 				return traceByIDExecutions(prof.TraceIDs.Absent, opts.searchOptions())
 			},
 		},
-		{
-			// The fetch path with nothing to prune by.
-			id:    "search/nopredicate",
-			api:   apiSearch,
-			query: "{}",
-			executions: func(prof *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				return searchExecutions("{}", shards, prof.Block, opts.searchOptions()), nil
-			},
-		},
 	}
 
+	// The fetch path with nothing to prune by.
+	cases = append(cases, searchCase("search/nopredicate", "{}"))
+
 	for _, q := range basicMetricsQueries {
-		cases = append(cases, benchCase{
-			id:    "metrics/" + q.id,
-			api:   apiMetrics,
-			query: q.query,
-			executions: func(prof *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				if !prof.Block.EndTime.After(prof.Block.StartTime) {
-					return nil, fmt.Errorf("a metrics query needs a non-empty time window, but the block's is %s to %s",
-						prof.Block.StartTime, prof.Block.EndTime)
-				}
-				return metricsExecutions(q.query, shards, prof.Block, opts.searchOptions()), nil
-			},
-		})
+		cases = append(cases, metricsCase("metrics/"+q.id, q.query))
+	}
+	for _, q := range drilldownQueries {
+		cases = append(cases, metricsCase("metrics/drilldown/"+q.id, q.query))
 	}
 
 	// Tag names, one case per scope, with no TraceQL to filter by.
