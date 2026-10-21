@@ -33,6 +33,7 @@ server:
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
+    tls_curve_preferences: ""
     http_tls_config:
         cert: ""
         key: null
@@ -96,6 +97,7 @@ server:
             excluded_paths: ""
             excluded_user_agents: ""
     create_new_traces: false
+    enable_open_metrics_text_created_samples: false
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -109,6 +111,7 @@ internal_server:
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
+    tls_curve_preferences: ""
     http_tls_config:
         cert: ""
         key: null
@@ -172,6 +175,7 @@ internal_server:
             excluded_paths: ""
             excluded_user_agents: ""
     create_new_traces: false
+    enable_open_metrics_text_created_samples: false
     enable: false
 distributor:
     ring:
@@ -875,6 +879,9 @@ memberlist:
     broadcast_timeout_for_local_updates_on_shutdown: 10s
     message_history_buffer_bytes: 0
     watch_prefix_buffer_size: 128
+    cas_retry_min_backoff: 0s
+    cas_retry_max_backoff: 10s
+    local_state_cache_enabled: false
     bind_addr: []
     bind_port: 7946
     packet_dial_timeout: 2s
