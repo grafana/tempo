@@ -112,9 +112,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
 	}
 
-	if p := q.limits.MetricsExtrapolate(tenantID); p != nil {
-		compileOpts = append(compileOpts, traceql.WithExtrapolation(*p))
-	}
+	compileOpts = append(compileOpts, traceql.WithExtrapolation(req.Extrapolate))
 
 	compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(q.limits.SpanPruningAwareness(tenantID))...)
 	if p := q.limits.EngineBytesTracking(tenantID); p != nil {

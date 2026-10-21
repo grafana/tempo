@@ -761,9 +761,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
 	}
 
-	if p := i.overrides.MetricsExtrapolate(i.tenantID); p != nil {
-		compileOpts = append(compileOpts, traceql.WithExtrapolation(*p))
-	}
+	compileOpts = append(compileOpts, traceql.WithExtrapolation(req.Extrapolate))
 
 	compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(i.overrides.SpanPruningAwareness(i.tenantID))...)
 	if p := i.overrides.EngineBytesTracking(i.tenantID); p != nil {
@@ -920,7 +918,7 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 		return nil, nil
 	}
 
-	name := queryRangeCacheName(req, i.overrides.MetricsExtrapolate(i.tenantID))
+	name := queryRangeCacheName(req)
 
 	cached, err := i.queryRangeCacheGet(ctx, m, name)
 	if err != nil {
@@ -976,10 +974,8 @@ func (i *instance) queryRangeCompleteBlock(ctx context.Context, b *LocalBlock, r
 	return resp, nil
 }
 
-// queryRangeCacheName names the cached response for req. extrapolate is the tenant's
-// metrics_extrapolate override, which changes the response but isn't part of req.
-func queryRangeCacheName(req tempopb.QueryRangeRequest, extrapolate *bool) string {
-	return fmt.Sprintf("cache_query_range_%v.buf", queryRangeHashForBlock(req, extrapolate))
+func queryRangeCacheName(req tempopb.QueryRangeRequest) string {
+	return fmt.Sprintf("cache_query_range_%v.buf", queryRangeHashForBlock(req))
 }
 
 func (i *instance) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta, name string) (*tempopb.QueryRangeResponse, error) {
@@ -1015,19 +1011,15 @@ func (i *instance) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta,
 	return i.wal.LocalBackend().WriteAtomic(ctx, name, keyPath, bytes.NewReader(data), int64(len(data)))
 }
 
-func queryRangeHashForBlock(req tempopb.QueryRangeRequest, extrapolate *bool) uint64 {
+func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {
 	h := fnv1a.HashString64(req.Query)
 	h = fnv1a.AddUint64(h, req.Start)
 	h = fnv1a.AddUint64(h, req.End)
 	h = fnv1a.AddUint64(h, req.Step)
 
-	// Only mixed in when set so that cache names are unchanged for tenants without the override.
-	if extrapolate != nil {
-		if *extrapolate {
-			h = fnv1a.AddUint64(h, 3147483637)
-		} else {
-			h = fnv1a.AddUint64(h, 4147483621)
-		}
+	// Only mixed in when set so that cache names are unchanged for queries that don't extrapolate.
+	if req.Extrapolate {
+		h = fnv1a.AddUint64(h, 3147483637)
 	}
 
 	// TODO - caching for WAL blocks

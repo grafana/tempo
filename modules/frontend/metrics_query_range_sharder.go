@@ -127,6 +127,10 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		cutoff                = time.Now().Add(-s.cfg.QueryBackendAfter)
 	)
 
+	// Resolve extrapolation once here so queriers, live-stores, and cache keys all use the same value
+	// instead of each reading their own snapshot of the overrides.
+	req.Extrapolate = resolveExtrapolate(expr, s.overrides.MetricsExtrapolate(tenantID), allowUnsafe)
+
 	backendExemplars, generatorExemplars := s.exemplarsCutoff(*req, cutoff)
 	req.Exemplars = generatorExemplars
 	generatorReq, jobMetadata := s.generatorRequest(tenantID, pipelineRequest, *req, cutoff)
@@ -247,7 +251,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, firstShardIdx int, blockIter func(shardIterFn, jobIterFn), reqCh chan<- pipeline.Request, getExemplarsForBlock func(*backend.BlockMeta) uint32) {
 	defer close(reqCh)
 
-	queryHash := hashForQueryRangeRequest(&searchReq, s.overrides.MetricsExtrapolate(tenantID))
+	queryHash := hashForQueryRangeRequest(&searchReq)
 	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	blockIter(nil, func(m *backend.BlockMeta, shard, startPage, pages int) {
@@ -293,6 +297,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				MaxSeries:              searchReq.MaxSeries,
 				XInstant:               searchReq.XInstant,
 				SkipASTTransformations: searchReq.SkipASTTransformations,
+				Extrapolate:            searchReq.Extrapolate,
 			}
 
 			return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil
@@ -383,9 +388,16 @@ func (s *queryRangeSharder) exemplarsForBlock(m *backend.BlockMeta, totalExempla
 	return max(uint32(math.Ceil(share)), 1)
 }
 
-// hashForQueryRangeRequest hashes the fields of req that change the response. extrapolate is the
-// tenant's metrics_extrapolate override, which also changes the response but isn't part of req.
-func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest, extrapolate *bool) uint64 {
+// resolveExtrapolate returns whether the query should be extrapolated. The extrapolate query hint takes
+// precedence over the tenant's override, and extrapolation is off when neither is set.
+func resolveExtrapolate(expr *traceql.RootExpr, override *bool, allowUnsafe bool) bool {
+	if b, ok := expr.Hints.GetBool(traceql.HintExtrapolate, allowUnsafe); ok {
+		return b
+	}
+	return override != nil && *override
+}
+
+func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	if req.Query == "" {
 		return 0
 	}
@@ -417,13 +429,9 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest, extrapolate *bool)
 		hash = fnv1a.AddUint64(hash, 1147483619)
 	}
 
-	// Only mixed in when set so that cache keys are unchanged for tenants without the override.
-	if extrapolate != nil {
-		if *extrapolate {
-			hash = fnv1a.AddUint64(hash, 3147483637)
-		} else {
-			hash = fnv1a.AddUint64(hash, 4147483621)
-		}
+	// Only mixed in when set so that cache keys are unchanged for queries that don't extrapolate.
+	if req.Extrapolate {
+		hash = fnv1a.AddUint64(hash, 3147483637)
 	}
 
 	return hash

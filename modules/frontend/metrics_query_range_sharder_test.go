@@ -1,32 +1,34 @@
 package frontend
 
 import (
+	"context"
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/querier"
+	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 func TestBuildBackendRequestsExemplarsOneBlock(t *testing.T) {
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
-	require.NoError(t, err)
-
 	// Create the test sharder with exemplars enabled
 	sharder := &queryRangeSharder{
-		logger:    log.NewNopLogger(),
-		overrides: o,
+		logger: log.NewNopLogger(),
 		cfg: QueryRangeSharderConfig{
 			MaxExemplars:    100,
 			StreamingShards: defaultMostRecentShards,
@@ -459,8 +461,8 @@ func TestHashCollision(t *testing.T) {
 	instant := queryRange
 	instant.SetInstant(true)
 
-	baseHash := hashForQueryRangeRequest(&queryRange, nil)
-	instantHash := hashForQueryRangeRequest(&instant, nil)
+	baseHash := hashForQueryRangeRequest(&queryRange)
+	instantHash := hashForQueryRangeRequest(&instant)
 	assert.False(t, baseHash == instantHash, "Hash collision detected between range and instant query")
 }
 
@@ -471,11 +473,100 @@ func TestHashForQueryRangeRequestExtrapolate(t *testing.T) {
 		MaxSeries: 100,
 	}
 
-	unset := hashForQueryRangeRequest(&req, nil)
-	on := hashForQueryRangeRequest(&req, new(true))
-	off := hashForQueryRangeRequest(&req, new(false))
+	extrapolated := req
+	extrapolated.Extrapolate = true
 
-	assert.NotEqual(t, unset, on)
-	assert.NotEqual(t, unset, off)
-	assert.NotEqual(t, on, off)
+	assert.NotEqual(t, hashForQueryRangeRequest(&req), hashForQueryRangeRequest(&extrapolated))
+}
+
+// TestQueryRangeSharderResolvesExtrapolate verifies that the sharder resolves extrapolation once from
+// the query hint and the tenant's override, and sends the result on every generator and backend request.
+func TestQueryRangeSharderResolvesExtrapolate(t *testing.T) {
+	tests := []struct {
+		name     string
+		override *bool
+		query    string
+		urlParam bool // client-supplied extrapolate=true, which the sharder should ignore
+		want     bool
+	}{
+		{name: "neither set", query: "{} | rate()", want: false},
+		{name: "override on", override: new(true), query: "{} | rate()", want: true},
+		{name: "override off", override: new(false), query: "{} | rate()", want: false},
+		{name: "hint on", query: "{} | rate() with(extrapolate=true)", want: true},
+		{name: "override on, hint off", override: new(true), query: "{} | rate() with(extrapolate=false)", want: false},
+		{name: "override off, hint on", override: new(false), query: "{} | rate() with(extrapolate=true)", want: true},
+		{name: "client param ignored", query: "{} | rate()", urlParam: true, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				mtx      sync.Mutex
+				captured = map[string][]bool{} // query mode -> extrapolate values seen
+			)
+			next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+				req, err := api.ParseQueryRangeRequest(r.HTTPRequest())
+				require.NoError(t, err)
+				mtx.Lock()
+				captured[req.QueryMode] = append(captured[req.QueryMode], req.Extrapolate)
+				mtx.Unlock()
+				return pipeline.NewAsyncResponse(nil), nil
+			})
+
+			o, err := overrides.NewOverrides(overrides.Config{
+				Defaults: overrides.Overrides{
+					Read: overrides.ReadOverrides{MetricsExtrapolate: tc.override},
+				},
+			}, nil, prometheus.NewRegistry())
+			require.NoError(t, err)
+
+			now := time.Now()
+			reader := &mockReader{metas: []*backend.BlockMeta{{
+				BlockID:           backend.MustParse(uuid.NewString()),
+				TenantID:          "test-tenant",
+				StartTime:         now.Add(-2 * time.Hour),
+				EndTime:           now.Add(-90 * time.Minute),
+				TotalRecords:      1,
+				Size_:             1000,
+				ReplicationFactor: backend.MetricsGeneratorReplicationFactor,
+			}}}
+
+			sharder := newAsyncQueryRangeSharder(reader, o, QueryRangeSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				QueryBackendAfter:     time.Hour,
+			}, nil, false, nil, log.NewNopLogger())
+			testRT := sharder.Wrap(next)
+
+			req := &tempopb.QueryRangeRequest{
+				Query:       tc.query,
+				Start:       uint64(now.Add(-3 * time.Hour).UnixNano()),
+				End:         uint64(now.UnixNano()),
+				Step:        uint64(time.Minute),
+				Extrapolate: tc.urlParam,
+			}
+			httpReq := api.BuildQueryRangeRequest(httptest.NewRequest("GET", "/", nil), req, "")
+			httpReq = httpReq.WithContext(user.InjectOrgID(httpReq.Context(), "test-tenant"))
+
+			resps, err := testRT.RoundTrip(pipeline.NewHTTPRequest(httpReq))
+			require.NoError(t, err)
+			for {
+				_, done, err := resps.Next(context.Background())
+				require.NoError(t, err)
+				if done {
+					break
+				}
+			}
+
+			mtx.Lock()
+			defer mtx.Unlock()
+			require.NotEmpty(t, captured[querier.QueryModeRecent], "expected a generator request")
+			require.NotEmpty(t, captured[""], "expected a backend request")
+			for mode, values := range captured {
+				for _, v := range values {
+					assert.Equal(t, tc.want, v, "query mode %q", mode)
+				}
+			}
+		})
+	}
 }

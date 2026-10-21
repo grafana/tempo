@@ -1788,29 +1788,28 @@ func TestQueryRangeReportsInspectedBytes(t *testing.T) {
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
 
-func TestQueryRangeMetricsExtrapolateOverride(t *testing.T) {
+func TestQueryRangeExtrapolate(t *testing.T) {
 	tests := []struct {
 		name        string
-		extrapolate *bool
+		extrapolate bool
 		query       string
 		multiplier  float64
 	}{
-		{"override unset", nil, "{} | count_over_time()", 1},
-		{"override on", new(true), "{} | count_over_time()", 2},
-		{"override on, hint off", new(true), "{} | count_over_time() with(extrapolate=false)", 1},
-		{"override off, hint on", new(false), "{} | count_over_time() with(extrapolate=true)", 2},
+		{"off", false, "{} | count_over_time()", 1},
+		{"on", true, "{} | count_over_time()", 2},
+		{"on, hint off", true, "{} | count_over_time() with(extrapolate=false)", 1},
+		{"off, hint on", false, "{} | count_over_time() with(extrapolate=true)", 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			i, ls := defaultInstance(t)
-			setMetricsExtrapolate(t, i, tt.extrapolate)
 
 			spanCount := pushSampledTrace(t, i)
 			_, err := i.cutBlocks(t.Context(), true)
 			require.NoError(t, err)
 
 			now := time.Now()
-			total := queryRangeTotal(t, i, tt.query, now.Add(-time.Minute), now.Add(time.Minute))
+			total := queryRangeTotal(t, i, tt.query, tt.extrapolate, now.Add(-time.Minute), now.Add(time.Minute))
 			require.Equal(t, tt.multiplier*float64(spanCount), total)
 
 			require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
@@ -1818,9 +1817,9 @@ func TestQueryRangeMetricsExtrapolateOverride(t *testing.T) {
 	}
 }
 
-// TestQueryRangeMetricsExtrapolateOverrideCache verifies that changing the override isn't
-// masked by complete-block results cached before the change.
-func TestQueryRangeMetricsExtrapolateOverrideCache(t *testing.T) {
+// TestQueryRangeExtrapolateCache verifies that results cached for a complete block
+// without extrapolation aren't returned for an extrapolated request, and vice versa.
+func TestQueryRangeExtrapolateCache(t *testing.T) {
 	i, ls := defaultInstance(t)
 
 	spanCount := pushSampledTrace(t, i)
@@ -1839,27 +1838,11 @@ func TestQueryRangeMetricsExtrapolateOverrideCache(t *testing.T) {
 	end := block.BlockMeta().EndTime.Add(time.Minute)
 	query := "{} | count_over_time()"
 
-	require.Equal(t, float64(spanCount), queryRangeTotal(t, i, query, start, end))
-
-	setMetricsExtrapolate(t, i, new(true))
-	require.Equal(t, 2*float64(spanCount), queryRangeTotal(t, i, query, start, end))
-
-	setMetricsExtrapolate(t, i, new(false))
-	require.Equal(t, float64(spanCount), queryRangeTotal(t, i, query, start, end))
+	require.Equal(t, float64(spanCount), queryRangeTotal(t, i, query, false, start, end))
+	require.Equal(t, 2*float64(spanCount), queryRangeTotal(t, i, query, true, start, end))
+	require.Equal(t, float64(spanCount), queryRangeTotal(t, i, query, false, start, end))
 
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
-}
-
-func setMetricsExtrapolate(t *testing.T, i *instance, extrapolate *bool) {
-	limits, err := overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			Read: overrides.ReadOverrides{
-				MetricsExtrapolate: extrapolate,
-			},
-		},
-	}, nil, prometheus.NewRegistry())
-	require.NoError(t, err)
-	i.overrides = limits
 }
 
 // pushSampledTrace pushes a trace whose spans all carry a 50% sampling threshold
@@ -1888,13 +1871,14 @@ func pushSampledTrace(t *testing.T, i *instance) int {
 	return spanCount
 }
 
-func queryRangeTotal(t *testing.T, i *instance, query string, start, end time.Time) float64 {
+func queryRangeTotal(t *testing.T, i *instance, query string, extrapolate bool, start, end time.Time) float64 {
 	resp, err := i.QueryRange(t.Context(), &tempopb.QueryRangeRequest{
-		Query:     query,
-		Start:     uint64(start.UnixNano()),
-		End:       uint64(end.UnixNano()),
-		Step:      uint64(time.Second),
-		MaxSeries: 10,
+		Query:       query,
+		Start:       uint64(start.UnixNano()),
+		End:         uint64(end.UnixNano()),
+		Step:        uint64(time.Second),
+		MaxSeries:   10,
+		Extrapolate: extrapolate,
 	})
 	require.NoError(t, err)
 
@@ -1914,15 +1898,15 @@ func TestQueryRangeCacheName_StableForSameRequest(t *testing.T) {
 		End:   2_000_000_000,
 		Step:  uint64(time.Second),
 	}
-	require.Equal(t, queryRangeCacheName(req, nil), queryRangeCacheName(req, nil))
+	require.Equal(t, queryRangeCacheName(req), queryRangeCacheName(req))
 
 	other := req
 	other.End = 3_000_000_000
-	require.NotEqual(t, queryRangeCacheName(req, nil), queryRangeCacheName(other, nil))
+	require.NotEqual(t, queryRangeCacheName(req), queryRangeCacheName(other))
 
-	require.NotEqual(t, queryRangeCacheName(req, nil), queryRangeCacheName(req, new(true)))
-	require.NotEqual(t, queryRangeCacheName(req, nil), queryRangeCacheName(req, new(false)))
-	require.NotEqual(t, queryRangeCacheName(req, new(true)), queryRangeCacheName(req, new(false)))
+	extrapolated := req
+	extrapolated.Extrapolate = true
+	require.NotEqual(t, queryRangeCacheName(req), queryRangeCacheName(extrapolated))
 }
 
 func findCacheFile(t *testing.T, blockDir string) string {
