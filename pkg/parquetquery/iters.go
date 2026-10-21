@@ -500,6 +500,12 @@ type SyncIterator struct {
 
 	maxDefinitionLevel int
 
+	// Dictionary pushdown (dict_pushdown.go). dictKeep is the filter's answer for each
+	// entry of the current chunk's dictionary, nil when the chunk isn't pushed down.
+	dictKeep     []bool
+	dictKeepNull bool
+	dictPage     dictPageReader
+
 	interner   *intern.Interner
 	makeResult func(t RowNumber, v *pq.Value) *IteratorResult
 }
@@ -682,7 +688,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune
 
 		cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
 		if !prune {
-			c.resetFilter() // keepColumnChunk resets on the pruning path
+			c.dictKeep = nil // keepColumnChunk sets it on the pruning path
 		} else if !c.keepColumnChunk(cc) {
 			cc.Close()
 			continue
@@ -821,10 +827,13 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	pq.Release(c.currPage)
 	c.currPage = pg
 	c.currPageMin = c.curr
-	c.currValues = pg.Values()
 	c.currPageN = 0
 	syncIteratorPoolPut(c.currBuf)
 	c.currBuf = nil
+	c.dictPage.reset(pg, c.dictKeep)
+	if !c.dictPage.active {
+		c.currValues = pg.Values()
+	}
 }
 
 // next is the core functionality of this iterator and returns the next matching result. This
@@ -875,6 +884,15 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 				continue
 			}
 			c.setPage(pg)
+		}
+
+		if c.dictPage.active {
+			v, ok := c.nextDictValue(seeking)
+			if !ok {
+				c.setPage(nil) // page exhausted
+				continue
+			}
+			return c.curr, v, nil
 		}
 
 		// Read next batch of values if needed
@@ -965,6 +983,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 
 	// Reset value buffers
 	c.currValues = nil
+	c.dictPage.reset(nil, nil)
 	c.currPageMax = EmptyRowNumber()
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
@@ -984,7 +1003,10 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currPage = pg
 		c.currPageMin = c.curr
 		c.currPageMax = rn
-		c.currValues = pg.Values()
+		c.dictPage.reset(pg, c.dictKeep)
+		if !c.dictPage.active {
+			c.currValues = pg.Values()
+		}
 
 		if c.sampler != nil {
 			c.sampler.Expect(uint64(pg.NumValues()))

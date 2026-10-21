@@ -136,7 +136,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-			c.resetFilter()
+			c.dictKeep = nil // never pruned, so never pushed down
 			c.setRowGroup(rg, minRN, maxRN, cc)
 		}
 

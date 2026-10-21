@@ -48,6 +48,17 @@ func NewRegexp(regexps []string, shouldMatch bool) (*Regexp, error) {
 	}, nil
 }
 
+// NewRegexpWithoutMemo is NewRegexp without memoizing matches, for callers that
+// already evaluate each distinct value once.
+func NewRegexpWithoutMemo(regexps []string, shouldMatch bool) (*Regexp, error) {
+	r, err := NewRegexp(regexps, shouldMatch)
+	if err != nil {
+		return nil, err
+	}
+	r.matches = nil
+	return r, nil
+}
+
 func (r *Regexp) Match(b []byte) bool {
 	return r.MatchString(unsafe.String(unsafe.SliceData(b), len(b)))
 }
