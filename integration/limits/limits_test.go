@@ -34,6 +34,7 @@ const (
 	configIngestPartialSucess = "config-ingest-partial-success.yaml"
 	configQueryRate           = "config-query-rate.yaml"
 	configIngest              = "config-ingest.yaml"
+	configTenantMetadata      = "config-tenant-metadata.yaml"
 )
 
 func TestIngestionLimits(t *testing.T) {
@@ -92,6 +93,72 @@ func TestIngestionLimits(t *testing.T) {
 			e2e.WaitMissingMetrics,
 		)
 		require.NoError(t, err)
+	})
+}
+
+// TestIngestionLimitsTenantMetadata checks that an org ID with tenant metadata ("tenant:key=value")
+// is rate limited by that key's own limits, with discards recorded against the tenant.
+func TestIngestionLimitsTenantMetadata(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		ConfigOverlay: configTenantMetadata,
+	}, func(h *util.TempoHarness) {
+		const (
+			tenant      = "single-tenant"
+			metadataKey = "single-tenant:source=foo"
+		)
+
+		h.WaitTracesWritable(t)
+
+		// the metadata key gets a budget that rejects any batch, the tenant itself a generous one
+		require.NoError(t, h.UpdateOverrides(map[string]*overrides.Overrides{
+			tenant: {
+				Ingestion: overrides.IngestionOverrides{
+					RateLimitBytes: 1_000_000,
+					BurstSizeBytes: 1_000_000,
+				},
+			},
+			metadataKey: {
+				Ingestion: overrides.IngestionOverrides{
+					RateLimitBytes: 1,
+					BurstSizeBytes: 1,
+				},
+			},
+		}))
+
+		// pushes with the metadata key are rate limited
+		err := h.WriteJaegerBatch(util.MakeThriftBatchWithSpanCount(10), metadataKey)
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.ResourceExhausted, st.Code())
+		foundRetryInfo := false
+		for _, detail := range st.Details() {
+			if _, ok := detail.(*errdetails.RetryInfo); ok {
+				foundRetryInfo = true
+				break
+			}
+		}
+		require.True(t, foundRetryInfo)
+
+		// pushes with the tenant alone draw from the tenant's own bucket
+		require.NoError(t, h.WriteJaegerBatch(util.MakeThriftBatchWithSpanCount(10), tenant))
+
+		// discards are recorded against the tenant, not the metadata key
+		err = h.Services[util.ServiceDistributor].WaitSumMetricsWithOptions(
+			e2e.Equals(10),
+			[]string{"tempo_discarded_spans_total"},
+			e2e.WithLabelMatchers(
+				labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited"),
+				labels.MustNewMatcher(labels.MatchEqual, "tenant", tenant),
+			),
+			e2e.WaitMissingMetrics,
+		)
+		require.NoError(t, err)
+
+		// malformed metadata is rejected
+		err = h.WriteJaegerBatch(util.MakeThriftBatchWithSpanCount(1), tenant+":garbage")
+		st, ok = status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, st.Code())
 	})
 }
 

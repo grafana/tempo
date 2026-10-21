@@ -57,6 +57,33 @@ func TestExtractTenant(t *testing.T) {
 		assert.Nil(t, errResp)
 	})
 
+	t.Run("success case - tenant metadata is stripped", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/api/traces/123", nil)
+		require.NoError(t, err)
+
+		// The org ID may carry tenant metadata, which only the distributor's rate limits use.
+		ctx := user.InjectOrgID(req.Context(), "test-tenant:source=foo")
+		req = req.WithContext(ctx)
+
+		tenant, errResp := extractTenant(req, logger)
+
+		assert.Equal(t, "test-tenant", tenant)
+		assert.Nil(t, errResp)
+	})
+
+	t.Run("success case - cross-tenant query keeps every tenant", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "/api/search", nil)
+		require.NoError(t, err)
+
+		ctx := user.InjectOrgID(req.Context(), "tenant-b:source=foo|tenant-a")
+		req = req.WithContext(ctx)
+
+		tenant, errResp := extractTenant(req, logger)
+
+		assert.Equal(t, "tenant-b|tenant-a", tenant)
+		assert.Nil(t, errResp)
+	})
+
 	t.Run("error case - no tenant in context", func(t *testing.T) {
 		// Create request without tenant in context
 		req, err := http.NewRequest("GET", "/api/traces/123", nil)

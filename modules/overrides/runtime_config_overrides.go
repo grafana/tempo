@@ -8,12 +8,14 @@ import (
 	"maps"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/tenant"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.yaml.in/yaml/v2"
 
@@ -137,29 +139,57 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool,
 			)
 		}
 
-		for tenant, tenantOverrides := range overrides.TenantLimits {
+		for key, tenantOverrides := range overrides.TenantLimits {
+			if err := validateOverridesKey(key); err != nil {
+				return nil, err
+			}
 			if tenantOverrides == nil {
 				continue
 			}
 			if err := tenantOverrides.Forwarder.validate(); err != nil {
-				return nil, fmt.Errorf("validating overrides for %s failed: %w", tenant, err)
+				return nil, fmt.Errorf("validating overrides for %s failed: %w", key, err)
 			}
 		}
 
 		if validator != nil {
-			for tenant, tenantOverrides := range overrides.TenantLimits {
+			for key, tenantOverrides := range overrides.TenantLimits {
 				warnings, err := validator.Validate(tenantOverrides)
 				if err != nil {
-					return nil, fmt.Errorf("validating overrides for %s failed: %w", tenant, err)
+					return nil, fmt.Errorf("validating overrides for %s failed: %w", key, err)
 				}
 				for _, warning := range warnings {
-					level.Warn(log.Logger).Log("msg", "Overrides validation warning", "tenant", tenant, "warning", warning)
+					level.Warn(log.Logger).Log("msg", "Overrides validation warning", "tenant", key, "warning", warning)
 				}
 			}
 		}
 
 		return overrides, nil
 	}
+}
+
+// validateOverridesKey checks that an overrides key is the wildcard, a tenant ID, or a tenant ID with
+// metadata ("tenant:key=value"). Malformed metadata fails the load because the key would never match.
+// An invalid plain tenant ID only logs a warning, since failing on it would break existing configs.
+func validateOverridesKey(key string) error {
+	if key == wildcardTenant {
+		return nil
+	}
+
+	if !strings.Contains(key, ":") {
+		if err := tenant.ValidTenantID(key); err != nil {
+			level.Warn(log.Logger).Log("msg", "per-tenant overrides key is not a valid tenant ID and will never match a request", "key", key, "err", err)
+		}
+		return nil
+	}
+
+	tenantID, _, err := tenant.ParseWithMetadata(key)
+	if err != nil {
+		return fmt.Errorf("invalid per-tenant overrides key %q: %w", key, err)
+	}
+	if tenantID == wildcardTenant {
+		return fmt.Errorf("invalid per-tenant overrides key %q: the wildcard tenant cannot carry metadata, use %q to match this metadata in any tenant", key, strings.TrimPrefix(key, wildcardTenant))
+	}
+	return nil
 }
 
 // runtimeConfigOverridesManager periodically fetch a set of per-user overrides, and provides convenience
@@ -377,14 +407,14 @@ func (o *runtimeConfigOverridesManager) MaxCompactionRange(userID string) time.D
 	return time.Duration(o.getOverridesForUser(userID).Compaction.CompactionWindow)
 }
 
-// IngestionRateLimitBytes is the number of spans per second allowed for this tenant.
-func (o *runtimeConfigOverridesManager) IngestionRateLimitBytes(userID string) float64 {
-	return float64(o.getOverridesForUser(userID).Ingestion.RateLimitBytes)
+// IngestionRateLimitBytes is the number of bytes per second allowed for this limits key, see getOverridesForLimitsKey.
+func (o *runtimeConfigOverridesManager) IngestionRateLimitBytes(limitsKey string) float64 {
+	return float64(o.getOverridesForLimitsKey(limitsKey).Ingestion.RateLimitBytes)
 }
 
-// IngestionBurstSizeBytes is the burst size in spans allowed for this tenant.
-func (o *runtimeConfigOverridesManager) IngestionBurstSizeBytes(userID string) int {
-	return o.getOverridesForUser(userID).Ingestion.BurstSizeBytes
+// IngestionBurstSizeBytes is the burst size in bytes allowed for this limits key, see getOverridesForLimitsKey.
+func (o *runtimeConfigOverridesManager) IngestionBurstSizeBytes(limitsKey string) int {
+	return o.getOverridesForLimitsKey(limitsKey).Ingestion.BurstSizeBytes
 }
 
 // IngestionTenantShardSize is the shard size.
@@ -776,7 +806,11 @@ func (o *runtimeConfigOverridesManager) DedicatedColumns(userID string) backend.
 	return o.getOverridesForUser(userID).Storage.DedicatedColumns
 }
 
+// getOverridesForUser returns the tenant's own entry, else the wildcard entry, else the defaults.
+// Tenant metadata in the user ID ("tenant:key=value") is ignored.
 func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Overrides {
+	userID = tenant.TrimMetadata(userID)
+
 	if tenantOverrides := o.tenantOverrides(); tenantOverrides != nil {
 		l := tenantOverrides.forUser(userID)
 		if l != nil {
@@ -790,6 +824,50 @@ func (o *runtimeConfigOverridesManager) getOverridesForUser(userID string) *Over
 	}
 
 	return o.defaultLimits
+}
+
+// getOverridesForLimitsKey returns the overrides for a tenant ID with optional metadata ("tenant:key=value").
+// With metadata, a copy of the tenant's overrides (see getOverridesForUser) gets the ingestion rate limits
+// overlaid from the entries ":key=value" and "tenant:key=value" for each pair, then from the full key.
+// Later entries win and only non-zero fields apply, see mergeIngestionLimits. "*:key=value" is not supported.
+func (o *runtimeConfigOverridesManager) getOverridesForLimitsKey(limitsKey string) *Overrides {
+	tenantOverrides := o.tenantOverrides()
+	if tenantOverrides == nil {
+		return o.getOverridesForUser(limitsKey)
+	}
+
+	tenantID, md, err := tenant.ParseWithMetadata(limitsKey)
+	if err != nil || md.IsEmpty() {
+		return o.getOverridesForUser(limitsKey)
+	}
+
+	dst := copyOverridesForMerge(o.getOverridesForUser(tenantID))
+	for kv := range md.Divide() {
+		dst = mergeIngestionLimits(dst, tenantOverrides.forUser(kv.Encode()))
+		dst = mergeIngestionLimits(dst, tenantOverrides.forUser(kv.WithTenant(tenantID)))
+	}
+	return mergeIngestionLimits(dst, tenantOverrides.forUser(limitsKey))
+}
+
+// copyOverridesForMerge returns a shallow copy for mergeIngestionLimits to mutate. Maps, slices and
+// pointers are still shared with src, so only the ingestion rate limit fields may be assigned.
+func copyOverridesForMerge(src *Overrides) *Overrides {
+	cp := *src
+	return &cp
+}
+
+// mergeIngestionLimits overlays the non-zero ingestion rate limit fields of overlay onto dst, which must be a private copy.
+func mergeIngestionLimits(dst, overlay *Overrides) *Overrides {
+	if overlay == nil {
+		return dst
+	}
+	if overlay.Ingestion.RateLimitBytes > 0 {
+		dst.Ingestion.RateLimitBytes = overlay.Ingestion.RateLimitBytes
+	}
+	if overlay.Ingestion.BurstSizeBytes > 0 {
+		dst.Ingestion.BurstSizeBytes = overlay.Ingestion.BurstSizeBytes
+	}
+	return dst
 }
 
 func (o *runtimeConfigOverridesManager) Describe(ch chan<- *prometheus.Desc) {

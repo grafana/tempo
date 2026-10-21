@@ -50,6 +50,11 @@ const (
 
 	truncationLogsPerSecond = 1
 
+	// Unused per-tenant rate limiters are removed every cleanup interval once idle for the staleness
+	// period. A removed limiter restarts with a full burst, so staleness must exceed the refill time.
+	ingestionRateLimiterCleanupInterval = time.Hour
+	ingestionRateLimiterStaleness       = 24 * time.Hour
+
 	// 16 covers the typical spans-per-trace seen in production.
 	maxPreallocSpansPerTrace = 16
 
@@ -378,6 +383,7 @@ func New(
 		return nil, err
 	}
 	subservices = append(subservices, receivers)
+	subservices = append(subservices, newIngestionRateLimiterCleanup(d.ingestionRateLimiter, logger))
 
 	if d.pushSpansToKafka {
 		client, err := ingest.NewWriterClient(cfg.KafkaConfig, 10, logger, prometheus.WrapRegistererWithPrefix("tempo_distributor_", reg))
@@ -425,6 +431,9 @@ func (d *Distributor) stopping(_ error) error {
 // checkForRateLimits checks if the trace batch size exceeds the ingestion rate limit.
 // it will use the ingestion rate limits based on the ingestion strategy configured.
 //
+// The limiter is keyed by limitsKey, the tenant ID plus any tenant metadata ("tenant:key=value"),
+// so each key has its own bucket and limits. Discarded spans are recorded against userID.
+//
 // LocalIngestionRateStrategy: the ingestion rate limit is applied as is in each distributor.
 // example: if the ingestion rate limit is 10MB/s and the burst size is 20MB, then each distributor
 // will allow 10MB/s with a burst of 20MB.
@@ -432,13 +441,19 @@ func (d *Distributor) stopping(_ error) error {
 // GlobalIngestionRateStrategy: the ingestion rate limit is divided by the number of healthy distributors.
 // example: if the ingestion rate limit is 10MB/s and the burst size is 20MB, and there are 5 healthy distributors,
 // then each distributor will allow 2MB/s with a burst of 20MB.
-func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID string) error {
+func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID, limitsKey string) error {
 	now := time.Now()
-	if !d.ingestionRateLimiter.AllowN(now, userID, tracesSize) {
+	if !d.ingestionRateLimiter.AllowN(now, limitsKey, tracesSize) {
 		overrides.RecordDiscardedSpans(spanCount, overrides.ReasonRateLimited, userID)
-		// limit: number of bytes per second allowed for the user, as per ingestion rate strategy
-		limit := int(d.ingestionRateLimiter.Limit(now, userID))
-		burst := d.ingestionRateLimiter.Burst(now, userID)
+		// limit: number of bytes per second allowed for the limits key, as per ingestion rate strategy
+		limit := int(d.ingestionRateLimiter.Limit(now, limitsKey))
+		burst := d.ingestionRateLimiter.Burst(now, limitsKey)
+
+		// name the limits key in the error only when the org ID carried tenant metadata
+		subject := userID
+		if limitsKey != userID {
+			subject = fmt.Sprintf("%s (limits key %s)", userID, limitsKey)
+		}
 
 		// globalLimit will be 0 when using local ingestion rate strategy
 		var globalLimit int
@@ -452,24 +467,41 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 		if tracesSize > limit && tracesSize > burst {
 			return status.Errorf(codes.ResourceExhausted,
 				"%s: batch size (%d bytes) exceeds ingestion limit (local: %d bytes/s, global: %d bytes/s, burst: %d bytes) while adding %d bytes for user %s. consider reducing batch size or increasing rate limit.",
-				overrides.ErrorPrefixRateLimited, tracesSize, limit, globalLimit, burst, tracesSize, userID)
+				overrides.ErrorPrefixRateLimited, tracesSize, limit, globalLimit, burst, tracesSize, subject)
 		}
 
 		return status.Errorf(codes.ResourceExhausted,
 			"%s: ingestion rate limit (local: %d bytes/s, global: %d bytes/s, burst: %d bytes) exceeded while adding %d bytes for user %s. consider increasing the limit or reducing ingestion rate.",
-			overrides.ErrorPrefixRateLimited, limit, globalLimit, burst, tracesSize, userID)
+			overrides.ErrorPrefixRateLimited, limit, globalLimit, burst, tracesSize, subject)
 	}
 
 	return nil
 }
 
-func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces) (userID string, spanCount, tracesSize int, err error) {
-	orgID, e := validation.ExtractValidTenantID(ctx)
+// extractBasicInfo returns the tenant ID, the limits key, the span count and the size of the request.
+// The limits key adds any tenant metadata ("tenant:key=value") and is only used for ingestion rate limits.
+func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces) (userID, limitsKey string, spanCount, tracesSize int, err error) {
+	tenantID, md, e := validation.ExtractTenantWithMetadata(ctx)
 	if e != nil {
-		return "", 0, 0, status.Error(codes.InvalidArgument, e.Error())
+		return "", "", 0, 0, status.Error(codes.InvalidArgument, e.Error())
 	}
 
-	return orgID, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
+	return tenantID, md.WithTenant(tenantID), traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
+}
+
+// newIngestionRateLimiterCleanup returns a service that periodically removes idle rate limiters.
+// Limiters are keyed by limits key, so tenant metadata adds one per distinct value.
+func newIngestionRateLimiterCleanup(l *limiter.RateLimiter, logger log.Logger) services.Service {
+	return services.NewTimerService(ingestionRateLimiterCleanupInterval, nil, func(context.Context) error {
+		removed := removeStaleRateLimiters(l, time.Now())
+		level.Debug(logger).Log("msg", "removed unused ingestion rate limiters", "removed", removed)
+		return nil
+	}, nil).WithName("ingestion-rate-limiter-cleanup")
+}
+
+// removeStaleRateLimiters removes the rate limiters idle for ingestionRateLimiterStaleness and returns the count.
+func removeStaleRateLimiters(l *limiter.RateLimiter, now time.Time) int {
+	return l.RemoveStaleEntries(now.Add(-ingestionRateLimiterStaleness))
 }
 
 // PushTraces pushes a batch of traces
@@ -486,7 +518,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		}
 	}
 
-	userID, spanCount, size, err := d.extractBasicInfo(ctx, traces)
+	userID, limitsKey, spanCount, size, err := d.extractBasicInfo(ctx, traces)
 	if err != nil {
 		// can't record discarded spans here b/c there's no tenant
 		return nil, err
@@ -502,7 +534,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	// check limits
 	// todo - usage tracker include discarded bytes?
-	err = d.checkForRateLimits(size, spanCount, userID)
+	err = d.checkForRateLimits(size, spanCount, userID, limitsKey)
 	if err != nil {
 		return nil, err
 	}
@@ -1034,7 +1066,7 @@ func (d *Distributor) getMaxAttributeBytes(userID string) int {
 }
 
 func (d *Distributor) RetryInfoEnabled(ctx context.Context) (bool, error) {
-	userID, err := user.ExtractOrgID(ctx)
+	userID, err := validation.ExtractValidTenantID(ctx)
 	if err != nil {
 		return false, err
 	}

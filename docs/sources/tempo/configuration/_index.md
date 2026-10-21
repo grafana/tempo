@@ -2830,9 +2830,60 @@ overrides:
       [max_bytes_per_trace: <int>]
 ```
 
-When a tenant matches a per-tenant override entry, Tempo doesn't merge that entry field-by-field with `defaults`. Most fields require you to set every value a tenant needs within its own block (some settings, such as `ingestion.rate_strategy`, always use `defaults`). A few metrics-generator fields fall back to `defaults` when unset, but most, including `processors` and `remote_write_headers`, don't.
+When a tenant matches a per-tenant override entry, Tempo doesn't merge that entry field-by-field with `defaults`. Most fields require you to set every value a tenant needs within its own block (some settings, such as `ingestion.rate_strategy`, always use `defaults`). A few metrics-generator fields fall back to `defaults` when unset, but most, including `processors` and `remote_write_headers`, don't. The exception is the ingestion rate limits derived from tenant metadata, described in the next section.
 
 For a complete per-tenant `metrics_generator` example, including `remote_write_headers` for per-tenant authentication and environment variable expansion, refer to [Multi-tenancy support](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/multitenancy/).
+
+##### Metadata-derived ingestion limits
+
+The `X-Scope-OrgID` header can carry [tenant metadata](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/tenant-ids/#tenant-metadata)
+after the tenant ID, in the format `<tenant-id>:<key>=<value>`.
+The distributor uses the full value, called the limits key, to select the ingestion rate limits,
+and gives every distinct limits key its own token bucket.
+Everything else, including the stored data, queries, metrics, and all other limits, uses the tenant ID alone.
+
+This lets several writers share one tenant while each gets its own ingestion budget.
+For example, a gateway can set `X-Scope-OrgID: common:source=team-a` for writes from `team-a` into the shared tenant `common`.
+
+The limits for a limits key start from the tenant's own entry (or the `"*"` entry, or `defaults`),
+and are then overlaid, in order, by the following entries when they exist:
+
+1. `":<key>=<value>"` for each metadata pair, which matches that pair in any tenant.
+1. `"<tenant-id>:<key>=<value>"` for each metadata pair.
+1. The full limits key, for example `"common:env=prod:source=team-a"`.
+
+Only `ingestion.rate_limit_bytes` and `ingestion.burst_size_bytes` are read from these entries, and only when set to a non-zero value.
+Other fields in these entries are ignored.
+A limits key with no matching entry uses the tenant's limits as its own separate budget.
+The `"*"` entry is only used as the base; `"*:<key>=<value>"` isn't a supported key.
+Entries with malformed metadata fail to load.
+
+```yaml
+# /conf/overrides.yaml
+overrides:
+  # Base limits for the shared tenant. Also the budget of any writer without its own entry.
+  "common":
+    ingestion:
+      rate_limit_bytes: 1000000
+      burst_size_bytes: 1000000
+
+  # team-a gets a larger budget when writing into common.
+  "common:source=team-a":
+    ingestion:
+      rate_limit_bytes: 50000000
+      burst_size_bytes: 50000000
+
+  # team-b gets the same budget in every tenant it writes into.
+  ":source=team-b":
+    ingestion:
+      rate_limit_bytes: 20000000
+      burst_size_bytes: 20000000
+```
+
+The `tempo_limits_overrides` metric reports these entries with the limits key as the `user` label.
+When the distributor rejects a request because of a limits key's rate limit,
+the error names both the tenant and the limits key,
+and the discarded spans are counted against the tenant.
 
 ##### User-configurable overrides
 
