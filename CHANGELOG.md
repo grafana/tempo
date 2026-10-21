@@ -1,5 +1,11 @@
 <!-- next version -->
 
+# v2.10.10
+
+## 🔒 Security 🔒
+
+- `deps`: Update Go to 1.26.10 (CVE-2026-111943) ([#8146](https://github.com/grafana/tempo/issues/8146)) (@mdisibio)
+
 # v2.10.9
 
 ## 🔒 Security 🔒
