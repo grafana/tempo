@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/go-kit/log"
@@ -116,9 +117,17 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// write headers, status code and body
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
+	_, writeSpan := tracer.Start(ctx, "http.response.write")
+	var written int64
 	if resp.Body != nil {
-		_, _ = io.Copy(w, resp.Body)
+		var writeErr error
+		written, writeErr = io.Copy(w, resp.Body)
+		if writeErr != nil {
+			writeSpan.SetStatus(codes.Error, "response body write failed")
+		}
 	}
+	writeSpan.SetAttributes(attribute.Int64("response_bytes", written))
+	writeSpan.End()
 
 	// request/response logging
 	var contentLength int64

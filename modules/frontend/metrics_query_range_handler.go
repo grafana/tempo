@@ -174,7 +174,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
 		// todo: is there a way to remove this? it can be costly for large responses
 		var bytesProcessed uint64
-		queryRangeResp, finalErr := combiner.GRPCFinal()
+		queryRangeResp, finalErr := combiner.GRPCFinal(req.Context())
 		if queryRangeResp != nil && queryRangeResp.Metrics != nil {
 			bytesProcessed = queryRangeResp.Metrics.InspectedBytes
 		}

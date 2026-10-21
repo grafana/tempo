@@ -192,7 +192,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		elapsed := time.Since(start)
 
 		var bytesProcessed uint64
-		findResp, _ := comb.GRPCFinal()
+		findResp, _ := comb.GRPCFinal(req.Context())
 		if findResp != nil && findResp.Metrics != nil {
 			bytesProcessed = findResp.Metrics.InspectedBytes
 			if p := o.EngineBytesTracking(tenant); p != nil && *p {

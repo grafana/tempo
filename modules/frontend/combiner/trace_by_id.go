@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,9 @@ import (
 	tempo_io "github.com/grafana/tempo/v3/pkg/io"
 	"github.com/grafana/tempo/v3/pkg/model/trace"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -113,7 +117,7 @@ func (c *TraceByIDCombiner) Result() *tempopb.Trace {
 	return t
 }
 
-func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
+func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (*http.Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -133,12 +137,9 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 		traceResult = &tempopb.Trace{}
 	}
 
-	// dedupe duplicate span ids
-	deduper := newDeduper()
-	traceResult = deduper.dedupe(traceResult)
+	traceResult = deduplicateTrace(ctx, traceResult)
 	if c.traceRedactor != nil {
-		err := c.traceRedactor.RedactTraceAttributes(traceResult)
-		if err != nil {
+		if err := redactTrace(ctx, traceResult, c.traceRedactor); err != nil {
 			if errors.Is(err, ErrTraceHidden) {
 				return &http.Response{
 					StatusCode: http.StatusNotFound,
@@ -151,6 +152,16 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	}
 
 	// marshal in the requested format
+	encoding := "json"
+	if c.contentType == api.MarshallingFormatProtobuf {
+		encoding = "protobuf"
+	}
+	spanCount := attribute.Int("span_count", countTraceSpans(traceResult))
+	parent := oteltrace.SpanFromContext(ctx)
+	tracer := parent.TracerProvider().Tracer("modules/frontend/combiner")
+	_, marshalSpan := tracer.Start(ctx, "trace.marshal", oteltrace.WithAttributes(
+		attribute.String("format", encoding), spanCount,
+	))
 	var buff []byte
 	var err error
 
@@ -159,6 +170,11 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	} else {
 		buff, err = tempopb.MarshalToJSONV1(traceResult)
 	}
+	if err != nil {
+		marshalSpan.SetStatus(codes.Error, "trace marshalling failed")
+	}
+	marshalSpan.SetAttributes(attribute.Int("response_bytes", len(buff)))
+	marshalSpan.End()
 	if err != nil {
 		return &http.Response{}, fmt.Errorf("error marshalling response: %w content type: %s", err, c.contentType)
 	}
