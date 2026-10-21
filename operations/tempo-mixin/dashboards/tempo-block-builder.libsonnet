@@ -133,6 +133,18 @@ dashboard_utils {
           +
           { fieldConfig+: { defaults+: { unit: 'ops' } } },
         )
+        .addPanel(
+          $.timeseriesPanel('Flushed block size') +
+          $.panelDescription(
+            'Block builder flushed block size',
+            'Size in bytes of blocks flushed by the block builder, from the classic histogram buckets.',
+          ) +
+          $.queryPanel([
+            'histogram_quantile(0.99, sum(rate(tempo_block_builder_flush_size_bytes_bucket{%(job)s}[$__rate_interval])) by (le))' % { job: $.jobMatcher($._config.jobs.block_builder) },
+            'histogram_quantile(0.50, sum(rate(tempo_block_builder_flush_size_bytes_bucket{%(job)s}[$__rate_interval])) by (le))' % { job: $.jobMatcher($._config.jobs.block_builder) },
+          ], ['p99', 'p50']) +
+          { fieldConfig+: { defaults+: { unit: 'bytes' } } },
+        )
       )
       .addRow(
         $.row('Partitions')
