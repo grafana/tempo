@@ -505,6 +505,7 @@ type SyncIterator struct {
 	dictKeep     []bool
 	dictKeepNull bool
 	dictPage     dictPageReader
+	presentDef   byte // the column's definition level for a present value
 
 	interner   *intern.Interner
 	makeResult func(t RowNumber, v *pq.Value) *IteratorResult
@@ -557,6 +558,13 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 	// Always disable intern/clone for non-pointer types that don't need it.
 	// This eliminates unnecessary function calls on the hot path.
 	if len(rgs) > 0 {
+		// Row groups share the file's schema. Looked up once rather than read off
+		// each page's levels, which seeks would rescan.
+		schema := rgs[0].Schema()
+		if leaf, ok := schema.Lookup(schema.Columns()[column]...); ok {
+			i.presentDef = byte(leaf.MaxDefinitionLevel)
+		}
+
 		cc := rgs[0].ColumnChunks()[column]
 		switch cc.Type().Kind() {
 		case pq.ByteArray, pq.FixedLenByteArray:
@@ -830,7 +838,7 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	c.currPageN = 0
 	syncIteratorPoolPut(c.currBuf)
 	c.currBuf = nil
-	c.dictPage.reset(pg, c.dictKeep)
+	c.dictPage.reset(pg, c.dictKeep, c.presentDef)
 	if !c.dictPage.active {
 		c.currValues = pg.Values()
 	}
@@ -983,7 +991,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 
 	// Reset value buffers
 	c.currValues = nil
-	c.dictPage.reset(nil, nil)
+	c.dictPage.reset(nil, nil, 0)
 	c.currPageMax = EmptyRowNumber()
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
@@ -1003,7 +1011,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currPage = pg
 		c.currPageMin = c.curr
 		c.currPageMax = rn
-		c.dictPage.reset(pg, c.dictKeep)
+		c.dictPage.reset(pg, c.dictKeep, c.presentDef)
 		if !c.dictPage.active {
 			c.currValues = pg.Values()
 		}

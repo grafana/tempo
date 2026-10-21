@@ -43,7 +43,8 @@ type dictPageReader struct {
 }
 
 // reset points the reader at pg, or deactivates it when pg isn't served by pushdown.
-func (r *dictPageReader) reset(pg pq.Page, dictKeep []bool) {
+// presentDef is the column's definition level for a present value.
+func (r *dictPageReader) reset(pg pq.Page, dictKeep []bool, presentDef byte) {
 	*r = dictPageReader{value: r.value}
 	if pg == nil || dictKeep == nil {
 		return
@@ -59,11 +60,7 @@ func (r *dictPageReader) reset(pg pq.Page, dictKeep []bool) {
 	r.indexes = data.Int32()
 	r.defLevels = pg.DefinitionLevels()
 	r.repLevels = pg.RepetitionLevels()
-	// Present values sit at the page's highest definition level. A page of only nulls
-	// has no indexes, which the bounds check in next covers.
-	for _, d := range r.defLevels {
-		r.presentDef = max(r.presentDef, d)
-	}
+	r.presentDef = presentDef
 }
 
 // nextDictValue is next's loop for a dictionary page: it advances c.curr over every
