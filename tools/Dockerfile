@@ -3,7 +3,7 @@ FROM golang:1.26.10-alpine@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d6
 ARG TARGETOS
 ARG TARGETARCH
 ENV GOOS=$TARGETOS GOARCH=$TARGETARCH
-RUN apk --update add --no-cache make git bash protoc
+RUN apk add --no-cache --upgrade make git bash protoc ca-certificates ca-certificates-bundle
 
 # Use explicit installation instead of tools.go to avoid dependency cross-contamination
 # Ref: https://buf.build/docs/cli/installation/
