@@ -13,7 +13,7 @@ change.
 
 | Profile  | Components                                                                                                                                              |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `v2`     | distributor, ingester, querier, query-frontend, compactor, metrics-generator (`grafana/tempo:3.1.1`)                                                    |
+| `v2`     | distributor, ingester, querier, query-frontend, compactor, metrics-generator (`grafana/tempo:2.9.2`)                                                    |
 | `v3`     | distributor, live-store ×2, block-builder ×2, querier, query-frontend, backend-scheduler, backend-worker, metrics-generator + Redpanda (`grafana/tempo:3.1.1`) |
 | _shared_ | MinIO (object storage), Prometheus, Grafana, Alloy (trace router), `xk6-client-tracing` (load generator)                            |
 
@@ -283,7 +283,7 @@ The `-v` flag removes MinIO and Alloy data volumes.
   rpk topic describe tempo-ingest`.
 - **v3 containers fail with unknown target errors** → Ensure
   `docker-compose.yaml`'s `x-tempo-v3-image` anchor is pinned to
-  `grafana/tempo:3.1.1` or newer. Older 2.x images don't include 3.0
+  `grafana/tempo:3.0.0` or newer. Older 2.x images don't include 3.0
   components.
 - **v3 queries return nothing for old traces** → Confirm v2 used vParquet4+
   blocks (this example sets `storage.trace.block.version: vParquet4`).
