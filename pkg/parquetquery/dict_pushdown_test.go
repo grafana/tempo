@@ -182,3 +182,47 @@ func TestDictPushdownCountsRows(t *testing.T) {
 	require.Equal(t, int64(600), stats.InspectedValues)
 	require.Equal(t, kept, stats.KeptValues)
 }
+
+// TestDictPushdownFileSchemaMismatch: a file opened with a schema that doesn't match
+// its columns (parquet.FileSchema, as Tempo does from block metadata) still reads each
+// chunk's definition levels from the chunk's own column.
+func TestDictPushdownFileSchemaMismatch(t *testing.T) {
+	type fileRow struct {
+		A *string `parquet:",optional"`
+		S *string `parquet:",dict,optional"`
+	}
+	type readRow struct {
+		A *string `parquet:",optional"`
+		X *struct {
+			Y *string `parquet:",optional"`
+		} `parquet:",optional"`
+		S *string `parquet:",dict,optional"`
+	}
+
+	var rows []fileRow
+	for i := range 100 {
+		s := []string{"api", "shop", "web"}[i%3]
+		rows = append(rows, fileRow{S: &s})
+	}
+	buf := new(bytes.Buffer)
+	w := parquet.NewGenericWriter[fileRow](buf)
+	_, err := w.Write(rows)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+
+	f, err := parquet.OpenFile(bytes.NewReader(buf.Bytes()), int64(buf.Len()), parquet.FileSchema(parquet.SchemaOf(readRow{})))
+	require.NoError(t, err)
+	column, _, maxDef := GetColumnIndexByPath(f, "S")
+	require.Equal(t, 1, column)
+
+	schema := f.RowGroups()[0].Schema()
+	leaf, ok := schema.Lookup(schema.Columns()[column]...)
+	require.True(t, ok)
+	require.NotEqual(t, maxDef, leaf.MaxDefinitionLevel, "the read schema must map the index to another column")
+
+	pred := NewStringInPredicate([]string{"shop"})
+	it := NewSyncIterator(context.TODO(), f.RowGroups(), column, SyncIteratorOptSelectAs("v"),
+		SyncIteratorOptMaxDefinitionLevel(maxDef), SyncIteratorOptPredicate(pred))
+	defer it.Close()
+	require.Equal(t, oracleHits(t, f, column, maxDef, pred, 0), collectHits(t, it, 0))
+}

@@ -27,6 +27,22 @@ func (c *SyncIterator) buildDictKeep(dict pq.Dictionary) (anyKept bool) {
 	return anyKept
 }
 
+// maxDefinitionLevel returns the definition level of a present value in column. It
+// reads it from the file's own column when there is one: a file opened with another
+// schema (parquet.FileSchema) can map column to a different leaf of rg.Schema().
+func maxDefinitionLevel(rg pq.RowGroup, column int) byte {
+	if fc, ok := rg.ColumnChunks()[column].(*pq.FileColumnChunk); ok {
+		if col, ok := fc.Node().(*pq.Column); ok {
+			return byte(col.MaxDefinitionLevel())
+		}
+	}
+	schema := rg.Schema()
+	if leaf, ok := schema.Lookup(schema.Columns()[column]...); ok {
+		return byte(leaf.MaxDefinitionLevel)
+	}
+	return 0
+}
+
 // dictPageReader walks one dictionary-encoded page by its levels and dictionary
 // indexes, without decoding values.
 type dictPageReader struct {
@@ -36,7 +52,7 @@ type dictPageReader struct {
 	indexes    []int32 // dictionary index of each present value
 	defLevels  []byte  // nil for required columns
 	repLevels  []byte  // nil for non-repeated columns
-	presentDef byte    // definition level of a present value on this page
+	presentDef byte    // the column's max definition level: a slot at this level holds a value, lower is a null
 	slot       int     // next level slot, present or null
 	index      int     // next entry of indexes
 	value      pq.Value

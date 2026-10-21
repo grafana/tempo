@@ -558,12 +558,8 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 	// Always disable intern/clone for non-pointer types that don't need it.
 	// This eliminates unnecessary function calls on the hot path.
 	if len(rgs) > 0 {
-		// Row groups share the file's schema. Looked up once rather than read off
-		// each page's levels, which seeks would rescan.
-		schema := rgs[0].Schema()
-		if leaf, ok := schema.Lookup(schema.Columns()[column]...); ok {
-			i.presentDef = byte(leaf.MaxDefinitionLevel)
-		}
+		// Looked up once rather than read off each page's levels, which seeks would rescan.
+		i.presentDef = maxDefinitionLevel(rgs[0], column)
 
 		cc := rgs[0].ColumnChunks()[column]
 		switch cc.Type().Kind() {
