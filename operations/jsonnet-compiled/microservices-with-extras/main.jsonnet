@@ -6,7 +6,7 @@ tempo
 + tempo.util.withInet6()
   {
   _images+:: {
-    tempo: 'grafana/tempo:3.0.4',
+    tempo: 'grafana/tempo:3.0.5',
     tempo_vulture: 'grafana/tempo-vulture:latest',
     tempo_query: 'grafana/tempo-query:latest',
   },

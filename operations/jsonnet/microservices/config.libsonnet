@@ -1,6 +1,6 @@
 {
   _images+:: {
-    tempo: 'grafana/tempo:3.0.4',
+    tempo: 'grafana/tempo:3.0.5',
     tempo_query: 'grafana/tempo-query:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',
     memcached: 'memcached:1.6.40-alpine',
