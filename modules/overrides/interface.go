@@ -36,8 +36,11 @@ type Interface interface {
 	MaxBytesPerTrace(userID string) int
 	IngestionArtificialDelay(userID string) (time.Duration, bool)
 	IngestionRetryInfoEnabled(userID string) bool
+	IngestionCreationGracePeriod(userID string) time.Duration
 	MaxCompactionRange(userID string) time.Duration
 	Forwarders(userID string) []string
+	ForwarderQueueSize(userID string) int
+	ForwarderWorkers(userID string) int
 	MaxBytesPerTagValuesQuery(userID string) int
 	MaxBlocksPerTagValuesQuery(userID string) int
 	MaxConditionGroupsPerTagQuery() int
@@ -57,6 +60,7 @@ type Interface interface {
 	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int
 	MetricsGeneratorForwarderWorkers(userID string) int
+	MetricsGeneratorProcessorServiceGraphsMaxItems(userID string) (int, bool)
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string

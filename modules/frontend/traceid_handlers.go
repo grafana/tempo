@@ -32,7 +32,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		}
 
 		// validate start and end parameter
-		_, _, _, _, _, reqErr := api.ParseTraceByIDRequest(req)
+		_, reqErr := api.ParseTraceByIDRequest(req)
 		if reqErr != nil {
 			return httpInvalidRequest(reqErr), nil
 		}
@@ -125,7 +125,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		}
 
 		// validate start and end parameter
-		_, _, _, _, _, reqErr := api.ParseTraceByIDRequest(req)
+		_, reqErr := api.ParseTraceByIDRequest(req)
 		if reqErr != nil {
 			return httpInvalidRequest(reqErr), nil
 		}

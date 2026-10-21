@@ -355,6 +355,7 @@ querier:
     shuffle_sharding_ingesters_enabled: false
     shuffle_sharding_ingesters_lookback_period: 1h0m0s
     query_relevant_ingesters: false
+    blocklist_polling: true
 query_frontend:
     max_outstanding_per_tenant: 2000
     max_batch_size: 7
@@ -754,6 +755,7 @@ overrides:
             burst_size_bytes: 30000000
             max_traces_per_user: 10000
             retry_info_enabled: true
+            creation_grace_period: 10m0s
         read:
             max_bytes_per_tag_values_query: 1000000
             max_condition_groups_per_tag_query: 100

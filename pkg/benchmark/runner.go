@@ -32,6 +32,14 @@ func Run(ctx context.Context, blockPath string, prof *profile.BlockProfile, opts
 	if prof.TraceIDs.Mode == profile.TraceIDModeAll {
 		return nil, errors.New(`profile was built with --trace-ids=all, which embeds no IDs; rebuild it with a count`)
 	}
+	if err := warmBlock(ctx, raw, meta); err != nil {
+		return nil, err
+	}
+
+	selected, err := selectCases(allCases(prof), opts.Cases)
+	if err != nil {
+		return nil, err
+	}
 
 	simulated := metrics.NewSimulatedReader(raw, opts.BackendLatency, opts.BackendBandwidth)
 	counter := &metrics.CountingReader{RawReader: simulated}
@@ -46,9 +54,8 @@ func Run(ctx context.Context, blockPath string, prof *profile.BlockProfile, opts
 	}
 
 	start := time.Now()
-	all := phase1Cases()
-	cases := make([]CaseResult, 0, len(all))
-	for _, queryCase := range all {
+	cases := make([]CaseResult, 0, len(selected))
+	for _, queryCase := range selected {
 		cases = append(cases, runCase(ctx, block, prof, shards, queryCase, opts, counter, prometheus.DefaultGatherer))
 	}
 
@@ -93,15 +100,6 @@ func runCase(ctx context.Context, block common.BackendBlock, prof *profile.Block
 	if len(executions) == 0 {
 		res.Error = "nothing to execute"
 		return res
-	}
-
-	for range opts.Warmup {
-		for _, execute := range executions {
-			if _, err := execute(ctx, block, opts); err != nil {
-				res.Error = err.Error()
-				return res
-			}
-		}
 	}
 
 	collector := metrics.NewCollector(counter, gatherer)

@@ -119,6 +119,10 @@ type dimensionLabel struct {
 }
 
 func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	// Leave cfg unchanged, because the instance compares it with the desired config on every reload.
 	dimensions := cfg.Dimensions
 	if cfg.EnableVirtualNodeLabel {

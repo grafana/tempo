@@ -95,6 +95,58 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 			expErr: "metrics_generator.processor.service_graphs.histogram_buckets must be strictly increasing: bucket[1]=1 is <= bucket[0]=2",
 		},
 		{
+			name: "service graphs max_items unset",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						ServiceGraphs: overrides.ServiceGraphsOverrides{},
+					},
+				},
+			},
+		},
+		{
+			name: "service graphs max_items valid",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						ServiceGraphs: overrides.ServiceGraphsOverrides{
+							MaxItems: new(1),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "service graphs max_items zero",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						ServiceGraphs: overrides.ServiceGraphsOverrides{
+							MaxItems: new(0),
+						},
+					},
+				},
+			},
+			expErr: "metrics_generator.processor.service_graphs.max_items must be greater than zero, got 0",
+		},
+		{
+			name: "service graphs max_items negative",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						ServiceGraphs: overrides.ServiceGraphsOverrides{
+							MaxItems: new(-5),
+						},
+					},
+				},
+			},
+			expErr: "metrics_generator.processor.service_graphs.max_items must be greater than zero, got -5",
+		},
+		{
 			name: "span metrics histogram buckets must be increasing",
 			cfg:  Config{},
 			overrides: overrides.Overrides{

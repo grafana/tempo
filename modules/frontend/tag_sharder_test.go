@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strconv"
 	"testing"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -23,6 +25,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
@@ -214,6 +217,88 @@ func TestTagsBackendRequests(t *testing.T) {
 				actualReqURIs = append(actualReqURIs, r.HTTPRequest().RequestURI)
 			}
 			require.Equal(t, tc.expectedReqsURIs, actualReqURIs)
+		})
+	}
+}
+
+func TestTagsBackendRequestsUseBlockMetadata(t *testing.T) {
+	meta := backend.NewBlockMeta("test", uuid.MustParse("00000000-0000-0000-0000-000000000001"), "vParquet4")
+	meta.StartTime = time.Unix(100, 0)
+	meta.EndTime = time.Unix(200, 0)
+	meta.Size_ = 1024
+	meta.TotalRecords = 2
+	meta.IndexPageSize = 64
+	meta.FooterSize = 32
+
+	for _, tc := range []struct {
+		name  string
+		path  string
+		parse parseRequestFunction
+	}{
+		{"tags", "/api/v2/search/tags?scope=resource", parseTagsRequest},
+		{"tag values", "/api/v2/search/tag/span.foo/values?limit=7&maxStaleValues=3", parseTagValuesRequestV2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parent := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			parent = mux.SetURLVars(parent, map[string]string{api.MuxVarTagName: "span.foo"})
+			query := parent.URL.Query()
+			query.Set("q", `{ resource.service.name = "api" }`)
+			query.Set("start", "110")
+			query.Set("end", "190")
+			expected := query.Encode()
+
+			for key, value := range map[string]string{
+				"blockID":       "00000000-0000-0000-0000-000000000002",
+				"size":          "2048",
+				"startPage":     "9",
+				"pagesToSearch": "10",
+				"encoding":      "gzip",
+				"indexPageSize": "128",
+				"totalRecords":  "20",
+				"version":       "vParquet3",
+				"footerSize":    "96",
+				"dc":            `[{"scope":"resource","name":"other","type":"string"}]`,
+			} {
+				query.Add(key, value)
+			}
+			query.Add("footerSize", "128")
+			parent.URL.RawQuery = query.Encode()
+			originalQuery := parent.URL.RawQuery
+			searchReq, err := tc.parse(parent)
+			require.NoError(t, err)
+
+			sharder := searchTagSharder{
+				cfg:    SearchSharderConfig{TargetBytesPerRequest: 512},
+				reader: &mockReader{metas: []*backend.BlockMeta{meta}},
+			}
+			requests := make(chan pipeline.Request)
+			requestErrors := make(chan error, 1)
+			jobs := sharder.backendRequests(context.Background(), "test", pipeline.NewHTTPRequest(parent), searchReq, requests, func(err error) {
+				requestErrors <- err
+			})
+			require.Equal(t, 2, jobs)
+
+			page := 0
+			for request := range requests {
+				forwarded := httptest.NewRequest(http.MethodGet, request.HTTPRequest().RequestURI, nil)
+				got := forwarded.URL.Query()
+				want, err := url.ParseQuery(expected)
+				require.NoError(t, err)
+				want.Set("blockID", meta.BlockID.String())
+				want.Set("size", "1024")
+				want.Set("startPage", strconv.Itoa(page))
+				want.Set("pagesToSearch", "1")
+				want.Set("encoding", "none")
+				want.Set("indexPageSize", "64")
+				want.Set("totalRecords", "2")
+				want.Set("version", "vParquet4")
+				want.Set("footerSize", "32")
+				assert.Equal(t, want, got)
+				page++
+			}
+			require.Empty(t, requestErrors)
+			require.Equal(t, jobs, page)
+			require.Equal(t, originalQuery, parent.URL.RawQuery)
 		})
 	}
 }

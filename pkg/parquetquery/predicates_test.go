@@ -144,6 +144,57 @@ func TestNewStringInPredicate(t *testing.T) {
 	}
 }
 
+func TestByteInPredicateKeepColumnChunkPageBounds(t *testing.T) {
+	type testString struct {
+		S *string
+	}
+	a, c := "a", "c"
+	values := []testString{{&a}, {&c}}
+	nulls := []testString{{nil}, {nil}}
+
+	testCases := []struct {
+		name       string
+		pages      [][]testString
+		value      string
+		skipBounds bool
+		keep       bool
+	}{
+		{name: "within bounds", pages: [][]testString{values}, value: "b", keep: true},
+		{name: "outside bounds", pages: [][]testString{values}, value: "x", keep: false},
+		{name: "bounds skipped", pages: [][]testString{values}, value: "x", skipBounds: true, keep: true},
+		{name: "null page and outside bounds", pages: [][]testString{nulls, values}, value: "x", keep: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// A tiny page buffer cuts a page per write.
+			opts := []parquet.WriterOption{parquet.PageBufferSize(1)}
+			if tc.skipBounds {
+				opts = append(opts, parquet.SkipPageBounds("S"))
+			}
+
+			buf := new(bytes.Buffer)
+			w := parquet.NewGenericWriter[testString](buf, opts...)
+			for _, page := range tc.pages {
+				_, err := w.Write(page)
+				require.NoError(t, err)
+			}
+			require.NoError(t, w.Close())
+
+			pf, err := parquet.OpenFile(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+			require.NoError(t, err)
+
+			cc := &ColumnChunkHelper{ColumnChunk: pf.RowGroups()[0].ColumnChunks()[0]}
+			defer cc.Close()
+			ci, err := cc.ColumnIndex()
+			require.NoError(t, err)
+			require.Equal(t, len(tc.pages), ci.NumPages())
+
+			require.Equal(t, tc.keep, NewStringInPredicate([]string{tc.value}).KeepColumnChunk(cc))
+		})
+	}
+}
+
 func TestNewRegexInPredicate(t *testing.T) {
 	testCases := []predicateTestCase{
 		{
@@ -571,5 +622,96 @@ func BenchmarkByteNotInPredicate(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+type testOptString struct {
+	S *string `parquet:",dict,optional"`
+}
+
+type testOptInt struct {
+	N *int64 `parquet:",optional"`
+}
+
+// TestValuePredicatesRejectNulls: a null is a missing value, not an empty string or a
+// zero value, so these predicates don't match it. A null that matched would also keep
+// its chunk.
+func TestValuePredicatesRejectNulls(t *testing.T) {
+	s := func(v string) *string { return &v }
+	n := func(v int64) *int64 { return &v }
+	write := func(vals ...*string) func(w *parquet.Writer) { //nolint:all
+		return func(w *parquet.Writer) { //nolint:all
+			for _, v := range vals {
+				require.NoError(t, w.Write(&testOptString{v}))
+			}
+		}
+	}
+	writeInts := func(vals ...*int64) func(w *parquet.Writer) { //nolint:all
+		return func(w *parquet.Writer) { //nolint:all
+			for _, v := range vals {
+				require.NoError(t, w.Write(&testOptInt{v}))
+			}
+		}
+	}
+	isEmpty := NewGenericPredicate(func(s string) bool { return s == "" }, nil, func(v parquet.Value) string { return string(v.ByteArray()) })
+
+	testCases := []predicateTestCase{
+		{
+			testName:  "not in skips a chunk whose only other values are nulls",
+			predicate: NewStringNotInPredicate([]string{"xyz"}),
+			writeData: write(s("xyz"), nil),
+		},
+		{
+			testName:   "not in keeps present values but not nulls",
+			predicate:  NewStringNotInPredicate([]string{"xyz"}),
+			writeData:  write(s("abc"), nil),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 1,
+		},
+		{
+			testName:  "in with an empty string does not match nulls",
+			predicate: NewStringInPredicate([]string{""}),
+			writeData: write(s("abc"), nil),
+		},
+		{
+			testName:   "in with an empty string still matches an empty string",
+			predicate:  NewStringInPredicate([]string{""}),
+			writeData:  write(s(""), nil),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 1,
+		},
+		{
+			testName:   "empty substring matches present values but not nulls",
+			predicate:  NewSubstringPredicate(""),
+			writeData:  write(s("abc"), nil),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 1,
+		},
+		{
+			testName:   "int range including 0 does not match nulls",
+			predicate:  NewIntBetweenPredicate(0, 10),
+			writeData:  writeInts(n(5), nil),
+			keptChunks: 1,
+			keptPages:  1,
+			keptValues: 1,
+		},
+		{
+			testName:  "int range including 0 skips a chunk of nulls and out-of-range values",
+			predicate: NewIntBetweenPredicate(0, 10),
+			writeData: writeInts(n(50), nil),
+		},
+		{
+			testName:  "generic predicate is not handed nulls",
+			predicate: isEmpty,
+			writeData: write(s("abc"), nil),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			testPredicate(t, tc)
+		})
 	}
 }

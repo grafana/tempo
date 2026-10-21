@@ -9,8 +9,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +27,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kfake"
@@ -932,7 +935,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			if tt.emptyTenant {
 				tenant = ""
 			}
-			ringTokens, rebatchedTraces, _, _, err := requestsByTraceID(tt.batches, tenant, 1, 1000)
+			ringTokens, rebatchedTraces, _, _, err := requestsByTraceID(tt.batches, tenant, 1, 1000, 0)
 			require.Equal(t, len(ringTokens), len(rebatchedTraces))
 
 			for i, expectedID := range tt.expectedIDs {
@@ -948,8 +951,6 @@ func TestRequestsByTraceID(t *testing.T) {
 				// now confirm that the request at this position is the expected one
 				require.Equal(t, tt.expectedIDs[i], rebatchedTraces[foundIndex].id)
 				require.Equal(t, tt.expectedTraces[i], rebatchedTraces[foundIndex].trace)
-				require.Equal(t, tt.expectedStarts[i], rebatchedTraces[foundIndex].start)
-				require.Equal(t, tt.expectedEnds[i], rebatchedTraces[foundIndex].end)
 			}
 
 			require.Equal(t, tt.expectedErr, err)
@@ -973,7 +974,7 @@ func TestRequestsByTraceIDDoesNotPreallocateEachTraceFromTotalSpanCount(t *testi
 
 	_, rebatchedTraces, _, _, err := requestsByTraceID([]*v1.ResourceSpans{{
 		ScopeSpans: []*v1.ScopeSpans{{Spans: spans}},
-	}}, "test", spanCount, 1000)
+	}}, "test", spanCount, 1000, 0)
 	require.NoError(t, err)
 	require.Len(t, rebatchedTraces, spanCount)
 
@@ -1053,7 +1054,7 @@ func TestProcessAttributes(t *testing.T) {
 		},
 	}
 
-	_, rebatchedTrace, truncatedCount, _, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte)
+	_, rebatchedTrace, truncatedCount, _, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte, 0)
 	// 2 at resource level, 2 at span level, 2 at event level, 2 at link level, 2 at scope level
 	assert.Equal(t, 10, truncatedCount.Total())
 	assert.Equal(t, 2, truncatedCount.Resource)
@@ -1128,7 +1129,7 @@ func TestRequestsByTraceID_TruncationDetail(t *testing.T) {
 
 	// No truncation — detail should be nil
 	trace := test.MakeTraceWithSpanCount(1, 1, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
-	_, _, truncatedCount, detail, err := requestsByTraceID(trace.ResourceSpans, "test", 1, maxAttrByte)
+	_, _, truncatedCount, detail, err := requestsByTraceID(trace.ResourceSpans, "test", 1, maxAttrByte, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 0, truncatedCount.Total())
 	assert.Nil(t, detail)
@@ -1137,7 +1138,7 @@ func TestRequestsByTraceID_TruncationDetail(t *testing.T) {
 	trace = test.MakeTraceWithSpanCount(1, 1, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
 	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
 		test.MakeAttribute("oversized", longString))
-	_, _, truncatedCount, detail, err = requestsByTraceID(trace.ResourceSpans, "test", 1, maxAttrByte)
+	_, _, truncatedCount, detail, err = requestsByTraceID(trace.ResourceSpans, "test", 1, maxAttrByte, 0)
 	require.NoError(t, err)
 	assert.Greater(t, truncatedCount.Total(), 0)
 	require.NotNil(t, detail)
@@ -1150,7 +1151,7 @@ func TestRequestsByTraceID_TruncationDetail(t *testing.T) {
 	trace = test.MakeTraceWithSpanCount(1, 1, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
 	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
 		test.MakeAttribute("oversized", longString))
-	_, _, truncatedCount, detail, err = requestsByTraceID(trace.ResourceSpans, "test", 1, 0)
+	_, _, truncatedCount, detail, err = requestsByTraceID(trace.ResourceSpans, "test", 1, 0, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 0, truncatedCount.Total())
 	assert.Nil(t, detail)
@@ -1266,7 +1267,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 				{
 					ScopeSpans: blerg,
 				},
-			}, "test", spansPer*len(traces), 5)
+			}, "test", spansPer*len(traces), 5, 0)
 			require.NoError(b, err)
 		}
 	}
@@ -2191,7 +2192,7 @@ func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
 				},
 			},
 		}
-		_, _, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
+		_, _, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000, 0)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "span ids must be 64 bit")
 	}
@@ -2211,8 +2212,169 @@ func TestRequestsByTraceID_SpanIDValidation(t *testing.T) {
 			},
 		},
 	}
-	_, _, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000)
+	_, _, _, _, err := requestsByTraceID(batches, "test-tenant", 1, 1000, 0)
 	require.NoError(t, err)
+}
+
+func TestRequestsByTraceID_CreationGracePeriod(t *testing.T) {
+	traceID := []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	now := time.Now()
+	nowNs := uint64(now.UnixNano())
+	ns := func(d time.Duration) uint64 { return uint64(now.Add(d).UnixNano()) }
+
+	tcs := []struct {
+		name        string
+		grace       time.Duration
+		start, end  uint64
+		wantDropped bool
+	}{
+		{name: "current span", grace: 10 * time.Minute, start: nowNs, end: ns(time.Second)},
+		{name: "ended in the past", grace: 10 * time.Minute, start: ns(-time.Hour), end: ns(-time.Minute)},
+		{name: "ends just inside grace period", grace: 10 * time.Minute, start: nowNs, end: ns(9 * time.Minute)},
+		{name: "ends beyond grace period", grace: 10 * time.Minute, start: nowNs, end: ns(11 * time.Minute), wantDropped: true},
+		{name: "starts beyond grace period", grace: 10 * time.Minute, start: ns(11 * time.Minute), end: ns(12 * time.Minute), wantDropped: true},
+		{name: "start beyond grace period but end sane", grace: 10 * time.Minute, start: ns(11 * time.Minute), end: nowNs, wantDropped: true},
+		{name: "end above MaxInt64", grace: 10 * time.Minute, start: nowNs, end: math.MaxInt64 + 1, wantDropped: true},
+		{name: "end MaxUint64, start 0", grace: 10 * time.Minute, start: 0, end: math.MaxUint64, wantDropped: true},
+		{name: "start above MaxInt64, end sane", grace: 10 * time.Minute, start: math.MaxInt64 + 1, end: nowNs, wantDropped: true},
+		{name: "100 years in the future", grace: 10 * time.Minute, start: nowNs, end: ns(100 * 365 * 24 * time.Hour), wantDropped: true},
+		{name: "zero start and end", grace: 10 * time.Minute, start: 0, end: 0},
+		{name: "disabled keeps far future", grace: 0, start: nowNs, end: ns(100 * 365 * 24 * time.Hour)},
+		{name: "disabled keeps end above MaxInt64", grace: 0, start: nowNs, end: math.MaxInt64 + 1},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tenant := "grace-" + tc.name
+			batches := []*v1.ResourceSpans{{
+				ScopeSpans: []*v1.ScopeSpans{{
+					Spans: []*v1.Span{
+						// a good span in the same request, which must always be kept
+						{TraceId: traceID, SpanId: []byte{1, 2, 3, 4, 5, 6, 7, 8}, StartTimeUnixNano: nowNs, EndTimeUnixNano: ns(time.Second)},
+						{TraceId: traceID, SpanId: []byte{8, 7, 6, 5, 4, 3, 2, 1}, StartTimeUnixNano: tc.start, EndTimeUnixNano: tc.end},
+					},
+				}},
+			}}
+
+			_, traces, _, _, err := requestsByTraceID(batches, tenant, 2, 1000, tc.grace)
+			require.NoError(t, err)
+			require.Len(t, traces, 1)
+
+			wantSpans := 2
+			if tc.wantDropped {
+				wantSpans = 1
+			}
+			require.Equal(t, wantSpans, traces[0].spanCount)
+			require.Len(t, traces[0].trace.ResourceSpans[0].ScopeSpans[0].Spans, wantSpans)
+			require.Equal(t, float64(2-wantSpans), discardedSpans(t, overrides.ReasonTooFarInFuture, tenant))
+		})
+	}
+
+	t.Run("all spans dropped produces no traces", func(t *testing.T) {
+		batches := []*v1.ResourceSpans{{
+			ScopeSpans: []*v1.ScopeSpans{{
+				Spans: []*v1.Span{{TraceId: traceID, SpanId: []byte{1, 2, 3, 4, 5, 6, 7, 8}, StartTimeUnixNano: nowNs, EndTimeUnixNano: math.MaxInt64 + 1}},
+			}},
+		}}
+		keys, traces, _, _, err := requestsByTraceID(batches, "grace-all-dropped", 1, 1000, 10*time.Minute)
+		require.NoError(t, err)
+		require.Empty(t, keys)
+		require.Empty(t, traces)
+		require.Equal(t, float64(1), discardedSpans(t, overrides.ReasonTooFarInFuture, "grace-all-dropped"))
+	})
+}
+
+func TestRequestsByTraceID_InvalidDuration(t *testing.T) {
+	traceID := []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
+	now := time.Now()
+	nowNs := uint64(now.UnixNano())
+	ns := func(d time.Duration) uint64 { return uint64(now.Add(d).UnixNano()) }
+
+	tcs := []struct {
+		name       string
+		grace      time.Duration
+		start, end uint64
+		wantReason string // reason the span is discarded for, empty if kept
+	}{
+		{name: "end after start", grace: 10 * time.Minute, start: nowNs, end: ns(time.Second)},
+		{name: "end equals start", grace: 10 * time.Minute, start: nowNs, end: nowNs},
+		{name: "zero start and end", grace: 10 * time.Minute},
+		{name: "end before start by a few ms", grace: 10 * time.Minute, start: nowNs, end: ns(-7 * time.Millisecond), wantReason: overrides.ReasonInvalidDuration},
+		{name: "end before start by hours", grace: 10 * time.Minute, start: nowNs, end: ns(-5 * time.Hour), wantReason: overrides.ReasonInvalidDuration},
+		{name: "end zero, start set", grace: 10 * time.Minute, start: nowNs, end: 0, wantReason: overrides.ReasonInvalidDuration},
+		{name: "end before start with check disabled", grace: 0, start: nowNs, end: ns(-time.Second), wantReason: overrides.ReasonInvalidDuration},
+		{name: "future start takes precedence", grace: 10 * time.Minute, start: ns(time.Hour), end: nowNs, wantReason: overrides.ReasonTooFarInFuture},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tenant := "invalid-duration-" + tc.name
+			batches := []*v1.ResourceSpans{{
+				ScopeSpans: []*v1.ScopeSpans{{
+					Spans: []*v1.Span{
+						// a good span in the same request, which must always be kept
+						{TraceId: traceID, SpanId: []byte{1, 2, 3, 4, 5, 6, 7, 8}, StartTimeUnixNano: nowNs, EndTimeUnixNano: ns(time.Second)},
+						{TraceId: traceID, SpanId: []byte{8, 7, 6, 5, 4, 3, 2, 1}, StartTimeUnixNano: tc.start, EndTimeUnixNano: tc.end},
+					},
+				}},
+			}}
+
+			_, traces, _, _, err := requestsByTraceID(batches, tenant, 2, 1000, tc.grace)
+			require.NoError(t, err)
+			require.Len(t, traces, 1)
+
+			wantSpans := 2
+			if tc.wantReason != "" {
+				wantSpans = 1
+			}
+			require.Equal(t, wantSpans, traces[0].spanCount)
+			require.Len(t, traces[0].trace.ResourceSpans[0].ScopeSpans[0].Spans, wantSpans)
+
+			for _, reason := range []string{overrides.ReasonInvalidDuration, overrides.ReasonTooFarInFuture} {
+				want := 0.0
+				if reason == tc.wantReason {
+					want = 1
+				}
+				require.Equal(t, want, discardedSpans(t, reason, tenant), reason)
+			}
+		})
+	}
+
+	t.Run("all spans dropped produces no traces", func(t *testing.T) {
+		batches := []*v1.ResourceSpans{{
+			ScopeSpans: []*v1.ScopeSpans{{
+				Spans: []*v1.Span{{TraceId: traceID, SpanId: []byte{1, 2, 3, 4, 5, 6, 7, 8}, StartTimeUnixNano: nowNs, EndTimeUnixNano: ns(-time.Second)}},
+			}},
+		}}
+		keys, traces, _, _, err := requestsByTraceID(batches, "invalid-duration-all-dropped", 1, 1000, 10*time.Minute)
+		require.NoError(t, err)
+		require.Empty(t, keys)
+		require.Empty(t, traces)
+		require.Equal(t, float64(1), discardedSpans(t, overrides.ReasonInvalidDuration, "invalid-duration-all-dropped"))
+	})
+}
+
+// discardedSpans returns the current value of tempo_discarded_spans_total for the reason and tenant.
+func discardedSpans(t *testing.T, reason, tenant string) float64 {
+	t.Helper()
+
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	for _, mf := range families {
+		if mf.GetName() != "tempo_discarded_spans_total" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			labels := map[string]string{}
+			for _, l := range m.GetLabel() {
+				labels[l.GetName()] = l.GetValue()
+			}
+			if labels["reason"] == reason && labels["tenant"] == tenant {
+				return m.GetCounter().GetValue()
+			}
+		}
+	}
+	return 0
 }
 
 func TestRetryInfoEnabled(t *testing.T) {
@@ -2377,4 +2539,110 @@ func TestTracePushMiddlewareFailsOpen(t *testing.T) {
 	// Call PushTraces - should succeed despite middleware error (fail open)
 	_, err = d.PushTraces(ctx, traces)
 	require.NoError(t, err, "PushTraces should succeed even when middleware returns an error")
+}
+
+// TestPushTraces_CreationGracePeriod pushes through the distributor with the default limits (10m creation
+// grace period) and checks which spans reach the live store.
+func TestPushTraces_CreationGracePeriod(t *testing.T) {
+	traceID := "b1c792dea27d511c145df8402bdd793a"
+	now := time.Now()
+	good := func(spanID string) *v1.Span {
+		s := makeSpan(traceID, spanID, "good", nil)
+		s.StartTimeUnixNano, s.EndTimeUnixNano = uint64(now.UnixNano()), uint64(now.Add(time.Second).UnixNano())
+		return s
+	}
+	bad := func(spanID string, start, end uint64) *v1.Span {
+		s := makeSpan(traceID, spanID, "bad", nil)
+		s.StartTimeUnixNano, s.EndTimeUnixNano = start, end
+		return s
+	}
+
+	tcs := []struct {
+		name          string
+		spans         []*v1.Span
+		tenantYAML    string
+		wantPushed    int // spans delivered to the live store
+		wantDiscarded float64
+	}{
+		{
+			name:       "good spans only",
+			spans:      []*v1.Span{good("1b3a296034f4031e")},
+			wantPushed: 1,
+		},
+		{
+			name:          "bad span is dropped, good span is kept",
+			spans:         []*v1.Span{good("1b3a296034f4031e"), bad("2b3a296034f4031e", uint64(now.UnixNano()), math.MaxInt64+1)},
+			wantPushed:    1,
+			wantDiscarded: 1,
+		},
+		{
+			name:          "every span dropped returns without waiting",
+			spans:         []*v1.Span{bad("1b3a296034f4031e", uint64(now.UnixNano()), math.MaxInt64+1), bad("2b3a296034f4031e", math.MaxInt64+1, uint64(now.UnixNano()))},
+			wantPushed:    0,
+			wantDiscarded: 2,
+		},
+		{
+			name:       "tenant disabled the check",
+			spans:      []*v1.Span{bad("1b3a296034f4031e", uint64(now.UnixNano()), uint64(now.Add(24*time.Hour).UnixNano()))},
+			tenantYAML: "overrides:\n  test:\n    ingestion:\n      rate_limit_bytes: 30000000\n      burst_size_bytes: 30000000\n      creation_grace_period: 0s\n",
+			wantPushed: 1,
+		},
+		{
+			name:       "tenant widened the grace period",
+			spans:      []*v1.Span{bad("1b3a296034f4031e", uint64(now.UnixNano()), uint64(now.Add(time.Hour).UnixNano()))},
+			tenantYAML: "overrides:\n  test:\n    ingestion:\n      rate_limit_bytes: 30000000\n      burst_size_bytes: 30000000\n      creation_grace_period: 2h\n",
+			wantPushed: 1,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			// reset so the per-tenant discard counter only reflects this case
+			tenant := "test"
+			before := discardedSpans(t, overrides.ReasonTooFarInFuture, tenant)
+
+			limits := overrides.Config{}
+			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+			if tc.tenantYAML != "" {
+				f := filepath.Join(t.TempDir(), "overrides.yaml")
+				require.NoError(t, os.WriteFile(f, []byte(tc.tenantYAML), 0o600))
+				limits.PerTenantOverrideConfig = f
+				limits.PerTenantOverridePeriod = model.Duration(time.Hour)
+			}
+
+			var pushed int
+			distributorConfig, _, l, mw := setupDependencies(t, overrides.Config{})
+			overridesSvc, err := overrides.NewOverrides(limits, nil, prometheus.NewRegistry())
+			require.NoError(t, err)
+			require.NoError(t, services.StartAndAwaitRunning(context.Background(), overridesSvc))
+			t.Cleanup(func() { _ = services.StopAndAwaitTerminated(context.Background(), overridesSvc) })
+
+			d, err := New(distributorConfig, LocalPushTargets{
+				LiveStore: func(_ context.Context, req *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
+					for _, b := range req.Traces {
+						tr := &tempopb.Trace{}
+						require.NoError(t, tr.Unmarshal(b.Slice))
+						for _, rs := range tr.ResourceSpans {
+							for _, ss := range rs.ScopeSpans {
+								pushed += len(ss.Spans)
+							}
+						}
+					}
+					return &tempopb.PushResponse{}, nil
+				},
+			}, nil, overridesSvc, mw, kitlog.NewNopLogger(), l, prometheus.NewPedanticRegistry())
+			require.NoError(t, err)
+
+			traces := batchesToTraces(t, []*v1.ResourceSpans{makeResourceSpans("svc", []*v1.ScopeSpans{makeScope(tc.spans...)})})
+
+			// Must return promptly: a request where every span is dropped must not block on the context.
+			pushCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			_, err = d.PushTraces(pushCtx, traces)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.wantPushed, pushed)
+			require.Equal(t, tc.wantDiscarded, discardedSpans(t, overrides.ReasonTooFarInFuture, tenant)-before)
+		})
+	}
 }

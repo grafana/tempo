@@ -1,0 +1,6 @@
+change_type: security
+component: deps
+note: Build Tempo with Go 1.27.3 to reject certificate chains containing compromised eMudhra/emSign intermediate CA keys (CVE-2026-111943).
+issues: [8137, 8138, 8145]
+subtext:
+user: ruslan-mikhailov

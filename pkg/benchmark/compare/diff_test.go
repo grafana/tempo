@@ -12,7 +12,7 @@ func TestSettings(t *testing.T) {
 	r := &benchmark.Result{
 		RunEnv: benchmark.RunEnv{GitSHA: "3109151e0dba619a74c79d14f161437ff43903ae", GoVersion: "go1.27.1", GoMaxProcs: 12, Hostname: "mac"},
 		Options: benchmark.RunOptions{
-			Repeat: 1, Warmup: 1, TargetBytesPerRequest: 100 << 20, SearchLimit: 20, MaxSeries: 1000,
+			Repeat: 1, TargetBytesPerRequest: 100 << 20, SearchLimit: 20, MaxSeries: 1000,
 			ReadBufferSize: 4 << 20,
 		},
 		Shards: 55,
@@ -32,7 +32,6 @@ func TestSettings(t *testing.T) {
 	// default, then the build, where the run happened, and what followed.
 	require.Equal(t, []fv{
 		{"repeat", "1", Setup},
-		{"warmup", "1", Setup},
 		{"targetBytesPerRequest", "100MiB", Setup},
 		{"searchLimit", "20", Setup},
 		{"maxSeries", "1000", Setup},
@@ -46,9 +45,9 @@ func TestSettings(t *testing.T) {
 		{"shards", "55", Derived},
 	}, got)
 
-	require.True(t, ss[6].isNumber)
-	require.Equal(t, float64(4<<20), ss[6].number)
-	require.False(t, ss[8].isNumber)
+	require.True(t, ss[5].isNumber)
+	require.Equal(t, float64(4<<20), ss[5].number)
+	require.False(t, ss[7].isNumber)
 }
 
 func TestFormatIBytes(t *testing.T) {
