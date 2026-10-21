@@ -23,41 +23,6 @@ type mockOTELProtoMessage struct {
 	Val byte
 }
 
-func TestCodecEtcdMessages(t *testing.T) {
-	tests := []struct {
-		name    string
-		message proto.Message
-	}{
-		{"range request", &etcdserverpb.RangeRequest{Key: []byte("ring")}},
-		{"range response", &etcdserverpb.RangeResponse{
-			Header: &etcdserverpb.ResponseHeader{Revision: 42},
-			Kvs:    []*mvccpb.KeyValue{{Key: []byte("ring"), Value: []byte("value")}},
-			Count:  1,
-		}},
-		{"watch response", &etcdserverpb.WatchResponse{
-			WatchId: 1,
-			Events:  []*mvccpb.Event{{Kv: &mvccpb.KeyValue{Key: []byte("ring"), Value: []byte("value")}}},
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			codec := NewCodec()
-
-			data, err := proto.Marshal(tt.message)
-			require.NoError(t, err)
-			decoded := tt.message.ProtoReflect().New().Interface()
-			require.NoError(t, codec.Unmarshal(data, decoded))
-			require.True(t, proto.Equal(tt.message, decoded))
-
-			data, err = codec.Marshal(tt.message)
-			require.NoError(t, err)
-			decoded = tt.message.ProtoReflect().New().Interface()
-			require.NoError(t, proto.Unmarshal(data, decoded))
-			require.True(t, proto.Equal(tt.message, decoded))
-		})
-	}
-}
-
 func (m *mockOTELProtoMessage) SizeProto() int {
 	return 1
 }
@@ -173,6 +138,41 @@ func TestCodecTempoPackages(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, codec.Unmarshal(data, tt.decoded))
 			require.Equal(t, tt.message, tt.decoded)
+		})
+	}
+}
+
+func TestCodecEtcdMessages(t *testing.T) {
+	tests := []struct {
+		name    string
+		message proto.Message
+	}{
+		{"range request", &etcdserverpb.RangeRequest{Key: []byte("ring")}},
+		{"range response", &etcdserverpb.RangeResponse{
+			Header: &etcdserverpb.ResponseHeader{Revision: 42},
+			Kvs:    []*mvccpb.KeyValue{{Key: []byte("ring"), Value: []byte("value")}},
+			Count:  1,
+		}},
+		{"watch response", &etcdserverpb.WatchResponse{
+			WatchId: 1,
+			Events:  []*mvccpb.Event{{Kv: &mvccpb.KeyValue{Key: []byte("ring"), Value: []byte("value")}}},
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			codec := NewCodec()
+
+			data, err := proto.Marshal(tt.message)
+			require.NoError(t, err)
+			decoded := tt.message.ProtoReflect().New().Interface()
+			require.NoError(t, codec.Unmarshal(data, decoded))
+			require.True(t, proto.Equal(tt.message, decoded))
+
+			data, err = codec.Marshal(tt.message)
+			require.NoError(t, err)
+			decoded = tt.message.ProtoReflect().New().Interface()
+			require.NoError(t, proto.Unmarshal(data, decoded))
+			require.True(t, proto.Equal(tt.message, decoded))
 		})
 	}
 }
