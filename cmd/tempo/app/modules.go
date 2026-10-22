@@ -511,6 +511,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http metrics endpoints
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryInstant), base.Wrap(queryFrontend.MetricsQueryInstantHandler))
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange), base.Wrap(queryFrontend.MetricsQueryRangeHandler))
+	if t.cfg.Frontend.QueryTracker.Enabled {
+		t.registerQueryTrackerHandlers(queryFrontend.QueryTrackerHandler, queryFrontend.QueryTrackerTenantHandler)
+	}
 
 	// http mcp endpoint
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMCP), base.Wrap(queryFrontend.MCPHandler))
@@ -528,6 +531,11 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
+}
+
+func (t *App) registerQueryTrackerHandlers(tenantsHandler, tenantHandler http.Handler) {
+	t.Server.HTTPRouter().Path(api.PathQueryTracker).Methods(http.MethodGet).Handler(tenantsHandler)
+	t.Server.HTTPRouter().Path(api.PathQueryTracker + "/{tenant}").Methods(http.MethodGet).Handler(tenantHandler)
 }
 
 //go:embed static
