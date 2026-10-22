@@ -500,12 +500,7 @@ type SyncIterator struct {
 
 	maxDefinitionLevel int
 
-	// Dictionary pushdown (dict_pushdown.go). dictKeep is the filter's answer for each
-	// entry of the current chunk's dictionary, nil when the chunk isn't pushed down.
-	dictKeep     []bool
-	dictKeepNull bool
-	dictPage     dictPageReader
-	presentDef   byte // the column's definition level for a present value
+	dictPageReader dictPageReader // dictionary pushdown, see dict_pushdown.go
 
 	interner   *intern.Interner
 	makeResult func(t RowNumber, v *pq.Value) *IteratorResult
@@ -558,9 +553,6 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 	// Always disable intern/clone for non-pointer types that don't need it.
 	// This eliminates unnecessary function calls on the hot path.
 	if len(rgs) > 0 {
-		// Looked up once rather than read off each page's levels, which seeks would rescan.
-		i.presentDef = maxDefinitionLevel(rgs[0], column)
-
 		cc := rgs[0].ColumnChunks()[column]
 		switch cc.Type().Kind() {
 		case pq.ByteArray, pq.FixedLenByteArray:
@@ -692,7 +684,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune
 
 		cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
 		if !prune {
-			c.dictKeep = nil // keepColumnChunk sets it on the pruning path
+			c.dictPageReader.disable() // keepColumnChunk decides on the pruning path
 		} else if !c.keepColumnChunk(cc) {
 			cc.Close()
 			continue
@@ -832,10 +824,16 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	c.currPage = pg
 	c.currPageMin = c.curr
 	c.currPageN = 0
-	syncIteratorPoolPut(c.currBuf)
-	c.currBuf = nil
-	c.dictPage.reset(pg, c.dictKeep, c.presentDef)
-	if !c.dictPage.active {
+	// Dictionary pages never take a buffer. Returning nil would put an empty slice in
+	// the pool, and the next Get would allocate a new buffer.
+	if c.currBuf != nil {
+		syncIteratorPoolPut(c.currBuf)
+		c.currBuf = nil
+	}
+	c.dictPageReader.setPage(pg)
+	if c.dictPageReader.active {
+		c.currValues = nil
+	} else {
 		c.currValues = pg.Values()
 	}
 }
@@ -890,7 +888,7 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 			c.setPage(pg)
 		}
 
-		if c.dictPage.active {
+		if c.dictPageReader.active {
 			v, ok := c.nextDictValue(seeking)
 			if !ok {
 				c.setPage(nil) // page exhausted
@@ -987,7 +985,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 
 	// Reset value buffers
 	c.currValues = nil
-	c.dictPage.reset(nil, nil, 0)
+	c.dictPageReader.setPage(nil)
 	c.currPageMax = EmptyRowNumber()
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
@@ -1007,8 +1005,8 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currPage = pg
 		c.currPageMin = c.curr
 		c.currPageMax = rn
-		c.dictPage.reset(pg, c.dictKeep, c.presentDef)
-		if !c.dictPage.active {
+		c.dictPageReader.setPage(pg)
+		if !c.dictPageReader.active {
 			c.currValues = pg.Values()
 		}
 

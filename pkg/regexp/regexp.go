@@ -48,8 +48,7 @@ func NewRegexp(regexps []string, shouldMatch bool) (*Regexp, error) {
 	}, nil
 }
 
-// NewRegexpWithoutMemo is NewRegexp without memoizing matches, for callers that
-// already evaluate each distinct value once.
+// NewRegexpWithoutMemo is NewRegexp without memoizing matches.
 func NewRegexpWithoutMemo(regexps []string, shouldMatch bool) (*Regexp, error) {
 	r, err := NewRegexp(regexps, shouldMatch)
 	if err != nil {

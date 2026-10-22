@@ -7,62 +7,85 @@ import (
 // Dictionary pushdown: on a dictionary-encoded chunk the filter is evaluated once per
 // dictionary entry, and rows match by their integer index. A row that doesn't match
 // is never turned into a value.
+
+// dictPageReader serves dictionary-encoded pages from their levels and dictionary
+// indexes, without decoding values. For example, an optional string column (max
+// definition level 1) whose chunk has the dictionary [api, shop], filtered by = "shop":
 //
-// The answers are frozen for the chunk, so a filter whose answer for a value changes
-// mid-scan (CallbackPredicate) keeps its answer from the start of the chunk.
-
-// buildDictKeep evaluates the filter against every entry of dict into c.dictKeep and
-// reports whether any entry is kept. It reuses c.dictKeep's storage across chunks.
-func (c *SyncIterator) buildDictKeep(dict pq.Dictionary) (anyKept bool) {
-	n := dict.Len()
-	if cap(c.dictKeep) < n {
-		c.dictKeep = make([]bool, n)
-	}
-	c.dictKeep = c.dictKeep[:n]
-	for i := range n {
-		k := c.filter.KeepValue(dict.Index(int32(i)))
-		c.dictKeep[i] = k
-		anyKept = anyKept || k
-	}
-	return anyKept
-}
-
-// maxDefinitionLevel returns the definition level of a present value in column. It
-// reads it from the file's own column when there is one: a file opened with another
-// schema (parquet.FileSchema) can map column to a different leaf of rg.Schema().
-func maxDefinitionLevel(rg pq.RowGroup, column int) byte {
-	if fc, ok := rg.ColumnChunks()[column].(*pq.FileColumnChunk); ok {
-		if col, ok := fc.Node().(*pq.Column); ok {
-			return byte(col.MaxDefinitionLevel())
-		}
-	}
-	schema := rg.Schema()
-	if leaf, ok := schema.Lookup(schema.Columns()[column]...); ok {
-		return byte(leaf.MaxDefinitionLevel)
-	}
-	return 0
-}
-
-// dictPageReader walks one dictionary-encoded page by its levels and dictionary
-// indexes, without decoding values.
+//	matches = [false, true] // one answer per dictionary entry
+//
+//	row        0     1     2     3
+//	value      shop  null  api   shop
+//	def level  1     0     1     1
+//	indexes    1           0     1     // = [1, 0, 1]: nulls have no index
+//
+// A page has a level for every slot, present or null, but an index only for each
+// present value. So the reader walks the slots and takes the next index only when the
+// slot's definition level is maxDef.
 type dictPageReader struct {
-	active     bool
-	dict       pq.Dictionary
-	column     int
-	indexes    []int32 // dictionary index of each present value
-	defLevels  []byte  // nil for required columns
-	repLevels  []byte  // nil for non-repeated columns
-	presentDef byte    // the column's max definition level: a slot at this level holds a value, lower is a null
-	slot       int     // next level slot, present or null
-	index      int     // next entry of indexes
-	value      pq.Value
+	// For the current chunk, set by matchDictionary.
+	matches   []bool // the filter's answer for each dictionary entry; nil when the chunk isn't pushed down
+	matchNull bool   // the filter's answer for a null
+	maxDef    byte   // the column's max definition level: a slot at this level holds a value
+	buf       []bool // storage for matches, reused across chunks
+
+	// For the current page, set by setPage.
+	active    bool
+	dict      pq.Dictionary
+	column    int
+	indexes   []int32 // dictionary index of each present value
+	defLevels []byte  // nil for required columns
+	repLevels []byte  // nil for non-repeated columns
+	slot      int     // next slot, present or null
+	index     int     // next entry of indexes
+	value     pq.Value
 }
 
-// reset points the reader at pg, or deactivates it when pg isn't served by pushdown.
-// presentDef is the column's definition level for a present value.
-func (r *dictPageReader) reset(pg pq.Page, dictKeep []bool, presentDef byte) {
-	*r = dictPageReader{value: r.value}
-	if pg == nil || dictKeep == nil {
+// matchDictionary evaluates filter against every entry of dict and reports whether
+// any entry is kept. The chunk is pushed down only when its definition levels can be
+// read from the file's own column.
+func (r *dictPageReader) matchDictionary(dict pq.Dictionary, cc pq.ColumnChunk, filter Predicate, matchNull bool) (anyMatch bool) {
+	n := dict.Len()
+	if cap(r.buf) < n {
+		r.buf = make([]bool, n)
+	}
+	matches := r.buf[:n]
+	for i := range n {
+		m := filter.KeepValue(dict.Index(int32(i)))
+		matches[i] = m
+		anyMatch = anyMatch || m
+	}
+
+	if maxDef, ok := fileMaxDefinitionLevel(cc); ok {
+		r.matches, r.matchNull, r.maxDef = matches, matchNull, maxDef
+	}
+	return anyMatch
+}
+
+// disable stops pushing down the current chunk.
+func (r *dictPageReader) disable() {
+	r.matches = nil
+}
+
+// fileMaxDefinitionLevel returns cc's max definition level from the file's own column.
+// The row group's schema isn't used: a file opened with another schema
+// (parquet.FileSchema) can map the column to a different leaf.
+func fileMaxDefinitionLevel(cc pq.ColumnChunk) (byte, bool) {
+	fc, ok := cc.(*pq.FileColumnChunk)
+	if !ok {
+		return 0, false
+	}
+	col, ok := fc.Node().(*pq.Column)
+	if !ok {
+		return 0, false
+	}
+	return byte(col.MaxDefinitionLevel()), true
+}
+
+// setPage points the reader at pg, or deactivates it when pg isn't pushed down.
+func (r *dictPageReader) setPage(pg pq.Page) {
+	r.active, r.dict, r.indexes, r.defLevels, r.repLevels, r.slot, r.index = false, nil, nil, nil, nil, 0, 0
+	if pg == nil || r.matches == nil {
 		return
 	}
 	dict := pg.Dictionary()
@@ -76,21 +99,25 @@ func (r *dictPageReader) reset(pg pq.Page, dictKeep []bool, presentDef byte) {
 	r.indexes = data.Int32()
 	r.defLevels = pg.DefinitionLevels()
 	r.repLevels = pg.RepetitionLevels()
-	r.presentDef = presentDef
 }
 
-// nextDictValue is next's loop for a dictionary page: it advances c.curr over every
+// nextDictValue is next's loop for a pushed-down page: it advances c.curr over every
 // slot and returns the next kept value, or ok=false once the page is exhausted. The
-// value is valid until the next call.
+// value is valid until the next call. On the dictPageReader example:
+//
+//	slot 0: def 1 = maxDef, takes index 1, matches[1] is true: returns shop (row 0)
+//	slot 1: def 0, a null, matchNull is false: skipped
+//	slot 2: def 1, takes index 0, matches[0] is false: skipped
+//	slot 3: def 1, takes index 1: returns shop (row 3)
 func (c *SyncIterator) nextDictValue(seeking bool) (v *pq.Value, ok bool) {
-	r := &c.dictPage
-	slots := len(r.indexes)
+	r := &c.dictPageReader
+	slots := len(r.indexes) // a required column has no levels: every slot is present
 	if r.defLevels != nil {
 		slots = len(r.defLevels)
 	}
 
 	for r.slot < slots {
-		rep, def := 0, int(r.presentDef)
+		rep, def := 0, int(r.maxDef)
 		if r.repLevels != nil {
 			rep = int(r.repLevels[r.slot])
 		}
@@ -102,7 +129,7 @@ func (c *SyncIterator) nextDictValue(seeking bool) (v *pq.Value, ok bool) {
 		c.currPageN++
 
 		index := int32(-1) // -1 marks a null
-		if byte(def) == r.presentDef && r.index < len(r.indexes) {
+		if byte(def) == r.maxDef && r.index < len(r.indexes) {
 			index = r.indexes[r.index]
 			r.index++
 		}
@@ -115,10 +142,10 @@ func (c *SyncIterator) nextDictValue(seeking bool) (v *pq.Value, ok bool) {
 			c.stats.InspectedValues++
 		}
 		if index < 0 {
-			if !c.dictKeepNull {
+			if !r.matchNull {
 				continue
 			}
-		} else if !c.dictKeep[index] {
+		} else if !r.matches[index] {
 			continue
 		}
 		if c.stats != nil {

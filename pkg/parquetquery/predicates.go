@@ -189,8 +189,6 @@ func NewRegexNotInPredicate(regs []string) (Predicate, error) {
 }
 
 func newRegexPredicate(regs []string, shouldMatch bool) (Predicate, error) {
-	// Not memoized: dictionary pushdown already evaluates each distinct value of a
-	// dictionary chunk once.
 	m, err := regexp.NewRegexpWithoutMemo(regs, shouldMatch)
 	if err != nil {
 		return nil, err
