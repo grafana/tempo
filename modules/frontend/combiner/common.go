@@ -326,18 +326,18 @@ func (c *genericCombiner[T]) internalMarshalAs(ctx context.Context, final T) ([]
 		if c.httpMarshalingFormat == api.MarshallingFormatProtobuf {
 			encoding = "protobuf"
 		}
-		spanCount := attribute.Int("span_count", countTraceSpans(response.Trace))
-		parent := oteltrace.SpanFromContext(ctx)
-		tracer := parent.TracerProvider().Tracer("modules/frontend/combiner")
-		_, marshalSpan := tracer.Start(ctx, "trace.marshal", oteltrace.WithAttributes(
-			attribute.String("format", encoding), spanCount,
-		))
+		span := oteltrace.SpanFromContext(ctx)
+		span.SetAttributes(
+			attribute.String("format", encoding),
+			attribute.Int("span_count", countTraceSpans(response.Trace)),
+		)
+		span.AddEvent("trace.marshal.start")
 		defer func() {
 			if err != nil {
-				marshalSpan.SetStatus(otelcodes.Error, "trace marshalling failed")
+				span.SetStatus(otelcodes.Error, "trace marshalling failed")
 			}
-			marshalSpan.SetAttributes(attribute.Int("response_bytes", len(bodyBytes)))
-			marshalSpan.End()
+			span.SetAttributes(attribute.Int("response_bytes", len(bodyBytes)))
+			span.AddEvent("trace.marshal.done")
 		}()
 	}
 

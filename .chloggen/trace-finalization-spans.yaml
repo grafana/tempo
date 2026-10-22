@@ -8,7 +8,7 @@ change_type: enhancement
 component: query-frontend
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Distinguish trace finalization, deduplication, redaction, encoding, and response writing in query frontend traces.
+note: Measure query frontend trace finalization in one span with phase events, and response writing with events on the HTTP request span.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.

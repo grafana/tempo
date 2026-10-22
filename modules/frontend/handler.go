@@ -117,17 +117,17 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// write headers, status code and body
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-	_, writeSpan := tracer.Start(ctx, "http.response.write")
+	span.AddEvent("http.response.write.start")
 	var written int64
 	if resp.Body != nil {
 		var writeErr error
 		written, writeErr = io.Copy(w, resp.Body)
 		if writeErr != nil {
-			writeSpan.SetStatus(codes.Error, "response body write failed")
+			span.SetStatus(codes.Error, "response body write failed")
 		}
 	}
-	writeSpan.SetAttributes(attribute.Int64("response_bytes", written))
-	writeSpan.End()
+	span.SetAttributes(attribute.Int64("response_bytes", written))
+	span.AddEvent("http.response.write.done")
 
 	// request/response logging
 	var contentLength int64

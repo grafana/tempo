@@ -156,12 +156,12 @@ func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (*http.Response, erro
 	if c.contentType == api.MarshallingFormatProtobuf {
 		encoding = "protobuf"
 	}
-	spanCount := attribute.Int("span_count", countTraceSpans(traceResult))
-	parent := oteltrace.SpanFromContext(ctx)
-	tracer := parent.TracerProvider().Tracer("modules/frontend/combiner")
-	_, marshalSpan := tracer.Start(ctx, "trace.marshal", oteltrace.WithAttributes(
-		attribute.String("format", encoding), spanCount,
-	))
+	span := oteltrace.SpanFromContext(ctx)
+	span.SetAttributes(
+		attribute.String("format", encoding),
+		attribute.Int("span_count", countTraceSpans(traceResult)),
+	)
+	span.AddEvent("trace.marshal.start")
 	var buff []byte
 	var err error
 
@@ -171,10 +171,10 @@ func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (*http.Response, erro
 		buff, err = tempopb.MarshalToJSONV1(traceResult)
 	}
 	if err != nil {
-		marshalSpan.SetStatus(codes.Error, "trace marshalling failed")
+		span.SetStatus(codes.Error, "trace marshalling failed")
 	}
-	marshalSpan.SetAttributes(attribute.Int("response_bytes", len(buff)))
-	marshalSpan.End()
+	span.SetAttributes(attribute.Int("response_bytes", len(buff)))
+	span.AddEvent("trace.marshal.done")
 	if err != nil {
 		return &http.Response{}, fmt.Errorf("error marshalling response: %w content type: %s", err, c.contentType)
 	}
