@@ -13,16 +13,16 @@
 
 * @grafana/tempo
 
-/docs/       @grafana/tempo @grafana/tempo-docs
-/.chloggen/  @grafana/tempo @grafana/tempo-docs
+/docs/       @grafana/tempo @grafana/docs-traces
+/.chloggen/  @grafana/tempo @grafana/docs-traces
 
 
-/.github/backport.yml           @grafana/tempo @grafana/tempo-docs
-/.github/update-make-docs.yml   @grafana/tempo @grafana/tempo-docs
-/.github/website-next.yml       @grafana/tempo @grafana/tempo-docs
-/.github/website-versioned.yml  @grafana/tempo @grafana/tempo-docs
-/docs/docs.mk                   @grafana/tempo @grafana/tempo-docs
-/docs/make-docs                 @grafana/tempo @grafana/tempo-docs
-/docs/Makefile                  @grafana/tempo @grafana/tempo-docs
-/docs/variables.mk              @grafana/tempo @grafana/tempo-docs
-/modules/frontend/docs/         @grafana/tempo @grafana/tempo-docs
+/.github/backport.yml           @grafana/tempo @grafana/docs-traces
+/.github/update-make-docs.yml   @grafana/tempo @grafana/docs-traces
+/.github/website-next.yml       @grafana/tempo @grafana/docs-traces
+/.github/website-versioned.yml  @grafana/tempo @grafana/docs-traces
+/docs/docs.mk                   @grafana/tempo @grafana/docs-traces
+/docs/make-docs                 @grafana/tempo @grafana/docs-traces
+/docs/Makefile                  @grafana/tempo @grafana/docs-traces
+/docs/variables.mk              @grafana/tempo @grafana/docs-traces
+/modules/frontend/docs/         @grafana/tempo @grafana/docs-traces
