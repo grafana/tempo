@@ -1,0 +1,11 @@
+change_type: change
+
+component: deps
+
+note: Build the container images on distroless Debian 13 (trixie) instead of Debian 12 (bookworm), whose regular security support ended in June 2026.
+
+issues: []
+
+subtext:
+
+user: codeconsole
