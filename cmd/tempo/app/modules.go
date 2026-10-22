@@ -658,7 +658,8 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 		),
 	)
 
-	dnsProvider := dns.NewProvider(log.Logger, dnsProviderReg, dns.GolangResolverType)
+	// maxIdleConnections only applies to the miekgdns resolver, unused with GolangResolverType
+	dnsProvider := dns.NewProvider(dns.GolangResolverType, 0, log.Logger, dnsProviderReg)
 	t.MemberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger, dnsProvider, reg)
 
 	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV

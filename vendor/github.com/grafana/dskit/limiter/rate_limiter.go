@@ -2,6 +2,7 @@ package limiter
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -48,6 +49,14 @@ func (l *RateLimiter) AllowN(now time.Time, tenantID string, n int) bool {
 	return l.getTenantLimiter(now, tenantID).AllowN(now, n)
 }
 
+// ReserveN returns a Reservation that indicates how long the caller must wait
+// before n tokens may be consumed at time now for the given tenant. The caller
+// may Cancel the reservation to return the reserved tokens, which is useful when
+// making an all-or-nothing decision across multiple limiters.
+func (l *RateLimiter) ReserveN(now time.Time, tenantID string, n int) *rate.Reservation {
+	return l.getTenantLimiter(now, tenantID).ReserveN(now, n)
+}
+
 // WaitN blocks until n events are allowed to happen.
 // It returns an error if n exceeds the Limiter's burst size, the Context is
 // canceled, or the expected wait time exceeds the Context's Deadline.
@@ -59,6 +68,16 @@ func (l *RateLimiter) WaitN(ctx context.Context, tenantID string, n int) error {
 // Limit returns the currently configured maximum overall tokens rate.
 func (l *RateLimiter) Limit(now time.Time, tenantID string) float64 {
 	return float64(l.getTenantLimiter(now, tenantID).Limit())
+}
+
+// TokensAt returns the number of tokens available at time t for the given tenant.
+// It returns positive infinity if the tenant's rate limit is unlimited.
+func (l *RateLimiter) TokensAt(now time.Time, tenantID string) float64 {
+	limiter := l.getTenantLimiter(now, tenantID)
+	if limiter.Limit() == rate.Inf {
+		return math.Inf(1)
+	}
+	return limiter.TokensAt(now)
 }
 
 // Burst returns the currently configured maximum burst size.
