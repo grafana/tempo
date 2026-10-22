@@ -56,12 +56,13 @@ func TestQueryRangeExtrapolateOverride(t *testing.T) {
 		start, end := now.Add(-5*time.Minute), now.Add(time.Minute)
 		const step = "1s"
 
-		requireCount := func(t *testing.T, query string, expected float64) {
+		requireCount := func(t *testing.T, query string, expected float64, extrapolated bool) {
 			t.Helper()
 			callQueryRange(t, h, queryRangeRequest{Query: query, Start: start, End: end, Step: step}, func(res *tempopb.QueryRangeResponse, err error) {
 				require.NoError(t, err)
 				require.Len(t, res.GetSeries(), 1)
 				require.InDelta(t, expected, sumSamples(res.GetSeries()[0].GetSamples()), 0.000001)
+				require.Equal(t, extrapolated, res.GetExtrapolated())
 			})
 		}
 
@@ -69,7 +70,7 @@ func TestQueryRangeExtrapolateOverride(t *testing.T) {
 
 		// later cases depend on this one warming the cache, so stop if it fails
 		require.True(t, t.Run("override off", func(t *testing.T) {
-			requireCount(t, query, spans)
+			requireCount(t, query, spans, false)
 		}))
 
 		require.NoError(t, h.UpdateOverrides(map[string]*overrides.Overrides{
@@ -81,11 +82,11 @@ func TestQueryRangeExtrapolateOverride(t *testing.T) {
 		}))
 
 		t.Run("override on", func(t *testing.T) {
-			requireCount(t, query, 2*spans)
+			requireCount(t, query, 2*spans, true)
 		})
 
 		t.Run("override on, hint off", func(t *testing.T) {
-			requireCount(t, query+" with(extrapolate=false)", spans)
+			requireCount(t, query+" with(extrapolate=false)", spans, false)
 		})
 	})
 }
