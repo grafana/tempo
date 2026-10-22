@@ -84,6 +84,10 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MaxConditionGroupsPerTagQuery: c.Read.MaxConditionGroupsPerTagQuery,
 		MaxSearchDuration:             c.Read.MaxSearchDuration,
 		MaxMetricsDuration:            c.Read.MaxMetricsDuration,
+		MaxMetricsScannedBytes:        c.Read.MaxMetricsScannedBytes,
+		MinMetricsDuration:            c.Read.MinMetricsDuration,
+		MaxSearchScannedBytes:         c.Read.MaxSearchScannedBytes,
+		MinSearchDuration:             c.Read.MinSearchDuration,
 		UnsafeQueryHints:              c.Read.UnsafeQueryHints,
 		LeftPadTraceIDs:               c.Read.LeftPadTraceIDs,
 		MetricsSpanOnlyFetch:          c.Read.MetricsSpanOnlyFetch,
@@ -177,14 +181,18 @@ type LegacyOverrides struct {
 	MaxConditionGroupsPerTagQuery int `yaml:"max_condition_groups_per_tag_query" json:"max_condition_groups_per_tag_query"`
 
 	// QueryFrontend enforced limits
-	MaxSearchDuration    model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
-	MaxMetricsDuration   model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
-	UnsafeQueryHints     bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
-	LeftPadTraceIDs      bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
-	MetricsSpanOnlyFetch *bool          `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
-	SpanPruningAwareness bool           `yaml:"span_pruning_awareness,omitempty" json:"span_pruning_awareness,omitempty"`
-	EngineBytesTracking  *bool          `yaml:"engine_bytes_tracking,omitempty" json:"engine_bytes_tracking,omitempty"`
-	SpanPruningEnabled   *bool          `yaml:"span_pruning_enabled,omitempty" json:"span_pruning_enabled,omitempty"`
+	MaxSearchDuration      model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
+	MaxMetricsDuration     model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
+	MaxMetricsScannedBytes uint64         `yaml:"max_metrics_scanned_bytes,omitempty" json:"max_metrics_scanned_bytes,omitempty"`
+	MinMetricsDuration     model.Duration `yaml:"min_metrics_duration,omitempty" json:"min_metrics_duration,omitempty"`
+	MaxSearchScannedBytes  uint64         `yaml:"max_search_scanned_bytes,omitempty" json:"max_search_scanned_bytes,omitempty"`
+	MinSearchDuration      model.Duration `yaml:"min_search_duration,omitempty" json:"min_search_duration,omitempty"`
+	UnsafeQueryHints       bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
+	LeftPadTraceIDs        bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
+	MetricsSpanOnlyFetch   *bool          `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
+	SpanPruningAwareness   bool           `yaml:"span_pruning_awareness,omitempty" json:"span_pruning_awareness,omitempty"`
+	EngineBytesTracking    *bool          `yaml:"engine_bytes_tracking,omitempty" json:"engine_bytes_tracking,omitempty"`
+	SpanPruningEnabled     *bool          `yaml:"span_pruning_enabled,omitempty" json:"span_pruning_enabled,omitempty"`
 
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
 	//  is not used when doing a trace by id lookup.
@@ -338,6 +346,10 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			MaxConditionGroupsPerTagQuery: l.MaxConditionGroupsPerTagQuery,
 			MaxSearchDuration:             l.MaxSearchDuration,
 			MaxMetricsDuration:            l.MaxMetricsDuration,
+			MaxMetricsScannedBytes:        l.MaxMetricsScannedBytes,
+			MinMetricsDuration:            l.MinMetricsDuration,
+			MaxSearchScannedBytes:         l.MaxSearchScannedBytes,
+			MinSearchDuration:             l.MinSearchDuration,
 			UnsafeQueryHints:              l.UnsafeQueryHints,
 			LeftPadTraceIDs:               l.LeftPadTraceIDs,
 			MetricsSpanOnlyFetch:          l.MetricsSpanOnlyFetch,

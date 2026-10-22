@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -1558,7 +1559,7 @@ func TestQueryRangeHandlerLogsErrorReason(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := &recordingLogger{}
-	handler := newMetricsQueryRangeHTTPHandler(cfg, next, o, logger, nil)
+	handler := newMetricsQueryRangeHTTPHandler(cfg, next, o, newMetricsScannedBytesLimit(nil, o, cfg.Metrics.Sharder, true, logger), logger, nil)
 
 	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
 	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
@@ -1575,4 +1576,137 @@ func TestQueryRangeHandlerLogsErrorReason(t *testing.T) {
 
 	// the result log must record WHY the request failed, not a nil error
 	require.Contains(t, logger.String(), reason)
+}
+
+// sendMetricsQuery sends a metrics query through one of the 4 frontend entry points and returns its error.
+// Instant queries ignore step.
+func sendMetricsQuery(t *testing.T, f *QueryFrontend, entryPoint, tenant string, start, end time.Time, step time.Duration) error {
+	rangeReq := &tempopb.QueryRangeRequest{Query: "{} | rate()", Start: uint64(start.UnixNano()), End: uint64(end.UnixNano()), Step: uint64(step)}
+	instantReq := &tempopb.QueryInstantRequest{Query: "{} | rate()", Start: rangeReq.Start, End: rangeReq.End}
+	var req *http.Request
+	var handler http.Handler
+	switch entryPoint {
+	case "grpc instant":
+		return grpcInvalidArgumentErr(t, f.MetricsQueryInstant(instantReq, newMockStreamingServer[*tempopb.QueryInstantResponse](tenant, nil)))
+	case "grpc range":
+		return grpcInvalidArgumentErr(t, f.MetricsQueryRange(rangeReq, newMockStreamingServer[*tempopb.QueryRangeResponse](tenant, nil)))
+	case "http instant":
+		req = api.BuildQueryInstantRequest(httptest.NewRequest("GET", api.PathMetricsQueryInstant, nil), instantReq)
+		handler = f.MetricsQueryInstantHandler
+	case "http range":
+		req = api.BuildQueryRangeRequest(httptest.NewRequest("GET", api.PathMetricsQueryRange, nil), rangeReq, "")
+		handler = f.MetricsQueryRangeHandler
+	default:
+		t.Fatalf("unknown entry point %q", entryPoint)
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req.WithContext(user.InjectOrgID(req.Context(), tenant)))
+	return httpRecorderErr(t, rec)
+}
+
+func httpRecorderErr(t *testing.T, rec *httptest.ResponseRecorder) error {
+	if rec.Code == http.StatusOK {
+		return nil
+	}
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	return fmt.Errorf("%s", rec.Body.String())
+}
+
+func grpcInvalidArgumentErr(t *testing.T, err error) error {
+	if err != nil {
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
+	}
+	return err
+}
+
+func scannedBytesLimitFrontend(t *testing.T, rdr tempodb.Reader, opts func(*Config, *overrides.Config)) *QueryFrontend {
+	resp := &tempopb.QueryRangeResponse{
+		Metrics: &tempopb.SearchMetrics{InspectedTraces: 1, InspectedBytes: 1},
+	}
+	return frontendWithSettings(t, &mockRoundTripper{
+		responseFn: func() proto.Message { return resp },
+	}, rdr, nil, nil, func(c *Config, oc *overrides.Config) {
+		c.Metrics.Sharder.Interval = time.Hour
+		c.Metrics.Sharder.MaxDuration = 24 * time.Hour
+		opts(c, oc)
+	})
+}
+
+func TestQueryRangeScannedBytesLimit(t *testing.T) {
+	// Counted on the user range before AlignRequest, so every entry point reports the same allowed range.
+	tcs := []struct {
+		name string
+		// entryPoints defaults to http range. The shared math needs only one.
+		entryPoints     []string
+		start, end      time.Time
+		maxScannedBytes uint64
+		minDuration     time.Duration
+		wantErr         string
+	}{
+		{
+			name:            "range within the budget passes",
+			start:           hoursAgo(2),
+			end:             scannedBytesTestEnd,
+			maxScannedBytes: 350,
+		},
+		{
+			name:            "range over the budget is rejected",
+			entryPoints:     []string{"http range", "http instant", "grpc range", "grpc instant"},
+			start:           hoursAgo(4),
+			end:             scannedBytesTestEnd,
+			maxScannedBytes: 350,
+			wantErr:         "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant foo (limited by scanned bytes), reduce the time range to 2h59m59s or less",
+		},
+		{
+			// Unaligned start and end would push the aligned range past min_duration.
+			name:            "min_duration equal to the requested range passes",
+			start:           hoursAgo(5).Add(-30 * time.Minute),
+			end:             scannedBytesTestEnd.Add(-30 * time.Minute),
+			maxScannedBytes: 150,
+			minDuration:     5 * time.Hour,
+		},
+	}
+
+	for _, tc := range tcs {
+		if tc.entryPoints == nil {
+			tc.entryPoints = []string{"http range"}
+		}
+		for _, entryPoint := range tc.entryPoints {
+			t.Run(entryPoint+"/"+tc.name, func(t *testing.T) {
+				f := scannedBytesLimitFrontend(t, &mockReader{metas: hourlyMetricsBlocks(scannedBytesTestEnd)}, func(c *Config, _ *overrides.Config) {
+					c.Metrics.Sharder.MaxScannedBytes = tc.maxScannedBytes
+					c.Metrics.Sharder.MinDuration = tc.minDuration
+				})
+
+				err := sendMetricsQuery(t, f, entryPoint, "foo", tc.start, tc.end, time.Hour)
+				if tc.wantErr == "" {
+					require.NoError(t, err)
+				} else {
+					require.ErrorContains(t, err, tc.wantErr)
+				}
+			})
+		}
+	}
+}
+
+func TestQueryRangeScannedBytesLimitBlocklistWalks(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		maxScannedBytes uint64
+		wantCalls       int
+	}{
+		{name: "disabled walks only in the sharder", wantCalls: 1},
+		// The second walk is the TODO in metricsScannedBytesLimit.check.
+		{name: "enabled walks in the handler and the sharder", maxScannedBytes: 10_000, wantCalls: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rdr := &countingMockReader{mockReader: mockReader{metas: hourlyMetricsBlocks(scannedBytesTestEnd)}}
+			f := scannedBytesLimitFrontend(t, rdr, func(c *Config, _ *overrides.Config) {
+				c.Metrics.Sharder.MaxScannedBytes = tc.maxScannedBytes
+			})
+
+			require.NoError(t, sendMetricsQuery(t, f, "http range", "foo", hoursAgo(2), scannedBytesTestEnd, time.Minute))
+			require.Equal(t, tc.wantCalls, rdr.callCount())
+		})
+	}
 }
