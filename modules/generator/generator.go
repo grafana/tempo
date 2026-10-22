@@ -89,6 +89,8 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		return nil, err
 	}
 
+	cfg.Registry.InstanceID = cfg.Ring.InstanceID
+
 	err := os.MkdirAll(cfg.Storage.Path, 0o700)
 	if err != nil {
 		return nil, fmt.Errorf("failed to mkdir on %s: %w", cfg.Storage.Path, err)

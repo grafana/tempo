@@ -1,0 +1,10 @@
+change_type: bug_fix
+component: metrics-generator
+note: Set the `__metrics_gen_instance` label from `metrics_generator.ring.instance_id` instead of the hostname.
+issues: [7853]
+subtext: |
+  Generators in different clusters that share a remote-write backend and reuse StatefulSet pod names
+  wrote different samples under identical label sets, which produced duplicate timestamps and
+  out-of-order samples. `metrics_generator.ring.instance_id` still defaults to the hostname, so the
+  label is unchanged unless it is configured.
+user: lazerg
