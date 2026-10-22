@@ -28,6 +28,9 @@ import (
 
 const (
 	defaultStreamingShards = 200
+
+	// extrapolationCacheKeySalt is mixed into the job cache key when a request extrapolates.
+	extrapolationCacheKeySalt = 3147483637
 )
 
 type queryRangeSharder struct {
@@ -431,7 +434,7 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 
 	// Only mixed in when set so that cache keys are unchanged for queries that don't extrapolate.
 	if req.Extrapolate {
-		hash = fnv1a.AddUint64(hash, 3147483637)
+		hash = fnv1a.AddUint64(hash, extrapolationCacheKeySalt)
 	}
 
 	return hash

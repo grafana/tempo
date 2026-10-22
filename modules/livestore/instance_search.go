@@ -51,6 +51,9 @@ var (
 
 const (
 	timeBuffer = 5 * time.Minute
+
+	// extrapolationCacheKeySalt is mixed into the complete-block cache name when a request extrapolates.
+	extrapolationCacheKeySalt = 3147483637
 )
 
 type block interface {
@@ -1019,7 +1022,7 @@ func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {
 
 	// Only mixed in when set so that cache names are unchanged for queries that don't extrapolate.
 	if req.Extrapolate {
-		h = fnv1a.AddUint64(h, 3147483637)
+		h = fnv1a.AddUint64(h, extrapolationCacheKeySalt)
 	}
 
 	// TODO - caching for WAL blocks
