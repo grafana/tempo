@@ -25,9 +25,10 @@ type Interface interface {
 	AddPendingJobs(jobs []*Job) error
 	ListAllPendingJobs() []*Job
 	NextPendingJob(jobType tempopb.JobType) *Job
-	// ReleaseRedactionInFlight releases the in-flight count for a dequeued redaction job that is
-	// dropped rather than promoted to active (else the counter leaks and wedges the tenant).
-	ReleaseRedactionInFlight(tenantID string)
+	// ReleaseRedactionInFlight releases a dequeued redaction job that is dropped rather than
+	// promoted to active (else it leaks in registeredJobs and wedges the tenant). Takes the job
+	// itself, not just its tenant, so a sibling in-flight job for the same tenant is untouched.
+	ReleaseRedactionInFlight(job *Job)
 
 	// RegisterJob registers a job before it enters the channel pipeline, making it
 	// visible to other components. Cleared automatically by AddJob when promoted to active.

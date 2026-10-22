@@ -18,10 +18,9 @@ type Scheduler interface {
 	ListJobs() []*work.Job
 	NextPendingJob(jobType tempopb.JobType) *work.Job
 
-	// ReleaseRedactionInFlight releases the in-flight count for a redaction job that was dequeued
-	// via NextPendingJob but is being dropped rather than dispatched (e.g. on shutdown), so the
-	// counter does not leak.
-	ReleaseRedactionInFlight(tenantID string)
+	// ReleaseRedactionInFlight releases a redaction job that was dequeued via NextPendingJob but is
+	// being dropped rather than dispatched (e.g. on shutdown), so it does not leak in registeredJobs.
+	ReleaseRedactionInFlight(job *work.Job)
 
 	// RegisterJob makes a job visible to other components before it is
 	// promoted to the active map via AddJob.
