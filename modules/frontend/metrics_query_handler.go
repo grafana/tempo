@@ -249,9 +249,10 @@ func clampInstantQueryEnd(cfg Config, req *tempopb.QueryRangeRequest) error {
 
 func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.QueryInstantResponse {
 	output := tempopb.QueryInstantResponse{
-		Metrics: input.Metrics,
-		Status:  input.Status,
-		Message: input.Message,
+		Metrics:      input.Metrics,
+		Status:       input.Status,
+		Message:      input.Message,
+		Extrapolated: input.Extrapolated,
 	}
 	for _, series := range input.Series {
 		if len(series.Samples) == 0 {

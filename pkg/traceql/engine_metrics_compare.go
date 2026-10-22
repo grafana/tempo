@@ -77,6 +77,8 @@ func (m *MetricsCompare) SetExtrapolate(extrapolate bool) {
 	m.extrapolate = extrapolate
 }
 
+func (m *MetricsCompare) extrapolates() bool { return true }
+
 func (m *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 	request.SecondPassSelectAll = true
 	if !request.HasAttribute(IntrinsicSpanStartTimeAttribute) {
