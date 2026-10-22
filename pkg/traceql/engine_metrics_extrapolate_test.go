@@ -128,3 +128,30 @@ func BenchmarkCountOverTimeAggregator(b *testing.B) {
 		}
 	})
 }
+
+func TestRootExprSupportsExtrapolation(t *testing.T) {
+	tests := []struct {
+		query string
+		want  bool
+	}{
+		{"{} | rate()", true},
+		{"{} | count_over_time()", true},
+		{"{} | sum_over_time(duration)", true},
+		{"{} | avg_over_time(duration)", true},
+		{"{} | quantile_over_time(duration, .5)", true},
+		{"{} | histogram_over_time(duration)", true},
+		{"{} | compare({status=error})", true},
+		{"{} | min_over_time(duration)", false},
+		{"{} | max_over_time(duration)", false},
+		{"({} | min_over_time(duration)) + ({} | max_over_time(duration))", false},
+		{"({} | min_over_time(duration)) + ({} | rate())", true},
+		{"{}", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.query, func(t *testing.T) {
+			expr, err := Parse(tc.query)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, expr.SupportsExtrapolation())
+		})
+	}
+}

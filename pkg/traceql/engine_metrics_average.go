@@ -44,6 +44,8 @@ func (a *averageOverTimeAggregator) SetExtrapolate(extrapolate bool) {
 	a.extrapolate = extrapolate
 }
 
+func (a *averageOverTimeAggregator) extrapolates() bool { return true }
+
 func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
 	intervalMapper := NewIntervalMapperFromReq(q)
 

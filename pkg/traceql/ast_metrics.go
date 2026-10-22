@@ -124,6 +124,17 @@ func (a *MetricsAggregate) SetExtrapolate(extrapolate bool) {
 	a.extrapolate = extrapolate
 }
 
+// extrapolates reports whether the aggregate scales by sampling probability. min and max report
+// observed values, which extrapolation doesn't change.
+func (a *MetricsAggregate) extrapolates() bool {
+	switch a.op {
+	case metricsAggregateMinOverTime, metricsAggregateMaxOverTime:
+		return false
+	default:
+		return true
+	}
+}
+
 func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {
 	return &MetricsAggregate{
 		op: agg,

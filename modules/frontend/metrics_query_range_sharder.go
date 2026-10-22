@@ -137,6 +137,9 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	backendExemplars, generatorExemplars := s.exemplarsCutoff(*req, cutoff)
 	req.Exemplars = generatorExemplars
 	generatorReq, jobMetadata := s.generatorRequest(tenantID, pipelineRequest, *req, cutoff)
+	// Only mark results as extrapolated when extrapolation changes them. For example, min_over_time
+	// and max_over_time ignore it.
+	jobMetadata.Extrapolated = req.Extrapolate && expr.SupportsExtrapolation()
 	req.Exemplars = backendExemplars
 
 	reqCh := make(chan pipeline.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
