@@ -179,19 +179,17 @@ type regexPredicate struct {
 var _ Predicate = (*regexPredicate)(nil)
 
 // NewRegexInPredicate checks for match against any of the given regexs.
-// Memoized and resets on each row group.
 func NewRegexInPredicate(regs []string) (Predicate, error) {
 	return newRegexPredicate(regs, true)
 }
 
 // NewRegexNotInPredicate checks for values that not match against any of the given regexs.
-// Memoized and resets on each row group.
 func NewRegexNotInPredicate(regs []string) (Predicate, error) {
 	return newRegexPredicate(regs, false)
 }
 
 func newRegexPredicate(regs []string, shouldMatch bool) (Predicate, error) {
-	m, err := regexp.NewRegexp(regs, shouldMatch)
+	m, err := regexp.NewRegexpWithoutMemo(regs, shouldMatch)
 	if err != nil {
 		return nil, err
 	}
@@ -223,16 +221,12 @@ func (p *regexPredicate) SupportsColumnIndexPruning() bool { return false }
 
 type SubstringPredicate struct {
 	substring []byte
-	matches   map[string]bool
 }
 
 var _ Predicate = (*SubstringPredicate)(nil)
 
 func NewSubstringPredicate(substring string) *SubstringPredicate {
-	return &SubstringPredicate{
-		substring: []byte(substring),
-		matches:   map[string]bool{},
-	}
+	return &SubstringPredicate{substring: []byte(substring)}
 }
 
 func (p *SubstringPredicate) String() string {
@@ -244,19 +238,7 @@ func (p *SubstringPredicate) KeepValue(v pq.Value) bool {
 	if v.IsNull() {
 		return false
 	}
-	b := v.ByteArray()
-
-	// Check uses zero alloc optimization of map[string([]byte)]
-	if matched, ok := p.matches[string(b)]; ok {
-		return matched
-	}
-
-	matched := bytes.Contains(b, p.substring)
-
-	// Only alloc the string when updating the map
-	p.matches[string(b)] = matched
-
-	return matched
+	return bytes.Contains(v.ByteArray(), p.substring)
 }
 
 func (p *SubstringPredicate) KeepRange(pq.Value, pq.Value) bool { return true }
