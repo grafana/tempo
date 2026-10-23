@@ -683,9 +683,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune
 		}
 
 		cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-		if !prune {
-			c.dictPageReader.disable() // keepColumnChunk decides on the pruning path
-		} else if !c.keepColumnChunk(cc) {
+		if prune && !c.keepColumnChunk(cc) {
 			cc.Close()
 			continue
 		}
@@ -889,7 +887,7 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 		}
 
 		if c.dictPageReader.active {
-			v, ok := c.nextDictValue(seeking)
+			v, ok := c.nextMatchedValue(seeking)
 			if !ok {
 				c.setPage(nil) // page exhausted
 				continue

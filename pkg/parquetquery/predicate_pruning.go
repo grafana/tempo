@@ -35,7 +35,7 @@ func predicateNullValue() pq.Value { return pq.Value{} }
 //   - the column index shows a page with nulls the filter keeps, or a page whose
 //     bounds pass KeepRange.
 func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
-	c.dictPageReader.disable()
+	c.dictPageReader.reset()
 	if c.filter == nil {
 		return true // no predicate: keep everything
 	}

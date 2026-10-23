@@ -7,10 +7,26 @@ import (
 // Dictionary pushdown: on a dictionary-encoded chunk the filter is evaluated once per
 // dictionary entry, and rows match by their integer index. A row that doesn't match
 // is never turned into a value.
+//
+// This is how it's wired into SyncIterator, for each chunk:
+//
+//	keepColumnChunk
+//	  reset()              forget the previous chunk's matches
+//	  matchDictionary()    if the chunk is dictionary-encoded and has a filter: evaluate
+//	                       the filter on each entry, and skip the chunk if nothing
+//	                       matches; matches is kept only for a chunk read from a file
+//	for each page:
+//	  setPage(pg)          active when matches is set and pg is dictionary-encoded,
+//	                       otherwise next reads the page value by value
+//	  nextMatchedValue()   return the next matching row, until the page is exhausted
+//	  setPage(nil)
+//	on a long seek:
+//	  setPage(slice)       seekWithinPage reslices the page and restarts the reader on it
 
-// dictPageReader serves dictionary-encoded pages from their levels and dictionary
-// indexes, without decoding values. For example, an optional string column (max
-// definition level 1) whose chunk has the dictionary [api, shop], filtered by = "shop":
+// Example of how dictPageReader works: it serves dictionary-encoded pages from their
+// levels and dictionary indexes, without decoding values. Take an optional string
+// column (max definition level 1) whose chunk has the dictionary [api, shop], filtered
+// by = "shop":
 //
 //	matches = [false, true] // one answer per dictionary entry
 //
@@ -23,7 +39,7 @@ import (
 // present value. So the reader walks the slots and takes the next index only when the
 // slot's definition level is maxDef.
 type dictPageReader struct {
-	// For the current chunk, set by matchDictionary.
+	// For the current chunk, set by matchDictionary and cleared by reset.
 	matches   []bool // the filter's answer for each dictionary entry; nil when the chunk isn't pushed down
 	matchNull bool   // the filter's answer for a null
 	maxDef    byte   // the column's max definition level: a slot at this level holds a value
@@ -62,8 +78,9 @@ func (r *dictPageReader) matchDictionary(dict pq.Dictionary, cc pq.ColumnChunk, 
 	return anyMatch
 }
 
-// disable stops pushing down the current chunk.
-func (r *dictPageReader) disable() {
+// reset forgets the previous chunk's results, so the next chunk is pushed down only
+// once matchDictionary has run for it.
+func (r *dictPageReader) reset() {
 	r.matches = nil
 }
 
@@ -101,7 +118,7 @@ func (r *dictPageReader) setPage(pg pq.Page) {
 	r.repLevels = pg.RepetitionLevels()
 }
 
-// nextDictValue is next's loop for a pushed-down page: it advances c.curr over every
+// nextMatchedValue is next's loop for a pushed-down page: it advances c.curr over every
 // slot and returns the next kept value, or ok=false once the page is exhausted. The
 // value is valid until the next call. On the dictPageReader example:
 //
@@ -109,7 +126,7 @@ func (r *dictPageReader) setPage(pg pq.Page) {
 //	slot 1: def 0, a null, matchNull is false: skipped
 //	slot 2: def 1, takes index 0, matches[0] is false: skipped
 //	slot 3: def 1, takes index 1: returns shop (row 3)
-func (c *SyncIterator) nextDictValue(seeking bool) (v *pq.Value, ok bool) {
+func (c *SyncIterator) nextMatchedValue(seeking bool) (v *pq.Value, ok bool) {
 	r := &c.dictPageReader
 	slots := len(r.indexes) // a required column has no levels: every slot is present
 	if r.defLevels != nil {
