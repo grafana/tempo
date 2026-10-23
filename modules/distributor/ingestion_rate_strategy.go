@@ -11,6 +11,7 @@ type ReadLifecycler interface {
 	HealthyInstancesCount() int
 }
 
+// localStrategy and globalStrategy take a limits key: the tenant ID plus any tenant metadata ("tenant:key=value").
 type localStrategy struct {
 	limits overrides.Interface
 }
@@ -21,12 +22,12 @@ func newLocalIngestionRateStrategy(limits overrides.Interface) limiter.RateLimit
 	}
 }
 
-func (s *localStrategy) Limit(userID string) float64 {
-	return s.limits.IngestionRateLimitBytes(userID)
+func (s *localStrategy) Limit(limitsKey string) float64 {
+	return s.limits.IngestionRateLimitBytes(limitsKey)
 }
 
-func (s *localStrategy) Burst(userID string) int {
-	return s.limits.IngestionBurstSizeBytes(userID)
+func (s *localStrategy) Burst(limitsKey string) int {
+	return s.limits.IngestionBurstSizeBytes(limitsKey)
 }
 
 type globalStrategy struct {
@@ -41,18 +42,18 @@ func newGlobalIngestionRateStrategy(limits overrides.Interface, ring ReadLifecyc
 	}
 }
 
-func (s *globalStrategy) Limit(userID string) float64 {
+func (s *globalStrategy) Limit(limitsKey string) float64 {
 	numDistributors := s.ring.HealthyInstancesCount()
 
 	if numDistributors == 0 {
-		return s.limits.IngestionRateLimitBytes(userID)
+		return s.limits.IngestionRateLimitBytes(limitsKey)
 	}
 
-	return s.limits.IngestionRateLimitBytes(userID) / float64(numDistributors)
+	return s.limits.IngestionRateLimitBytes(limitsKey) / float64(numDistributors)
 }
 
-func (s *globalStrategy) Burst(userID string) int {
+func (s *globalStrategy) Burst(limitsKey string) int {
 	// The meaning of burst doesn't change for the global strategy, in order
 	// to keep it easier to understand for users / operators.
-	return s.limits.IngestionBurstSizeBytes(userID)
+	return s.limits.IngestionBurstSizeBytes(limitsKey)
 }

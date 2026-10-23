@@ -77,6 +77,19 @@ func TestValidateMetricsQueryMaxDuration(t *testing.T) {
 	}
 }
 
+func TestValidateMetricsQueryMaxDuration_TenantMetadata(t *testing.T) {
+	// The org ID may carry tenant metadata ("tenant:key=value"). The tenant's override must
+	// still be found.
+	ctx := user.InjectOrgID(context.Background(), "foo:source=bar")
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Hour),
+		End:   uint64(1*time.Hour + 25*time.Hour),
+	}
+	o := &mockOverridesMaxMetricsDuration{perTenant: map[string]time.Duration{"foo": 24 * time.Hour}}
+
+	require.Error(t, validateMetricsQueryMaxDuration(ctx, o, 0, req))
+}
+
 func TestValidateMetricsQueryMaxDuration_NegativeCapFailsClosed(t *testing.T) {
 	// A negative max_metrics_duration is a misconfiguration. The prior sharder
 	// check failed closed (every query rejected) because `positive > -1s` is
