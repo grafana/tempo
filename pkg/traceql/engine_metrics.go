@@ -533,8 +533,7 @@ func (c *CountOverTimeAggregator) Sample() float64 {
 // calculate the rate when given a multiplier.
 type OverTimeAggregator struct {
 	getSpanAttValue func(s Span) float64
-	agg             func(current, n float64) float64
-	val             float64
+	acc             accumulator
 	op              SimpleAggregationOp
 	extrapolate     bool
 }
@@ -543,16 +542,6 @@ var _ VectorAggregator = (*OverTimeAggregator)(nil)
 
 func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggregator {
 	var fn func(s Span) float64
-	var agg func(current, n float64) float64
-
-	switch op {
-	case maxOverTimeAggregation:
-		agg = maxOverTime()
-	case minOverTimeAggregation:
-		agg = minOverTime()
-	case sumOverTimeAggregation:
-		agg = sumOverTime()
-	}
 
 	switch attr {
 	case IntrinsicDurationAttribute:
@@ -571,8 +560,7 @@ func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggr
 
 	return &OverTimeAggregator{
 		getSpanAttValue: fn,
-		agg:             agg,
-		val:             math.Float64frombits(normalNaN),
+		acc:             newAccumulators(op, 1)[0],
 		op:              op,
 	}
 }
@@ -587,15 +575,15 @@ func (c *OverTimeAggregator) SetExtrapolate(extrapolate bool) {
 }
 
 func (c *OverTimeAggregator) Observe(s Span) {
-	v := c.getSpanAttValue(s)
+	weight := 1.0
 	if c.extrapolate {
-		v *= spanExtrapolation(s)
+		weight = spanExtrapolation(s)
 	}
-	c.val = c.agg(c.val, v)
+	c.acc.add(c.getSpanAttValue(s), weight)
 }
 
 func (c *OverTimeAggregator) Sample() float64 {
-	return c.val
+	return c.acc.value()
 }
 
 // StepAggregator sorts spans into time slots using a step interval like 30s or 1m
@@ -1875,43 +1863,28 @@ type SimpleAggregator struct {
 	ss              SeriesSet
 	exemplarBuckets bucketSet
 	intervalMapper  IntervalMapper
-	aggregationFunc func(existingValue float64, newValue float64) float64
-	initWithNaN     bool
+	op              SimpleAggregationOp
+	// accumulators holds the state behind each value of ss for the over_time
+	// ops: accumulators[key][i] backs ss[key].Values[i]. Plain sums need no
+	// extra state, so it is nil for them and samples are added to ss directly.
+	accumulators map[SeriesMapKey][]accumulator
 }
 
 func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
-	var initWithNaN bool
-	var f func(existingValue float64, newValue float64) float64
-	switch op {
-	case minOverTimeAggregation:
-		// Simple min aggregator. It calculates the minimum between existing values and a new sample
-		f = minOverTime()
-		initWithNaN = true
-	case maxOverTimeAggregation:
-		// Simple max aggregator. It calculates the maximum between existing values and a new sample
-		f = maxOverTime()
-		initWithNaN = true
-	case sumOverTimeAggregation:
-		f = sumOverTime()
-		initWithNaN = true
-	default:
-		// Simple addition aggregator. It adds existing values with the new sample.
-		f = func(existingValue float64, newValue float64) float64 { return existingValue + newValue }
-		initWithNaN = false
-
+	var accumulators map[SeriesMapKey][]accumulator
+	if op != sumAggregation {
+		accumulators = make(map[SeriesMapKey][]accumulator)
 	}
 	return &SimpleAggregator{
 		ss:              make(SeriesSet),
 		exemplarBuckets: newExemplarBucketSet(req.Exemplars, req.Start, req.End, req.Step, IsInstant(req)),
 		intervalMapper:  NewIntervalMapperFromReq(req),
-		aggregationFunc: f,
-		initWithNaN:     initWithNaN,
+		op:              op,
+		accumulators:    accumulators,
 	}
 }
 
 func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
-	nan := math.Float64frombits(normalNaN)
-
 	for _, ts := range in {
 		// Convert proto labels to traceql labels
 		labels, _ := convertProtoLabelsToTraceQL(ts.Labels, false)
@@ -1925,19 +1898,28 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 				Values:    make([]float64, b.intervalMapper.IntervalCount()),
 				Exemplars: make([]Exemplar, 0, len(ts.Exemplars)),
 			}
-			if b.initWithNaN {
+			if b.accumulators != nil {
 				for i := range existing.Values {
 					existing.Values[i] = nan
 				}
+				b.accumulators[key] = newAccumulators(b.op, len(existing.Values))
 			}
 
 			b.ss[key] = existing
 		}
 
+		accs := b.accumulators[key]
 		for _, sample := range ts.Samples {
 			j := b.intervalMapper.IntervalMs(sample.TimestampMs)
-			if j >= 0 && j < len(existing.Values) {
-				existing.Values[j] = b.aggregationFunc(existing.Values[j], sample.Value)
+			if j < 0 || j >= len(existing.Values) {
+				continue
+			}
+			if accs == nil {
+				existing.Values[j] += sample.Value
+			} else {
+				// Keep Values current so Results can return ss as-is.
+				accs[j].add(sample.Value, 1)
+				existing.Values[j] = accs[j].value()
 			}
 		}
 
