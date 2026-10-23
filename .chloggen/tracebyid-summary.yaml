@@ -1,0 +1,6 @@
+change_type: feature
+component: query-frontend
+note: "Add experimental `GET /api/v2/traces/<traceID>/summary` endpoint that returns a condensed summary of a trace: root span, duration, critical path, per-service breakdown, and top slowest/error spans."
+issues: []
+subtext:
+user: ie-pham
