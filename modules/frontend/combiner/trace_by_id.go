@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -117,7 +116,17 @@ func (c *TraceByIDCombiner) Result() *tempopb.Trace {
 	return t
 }
 
-func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (*http.Response, error) {
+func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (resp *http.Response, err error) {
+	ctx, span := tracer.Start(ctx, "combiner.HTTPFinal")
+	defer func() {
+		if err != nil {
+			span.SetStatus(codes.Error, "response finalization failed")
+		} else if resp != nil && (resp.StatusCode == http.StatusOK || resp.Body == http.NoBody) {
+			span.SetAttributes(attribute.Int64("response_bytes", resp.ContentLength))
+		}
+		span.End()
+	}()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -156,14 +165,12 @@ func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (*http.Response, erro
 	if c.contentType == api.MarshallingFormatProtobuf {
 		encoding = "protobuf"
 	}
-	span := oteltrace.SpanFromContext(ctx)
 	span.SetAttributes(
 		attribute.String("format", encoding),
 		attribute.Int("span_count", countTraceSpans(traceResult)),
 	)
 	span.AddEvent("trace.marshal.start")
 	var buff []byte
-	var err error
 
 	if c.contentType == api.MarshallingFormatProtobuf {
 		buff, err = proto.Marshal(traceResult)

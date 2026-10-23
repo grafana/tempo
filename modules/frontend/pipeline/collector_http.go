@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"sync"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
@@ -52,14 +50,7 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	span.AddEvent("consumeAndCombineResponses done")
 
-	finalCtx, finalSpan := tracer.Start(ctx, "combiner.HTTPFinal")
-	resp, err := r.combiner.HTTPFinal(finalCtx)
-	if err != nil {
-		finalSpan.SetStatus(codes.Error, "response finalization failed")
-	} else if resp != nil && (resp.StatusCode == http.StatusOK || resp.Body == http.NoBody) {
-		finalSpan.SetAttributes(attribute.Int64("response_bytes", resp.ContentLength))
-	}
-	finalSpan.End()
+	resp, err := r.combiner.HTTPFinal(ctx)
 	if err != nil {
 		return nil, err
 	}

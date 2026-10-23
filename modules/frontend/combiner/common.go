@@ -20,11 +20,14 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/tempo/v3/pkg/api"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 )
+
+var tracer = otel.Tracer("modules/frontend/combiner")
 
 type TResponse interface {
 	proto.Message
@@ -160,7 +163,17 @@ func (c *genericCombiner[T]) AddTypedResponse(r T) error {
 // usable in grpc streaming/http response.
 // NOTE: returning error is reserved for unexpected errors, HTTP errors will be returned
 // in the response body. callers should check the http status code.
-func (c *genericCombiner[T]) HTTPFinal(ctx context.Context) (*http.Response, error) {
+func (c *genericCombiner[T]) HTTPFinal(ctx context.Context) (resp *http.Response, err error) {
+	ctx, span := tracer.Start(ctx, "combiner.HTTPFinal")
+	defer func() {
+		if err != nil {
+			span.SetStatus(otelcodes.Error, "response finalization failed")
+		} else if resp != nil && (resp.StatusCode == http.StatusOK || resp.Body == http.NoBody) {
+			span.SetAttributes(attribute.Int64("response_bytes", resp.ContentLength))
+		}
+		span.End()
+	}()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -197,7 +210,15 @@ func (c *genericCombiner[T]) HTTPFinal(ctx context.Context) (*http.Response, err
 	}, nil
 }
 
-func (c *genericCombiner[T]) GRPCFinal(ctx context.Context) (T, error) {
+func (c *genericCombiner[T]) GRPCFinal(ctx context.Context) (resp T, err error) {
+	ctx, span := tracer.Start(ctx, "combiner.GRPCFinal")
+	defer func() {
+		if err != nil {
+			span.SetStatus(otelcodes.Error, "response finalization failed")
+		}
+		span.End()
+	}()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
