@@ -35,7 +35,7 @@ func (cfg *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.Fla
 	f.Float64Var(&cfg.BloomFP, util.PrefixConfig(prefix, "trace.block.v2-bloom-filter-false-positive"), DefaultBloomFP, "Bloom Filter False Positive.")
 	f.IntVar(&cfg.BloomShardSizeBytes, util.PrefixConfig(prefix, "trace.block.v2-bloom-filter-shard-size-bytes"), DefaultBloomShardSizeBytes, "Bloom Filter Shard Size in bytes.")
 
-	cfg.RowGroupSizeBytes = 100_000_000 // 100 MB
+	cfg.RowGroupSizeBytes = 250_000_000 // 250 MB
 	cfg.DedicatedColumns = backend.DefaultDedicatedColumns()
 }
 
