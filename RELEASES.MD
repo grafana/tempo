@@ -1,5 +1,11 @@
 # Release Candidates
 
+For AI-assisted changelog cleanup, use the
+[release-consolidation skill](.claude/skills/release-consolidation/SKILL.md)
+before generating the changelog or while reviewing an existing release-prep PR.
+It preserves references, contributor credits, security fixes, and upgrade guidance,
+and requires human approval before applying edits.
+
 - Create a branch named `changelog-<version>-<rc.#>`. Generate the changelog section from the
   `.chloggen/` entries by running `make chlog-update VERSION=v<version>-<rc.#>` (this collates the
   entries into `CHANGELOG.md` under the version heading and deletes the consumed files). Review the
