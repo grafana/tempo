@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
@@ -76,7 +77,7 @@ func NewSearch(limit int, keepMostRecent bool, marshalingFormat api.MarshallingF
 
 			return nil
 		},
-		finalize: func(final *tempopb.SearchResponse) (*tempopb.SearchResponse, error) {
+		finalize: func(_ context.Context, final *tempopb.SearchResponse) (*tempopb.SearchResponse, error) {
 			// metrics are already combined on the passed in final
 			final.Traces = metadataCombiner.Metadata()
 			final.Metrics = metricsCombiner.Metrics

@@ -10,7 +10,7 @@ services:
       - "4318:4318"  # otlpc http
   # push tenant-1 traces directly to tempo
   k6-tracing-tenant-1:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.11
     environment:
       - ENDPOINT=tempo:4317
       - TEMPO_X_SCOPE_ORGID=tenant-1
@@ -20,7 +20,7 @@ services:
 
   # push tenant-2 into an otel collector that will attach the tenant header
   k6-tracing-2:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.11
     environment:
       - ENDPOINT=otel-collector:4317
     restart: always

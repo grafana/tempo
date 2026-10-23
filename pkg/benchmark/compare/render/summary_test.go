@@ -74,3 +74,40 @@ func TestSummaryCell(t *testing.T) {
 		})
 	}
 }
+
+func TestNewSummaryRollsUpFamilies(t *testing.T) {
+	c := comparetest.Family(t)
+
+	v := NewSummary(c, "harness.wallNs", compare.P50, 0)
+	require.True(t, v.HasFamilies())
+	require.Len(t, v.Rows, 3)
+	require.Equal(t, "search/nopredicate", v.Rows[1].ID, "a family of one is a case")
+	// The means leave out the case next cannot be compared on, and quartering
+	// one case cancels out quadrupling another.
+	require.Equal(t, SummaryRow{
+		Case:     -1,
+		ID:       "search/ranked_generic/*/*",
+		Family:   "search/ranked_generic",
+		Cases:    9,
+		Problems: []string{"leaves 1 of 9 cases out of its means"},
+		Cells: []SummaryCell{
+			{Value: "10ns"},
+			{
+				Value:  "10.7ns",
+				Change: Text{Text: "+7.4%", Style: Worse},
+				Range:  Text{Text: "[-75.0% … +300.0%]", Style: Dim},
+			},
+		},
+	}, v.Rows[2])
+	require.Equal(t, []string{"search/ranked_generic/*/* leaves 1 of 9 cases out of its means"}, v.Notes())
+
+	family := NewCaseSummary(c, "harness.wallNs", compare.P50, 0, "search/ranked_generic")
+	require.False(t, family.HasFamilies())
+	require.Len(t, family.Rows, 10, "a heading and the family's nine cases")
+	require.Equal(t, "search/ranked_generic/high/0", family.Rows[1].ID)
+	require.Len(t, NewCaseSummary(c, "harness.wallNs", compare.P50, 0, "").Rows, 11)
+
+	// A family of one is its case.
+	require.NoError(t, c.FilterCases([]string{"search/ranked_generic/high/0"}))
+	require.False(t, NewSummary(c, "harness.wallNs", compare.P50, 0).HasFamilies())
+}

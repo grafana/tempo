@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -67,7 +68,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, 200))
 	require.NoError(t, err)
 
-	resp, err := c.HTTPFinal()
+	resp, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 
 	actual := &tempopb.Trace{}
@@ -81,7 +82,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, 200))
 	require.NoError(t, err)
 
-	resp, err = c.HTTPFinal()
+	resp, err = c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 
 	actual = &tempopb.Trace{}
@@ -107,7 +108,7 @@ func TestTraceByIDRedactorHidesTrace(t *testing.T) {
 	}, 200))
 	require.NoError(t, err)
 
-	resp, err := c.HTTPFinal()
+	resp, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)

@@ -1,0 +1,14 @@
+change_type: enhancement
+
+component: storage
+
+note: Update defaults to what we use internally. Raise `parquet_row_group_size_bytes` from 100MB to 250MB and the backend `read_buffer_size_bytes` from 1MiB to 2MiB.
+
+issues: []
+
+subtext: |
+  Larger row groups lead to more efficient reads of small columns, better dictionary encoding, and a smaller parquet footer.
+  A 2MiB read buffer lowers the number of requests to object storage, and has overall reduced latency.
+  Existing blocks are unaffected. New and compacted blocks use the new row group size.
+
+user: mdisibio

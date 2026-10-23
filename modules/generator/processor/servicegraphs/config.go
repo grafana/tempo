@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/v3/modules/generator/registry"
+	"github.com/grafana/tempo/v3/modules/generator/validation"
 	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
@@ -64,6 +65,11 @@ type Config struct {
 	// Bare "service-graphs" enables Request and Latency for backwards compatibility;
 	// ConnectionInfo is opt-in via the "service-graphs-connection-info" sub-name.
 	Subprocessors map[Subprocessor]bool `yaml:"-"`
+}
+
+// Validate checks the config of an enabled service-graphs processor.
+func (cfg *Config) Validate() error {
+	return validation.ValidateServiceGraphsMaxItems(cfg.MaxItems)
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {

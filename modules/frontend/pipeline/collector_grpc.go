@@ -76,7 +76,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	span.AddEvent("consumeAndCombineResponses done")
 
 	// send the final diff if there is anything left
-	resp, err := c.combiner.GRPCFinal()
+	resp, err := c.combiner.GRPCFinal(ctx)
 	if err != nil {
 		return grpcError(err)
 	}

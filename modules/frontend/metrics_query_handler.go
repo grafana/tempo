@@ -178,7 +178,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		// --------------------------------------------------
 		// Get the final data and translate to instant.
 		// --------------------------------------------------
-		qrResp, err := combiner.GRPCFinal()
+		qrResp, err := combiner.GRPCFinal(req.Context())
 		if err != nil {
 			return nil, err
 		}

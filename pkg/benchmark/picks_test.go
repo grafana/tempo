@@ -108,3 +108,29 @@ func TestAttributeIDs(t *testing.T) {
 	}
 	require.Equal(t, []string{"span.x.string", "span.x.int", "resource.x"}, attributeIDs(ps))
 }
+
+// benchmark compare rolls up only generated cases, so the fixed set must never
+// look generated.
+func TestFamily(t *testing.T) {
+	for _, c := range fixedCases() {
+		require.Empty(t, Family(c.id), c.id)
+	}
+	prof := ranked(
+		profileAttr(attributes.ScopeResource, "service.name", attributes.TypeString, true, "a", "b", "c"),
+		profileAttr(attributes.ScopeSpan, "key", attributes.TypeString, false, "x", "y"),
+	)
+	families := map[string]bool{}
+	for _, c := range attributeCases(prof) {
+		families[Family(c.id)] = true
+	}
+	require.Equal(t, map[string]bool{
+		"search/ranked_dedicated":             true,
+		"search/ranked_generic":               true,
+		"metrics/ranked_dedicated/rate":       true,
+		"metrics/ranked_generic/rate":         true,
+		"metrics/ranked_dedicated/quantile":   true,
+		"metrics/ranked_generic/quantile":     true,
+		"metadata/ranked_dedicated/tagvalues": true,
+		"metadata/ranked_generic/tagvalues":   true,
+	}, families, "bands collapse into their query's family")
+}

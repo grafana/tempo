@@ -1,5 +1,12 @@
 package compare
 
+import (
+	"math"
+	"strings"
+
+	"github.com/grafana/tempo/v3/pkg/benchmark"
+)
+
 // Summary is one stat of one metric for every case: each run's value, and its
 // change from the baseline's.
 type Summary struct {
@@ -65,4 +72,110 @@ func (c *Comparison) summaryCell(cs Case, s Series, stat Stat, run, baseline int
 		cell.Delta, cell.HasDelta = Delta(stat.Of(base), cell.Value)
 	}
 	return cell
+}
+
+// FamilyOf is the family a case rolls up into, as benchmark.Family has it.
+func FamilyOf(id string) string {
+	return benchmark.Family(id)
+}
+
+// FamilyGlob is a glob over every case of a member's family, like
+// search/ranked_generic/*/*, in the syntax --case takes.
+func FamilyGlob(id string) string {
+	f := FamilyOf(id)
+	return f + strings.Repeat("/*", strings.Count(id[len(f):], "/"))
+}
+
+// FamilySummary sums up a family's cases at one stat the way benchstat sums up
+// a comparison: each run's geometric mean, and its change from the baseline's.
+type FamilySummary struct {
+	Family string
+	Glob   string
+	// Cases indexes Comparison.Cases, in case order.
+	Cases []int
+	// Counted is how many cases the means are over: those every run has a
+	// value above zero for and can be compared with the baseline on. A
+	// geometric mean takes no zero, and a change between means is only fair
+	// over the same cases.
+	Counted int
+	// Cells hold a cell per run, in run order, the baseline's among them.
+	Cells []FamilyCell
+}
+
+// FamilyCell is one run's mean over a family, set when the family counted a
+// case.
+type FamilyCell struct {
+	Value float64
+	// Delta is the change between the means in percent, set when HasDelta is:
+	// not for the baseline itself.
+	Delta    float64
+	HasDelta bool
+	// Least and Most are the smallest and largest change of a counted case.
+	Least, Most float64
+}
+
+// Families sums up each family of the summary's cases, in the order of its
+// first case.
+func (c *Comparison) Families(sm Summary) []FamilySummary {
+	var out []FamilySummary
+	index := map[string]int{}
+	var counted [][][]SummaryCell
+	for _, r := range sm.Rows {
+		f := FamilyOf(c.Cases[r.Case].ID)
+		if f == "" {
+			continue
+		}
+		i, ok := index[f]
+		if !ok {
+			i = len(out)
+			index[f] = i
+			out = append(out, FamilySummary{Family: f, Glob: FamilyGlob(c.Cases[r.Case].ID)})
+			counted = append(counted, nil)
+		}
+		out[i].Cases = append(out[i].Cases, r.Case)
+		if countable(r.Cells) {
+			counted[i] = append(counted[i], r.Cells)
+		}
+	}
+
+	for i := range out {
+		out[i].Counted = len(counted[i])
+		out[i].Cells = familyCells(counted[i], len(c.Runs), sm.Baseline)
+	}
+	return out
+}
+
+func countable(cells []SummaryCell) bool {
+	for _, cell := range cells {
+		if cell.Incomparable != "" || !cell.HasValue || cell.Value <= 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func familyCells(rows [][]SummaryCell, runs, baseline int) []FamilyCell {
+	cells := make([]FamilyCell, runs)
+	if len(rows) == 0 {
+		return cells
+	}
+	for run := range cells {
+		var logSum float64
+		cell := FamilyCell{Least: math.Inf(1), Most: math.Inf(-1)}
+		for _, r := range rows {
+			logSum += math.Log(r[run].Value)
+			cell.Least = min(cell.Least, r[run].Delta)
+			cell.Most = max(cell.Most, r[run].Delta)
+		}
+		cell.Value = math.Exp(logSum / float64(len(rows)))
+		cells[run] = cell
+	}
+	for run := range cells {
+		if run == baseline {
+			cells[run].Least, cells[run].Most = 0, 0
+			continue
+		}
+		cells[run].Delta, cells[run].HasDelta = Delta(cells[baseline].Value, cells[run].Value)
+	}
+	return cells
 }

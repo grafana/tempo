@@ -3,6 +3,7 @@ package combiner
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -163,7 +164,7 @@ func benchmarkQueryRangeHTTPFinalWithStringLabels(b *testing.B, seriesCount int,
 		if err != nil {
 			b.Fatal(err)
 		}
-		resp, err := c.HTTPFinal()
+		resp, err := c.HTTPFinal(context.Background())
 		if err != nil {
 			b.Fatal(err)
 		}

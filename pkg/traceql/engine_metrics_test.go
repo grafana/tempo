@@ -2968,6 +2968,68 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 	}
 }
 
+func TestSumOverTimeWithMissingOrNaNAttribute(t *testing.T) {
+	const start = uint64(30 * time.Minute)
+
+	testCases := []struct {
+		name string
+		span *mockSpan
+	}{
+		{name: "missing_attribute", span: newMockSpan(nil)},
+		{name: "NaN_attribute", span: newMockSpan(nil).WithSpanFloat("foo", math.NaN())},
+	}
+	steps := []struct {
+		step     time.Duration
+		expected []tempopb.Sample
+	}{
+		{
+			step: time.Minute,
+			expected: []tempopb.Sample{
+				{TimestampMs: (31 * time.Minute).Milliseconds(), Value: 3},
+			},
+		},
+		{
+			step: 30 * time.Minute,
+			expected: []tempopb.Sample{
+				{TimestampMs: time.Hour.Milliseconds(), Value: 3},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// All four spans share a bucket even with a 1m step. The missing/NaN
+			// attribute must not erase the valid contributions before or after it.
+			in := []Span{
+				newMockSpan(nil).WithStartTime(start+uint64(10*time.Second)).WithSpanInt("foo", 1),
+				newMockSpan(nil).WithStartTime(start+uint64(20*time.Second)).WithSpanInt("foo", 1),
+				tc.span.WithStartTime(start + uint64(30*time.Second)),
+				newMockSpan(nil).WithStartTime(start+uint64(40*time.Second)).WithSpanInt("foo", 1),
+			}
+
+			for _, step := range steps {
+				t.Run(step.step.String(), func(t *testing.T) {
+					// Align the range to both steps and keep spans off bucket boundaries.
+					req := &tempopb.QueryRangeRequest{
+						Start: start,
+						End:   uint64(time.Hour),
+						Step:  uint64(step.step),
+						Query: "{} | sum_over_time(span.foo)",
+					}
+
+					result, seriesCount, err := runTraceQLMetric(req, in)
+					require.NoError(t, err)
+					require.Equal(t, 1, seriesCount)
+
+					actual := result.ToProto(req)
+					require.Len(t, actual, 1)
+					require.Equal(t, step.expected, actual[0].Samples)
+				})
+			}
+		})
+	}
+}
+
 func TestSumOverTimeWithNoMatch(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: 1,

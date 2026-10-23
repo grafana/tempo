@@ -16,7 +16,7 @@ type benchmarkRunCmd struct {
 	Block   string   `arg:"" help:"path to the block directory, laid out as <bucket>/<tenant-id>/<block-id>"`
 	Profile string   `short:"p" help:"profile of the block, from 'benchmark profile'" required:""`
 	Out     string   `short:"o" help:"file to write the result to, instead of stdout" default:""`
-	Case    []string `short:"k" help:"cases to run, as glob patterns over IDs like metrics/ranked/*/high/*. Defaults to every case"`
+	Case    []string `short:"k" help:"cases to run, as glob patterns over IDs like metrics/ranked_*/*/high/*. Defaults to every case"`
 
 	Repeat int `help:"passes over the query set" default:"1"`
 

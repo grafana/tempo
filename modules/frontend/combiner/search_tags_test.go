@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"context"
 	"sort"
 	"testing"
 
@@ -222,7 +223,7 @@ func testTagsCombiner(t *testing.T, marshalingFormat api.MarshallingFormat) {
 			err = combiner.AddResponse(toHTTPResponseWithFormat(t, tc.result2, 200, nil, marshalingFormat))
 			assert.NoError(t, err)
 
-			res, err := combiner.HTTPFinal()
+			res, err := combiner.HTTPFinal(context.Background())
 			require.NoError(t, err)
 
 			assert.Equal(t, 200, res.StatusCode)
@@ -353,7 +354,7 @@ func testGRPCCombiner[T proto.Message](t *testing.T, combiner GRPCCombiner[T], r
 	sort(actualDiff2)
 	require.Equal(t, diff2, actualDiff2)
 
-	actualFinal, err := combiner.GRPCFinal()
+	actualFinal, err := combiner.GRPCFinal(context.Background())
 	require.NoError(t, err)
 
 	sort(actualFinal)

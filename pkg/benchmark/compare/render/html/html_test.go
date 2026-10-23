@@ -167,3 +167,35 @@ func TestClass(t *testing.T) {
 	require.Equal(t, "bold", class(render.BaselineName))
 	require.Equal(t, "bold", class(render.Title))
 }
+
+func TestFamilyPage(t *testing.T) {
+	h := newTestHandler(t, comparetest.Family(t))
+
+	// The summary rolls the family up into a row linking to its page.
+	_, body := get(t, h, "/")
+	require.Contains(t, body, `<a href="/?baseline=0&amp;family=search%2Franked_generic&amp;metric=harness.wallNs&amp;p=p50">search/ranked_generic/*/*</a> <span class="dim">9 cases</span>`)
+	require.Contains(t, body, `<td class="worse">&#43;7.4% <span class="dim">[-75.0% … &#43;300.0%]</span></td>`)
+	require.NotContains(t, body, "search/ranked_generic/high/0")
+
+	// The family's page is the summary of its cases, and its links keep to it.
+	code, body := get(t, h, "/?family=search/ranked_generic")
+	require.Equal(t, http.StatusOK, code)
+	require.Contains(t, body, "<h2>harness.wallNs · p50 per execution · change from base · search/ranked_generic/*/*</h2>")
+	require.Contains(t, body, `<a href="/?baseline=0&amp;metric=harness.wallNs&amp;p=p50">← summary</a>`)
+	require.Contains(t, body, `<a href="/case?baseline=0&amp;family=search%2Franked_generic&amp;id=search%2Franked_generic%2Fhigh%2F0&amp;metric=harness.wallNs&amp;p=p50">search/ranked_generic/high/0</a>`)
+	require.NotContains(t, body, "search/nopredicate")
+	require.Contains(t, body, `<a href="/?baseline=0&amp;family=search%2Franked_generic&amp;metric=backend.reads&amp;p=p50" class="">backend.reads</a>`)
+	require.Contains(t, body, `href="/?baseline=1&amp;family=search%2Franked_generic&amp;metric=harness.wallNs&amp;p=p50"`)
+
+	// From the family, a case steps only through the family's cases.
+	_, body = get(t, h, "/case?id=search/ranked_generic/high/0&family=search/ranked_generic")
+	require.NotContains(t, body, "previous case", "search/nopredicate comes before, but not in the family")
+	require.Contains(t, body, `<a href="/case?baseline=0&amp;family=search%2Franked_generic&amp;id=search%2Franked_generic%2Fmedium%2F1&amp;metric=harness.wallNs&amp;p=p50">next case ›</a>`)
+	require.Contains(t, body, `<a href="/?baseline=0&amp;family=search%2Franked_generic&amp;metric=harness.wallNs&amp;p=p50">← summary</a>`)
+
+	code, body = get(t, h, "/?family=nope")
+	require.Equal(t, http.StatusBadRequest, code)
+	require.Contains(t, body, `no family "nope"`)
+	code, _ = get(t, h, "/case?id=search/nopredicate&family=search/ranked_generic")
+	require.Equal(t, http.StatusNotFound, code)
+}

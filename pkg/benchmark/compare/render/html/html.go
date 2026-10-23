@@ -1,7 +1,8 @@
 // Package html serves a comparison as web pages, rendered on each request as
 // pprof's web view is: a summary of every case for a metric, and a page per
-// case with the box plots and tables of every metric. Links switch the metric,
-// the percentile, and the baseline.
+// case with the box plots and tables of every metric. A family of cases the
+// summary rolls up has a page of its own, the summary of only its cases. Links
+// switch the metric, the percentile, and the baseline.
 package html
 
 import (
@@ -28,9 +29,12 @@ func Handler(c *compare.Comparison, metrics []string, stat compare.Stat) (http.H
 	if err != nil {
 		return nil, fmt.Errorf("parsing page templates: %w", err)
 	}
-	s := &server{c: c, metrics: metrics, stat: stat, tmpl: tmpl, cases: map[string]int{}}
+	s := &server{c: c, metrics: metrics, stat: stat, tmpl: tmpl, cases: map[string]int{}, families: map[string][]int{}}
 	for i, cs := range c.Cases {
 		s.cases[cs.ID] = i
+		if f := compare.FamilyOf(cs.ID); f != "" {
+			s.families[f] = append(s.families[f], i)
+		}
 	}
 
 	mux := http.NewServeMux()
@@ -45,13 +49,17 @@ type server struct {
 	stat    compare.Stat
 	tmpl    *template.Template
 	cases   map[string]int
+	// families indexes Comparison.Cases by family, in case order.
+	families map[string][]int
 }
 
-// view is what a page shows, as its query says.
+// view is what a page shows, as its query says. A family narrows both the
+// summary and a case page's previous and next links to its cases.
 type view struct {
 	metric   int
 	stat     compare.Stat
 	baseline int
+	family   string
 }
 
 func (s *server) parseView(q url.Values) (view, error) {
@@ -75,15 +83,25 @@ func (s *server) parseView(q url.Values) (view, error) {
 		}
 		v.baseline = i
 	}
+	if f := q.Get("family"); f != "" {
+		if _, ok := s.families[f]; !ok {
+			return v, fmt.Errorf("no family %q", f)
+		}
+		v.family = f
+	}
 	return v, nil
 }
 
 func (s *server) values(v view) url.Values {
-	return url.Values{
+	q := url.Values{
 		"metric":   {s.metrics[v.metric]},
 		"p":        {v.stat.String()},
 		"baseline": {strconv.Itoa(v.baseline)},
 	}
+	if v.family != "" {
+		q.Set("family", v.family)
+	}
+	return q
 }
 
 // summaryURL and caseURL link to a page relative to the server's root, as the
@@ -121,7 +139,9 @@ func (s *server) page(v view, title string, link func(view) string) page {
 	runs := render.NewRuns(s.c, v.baseline)
 	p := page{Title: title, CSS: css(), Heading: runs.Heading, Numbered: runs.Numbered}
 	for i, r := range runs.Runs {
-		rv := runView{Label: r.Label, Name: text(r.Name), URL: link(view{metric: v.metric, stat: v.stat, baseline: i})}
+		as := v
+		as.baseline = i
+		rv := runView{Label: r.Label, Name: text(r.Name), URL: link(as)}
 		for _, d := range r.Details {
 			rv.Details = append(rv.Details, text(d))
 		}
@@ -131,12 +151,15 @@ func (s *server) page(v view, title string, link func(view) string) page {
 }
 
 type summaryView struct {
-	Title   string
-	Metrics []tabView
-	Stats   []tabView
-	Columns []columnView
-	Rows    []summaryRowView
-	Notes   []string
+	Title string
+	// Family and SummaryURL are set only on a family's page.
+	Family     string
+	SummaryURL string
+	Metrics    []tabView
+	Stats      []tabView
+	Columns    []columnView
+	Rows       []summaryRowView
+	Notes      []string
 }
 
 type tabView struct {
@@ -152,13 +175,14 @@ type columnView struct {
 type summaryRowView struct {
 	Group    string
 	ID, URL  string
+	Cases    int
 	Problems []string
 	Cells    []cellView
 }
 
 type cellView struct {
 	Value                  string
-	Change                 textView
+	Change, Range          textView
 	Baseline, Incomparable bool
 }
 
@@ -169,14 +193,29 @@ func (s *server) summary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	metric := s.metrics[v.metric]
-	sm := render.NewSummary(s.c, metric, v.stat, v.baseline)
+	title := metric
+	sv := &summaryView{}
+	var sm render.SummaryView
+	if v.family == "" {
+		sm = render.NewSummary(s.c, metric, v.stat, v.baseline)
+	} else {
+		sm = render.NewCaseSummary(s.c, metric, v.stat, v.baseline, v.family)
+		all := v
+		all.family = ""
+		sv.Family, sv.SummaryURL = compare.FamilyGlob(s.c.Cases[s.families[v.family][0]].ID), s.summaryURL(all)
+		title += " · " + sv.Family
+	}
+	sv.Title, sv.Notes = sm.Title, sm.Notes()
 
-	sv := &summaryView{Title: sm.Title, Notes: sm.Notes()}
 	for i, m := range s.metrics {
-		sv.Metrics = append(sv.Metrics, tabView{Label: m, URL: s.summaryURL(view{metric: i, stat: v.stat, baseline: v.baseline}), Active: i == v.metric})
+		to := v
+		to.metric = i
+		sv.Metrics = append(sv.Metrics, tabView{Label: m, URL: s.summaryURL(to), Active: i == v.metric})
 	}
 	for _, st := range compare.Stats {
-		sv.Stats = append(sv.Stats, tabView{Label: st.String(), URL: s.summaryURL(view{metric: v.metric, stat: st, baseline: v.baseline}), Active: st == v.stat})
+		to := v
+		to.stat = st
+		sv.Stats = append(sv.Stats, tabView{Label: st.String(), URL: s.summaryURL(to), Active: st == v.stat})
 	}
 	for run, col := range sm.Columns {
 		sv.Columns = append(sv.Columns, columnView{textView: text(col), Baseline: run == v.baseline})
@@ -186,17 +225,22 @@ func (s *server) summary(w http.ResponseWriter, r *http.Request) {
 			sv.Rows = append(sv.Rows, summaryRowView{Group: row.Group})
 			continue
 		}
-		rv := summaryRowView{ID: row.ID, URL: s.caseURL(v, row.ID), Problems: row.Problems}
+		rv := summaryRowView{ID: row.ID, URL: s.caseURL(v, row.ID), Cases: row.Cases, Problems: row.Problems}
+		if row.Family != "" {
+			in := v
+			in.family = row.Family
+			rv.URL = s.summaryURL(in)
+		}
 		for run, cell := range row.Cells {
 			rv.Cells = append(rv.Cells, cellView{
-				Value: cell.Value, Change: text(cell.Change),
+				Value: cell.Value, Change: text(cell.Change), Range: text(cell.Range),
 				Baseline: run == v.baseline, Incomparable: cell.Incomparable,
 			})
 		}
 		sv.Rows = append(sv.Rows, rv)
 	}
 
-	p := s.page(v, metric, s.summaryURL)
+	p := s.page(v, title, s.summaryURL)
 	p.Summary = sv
 	s.render(w, "summary", p)
 }
@@ -230,12 +274,26 @@ func (s *server) casePage(w http.ResponseWriter, r *http.Request) {
 	}
 	cs := s.c.Cases[i]
 
-	cv := &caseView{ID: cs.ID, Query: cs.Query, Problems: render.Problems(s.c, cs, v.baseline), SummaryURL: s.summaryURL(v)}
-	if i > 0 {
-		cv.PrevURL = s.caseURL(v, s.c.Cases[i-1].ID)
+	// From a family's page, the steps between cases stay in the family.
+	steps := s.families[v.family]
+	if v.family == "" {
+		steps = make([]int, len(s.c.Cases))
+		for j := range steps {
+			steps[j] = j
+		}
 	}
-	if i < len(s.c.Cases)-1 {
-		cv.NextURL = s.caseURL(v, s.c.Cases[i+1].ID)
+	at := slices.Index(steps, i)
+	if at < 0 {
+		http.Error(w, fmt.Sprintf("case %q is not in family %q", cs.ID, v.family), http.StatusNotFound)
+		return
+	}
+
+	cv := &caseView{ID: cs.ID, Query: cs.Query, Problems: render.Problems(s.c, cs, v.baseline), SummaryURL: s.summaryURL(v)}
+	if at > 0 {
+		cv.PrevURL = s.caseURL(v, s.c.Cases[steps[at-1]].ID)
+	}
+	if at < len(steps)-1 {
+		cv.NextURL = s.caseURL(v, s.c.Cases[steps[at+1]].ID)
 	}
 	names := s.c.Names()
 	for _, metric := range s.metrics {
