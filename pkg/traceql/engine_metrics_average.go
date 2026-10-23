@@ -180,55 +180,21 @@ type averageOverTimeSeriesAggregator struct {
 	exemplarBuckets       bucketSet
 }
 
-type averageValue struct {
-	mean         float64
-	compensation float64
-	weight       float64
-}
-
-// Adds an increment to the existing mean using Kahan sumnmation algorithm.
-// The compensation is accumulated and not applied to reduce the error
-func (a *averageValue) add(inc float64) {
-	if math.IsInf(a.mean, 0) {
-		if math.IsInf(inc, 0) && (a.mean > 0) == (inc > 0) {
-			// The `mean` and `ic` values are `Inf` of the same sign.  They
-			// can't be subtracted, but the value of `mean` is correct
-			// already.
-			return
-		}
-		if !math.IsInf(inc, 0) && !math.IsNaN(inc) {
-			// At this stage, the mean is an infinite. If the added
-			// value is neither an Inf or a Nan, we can keep that mean
-			// value.
-			return
-		}
-	}
-	val, c := kahanSumInc(inc, a.mean, a.compensation)
-	a.mean = val
-	a.compensation = c
-}
-
 type averageSeries struct {
-	values    []averageValue
+	values    []avgAcc
 	labels    Labels
 	Exemplars []Exemplar
 }
 
 func newAverageSeries(l int, lenExemplars uint32, labels Labels) averageSeries {
 	s := averageSeries{
-		values:    make([]averageValue, l),
+		values:    make([]avgAcc, l),
 		labels:    labels,
 		Exemplars: make([]Exemplar, 0, lenExemplars),
-	}
-	// Init to nan to discriminate uninitialized values from 0
-	for i := range s.values {
-		s.values[i].mean = nan
-		s.values[i].weight = nan
 	}
 	return s
 }
 
-// it adds the compensation to the final value to retain precission
 func (k *averageSeries) getAvgSeries() TimeSeries {
 	ts := TimeSeries{
 		Labels:    k.labels,
@@ -236,8 +202,8 @@ func (k *averageSeries) getAvgSeries() TimeSeries {
 		Exemplars: k.Exemplars,
 	}
 
-	for i, v := range k.values {
-		ts.Values[i] = v.mean + v.compensation
+	for i := range k.values {
+		ts.Values[i] = k.values[i].value()
 	}
 	return ts
 }
@@ -248,40 +214,10 @@ func (k *averageSeries) getCountSeries() TimeSeries {
 		Labels: countLabels,
 		Values: make([]float64, len(k.values)),
 	}
-	for i, v := range k.values {
-		ts.Values[i] = v.weight
+	for i := range k.values {
+		ts.Values[i] = k.values[i].count()
 	}
 	return ts
-}
-
-// It increments the mean based on a new value
-func (k *averageSeries) addIncrementMean(interval int, inc float64) {
-	currentMean := k.values[interval]
-	if math.IsNaN(currentMean.mean) && !math.IsNaN(inc) {
-		k.values[interval] = averageValue{mean: inc, weight: 1}
-		return
-	}
-	currentMean.weight++
-	currentMean.add(inc/currentMean.weight - currentMean.mean/currentMean.weight)
-	k.values[interval] = currentMean
-}
-
-// It calculates the incremental weighted mean using kahan-neumaier summation and a delta approach.
-// By adding incremental values we prevent overflow
-func (k *averageSeries) addWeigthedMean(interval int, mean float64, weight float64) {
-	currentMean := k.values[interval]
-	if math.IsNaN(currentMean.mean) && !math.IsNaN(mean) {
-		k.values[interval] = averageValue{mean: mean, weight: weight}
-		return
-	}
-
-	sumWeights := currentMean.weight + weight
-	meanDelta := ((mean - currentMean.mean) * weight) / sumWeights
-	meanDelta -= currentMean.compensation
-
-	currentMean.add(meanDelta)
-	currentMean.weight = sumWeights
-	k.values[interval] = currentMean
 }
 
 var (
@@ -339,7 +275,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 
 			incomingMean := sample.Value
 			incomingWeight := in[countIndex].Samples[i].Value
-			existing.addWeigthedMean(pos, incomingMean, incomingWeight)
+			existing.values[pos].add(incomingMean, incomingWeight)
 			b.aggregateExemplars(ts, b.weightedAverageSeries[key])
 		}
 	}
@@ -505,12 +441,12 @@ func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) {
 		return
 	}
 
-	s := g.getSeries(span)
+	weight := 1.0
 	if g.extrapolate {
-		s.average.addWeigthedMean(interval, inc, spanExtrapolation(span))
-	} else {
-		s.average.addIncrementMean(interval, inc)
+		weight = spanExtrapolation(span)
 	}
+	s := g.getSeries(span)
+	s.average.values[interval].add(inc, weight)
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
