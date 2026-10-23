@@ -547,6 +547,13 @@ ingest:
         # When empty (recommended), Tempo uses the instance ID to guarantee uniqueness.
         [consumer_group: <string>]
 
+        # Prefix prepended to the consumer group names that Tempo derives for the
+        # block-builder, live-store, and metrics-generator (in partition ring mode),
+        # for example to comply with prefixed consumer group ACLs on a shared Kafka cluster.
+        # Include any separator in the prefix, for example `mytenant.`.
+        # The prefix isn't applied to an explicitly configured `consumer_group`.
+        [consumer_group_prefix: <string>]
+
         # How frequently a consumer should commit the consumed offset to Kafka.
         # The last committed offset is used at startup to continue consumption from where it was left.
         [consumer_group_offset_commit_interval: <duration> | default = 1s]
