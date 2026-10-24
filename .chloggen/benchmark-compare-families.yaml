@@ -1,0 +1,5 @@
+change_type: enhancement
+component: tempo-cli
+note: Roll up each family of generated cases in `tempo-cli benchmark compare` into one row of geometric means, with a page per family in `--http`.
+issues: []
+user: zhxiaogg

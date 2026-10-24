@@ -82,8 +82,7 @@ func NewCollector(counter *CountingReader, gatherer prometheus.Gatherer) *Collec
 // BeginCase clears the heap and takes the case baseline.
 //
 // The GC is so each case is measured against a comparable environment instead
-// of inheriting the warmup's and the previous case's garbage. testing.(*B).runN
-// does the same.
+// of inheriting the previous case's garbage. testing.(*B).runN does the same.
 func (c *Collector) BeginCase() {
 	runtime.GC()
 	c.processBase, _ = Gather(c.gatherer)

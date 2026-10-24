@@ -206,7 +206,7 @@ func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDif
 		}
 	}
 
-	traceResp, err := comb.GRPCFinal()
+	traceResp, err := comb.GRPCFinal(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("finalize trace %s response: %w", traceReq.TraceID, err)
 	}

@@ -193,17 +193,25 @@ func (q *Querier) stopping(_ error) error {
 	return nil
 }
 
+// ErrTraceByIDBlocksRequired fails a job with no blocks, because a querier without a blocklist would miss every backend trace.
+var ErrTraceByIDBlocksRequired = errors.New("query-frontend must send the blocks to search when querier blocklist polling is disabled")
+
 // FindTraceByID implements tempopb.Querier.
-func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart, timeEnd time.Time) (resp *tempopb.TraceByIDResponse, err error) {
+func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (resp *tempopb.TraceByIDResponse, err error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, errors.New("invalid trace id")
 	}
 
-	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req, timeStart, timeEnd)
+	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}
 	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+
+	// TODO: remove with querier blocklist polling, then always require blocks for blocks and all modes
+	if req.Blocks == nil && !q.cfg.BlocklistPolling && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
+		return nil, ErrTraceByIDBlocksRequired
+	}
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
 	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
@@ -250,14 +258,14 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.AddEvent("searching store", oteltrace.WithAttributes(
-			attribute.String("timeStart", timeStart.String()),
-			attribute.String("timeEnd", timeEnd.String()),
+			attribute.String("timeStart", req.Start.String()),
+			attribute.String("timeEnd", req.End.String()),
 		))
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 
 		findStart := time.Now()
-		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
+		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req, opts)
 		observeBackendProcessing(api.OpTraceByID, userID, findStart)
 		if err != nil {
 			return nil, fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)
@@ -287,10 +295,10 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		if req.QueryMode == QueryModeExternal || req.QueryMode == QueryModeAll {
 			span.AddEvent("searching external", oteltrace.WithAttributes(
 				attribute.String("traceID", hex.EncodeToString(req.TraceID)),
-				attribute.String("timeStart", timeStart.String()),
-				attribute.String("timeEnd", timeEnd.String()),
+				attribute.String("timeStart", req.Start.String()),
+				attribute.String("timeEnd", req.End.String()),
 			))
-			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, timeStart, timeEnd)
+			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, req.Start, req.End)
 			if err != nil {
 				return nil, fmt.Errorf("error querying external in Querier.FindTraceByID: %w", err)
 			}

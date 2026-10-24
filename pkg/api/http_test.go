@@ -717,17 +717,89 @@ func TestParseTraceByIDRequest(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		blockStart, blockEnd, queryMode, startTime, endTime, err := ParseTraceByIDRequest(tc.httpReq)
+		req, err := ParseTraceByIDRequest(tc.httpReq)
 		if len(tc.expectedError) != 0 {
 			assert.EqualError(t, err, tc.expectedError)
 			continue
 		}
 		assert.NoError(t, err)
-		assert.Equal(t, tc.queryMode, queryMode)
-		assert.Equal(t, tc.blockStart, blockStart)
-		assert.Equal(t, tc.blockEnd, blockEnd)
-		assert.Equal(t, tc.startTime, startTime)
-		assert.Equal(t, tc.endTime, endTime)
+		assert.Equal(t, tc.queryMode, req.QueryMode)
+		assert.Equal(t, tc.blockStart, req.BlockStart)
+		assert.Equal(t, tc.blockEnd, req.BlockEnd)
+		assert.Equal(t, tc.startTime, req.Start)
+		assert.Equal(t, tc.endTime, req.End)
+		assert.Nil(t, req.Blocks)
+	}
+}
+
+func TestBuildTraceByIDRequest(t *testing.T) {
+	blockID := []byte("0123456789abcdef")
+	blocks := &tempopb.TraceByIDBlocks{
+		Blocks: []*tempopb.TraceByIDBlock{{BlockID: blockID, Version: "vParquet5", DedicatedColumnsIndex: 1}},
+		DedicatedColumns: []*tempopb.TraceByIDDedicatedColumns{
+			{Columns: []*tempopb.DedicatedColumn{{Name: "http.method"}}},
+		},
+	}
+
+	tests := []struct {
+		name string
+		req  *tempopb.TraceByIDRequest
+	}{
+		{
+			name: "blocks",
+			req: &tempopb.TraceByIDRequest{
+				QueryMode:  QueryModeBlocks,
+				BlockStart: "00000000000000000000000000000000",
+				BlockEnd:   "ffffffffffffffffffffffffffffffff",
+				Start:      time.Unix(1, 0),
+				End:        time.Unix(2, 0),
+				Blocks:     blocks,
+			},
+		},
+		{
+			name: "empty blocks",
+			req: &tempopb.TraceByIDRequest{
+				QueryMode:  QueryModeBlocks,
+				BlockStart: "00000000000000000000000000000000",
+				BlockEnd:   "ffffffffffffffffffffffffffffffff",
+				Blocks:     &tempopb.TraceByIDBlocks{},
+			},
+		},
+		{
+			name: "ingesters",
+			req:  &tempopb.TraceByIDRequest{QueryMode: QueryModeIngesters},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// params of the original request must not reach the job
+			httpReq := httptest.NewRequest("GET", "/api/traces/1234?mode=all&blockStart=00000000000000000000000000000001&blocks=AA&q=x", nil)
+			httpReq, err := BuildTraceByIDRequest(httpReq, tc.req)
+			require.NoError(t, err)
+			require.False(t, httpReq.URL.Query().Has(urlParamQuery))
+
+			actual, err := ParseTraceByIDRequest(httpReq)
+			require.NoError(t, err)
+			require.Equal(t, tc.req, actual)
+		})
+	}
+}
+
+func TestParseTraceByIDRequestInvalidBlocks(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{name: "not base64", value: url.QueryEscape("!!")},
+		// field 1 claiming 5 bytes with 1 present
+		{name: "truncated block", value: "CgUA"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/querier?"+BlocksKey+"="+tc.value, nil)
+			_, err := ParseTraceByIDRequest(req)
+			require.ErrorContains(t, err, "invalid value for blocks")
+		})
 	}
 }
 

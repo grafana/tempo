@@ -222,7 +222,7 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		}
 	}
 
-	s.ingestPartitionLifecycler = ring.NewPartitionInstanceLifecycler(
+	s.ingestPartitionLifecycler, err = ring.NewPartitionInstanceLifecycler(
 		s.cfg.PartitionRing.ToLifecyclerConfig(s.ingestPartitionID, cfg.Ring.InstanceID),
 		PartitionRingName,
 		PartitionRingKey,
@@ -230,6 +230,9 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		logger,
 		prometheus.WrapRegistererWithPrefix("tempo_", reg),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("create livestore partition ring lifecycler: %w", err)
+	}
 
 	// setup live store read ring
 	ringStore := cfg.Ring.KVStore.Mock

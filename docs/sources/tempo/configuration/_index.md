@@ -369,7 +369,7 @@ distributor:
     # Optional.
     # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted.
     # Set this to `0` to disable retries on ResourceExhausted at cluster level.
-    # per-tenant override `ingestion.retry_info_enabled` can also be used to disable it at tenent level.
+    # per-tenant override `ingestion.retry_info_enabled` can also be used to disable it at tenant level.
     [retry_after_on_resource_exhausted: <duration> | default = 5s]
 
     # Optional
@@ -1293,6 +1293,14 @@ querier:
     # not distinguish between the types of queries.
     [max_concurrent_queries: <int> | default = 20]
 
+    # Control blocklist polling in the querier.
+    #
+    # Queriers only use the blocklist to choose blocks for trace by ID, but query-frontends now send blocks in each job.
+    # This is a temporary rollout switch, and will be removed together with querier blocklist polling in a future release.
+    # Set blocklist_polling after all components run the release that added this setting. Older versions fail to start on this setting.
+    # With false, the querier rejects trace by ID jobs without blocks, such as jobs from older query-frontends.
+    [blocklist_polling: <bool> | default = true]
+
     trace_by_id:
         # Timeout for trace lookup requests
         [query_timeout: <duration> | default = 10s]
@@ -2110,7 +2118,7 @@ Defines re-used configuration blocks.
 # an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
 #  create larger footers but will be harder to shard when searching. It is difficult to calculate
 #  this field directly and it may vary based on workload. This is roughly a lower bound.
-[parquet_row_group_size_bytes: <int> | default = 100MB]
+[parquet_row_group_size_bytes: <int> | default = 250MB]
 
 # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
 # generic attribute key-value list. This allows for more efficient searching of these attributes.
@@ -2315,7 +2323,7 @@ multi:
 
 # Size of read buffers used when performing search on a vparquet block. This value times the read_buffer_count
 # is the total amount of bytes used for buffering when performing search on a parquet block.
-[read_buffer_size_bytes: <int> | default = 1048576]
+[read_buffer_size_bytes: <int> | default = 2097152]
 
 # Granular cache control settings for parquet metadata objects
 # Deprecated. See [Cache](#cache) section.
@@ -2431,6 +2439,11 @@ overrides:
 
       # When enabled, the distributor includes retry information in rate-limit responses.
       [retry_info_enabled: <bool> | default = true]
+
+      # How far into the future a span's start or end time may be, compared to the
+      # distributor's clock. Spans beyond this are discarded and counted in
+      # tempo_discarded_spans_total with reason="too_far_in_future". 0 disables the check.
+      [creation_grace_period: <duration> | default = 10m]
 
     # Read related overrides
     read:
@@ -2625,6 +2638,7 @@ overrides:
 
         # Configuration for the service-graphs processor
         service_graphs:
+          [max_items: <int>]
           [histogram_buckets: <list of float>]
           [dimensions: <list of string>]
           [peer_attributes: <list of string>]
@@ -2677,6 +2691,15 @@ overrides:
     # Per-user configuration of generic forwarder feature. Each forwarder in the list
     # must refer by name to a forwarder defined in the distributor.forwarders configuration.
     forwarders: <list of string>
+
+    # Distributor -> external forwarder queue controls.
+    # Each tenant has a separate queue for each enabled forwarder on each distributor.
+    # The same settings apply to every external forwarder enabled for the tenant.
+    forwarder:
+      # Maximum queued batches, not spans or bytes. 0 uses 100; negative values are invalid.
+      [queue_size: <int> | default = 100]
+      # Parallel forwarding workers per queue. 0 uses 2; negative values are invalid.
+      [workers: <int> | default = 2]
 
     # Global enforced overrides
     global:
@@ -2791,6 +2814,11 @@ overrides:
         # Optional per-tenant remote write headers, for example for per-tenant authentication.
         remote_write_headers:
           [<header-name>: <string>]
+      # External forwarder names must match distributor.forwarders entries.
+      [forwarders: <list of strings>]
+      forwarder:
+        [queue_size: <int> | default = 100]
+        [workers: <int> | default = 2]
 
   # A "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
   "*":
@@ -2811,6 +2839,45 @@ For a complete per-tenant `metrics_generator` example, including `remote_write_h
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
 User-configurable overrides have priority over runtime overrides.
 Refer to [user-configurable overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/) for more details.
+
+#### External forwarder queues
+
+Configure `overrides.defaults.forwarder`, or `forwarder` in a tenant runtime override:
+
+- `queue_size`: maximum buffered batches per queue (default: `100`).
+- `workers`: concurrent forwarding workers per queue (default: `2`).
+
+Each distributor creates a separate queue per tenant and enabled forwarder.
+These operator-only settings don't affect metrics-generator forwarding.
+
+Omitted or zero values use the built-in defaults; negative values are invalid.
+Tenant and wildcard entries don't inherit custom values from `overrides.defaults.forwarder` for omitted fields.
+
+After runtime overrides reload, queue settings update on the next 10-second check.
+Old queues drain asynchronously while replacement queues accept new batches.
+
+For example, use default queue settings and larger queues for one tenant.
+The `external-otlp` name must match a forwarder defined in `distributor.forwarders`:
+
+```yaml
+# /conf/tempo.yaml
+overrides:
+  defaults:
+    forwarders: [external-otlp]
+    forwarder:
+      queue_size: 100
+      workers: 2
+  per_tenant_override_config: /conf/overrides.yaml
+
+---
+# /conf/overrides.yaml
+overrides:
+  tenant-a:
+    forwarders: [external-otlp]
+    forwarder:
+      queue_size: 1000
+      workers: 4
+```
 
 #### Ingestion rate strategy
 

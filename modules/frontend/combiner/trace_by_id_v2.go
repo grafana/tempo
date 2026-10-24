@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -48,18 +49,15 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			_, err := combiner.Consume(partial.Trace)
 			return err
 		},
-		finalize: func(resp *tempopb.TraceByIDResponse) (*tempopb.TraceByIDResponse, error) {
+		finalize: func(ctx context.Context, resp *tempopb.TraceByIDResponse) (*tempopb.TraceByIDResponse, error) {
 			traceResult, _ := combiner.Result()
 			if traceResult == nil {
 				traceResult = &tempopb.Trace{}
 			}
 
-			// dedupe duplicate span ids
-			deduper := newDeduper()
-			traceResult = deduper.dedupe(traceResult)
+			traceResult = deduplicateTrace(ctx, traceResult)
 			if traceRedactor != nil {
-				err := traceRedactor.RedactTraceAttributes(traceResult)
-				if err != nil {
+				if err := redactTrace(ctx, traceResult, traceRedactor); err != nil {
 					return nil, err
 				}
 			}

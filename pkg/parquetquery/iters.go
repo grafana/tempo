@@ -402,6 +402,14 @@ func SyncIteratorOptPredicate(p Predicate) SyncIteratorOpt {
 	}
 }
 
+// SyncIteratorOptStats collects chunk/page/value inspected/kept counts into s as the
+// iterator runs. The caller owns s and reads it after iteration; nil disables counting.
+func SyncIteratorOptStats(s *PredicateStats) SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.stats = s
+	}
+}
+
 // SyncIteratorOptColumnName sets the column name for the iterator.
 // This is used for tracing and debugging only. All work is done
 // using the column index which is a required parameter on creation.
@@ -466,6 +474,7 @@ type SyncIterator struct {
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
 	filter     Predicate
+	stats      *PredicateStats // optional; counts chunk/page/value decisions (SyncIteratorOptStats)
 	sampler    Sampler
 
 	// Status
@@ -490,6 +499,8 @@ type SyncIterator struct {
 	seekDefinitionLevel int
 
 	maxDefinitionLevel int
+
+	dictPageReader dictPageReader // dictionary pushdown, see dict_pushdown.go
 
 	interner   *intern.Interner
 	makeResult func(t RowNumber, v *pq.Value) *IteratorResult
@@ -607,11 +618,11 @@ func (c *SyncIterator) Next() (*IteratorResult, error) {
 // or equal to the given row number (and based on the given definition level)
 func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
 	for {
-		if done := c.seekRowGroup(to, definitionLevel); done {
+		if done := c.seekRowGroup(to, definitionLevel, true); done {
 			return nil, nil
 		}
 
-		done, err := c.seekPages(to, definitionLevel)
+		done, err := c.seekPages(to, definitionLevel, true)
 		if err != nil {
 			return nil, err
 		}
@@ -654,7 +665,7 @@ func (c *SyncIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
 
 // seekRowGroup skips ahead to the row group that could contain the value at the
 // desired row number. Does nothing if the current row group is already the correct one.
-func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done bool) {
+func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune bool) (done bool) {
 	if c.currRowGroup != nil && CompareRowNumbers(definitionLevel, seekTo, c.currRowGroupMax) >= 0 {
 		// Done with this row group
 		c.closeCurrRowGroup()
@@ -672,7 +683,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 		}
 
 		cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-		if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+		if prune && !c.keepColumnChunk(cc) {
 			cc.Close()
 			continue
 		}
@@ -686,7 +697,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int) (done
 
 // seekPages skips ahead in the current row group to the page that could contain the value at
 // the desired row number. Does nothing if the current page is already the correct one.
-func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bool, err error) {
+func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bool) (done bool, err error) {
 	if c.currPage != nil && CompareRowNumbers(definitionLevel, seekTo, c.currPageMax) >= 0 {
 		// Value not in this page
 		c.setPage(nil)
@@ -733,7 +744,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int) (done bo
 			}
 
 			// Skip based on filter?
-			if c.filter != nil && !c.filter.KeepPage(pg) {
+			if prune && c.filter != nil && !c.keepPage(pg) {
 				c.curr.Skip(pg.NumRows())
 				pq.Release(pg)
 				continue
@@ -810,10 +821,19 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	pq.Release(c.currPage)
 	c.currPage = pg
 	c.currPageMin = c.curr
-	c.currValues = pg.Values()
 	c.currPageN = 0
-	syncIteratorPoolPut(c.currBuf)
-	c.currBuf = nil
+	// Dictionary pages never take a buffer. Returning nil would put an empty slice in
+	// the pool, and the next Get would allocate a new buffer.
+	if c.currBuf != nil {
+		syncIteratorPoolPut(c.currBuf)
+		c.currBuf = nil
+	}
+	c.dictPageReader.setPage(pg)
+	if c.dictPageReader.active {
+		c.currValues = nil
+	} else {
+		c.currValues = pg.Values()
+	}
 }
 
 // next is the core functionality of this iterator and returns the next matching result. This
@@ -839,7 +859,7 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+			if !c.keepColumnChunk(cc) {
 				cc.Close()
 				continue
 			}
@@ -857,13 +877,22 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 				c.closeCurrRowGroup()
 				continue
 			}
-			if c.filter != nil && !c.filter.KeepPage(pg) {
+			if c.filter != nil && !c.keepPage(pg) {
 				// This page filtered out
 				c.curr.Skip(pg.NumRows())
 				pq.Release(pg)
 				continue
 			}
 			c.setPage(pg)
+		}
+
+		if c.dictPageReader.active {
+			v, ok := c.nextMatchedValue(seeking)
+			if !ok {
+				c.setPage(nil) // page exhausted
+				continue
+			}
+			return c.curr, v, nil
 		}
 
 		// Read next batch of values if needed
@@ -899,8 +928,16 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 				continue
 			}
 
-			if c.filter != nil && !c.filter.KeepValue(*v) {
-				continue
+			if c.filter != nil {
+				if c.stats != nil {
+					c.stats.InspectedValues++
+				}
+				if !c.filter.KeepValue(*v) {
+					continue
+				}
+				if c.stats != nil {
+					c.stats.KeptValues++
+				}
 			}
 
 			if c.sampler != nil && !c.sampler.Sample() {
@@ -946,6 +983,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 
 	// Reset value buffers
 	c.currValues = nil
+	c.dictPageReader.setPage(nil)
 	c.currPageMax = EmptyRowNumber()
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
@@ -965,7 +1003,10 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currPage = pg
 		c.currPageMin = c.curr
 		c.currPageMax = rn
-		c.currValues = pg.Values()
+		c.dictPageReader.setPage(pg)
+		if !c.dictPageReader.active {
+			c.currValues = pg.Values()
+		}
 
 		if c.sampler != nil {
 			c.sampler.Expect(uint64(pg.NumValues()))

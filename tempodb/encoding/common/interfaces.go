@@ -53,7 +53,7 @@ type SearchOptions struct {
 func DefaultSearchOptions() SearchOptions {
 	return SearchOptions{
 		ReadBufferCount: 32,
-		ReadBufferSize:  1024 * 1024,
+		ReadBufferSize:  2 * 1024 * 1024,
 		ChunkSizeBytes:  4 * 1024 * 1024,
 	}
 }
@@ -80,6 +80,7 @@ type CompactionOptions struct {
 	ObjectsCombined   func(compactionLevel, objects int)
 	ObjectsWritten    func(compactionLevel, objects int)
 	BytesWritten      func(compactionLevel, bytes int)
+	TraceWritten      func(compactionLevel, bytes int)
 	SpansDiscarded    func(traceID string, rootSpanName string, rootServiceName string, spans int)
 	DisconnectedTrace func()
 	RootlessTrace     func()

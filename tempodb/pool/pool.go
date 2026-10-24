@@ -2,6 +2,7 @@ package pool
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -16,6 +17,8 @@ const (
 )
 
 var (
+	errPoolShutdown = errors.New("pool is shut down")
+
 	metricQueryQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempodb",
 		Name:      "work_queue_length",
@@ -41,7 +44,6 @@ type job struct {
 	payload interface{}
 	fn      JobFunc
 
-	wg        *sync.WaitGroup
 	resultsCh chan result
 	stop      *atomic.Bool
 }
@@ -50,8 +52,9 @@ type Pool struct {
 	cfg  *Config
 	size *atomic.Int32
 
-	workQueue  chan *job
-	shutdownCh chan struct{}
+	workQueue    chan *job
+	shutdownCh   chan struct{}
+	shutdownOnce sync.Once
 }
 
 func NewPool(cfg *Config) *Pool {
@@ -79,6 +82,12 @@ func NewPool(cfg *Config) *Pool {
 }
 
 func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) ([]interface{}, []error, error) {
+	select {
+	case <-p.shutdownCh:
+		return nil, nil, errPoolShutdown
+	default:
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -91,44 +100,45 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 
 	resultsCh := make(chan result, totalJobs) // way for jobs to send back results
 	stop := atomic.NewBool(false)             // way to signal to the jobs to quit
-	wg := &sync.WaitGroup{}                   // way to wait for all jobs to complete
 
 	// add each job one at a time.  even though we checked length above these might still fail
 	for _, payload := range payloads {
-		wg.Add(1)
 		j := &job{
 			ctx:       ctx,
 			fn:        fn,
 			payload:   payload,
-			wg:        wg,
 			resultsCh: resultsCh,
 			stop:      stop,
 		}
 
 		select {
+		case <-p.shutdownCh:
+			stop.Store(true)
+			return nil, nil, errPoolShutdown
 		case p.workQueue <- j:
 			p.size.Inc()
 		default:
-			wg.Done()
 			stop.Store(true)
 			return nil, nil, fmt.Errorf("failed to add a job to work queue")
 		}
 	}
 
-	// wait for all jobs to finish
-	wg.Wait()
-
-	// close resultsCh
-	close(resultsCh)
-
-	// read all from results channel
+	// Each job reports completion, including jobs without a result. Leave the
+	// channel open so an in-flight job can finish after shutdown returns an error.
 	var data []interface{}
 	var funcErrs []error
-	for result := range resultsCh {
-		if result.err != nil {
-			funcErrs = append(funcErrs, result.err)
-		} else {
-			data = append(data, result.data)
+	for range totalJobs {
+		var completed result
+		select {
+		case <-p.shutdownCh:
+			stop.Store(true)
+			return nil, nil, errPoolShutdown
+		case completed = <-resultsCh:
+		}
+		if completed.err != nil {
+			funcErrs = append(funcErrs, completed.err)
+		} else if completed.data != nil {
+			data = append(data, completed.data)
 		}
 	}
 
@@ -136,8 +146,9 @@ func (p *Pool) RunJobs(ctx context.Context, payloads []interface{}, fn JobFunc) 
 }
 
 func (p *Pool) Shutdown() {
-	close(p.workQueue)
-	close(p.shutdownCh)
+	p.shutdownOnce.Do(func() {
+		close(p.shutdownCh)
+	})
 }
 
 func (p *Pool) worker(j <-chan *job) {
@@ -171,7 +182,11 @@ func (p *Pool) reportQueueLength() {
 }
 
 func runJob(job *job) {
-	defer job.wg.Done()
+	var completed result
+	defer func() {
+		// The buffer holds one completion per job, even after the caller returns.
+		job.resultsCh <- completed
+	}()
 
 	// bail in case we have been asked to stop
 	if job.ctx.Err() != nil {
@@ -183,14 +198,5 @@ func runJob(job *job) {
 		return
 	}
 
-	data, err := job.fn(job.ctx, job.payload)
-	if data != nil || err != nil {
-		select {
-		case job.resultsCh <- result{
-			data: data,
-			err:  err,
-		}:
-		default: // if we hit default it means that something else already returned a good result.  /shrug
-		}
-	}
+	completed.data, completed.err = job.fn(job.ctx, job.payload)
 }

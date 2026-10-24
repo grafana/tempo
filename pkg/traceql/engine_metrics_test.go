@@ -587,6 +587,53 @@ func TestCompileMetricsQueryRangeNonRawExemplarsSafetyCap(t *testing.T) {
 	}
 }
 
+func TestCompileMetricsQueryRangeSampleHintBounds(t *testing.T) {
+	tcs := []struct {
+		query                string
+		spanSampler          bool
+		traceSampler         bool
+		expectedSamplerLimit int
+	}{
+		{query: "{} | rate() with(span_sample=0.5)", spanSampler: true, expectedSamplerLimit: 2},
+		{query: "{} | rate() with(trace_sample=0.1)", traceSampler: true, expectedSamplerLimit: 10},
+		{query: "{} | rate() with(span_sample=2)"},
+		{query: "{} | rate() with(span_sample=1.5)"},
+		{query: "{} | rate() with(span_sample=1)"},
+		{query: "{} | rate() with(span_sample=0)"},
+		{query: "{} | rate() with(span_sample=0.0)"},
+		{query: "{} | rate() with(trace_sample=2)"},
+		{query: "{} | rate() with(trace_sample=0)"},
+		{query: "{} | rate() with(sample=2)"},
+		{query: "{} | rate() with(sample=0.0)"},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.query, func(t *testing.T) {
+			eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
+				Query: tc.query,
+				Start: 1,
+				End:   2,
+				Step:  1,
+			})
+			require.NoError(t, err)
+			me, err := singleBatchMetricsEvaluator(eval)
+			require.NoError(t, err)
+
+			req := me.storageReq
+			require.Equal(t, tc.spanSampler, req.SpanSampler != nil, "span sampler")
+			require.Equal(t, tc.traceSampler, req.TraceSampler != nil, "trace sampler")
+
+			for _, s := range []Sampler{req.SpanSampler, req.TraceSampler} {
+				if s == nil {
+					continue
+				}
+				require.Equal(t, tc.expectedSamplerLimit, s.(*probabilisticSampler).lim)
+				require.True(t, s.Sample())
+			}
+		})
+	}
+}
+
 func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 	tc := map[string]struct {
 		q           string
@@ -2918,6 +2965,68 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 		} else {
 			assert.Equal(t, fooBazSamples, s.Samples)
 		}
+	}
+}
+
+func TestSumOverTimeWithMissingOrNaNAttribute(t *testing.T) {
+	const start = uint64(30 * time.Minute)
+
+	testCases := []struct {
+		name string
+		span *mockSpan
+	}{
+		{name: "missing_attribute", span: newMockSpan(nil)},
+		{name: "NaN_attribute", span: newMockSpan(nil).WithSpanFloat("foo", math.NaN())},
+	}
+	steps := []struct {
+		step     time.Duration
+		expected []tempopb.Sample
+	}{
+		{
+			step: time.Minute,
+			expected: []tempopb.Sample{
+				{TimestampMs: (31 * time.Minute).Milliseconds(), Value: 3},
+			},
+		},
+		{
+			step: 30 * time.Minute,
+			expected: []tempopb.Sample{
+				{TimestampMs: time.Hour.Milliseconds(), Value: 3},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// All four spans share a bucket even with a 1m step. The missing/NaN
+			// attribute must not erase the valid contributions before or after it.
+			in := []Span{
+				newMockSpan(nil).WithStartTime(start+uint64(10*time.Second)).WithSpanInt("foo", 1),
+				newMockSpan(nil).WithStartTime(start+uint64(20*time.Second)).WithSpanInt("foo", 1),
+				tc.span.WithStartTime(start + uint64(30*time.Second)),
+				newMockSpan(nil).WithStartTime(start+uint64(40*time.Second)).WithSpanInt("foo", 1),
+			}
+
+			for _, step := range steps {
+				t.Run(step.step.String(), func(t *testing.T) {
+					// Align the range to both steps and keep spans off bucket boundaries.
+					req := &tempopb.QueryRangeRequest{
+						Start: start,
+						End:   uint64(time.Hour),
+						Step:  uint64(step.step),
+						Query: "{} | sum_over_time(span.foo)",
+					}
+
+					result, seriesCount, err := runTraceQLMetric(req, in)
+					require.NoError(t, err)
+					require.Equal(t, 1, seriesCount)
+
+					actual := result.ToProto(req)
+					require.Len(t, actual, 1)
+					require.Equal(t, step.expected, actual[0].Samples)
+				})
+			}
+		})
 	}
 }
 

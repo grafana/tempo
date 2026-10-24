@@ -83,6 +83,15 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	metricCompactionTraceSize = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       "tempodb",
+		Name:                            "compaction_trace_size_bytes",
+		Help:                            "Estimated size in bytes of each trace written by compaction.",
+		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 31), // 1KiB to 1TiB, same as the distributor trace size histogram
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	}, []string{"tenant", "level"})
 
 	errCompactionJobNoLongerOwned = fmt.Errorf("compaction job no longer owned")
 )
@@ -352,6 +361,9 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 		},
 		ObjectsWritten: func(compactionLevel, objs int) {
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
+		},
+		TraceWritten: func(compactionLevel, bytes int) {
+			metricCompactionTraceSize.WithLabelValues(tenantID, strconv.Itoa(compactionLevel)).Observe(float64(bytes))
 		},
 		SpansDiscarded: func(traceId, rootSpanName, rootServiceName string, spans int) {
 			compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId, rootSpanName, rootServiceName)

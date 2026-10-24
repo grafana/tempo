@@ -20,6 +20,8 @@ import (
 	"github.com/grafana/dskit/tenant"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/frontend/queue"
@@ -305,16 +307,25 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 			// todo: we are still sending the old Type_HTTP_REQUEST for backwards compat
 			// with queriers that don't support the new Type_HTTP_REQUEST_BATCH. this feature
 			// was introduced in 2.2. We should remove this in a few versions
+			var msg *frontendv1pb.FrontendToClient
 			if reqBatch.len() == 1 {
-				err = server.Send(&frontendv1pb.FrontendToClient{
+				msg = &frontendv1pb.FrontendToClient{
 					Type:        frontendv1pb.Type_HTTP_REQUEST,
 					HttpRequest: reqBatch.httpGrpcRequests()[0],
-				})
+				}
 			} else {
-				err = server.Send(&frontendv1pb.FrontendToClient{
+				msg = &frontendv1pb.FrontendToClient{
 					Type:             frontendv1pb.Type_HTTP_REQUEST_BATCH,
 					HttpRequestBatch: reqBatch.httpGrpcRequests(),
-				})
+				}
+			}
+			err = server.Send(msg)
+			if status.Code(err) == codes.ResourceExhausted {
+				// the gRPC error has the sizes but not which tenant and query sent the oversized batch
+				req := reqBatch.pipelineRequests[0].request
+				userID, _ := tenant.TenantID(req.Context())
+				level.Error(f.log).Log("msg", "batch of requests exceeds the gRPC send limit. lower max_batch_size or blocks_per_shard, or raise grpc_server_max_send_msg_size",
+					"tenant", userID, "op", queryOp(req), "requests", reqBatch.len(), "bytes", msg.Size(), "err", err)
 			}
 			if err != nil {
 				errs <- err

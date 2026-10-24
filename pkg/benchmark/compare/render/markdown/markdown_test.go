@@ -42,4 +42,21 @@ func TestWrite(t *testing.T) {
 	require.Contains(t, b.String(), "| #4 **a-long-name-for-4MiB** | readBufferSize default → 4MiB ")
 	require.Contains(t, b.String(), "| case                 |    #1 |    #2 |       |   #3 |       |             #4 |            |\n")
 	require.Contains(t, b.String(), "Change from #1.\n")
+	require.NotContains(t, b.String(), "<details>", "nothing to fold away without a family to roll up")
+}
+
+func TestWriteFamilies(t *testing.T) {
+	var b strings.Builder
+	require.NoError(t, Write(&b, comparetest.Family(t), []string{"harness.wallNs"}, compare.P50, 0))
+	md := b.String()
+
+	summary, every, ok := strings.Cut(md, "\n<details>\n<summary>Every case</summary>\n\n")
+	require.True(t, ok, "the cases of a rolled-up family are folded away")
+	require.Contains(t, summary, "| search/ranked_generic/*/* (9 cases) ⚠ | 10ns | 10.7ns | +7.4% [-75.0% … +300.0%] |\n")
+	require.Contains(t, summary, "- ⚠ search/ranked_generic/*/* leaves 1 of 9 cases out of its means\n")
+	require.NotContains(t, summary, "search/ranked_generic/high/0")
+
+	require.Contains(t, every, "| search/ranked_generic/high/0 ")
+	require.Contains(t, every, "- ⚠ search/ranked_generic/low/8 vs next: matched 1 vs 2\n")
+	require.True(t, strings.HasSuffix(every, "\n</details>\n"))
 }
