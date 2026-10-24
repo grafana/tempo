@@ -21,6 +21,7 @@ import (
 	kitlog "github.com/go-kit/log"
 	"github.com/gogo/status"
 	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
+	"github.com/grafana/dskit/flagext"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
@@ -1701,7 +1702,7 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 	distributorCfg.PushSpansToKafka = true
 	distributorCfg.KafkaConfig = ingest.KafkaConfig{}
 	distributorCfg.KafkaConfig.RegisterFlags(&flag.FlagSet{})
-	distributorCfg.KafkaConfig.Address = kafka.ListenAddrs()[0]
+	distributorCfg.KafkaConfig.Address = flagext.StringSliceCSV{kafka.ListenAddrs()[0]}
 	distributorCfg.KafkaConfig.Topic = topic
 
 	d, err := New(
@@ -1793,7 +1794,7 @@ func TestPushTracesKafkaWriteErrorReturnsRetryableStatus(t *testing.T) {
 	distributorCfg.PushSpansToKafka = true
 	distributorCfg.KafkaConfig = ingest.KafkaConfig{}
 	distributorCfg.KafkaConfig.RegisterFlags(&flag.FlagSet{})
-	distributorCfg.KafkaConfig.Address = kafka.ListenAddrs()[0]
+	distributorCfg.KafkaConfig.Address = ingest.KafkaAddresses{kafka.ListenAddrs()[0]}
 	distributorCfg.KafkaConfig.Topic = topic
 	distributorCfg.KafkaConfig.WriteTimeout = time.Second
 
