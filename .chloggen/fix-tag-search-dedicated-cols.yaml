@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: query-frontend
+
+note: Fix tag names and tag values search missing attributes stored in dedicated columns for data in backend blocks.
+
+issues: []
+
+subtext:
+
+user: electron0zero

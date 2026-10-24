@@ -459,7 +459,8 @@ func BuildSearchTagsRequest(req *http.Request, searchReq *tempopb.SearchTagsRequ
 	return req, nil
 }
 
-func BuildSearchTagsBlockRequest(req *http.Request, searchReq *tempopb.SearchTagsBlockRequest) (*http.Request, error) {
+// BuildSearchTagsBlockRequest takes dedicatedColumnsJSON from DedicatedColumnsToJSON, which memoizes the marshaling across blocks.
+func BuildSearchTagsBlockRequest(req *http.Request, searchReq *tempopb.SearchTagsBlockRequest, dedicatedColumnsJSON string) (*http.Request, error) {
 	if req == nil {
 		req = &http.Request{
 			URL: &url.URL{},
@@ -481,6 +482,7 @@ func BuildSearchTagsBlockRequest(req *http.Request, searchReq *tempopb.SearchTag
 	q.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
 	q.addParam(urlParamVersion, searchReq.Version)
 	q.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
+	addDedicatedColumnsParam(q, dedicatedColumnsJSON)
 
 	req.URL.RawQuery = q.query()
 
@@ -518,7 +520,8 @@ func BuildSearchTagValuesRequest(req *http.Request, searchReq *tempopb.SearchTag
 	return req, nil
 }
 
-func BuildSearchTagValuesBlockRequest(req *http.Request, searchReq *tempopb.SearchTagValuesBlockRequest) (*http.Request, error) {
+// BuildSearchTagValuesBlockRequest takes dedicatedColumnsJSON from DedicatedColumnsToJSON, which memoizes the marshaling across blocks.
+func BuildSearchTagValuesBlockRequest(req *http.Request, searchReq *tempopb.SearchTagValuesBlockRequest, dedicatedColumnsJSON string) (*http.Request, error) {
 	if req == nil {
 		req = &http.Request{
 			URL: &url.URL{},
@@ -540,8 +543,18 @@ func BuildSearchTagValuesBlockRequest(req *http.Request, searchReq *tempopb.Sear
 	qb.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
 	qb.addParam(urlParamVersion, searchReq.Version)
 	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
+	addDedicatedColumnsParam(qb, dedicatedColumnsJSON)
 
 	req.URL.RawQuery = qb.query()
 
 	return req, nil
+}
+
+// nullJSON is what callers get when they marshal nil dedicated columns.
+const nullJSON = "null"
+
+func addDedicatedColumnsParam(qb *queryBuilder, dedicatedColumnsJSON string) {
+	if len(dedicatedColumnsJSON) > 0 && dedicatedColumnsJSON != nullJSON {
+		qb.addParam(urlParamDedicatedColumns, dedicatedColumnsJSON)
+	}
 }
