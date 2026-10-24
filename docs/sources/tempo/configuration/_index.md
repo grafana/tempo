@@ -2487,6 +2487,12 @@ overrides:
       [metrics_spanonly_fetch: <bool> | default = true]
 
       # EXPERIMENTAL
+      # Per-user toggle for extrapolating TraceQL metrics from the per-span
+      # sampling probability by default. May be overridden by the
+      # extrapolate query hint.
+      [metrics_extrapolate: <bool> | default = false]
+
+      # EXPERIMENTAL
       # When enabled, queries report an additional metric indicating whether the
       # matched spans include span-pruning summary spans (spans carrying the
       # aggregation.is_summary attribute). Applies to search and metrics queries.
