@@ -19,6 +19,9 @@ import (
 // QueryRangeJobResponse wraps shardtracker.JobMetadata and implements PipelineResponse.
 type QueryRangeJobResponse struct {
 	shardtracker.JobMetadata
+
+	// Extrapolated is whether the query's results are extrapolated from per-span sampling probability.
+	Extrapolated bool
 }
 
 func (q *QueryRangeJobResponse) HTTPResponse() *http.Response {
@@ -56,6 +59,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int, opts ...O
 
 	metricsCombiner := NewQueryRangeMetricsCombiner(opts...)
 	lastCompletedThrough := shardtracker.TimestampNever
+	extrapolated := false
 	c := &genericCombiner[*tempopb.QueryRangeResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.QueryRangeResponse { return &tempopb.QueryRangeResponse{} },
@@ -81,6 +85,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int, opts ...O
 				metricsCombiner.Combine(qrMetrics, resp)
 
 				completionTracker.AddShards(qr.Shards)
+				extrapolated = qr.Extrapolated
 			}
 			return nil
 		},
@@ -103,6 +108,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int, opts ...O
 			attachExemplars(req, resp)
 			resp.Metrics = metricsCombiner.Metrics
 			resp.Step = req.Step
+			resp.Extrapolated = extrapolated
 			return resp, nil
 		},
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
@@ -112,9 +118,10 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int, opts ...O
 			// If we are still waiting for new data, then send an interim empty diff.
 			if completedThrough == shardtracker.TimestampUnknown || completedThrough == lastCompletedThrough {
 				return &tempopb.QueryRangeResponse{
-					Series:  []*tempopb.TimeSeries{},
-					Metrics: metricsCombiner.Metrics,
-					Step:    req.Step,
+					Series:       []*tempopb.TimeSeries{},
+					Metrics:      metricsCombiner.Metrics,
+					Step:         req.Step,
+					Extrapolated: extrapolated,
 				}, nil
 			}
 
@@ -144,6 +151,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int, opts ...O
 			attachExemplars(req, resp)
 			resp.Metrics = metricsCombiner.Metrics
 			resp.Step = req.Step
+			resp.Extrapolated = extrapolated
 
 			return resp, nil
 		},
@@ -170,7 +178,7 @@ func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int, opts ...O
 }
 
 // segmentQueryRangeResponseToMaxPacketSize splits resp into one or more QueryRangeResponse values, each within
-// maxSize bytes (by proto Size()), accounting for the response object itself. Metrics are included
+// maxSize bytes (by proto Size()), accounting for the response object itself. Metrics, Step, and Extrapolated are included
 // in every segment; Status and Message are set on the last segment.
 func segmentQueryRangeResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, maxSize int) []*tempopb.QueryRangeResponse {
 	// If not configured return as-is.
@@ -184,8 +192,9 @@ func segmentQueryRangeResponseToMaxPacketSize(resp *tempopb.QueryRangeResponse, 
 
 	startNextPacket := func() {
 		current = &tempopb.QueryRangeResponse{
-			Metrics: resp.Metrics,
-			Step:    resp.Step,
+			Metrics:      resp.Metrics,
+			Step:         resp.Step,
+			Extrapolated: resp.Extrapolated,
 		}
 		currentSz = current.Size()
 		out = append(out, current)

@@ -394,6 +394,9 @@ message QueryInstantResponse {
   SearchMetrics metrics = 2;
   PartialStatus status = 3;
   string message = 4;
+
+  // whether counts were extrapolated from per-span sampling probability; set by the frontend
+  bool extrapolated = 5;
 }
 
 message InstantSeries {
@@ -448,6 +451,9 @@ message QueryRangeResponse {
   PartialStatus status = 3;
   string message = 4;
   uint64 step = 5;
+
+  // whether counts were extrapolated from per-span sampling probability; set by the frontend
+  bool extrapolated = 6;
 }
 
 message Exemplar {

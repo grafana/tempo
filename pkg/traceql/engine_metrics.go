@@ -1053,6 +1053,19 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 // support per-span sampling extrapolation.
 type metricsPipelineExtrapolator interface {
 	SetExtrapolate(bool)
+	// extrapolates reports whether turning on extrapolation changes the pipeline's results.
+	extrapolates() bool
+}
+
+// SupportsExtrapolation reports whether turning on per-span sampling extrapolation changes the
+// results of the query, i.e. at least one of its metrics pipelines scales by sampling probability.
+func (r *RootExpr) SupportsExtrapolation() bool {
+	for _, sp := range r.BatchSpanProcessor {
+		if ext, ok := sp.(metricsPipelineExtrapolator); ok && ext.extrapolates() {
+			return true
+		}
+	}
+	return false
 }
 
 // applyExtrapolation toggles per-span extrapolation on the pipeline if it

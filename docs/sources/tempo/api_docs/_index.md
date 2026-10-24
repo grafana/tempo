@@ -713,6 +713,10 @@ Parameters:
 - `exemplars = (integer)`
   Optional. Defines the maximum number of exemplars for the query. It's trimmed to `max_exemplars` if it exceeds it.
 
+The response includes `"extrapolated": true` when the values are
+[extrapolated from ingest-time sampling](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/#extrapolation-from-ingest-time-sampling).
+The field is omitted otherwise.
+
 The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
 
@@ -732,6 +736,7 @@ The instant version of the metrics API is similar to the range version, but inst
 This version is useful when you don't need the granularity of a full time-series, but instead want a total sum, or single value computed across the whole time range.
 
 The parameters are identical to the range version except there is no `step`.
+Like the range version, the response includes `"extrapolated": true` when the value is extrapolated.
 
 Parameters:
 

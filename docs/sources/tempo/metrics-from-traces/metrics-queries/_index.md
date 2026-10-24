@@ -176,3 +176,11 @@ overrides:
 
 The `extrapolate` query hint takes precedence over the per-tenant override.
 You can set `extrapolate=false` to opt a query out, or `extrapolate=true` to opt in even when the override is off for the tenant.
+
+#### Identify extrapolated results
+
+Responses from the [TraceQL metrics API](/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)
+include `"extrapolated": true` when extrapolation was turned on for the query,
+whether by the query hint or the per-tenant override.
+The field is omitted when extrapolation is off,
+and for queries that only use functions extrapolation doesn't change, such as `min_over_time` and `max_over_time`.

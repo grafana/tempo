@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"io"
 	"math"
 	"math/rand/v2"
 	"strconv"
@@ -129,7 +130,8 @@ func buildSeriesForExemplarTest(start, end, step uint64, include func(i int) boo
 
 func TestSegmentQueryRangeResponseToMaxPacketSize(t *testing.T) {
 	input := &tempopb.QueryRangeResponse{
-		Metrics: &tempopb.SearchMetrics{},
+		Metrics:      &tempopb.SearchMetrics{},
+		Extrapolated: true,
 		Series: []*tempopb.TimeSeries{
 			{
 				Labels: []v1.KeyValue{
@@ -155,8 +157,9 @@ func TestSegmentQueryRangeResponseToMaxPacketSize(t *testing.T) {
 	t.Run("fits", func(t *testing.T) {
 		// Generate a test packet size that is large enough for only part of the data.
 		maxSize := (&tempopb.QueryRangeResponse{
-			Metrics: input.Metrics,
-			Series:  input.Series[:2],
+			Metrics:      input.Metrics,
+			Series:       input.Series[:2],
+			Extrapolated: input.Extrapolated,
 		}).Size()
 		out := segmentQueryRangeResponseToMaxPacketSize(input, maxSize)
 
@@ -167,9 +170,11 @@ func TestSegmentQueryRangeResponseToMaxPacketSize(t *testing.T) {
 		require.Equal(t, input.Series[0], out[0].Series[0])
 		require.Equal(t, input.Series[1], out[0].Series[1])
 		require.Equal(t, input.Series[2], out[1].Series[0])
-		// Metrics repeated in each segment
+		// Metrics and Extrapolated repeated in each segment
 		require.Equal(t, input.Metrics, out[0].Metrics)
 		require.Equal(t, input.Metrics, out[1].Metrics)
+		require.True(t, out[0].Extrapolated)
+		require.True(t, out[1].Extrapolated)
 	})
 
 	t.Run("at least one", func(t *testing.T) {
@@ -187,7 +192,72 @@ func TestSegmentQueryRangeResponseToMaxPacketSize(t *testing.T) {
 		require.Equal(t, input.Metrics, out[0].Metrics)
 		require.Equal(t, input.Metrics, out[1].Metrics)
 		require.Equal(t, input.Metrics, out[2].Metrics)
+		require.True(t, out[0].Extrapolated)
+		require.True(t, out[1].Extrapolated)
+		require.True(t, out[2].Extrapolated)
 	})
+}
+
+// TestQueryRangeExtrapolated verifies that the combiner marks diff and final responses as extrapolated
+// when the sharder's metadata says the results are extrapolated, including when job responses arrive
+// before the metadata.
+func TestQueryRangeExtrapolated(t *testing.T) {
+	for _, extrapolated := range []bool{false, true} {
+		t.Run(strconv.FormatBool(extrapolated), func(t *testing.T) {
+			start := uint64(1100 * time.Second)
+			end := uint64(1300 * time.Second)
+			req := &tempopb.QueryRangeRequest{
+				Query: "{} | rate()",
+				Start: start,
+				End:   end,
+				Step:  traceql.DefaultQueryRangeStep(start, end),
+			}
+
+			c, err := NewTypedQueryRange(req, 0)
+			require.NoError(t, err)
+
+			jobResp := &tempopb.QueryRangeResponse{
+				Metrics: &tempopb.SearchMetrics{},
+				Series: []*tempopb.TimeSeries{{
+					Labels:  []v1.KeyValue{{Key: "foo", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "bar"}}}},
+					Samples: []tempopb.Sample{{TimestampMs: 1200_000, Value: 1}},
+				}},
+			}
+			require.NoError(t, c.AddResponse(toHTTPResponseWithFormat(t, jobResp, 200, 0, api.HeaderAcceptJSON)))
+
+			// until the metadata arrives, diffs carry no series, so none can be shown with the wrong flag
+			diff, err := c.GRPCDiff()
+			require.NoError(t, err)
+			require.Empty(t, diff.Series)
+
+			require.NoError(t, c.AddResponse(&QueryRangeJobResponse{
+				JobMetadata: shardtracker.JobMetadata{
+					TotalJobs: 1,
+					Shards:    []shardtracker.Shard{{TotalJobs: 1, CompletedThroughSeconds: shardtracker.TimestampAlways}},
+				},
+				Extrapolated: extrapolated,
+			}))
+
+			diff, err = c.GRPCDiff()
+			require.NoError(t, err)
+			require.NotEmpty(t, diff.Series)
+			require.Equal(t, extrapolated, diff.Extrapolated)
+
+			final, err := c.GRPCFinal()
+			require.NoError(t, err)
+			require.Equal(t, extrapolated, final.Extrapolated)
+
+			httpResp, err := c.HTTPFinal()
+			require.NoError(t, err)
+			body, err := io.ReadAll(httpResp.Body)
+			require.NoError(t, err)
+			if extrapolated {
+				require.Contains(t, string(body), `"extrapolated":true`)
+			} else {
+				require.NotContains(t, string(body), `"extrapolated"`)
+			}
+		})
+	}
 }
 
 func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
