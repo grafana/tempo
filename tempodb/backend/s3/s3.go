@@ -668,7 +668,11 @@ func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]
 
 func (rw *readerWriter) readRange(ctx context.Context, objName string, offset int64, buffer []byte) error {
 	options := getObjectOptions(rw)
-	err := options.SetRange(offset, offset+int64(len(buffer)))
+	end := offset + int64(len(buffer)) - 1
+	if len(buffer) == 0 {
+		end = offset
+	}
+	err := options.SetRange(offset, end)
 	if err != nil {
 		return fmt.Errorf("error setting headers for range read in s3: %w", err)
 	}
