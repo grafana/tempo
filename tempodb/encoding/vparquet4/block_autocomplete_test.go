@@ -1221,19 +1221,8 @@ func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
 				tr.ResourceSpans = append(tr.ResourceSpans, rs)
 			}
 
-			// The trace sits between filler traces, so iterators seek across row groups.
 			dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: backend.DedicatedColumnTypeString}}
-			traces := make([]*Trace, 0, 301)
-			for i := 0; i < 300; i++ {
-				if i == 150 {
-					pt, _ := traceToParquet(&backend.BlockMeta{DedicatedColumns: dc}, id, tr, nil)
-					traces = append(traces, pt)
-				}
-				fillerID := test.ValidTraceID(nil)
-				filler, _ := traceToParquet(&backend.BlockMeta{DedicatedColumns: dc}, fillerID, test.MakeTrace(1, fillerID), nil)
-				traces = append(traces, filler)
-			}
-			block := makeBackendBlockWithTracesWithDedicatedColumns(t, traces, dc)
+			block := makeBackendBlockWithFillers(t, id, tr, dc)
 
 			attrScope := traceql.AttributeScopeFromString(string(scope))
 			mixed := traceql.NewScopedAttribute(attrScope, false, "mixed")

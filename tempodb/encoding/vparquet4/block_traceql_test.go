@@ -624,20 +624,10 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{"string in int column, select", intCol, strValue, false, `{ %[1]s.mixed }`, true},
 	}
 
-	// checkQuery writes the trace between filler traces, so iterators seek across row groups.
+	// checkQuery reads the trace from a block with filler traces.
 	// want holds attribute values a matched span must return.
 	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, match bool, want map[traceql.Attribute]traceql.Static) {
-		traces := make([]*Trace, 0, 301)
-		for i := 0; i < 300; i++ {
-			if i == 150 {
-				pt, _ := traceToParquet(&backend.BlockMeta{DedicatedColumns: dc}, id, tr, nil)
-				traces = append(traces, pt)
-			}
-			fillerID := test.ValidTraceID(nil)
-			filler, _ := traceToParquet(&backend.BlockMeta{DedicatedColumns: dc}, fillerID, test.MakeTrace(1, fillerID), nil)
-			traces = append(traces, filler)
-		}
-		b := makeBackendBlockWithTracesWithDedicatedColumns(t, traces, dc)
+		b := makeBackendBlockWithFillers(t, id, tr, dc)
 
 		resp, err := b.Fetch(t.Context(), traceql.MustExtractFetchSpansRequestWithMetadata(query), common.DefaultSearchOptions())
 		require.NoError(t, err)

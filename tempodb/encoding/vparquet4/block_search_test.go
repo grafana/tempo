@@ -253,6 +253,21 @@ func makeBackendBlockWithTraces(t *testing.T, trs []*Trace) *backendBlock {
 	return makeBackendBlockWithTracesWithDedicatedColumns(t, trs, test.MakeDedicatedColumns())
 }
 
+// makeBackendBlockWithFillers writes tr between filler traces, so iterators seek across row groups.
+func makeBackendBlockWithFillers(t *testing.T, id []byte, tr *tempopb.Trace, dc backend.DedicatedColumns) *backendBlock {
+	traces := make([]*Trace, 0, 301)
+	for i := 0; i < 300; i++ {
+		if i == 150 {
+			pt, _ := traceToParquet(&backend.BlockMeta{DedicatedColumns: dc}, id, tr, nil)
+			traces = append(traces, pt)
+		}
+		fillerID := test.ValidTraceID(nil)
+		filler, _ := traceToParquet(&backend.BlockMeta{DedicatedColumns: dc}, fillerID, test.MakeTrace(1, fillerID), nil)
+		traces = append(traces, filler)
+	}
+	return makeBackendBlockWithTracesWithDedicatedColumns(t, traces, dc)
+}
+
 func makeBackendBlockWithTracesWithDedicatedColumns(t *testing.T, trs []*Trace, dc backend.DedicatedColumns) *backendBlock {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
