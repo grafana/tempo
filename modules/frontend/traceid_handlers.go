@@ -32,7 +32,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		}
 
 		// validate start and end parameter
-		_, reqErr := api.ParseTraceByIDRequest(req)
+		traceByIDReq, reqErr := api.ParseTraceByIDRequest(req)
 		if reqErr != nil {
 			return httpInvalidRequest(reqErr), nil
 		}
@@ -47,6 +47,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"msg", "trace id request",
 			"tenant", tenant,
 			"path", req.URL.Path,
+			"range", traceRange(traceByIDReq.Start, traceByIDReq.End),
+			"range_nanos", traceRange(traceByIDReq.Start, traceByIDReq.End).Nanoseconds(),
 		)
 
 		var traceRedactor combiner.TraceRedactor
@@ -89,6 +91,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"tenant", tenant,
 			"traceID", traceID,
 			"path", req.URL.Path,
+			"range", traceRange(traceByIDReq.Start, traceByIDReq.End),
+			"range_nanos", traceRange(traceByIDReq.Start, traceByIDReq.End).Nanoseconds(),
 			"duration_seconds", elapsed.Seconds(),
 			"inspected_bytes", inspectBytes,
 			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
@@ -125,7 +129,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		}
 
 		// validate start and end parameter
-		_, reqErr := api.ParseTraceByIDRequest(req)
+		traceByIDReq, reqErr := api.ParseTraceByIDRequest(req)
 		if reqErr != nil {
 			return httpInvalidRequest(reqErr), nil
 		}
@@ -161,6 +165,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"msg", "trace id request",
 			"tenant", tenant,
 			"path", req.URL.Path,
+			"range", traceRange(traceByIDReq.Start, traceByIDReq.End),
+			"range_nanos", traceRange(traceByIDReq.Start, traceByIDReq.End).Nanoseconds(),
 		)
 
 		var traceRedactor combiner.TraceRedactor
@@ -213,6 +219,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"tenant", tenant,
 			"traceID", traceID,
 			"path", req.URL.Path,
+			"range", traceRange(traceByIDReq.Start, traceByIDReq.End),
+			"range_nanos", traceRange(traceByIDReq.Start, traceByIDReq.End).Nanoseconds(),
 			"inspected_bytes", bytesProcessed,
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
@@ -223,4 +231,12 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		recordTraceByIDMetrics(tenant, findResp.GetMetrics())
 		return resp, err
 	})
+}
+
+// traceRange returns the requested time range, or zero if start and end were not both provided.
+func traceRange(start, end time.Time) time.Duration {
+	if start.IsZero() || end.IsZero() || end.Before(start) {
+		return 0
+	}
+	return end.Sub(start)
 }
