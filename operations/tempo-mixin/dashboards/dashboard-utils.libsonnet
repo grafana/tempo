@@ -49,6 +49,14 @@ grafana {
       ],
     },
 
+  // lokiMetricsQueryPanel runs LogQL metric queries against the dashboard's $loki_datasource variable.
+  lokiMetricsQueryPanel(queries, legends='', unit='short')::
+    super.queryPanel(queries, legends) +
+    {
+      datasource: '${loki_datasource}',
+      fieldConfig+: { defaults+: { unit: unit } },
+    },
+
   panelDescription(title, description):: {
     description: |||
       ### %s

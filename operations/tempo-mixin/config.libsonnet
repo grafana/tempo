@@ -52,6 +52,8 @@
     },
 
     per_cluster_label: 'cluster',
+    // Loki stream label that holds the component name, used by log-based dashboards.
+    per_component_loki_label: 'container',
     namespace_selector_separator: '/',
 
     // Groups labels to uniquely identify and group by {jobs, clusters, tenants}
