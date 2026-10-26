@@ -639,7 +639,7 @@ func createDistinctSpanIterator(
 
 		// Well-known attribute?
 		if entry, ok := WellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
-			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, cond.Attribute == tr.tag || (cond.Attribute.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone), entry.ColumnPath,
+			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, isTagAttribute(tr, cond.Attribute), entry.ColumnPath,
 				DefinitionLevelResourceSpansILSSpan, DefinitionLevelResourceSpansILSSpanAttrs, columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
 			if err != nil {
 				return nil, fmt.Errorf("creating dedicated column iterator: %w", err)
@@ -663,7 +663,7 @@ func createDistinctSpanIterator(
 
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
-			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, cond.Attribute == tr.tag || (cond.Attribute.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone), c.ColumnPath,
+			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, isTagAttribute(tr, cond.Attribute), c.ColumnPath,
 				DefinitionLevelResourceSpansILSSpan, DefinitionLevelResourceSpansILSSpanAttrs, columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
 			if err != nil {
 				return nil, fmt.Errorf("creating dedicated column iterator: %w", err)
@@ -863,6 +863,11 @@ func createDistinctAttributeIterator(
 	return nil, nil
 }
 
+// isTagAttribute reports whether a is the looked-up tag, which an unscoped tag matches in any scope.
+func isTagAttribute(tr tagRequest, a traceql.Attribute) bool {
+	return a == tr.tag || (a.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone)
+}
+
 // createDistinctDedicatedIterator also reads generic attributes for select, != nil and = nil, because values of another type than the dedicated column are written there.
 func createDistinctDedicatedIterator(makeIter, makeNilIter makeIterFn, tr tagRequest, cond traceql.Condition, isTag bool, columnPath string,
 	definitionLevel, attrDefinitionLevel int, keyPath, strPath, intPath, floatPath, boolPath string,
@@ -1044,7 +1049,7 @@ func createDistinctResourceIterator(
 	for _, cond := range conditions {
 		// Well-known selector?
 		if entry, ok := WellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
-			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, cond.Attribute == tr.tag || (cond.Attribute.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone), entry.ColumnPath,
+			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, isTagAttribute(tr, cond.Attribute), entry.ColumnPath,
 				DefinitionLevelResourceSpans, DefinitionLevelResourceAttrs, columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
 			if err != nil {
 				return nil, fmt.Errorf("creating dedicated column iterator: %w", err)
@@ -1071,7 +1076,7 @@ func createDistinctResourceIterator(
 
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
-			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, cond.Attribute == tr.tag || (cond.Attribute.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone), c.ColumnPath,
+			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, isTagAttribute(tr, cond.Attribute), c.ColumnPath,
 				DefinitionLevelResourceSpans, DefinitionLevelResourceAttrs, columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
 			if err != nil {
 				return nil, fmt.Errorf("creating dedicated column iterator: %w", err)
