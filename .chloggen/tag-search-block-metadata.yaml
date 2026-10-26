@@ -1,0 +1,5 @@
+change_type: bug_fix
+component: query-frontend
+note: Use block metadata consistently when sharding tag and tag-value searches.
+issues: [8103]
+user: carles-grafana

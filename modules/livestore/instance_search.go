@@ -51,6 +51,9 @@ var (
 
 const (
 	timeBuffer = 5 * time.Minute
+
+	// extrapolationCacheKeySalt is mixed into the complete-block cache name when a request extrapolates.
+	extrapolationCacheKeySalt = 3147483637
 )
 
 type block interface {
@@ -761,6 +764,8 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
 	}
 
+	compileOpts = append(compileOpts, traceql.WithExtrapolation(req.Extrapolate))
+
 	compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(i.overrides.SpanPruningAwareness(i.tenantID))...)
 	if p := i.overrides.EngineBytesTracking(i.tenantID); p != nil {
 		compileOpts = append(compileOpts, traceql.WithEngineBytesTracking(*p))
@@ -1014,6 +1019,11 @@ func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {
 	h = fnv1a.AddUint64(h, req.Start)
 	h = fnv1a.AddUint64(h, req.End)
 	h = fnv1a.AddUint64(h, req.Step)
+
+	// Only mixed in when set so that cache names are unchanged for queries that don't extrapolate.
+	if req.Extrapolate {
+		h = fnv1a.AddUint64(h, extrapolationCacheKeySalt)
+	}
 
 	// TODO - caching for WAL blocks
 	// Including trace count means we can safely cache results

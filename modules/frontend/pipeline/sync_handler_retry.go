@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/tempo/v3/modules/frontend/queue"
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,7 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func NewRetryWare(maxRetries int, incrementRetriedRequestWeight bool, registerer prometheus.Registerer) Middleware {
+func NewRetryWare(maxRetries int, incrementRetriedRequestWeight bool, registerer prometheus.Registerer, logger log.Logger) Middleware {
 	retriesCount := promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "query_frontend_retries",
@@ -33,6 +35,7 @@ func NewRetryWare(maxRetries int, incrementRetriedRequestWeight bool, registerer
 			maxRetries:                    maxRetries,
 			retriesCount:                  retriesCount,
 			incrementRetriedRequestWeight: incrementRetriedRequestWeight,
+			logger:                        logger,
 		}
 	})
 }
@@ -42,6 +45,7 @@ type retryWare struct {
 	maxRetries                    int
 	incrementRetriedRequestWeight bool
 	retriesCount                  prometheus.Histogram
+	logger                        log.Logger
 }
 
 // RoundTrip implements http.RoundTripper
@@ -86,6 +90,17 @@ func (r retryWare) RoundTrip(req Request) (*http.Response, error) {
 				StatusCode: http.StatusTooManyRequests,
 				Status:     http.StatusText(http.StatusTooManyRequests),
 				Body:       io.NopCloser(strings.NewReader("job queue full")),
+			}, nil
+		}
+
+		// a stopped queue fails every retry, so answer once with something retryable
+		if errors.Is(err, queue.ErrStopped) {
+			level.Error(r.logger).Log("msg", "refusing query, frontend is shutting down", "url", req.HTTPRequest().URL.Path)
+
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Status:     http.StatusText(http.StatusServiceUnavailable),
+				Body:       io.NopCloser(strings.NewReader("query frontend shutting down")),
 			}, nil
 		}
 

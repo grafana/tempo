@@ -27,16 +27,17 @@ const (
 // because they are what an experiment varies between its groups.
 type RunOptions struct {
 	Repeat int `json:"repeat"`
-	// Warmup passes run and are discarded before a case is measured. It has no
-	// default so 0 stays expressible, but without it the first case pays the
-	// block's cold-read cost and every later case runs warm, a bias repetition
-	// does not average out.
-	Warmup int `json:"warmup"`
+
+	Cases []string `json:"cases,omitempty"`
 
 	TargetBytesPerRequest int `json:"targetBytesPerRequest"`
 	SearchLimit           int `json:"searchLimit"`
 	MaxSeries             int `json:"maxSeries"`
 	Exemplars             int `json:"exemplars"`
+	// Tempo has no defaults for a tag-value request's limit and maxStaleValues,
+	// so 0 means unlimited, as for a request without them.
+	MaxTagValues        uint32 `json:"maxTagValues,omitempty"`
+	StaleValueThreshold uint32 `json:"staleValueThreshold,omitempty"`
 
 	ReadBufferSize int `json:"readBufferSize,omitempty"`
 

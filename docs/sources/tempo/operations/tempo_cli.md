@@ -507,10 +507,10 @@ tempo-cli view schema -c ./tempo.yaml single-tenant ca314fba-efec-4852-ba3f-8d2b
 ## Benchmark profile
 
 Profile a local block for read-path benchmarking. Writes a JSON file recording
-what had to be measured from the block — its metadata, its row-group count, and
-present and absent trace IDs to look up — so that a benchmark run does not have
-to inspect the block, and every variant of an experiment works from the same
-measurements.
+what had to be measured from the block — its metadata, its row-group count,
+present and absent trace IDs to look up, and its attributes ranked by size — so
+that a benchmark run does not have to inspect the block, and every variant of an
+experiment works from the same measurements.
 
 ```bash
 tempo-cli benchmark profile <block-path>
@@ -527,10 +527,16 @@ Options:
   every ID at run time rather than embedding them. Defaults to `10000`. One
   absent ID is derived per present ID. Pass `0` to skip trace IDs, and with them
   the full scan they require.
+- `--attributes` Number of attributes to profile in each scope (resource, span)
+  and kind of value (string, numeric, boolean), ranked by total bytes as
+  `analyse block` counts them: a resource attribute once per resource, a span
+  attribute once per span. The `name`, `status`, `kind` and `duration`
+  intrinsics are always included. Each records its cardinality, the
+  share of spans carrying it, and the share carrying each of its 100 most
+  frequent values, or, for a numeric attribute with more than 100 distinct
+  values, quantiles of its values. Defaults to `100`. Pass `0` to skip the full
+  scan it requires. Supported for vParquet5 blocks.
 - `-o`, `--out` File to write the profile to. Defaults to stdout.
-
-Profiles built from a customer block embed real trace IDs. Treat them as local
-artifacts.
 
 Example:
 
@@ -557,15 +563,19 @@ Options:
 
 - `-p`, `--profile` Profile of the block, from `benchmark profile`. Required.
 - `-o`, `--out` File to write the result to. Defaults to stdout.
+- `-k`, `--case` Cases to run, as glob patterns over case IDs in the syntax
+  `benchmark compare` takes, such as `'metrics/ranked_*/*/high/*'`. Repeat the flag
+  or separate patterns with commas. Defaults to every case. Patterns matching
+  no case are an error.
 - `--repeat` Passes over the query set. Defaults to `1`.
-- `--warmup` Passes to run and discard first. Defaults to `1`, which pays the
-  block's cold-read cost outside the measurement. Setting it to `0` measures
-  the first case cold and every later one warm.
 - `--target-bytes-per-request` Bytes per search shard, mirroring the query
   frontend option of the same name. Defaults to `100MiB`.
 - `--search-limit` Traces a search returns per shard. Defaults to `20`.
 - `--max-series` Series a metrics query returns. Defaults to `1000`.
 - `--exemplars` Exemplars a metrics query collects. Defaults to `0`.
+- `--max-tag-values`, `--stale-value-threshold` A tag-value request's `limit`
+  and `maxStaleValues`. Each defaults to `0`, meaning no limit, as for a request
+  without them.
 - `--read-buffer-size` Storage read buffer size, such as `8MiB`. Defaults to
   `0`, meaning Tempo's default. This is the knob an experiment varies.
 - `--backend-latency`, `--backend-bandwidth` Simulate an object store: every
@@ -602,12 +612,46 @@ Keys are `source.name`:
 Metrics are collected rather than listed, so a metric added to Tempo appears
 without a change to the benchmark. Only metrics that moved are kept.
 
-The query set covers trace lookups by ID, present and absent; an unfiltered
-search; `rate()` and `rate() by (resource.service.name)` as metrics range
-queries; and tag-name lookups in each attribute scope. Metrics queries run over
-the block's whole time range, stepping at `max(60s, window/30)` to land about 30
-points. Searches and metrics queries are split into shards of row groups,
-mirroring how the query frontend splits a job.
+The query set has fixed cases, plus cases generated from the profile's ranked
+attributes.
+
+Fixed cases:
+
+- `traceid/present`, `traceid/absent`: trace lookups by ID, for IDs the block
+  holds and IDs it does not.
+- `search/nopredicate`: an unfiltered search.
+- `metrics/rate`, `metrics/rate-by-service`: `rate()` and
+  `rate() by (resource.service.name)`.
+- `metrics/drilldown/*`: the queries Traces Drilldown runs when it opens, such
+  as `{nestedSetParent<0 && true} | rate() with(sample=true)`.
+- `metadata/tagnames/<scope>`: a tag-name lookup in each attribute scope.
+
+Generated cases, from the top 10 attributes with a dedicated column and the top
+10 without:
+
+- `<group>` is the group an attribute was picked from: `ranked_dedicated` for
+  an attribute with a column of its own, which every intrinsic and
+  `resource.service.name` have, and `ranked_generic` for one in the generic
+  key/value columns.
+- Each attribute is queried with up to three of its values, one per selectivity
+  band: `high` is its most common value, `medium` the middle of its profiled
+  values, and `low` the least common value the profile kept. Every value is one
+  the block holds, so every query matches.
+- `search/<group>/<band>/<attribute>`: `{ attribute = value }`.
+- `metrics/<group>/<rate|quantile>/<band>/<attribute>`:
+  `{ attribute = value } | rate()` and
+  `{ attribute = value } | quantile_over_time(duration, 0.99, 0.95)`.
+- `metadata/<group>/tagvalues/<attribute>`: a tag-value lookup with no
+  TraceQL, for the top 20 string attributes in each group.
+- Attributes with only quantile values are skipped, and a profile built with
+  `--attributes 0` generates no cases.
+
+To run only some cases, pass `--case` a glob, such as
+`--case 'metrics/ranked_generic/*/low/*'`.
+
+Metrics queries run over the block's whole time range, stepping at
+`max(60s, window/30)` to land about 30 points. Searches and metrics queries are
+split into shards of row groups, mirroring how the query frontend splits a job.
 
 A case that fails is recorded with its error and the rest of the run continues.
 Benchmarking trace lookups reads the block's bloom filters, so a partial block
@@ -742,30 +786,6 @@ tempo-cli query search http.method GET 2024-01-01T00:00:00Z 2024-01-01T00:05:00Z
 Converts a vParquet file (actual data.parquet) of format A to a block of newer format B with an optional list of dedicated attribute columns.
 Actual supported versions for A and B vary by Tempo release. This utility command is useful when testing the impact of different combinations
 of dedicated columns.
-
-### Convert vParquet3 to vParquet4
-
-{{< admonition type="note" >}}
-`vParquet3` is deprecated.
-Tempo 3.x still reads existing vParquet3 blocks, so you don't need to convert them before you upgrade.
-Use this command to convert remaining vParquet3 blocks to vParquet4 or later.
-{{< /admonition >}}
-
-```bash
-tempo-cli parquet convert-3to4 <in file> [<out path>] [<list of dedicated columns>]
-```
-
-Arguments:
-
-- `in file` Path to an existing vParquet3 block directory.
-- `out path` Path to write the vParquet4 block to. The default is `./out`.
-- `list of dedicated columns` Optional list of columns to make dedicated. Columns use TraceQL syntax with scope. For example, `span.db.statement`, `resource.namespace`.
-
-Example:
-
-```bash
-tempo-cli parquet convert-3to4 ./block-in ./out span.db.statement span.db.name
-```
 
 ### Convert vParquet4 to vParquet5
 
@@ -927,7 +947,7 @@ tempo-cli migrate config --kafka-address=kafka:9092 --kafka-topic=tempo-traces o
 
 Analyses a block and outputs a summary of the block's generic attributes.
 
-It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3+.
+It's of particular use when trying to determine candidates for dedicated attribute columns.
 The output includes span, resource, and event attributes with cardinality and size information.
 
 Arguments:
@@ -965,7 +985,7 @@ tempo-cli analyse block --blob-threshold=4MiB --generate-jsonnet --backend=local
 
 Analyses all blocks in a given time range and outputs a summary of the blocks' generic attributes.
 
-It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3+.
+It's of particular use when trying to determine candidates for dedicated attribute columns.
 The output includes span, resource, and event attributes with cardinality and size information.
 
 Arguments:
@@ -1215,7 +1235,7 @@ Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
 - `--trace-id <value>` Trace ID to redact, in hex format. Repeat the flag for several traces in one request (`--trace-id=<ID> --trace-id=<ID>`, not comma-separated), up to 1000. Every job the redaction creates carries the whole list, so a longer list costs one copy per block; use `--query` instead. Mutually exclusive with `--query`.
-- `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter: `=` comparisons on the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`. Regular expressions, `!=` or ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
+- `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter over the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`: `=` comparisons, and the existence check `attr != nil`. Regular expressions, `!=` against a value, ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
 - `--dry-run` Evaluate the selector without rewriting any blocks. After the dry-run jobs complete, match counts are added to `tempo_backend_scheduler_redaction_traces_found_total` (`mode="dry_run"`). The command doesn't print the count (default: `false`).
 - `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
 - `--end <value>` End of the time window. Same forms as `--start`. Must be given with `--start`.
@@ -1224,6 +1244,8 @@ Options:
 - `--tls-ca <value>` Path to a PEM-encoded CA certificate file.
 
 You must provide exactly one of `--trace-id` or `--query`. Providing both, or neither, returns an error before the request is submitted.
+
+`attr != nil` is rewritten to an existence check, so it selects spans that **have** the attribute, not the ones missing it. Other `!=` forms are refused. This can be broader than it looks on a large tenant (`span.user_id != nil` matches every span carrying a user ID), so preview with `--dry-run` first.
 
 A tenant can have only one redaction in progress at a time, dry runs included.
 A submission made while an earlier one is still running, or still in its quiescence period, is rejected.

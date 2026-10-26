@@ -28,6 +28,9 @@ import (
 
 const (
 	defaultStreamingShards = 200
+
+	// extrapolationCacheKeySalt is mixed into the job cache key when a request extrapolates.
+	extrapolationCacheKeySalt = 3147483637
 )
 
 type queryRangeSharder struct {
@@ -126,6 +129,10 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		targetBytesPerRequest = s.jobSize(expr, allowUnsafe)
 		cutoff                = time.Now().Add(-s.cfg.QueryBackendAfter)
 	)
+
+	// Resolve extrapolation once here so queriers, live-stores, and cache keys all use the same value
+	// instead of each reading their own snapshot of the overrides.
+	req.Extrapolate = resolveExtrapolate(expr, s.overrides.MetricsExtrapolate(tenantID), allowUnsafe)
 
 	backendExemplars, generatorExemplars := s.exemplarsCutoff(*req, cutoff)
 	req.Exemplars = generatorExemplars
@@ -293,6 +300,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				MaxSeries:              searchReq.MaxSeries,
 				XInstant:               searchReq.XInstant,
 				SkipASTTransformations: searchReq.SkipASTTransformations,
+				Extrapolate:            searchReq.Extrapolate,
 			}
 
 			return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil
@@ -383,6 +391,15 @@ func (s *queryRangeSharder) exemplarsForBlock(m *backend.BlockMeta, totalExempla
 	return max(uint32(math.Ceil(share)), 1)
 }
 
+// resolveExtrapolate returns whether the query should be extrapolated. The extrapolate query hint takes
+// precedence over the tenant's override, and extrapolation is off when neither is set.
+func resolveExtrapolate(expr *traceql.RootExpr, override *bool, allowUnsafe bool) bool {
+	if b, ok := expr.Hints.GetBool(traceql.HintExtrapolate, allowUnsafe); ok {
+		return b
+	}
+	return override != nil && *override
+}
+
 func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	if req.Query == "" {
 		return 0
@@ -413,6 +430,11 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 		hash = fnv1a.AddUint64(hash, 2147483629)
 	} else {
 		hash = fnv1a.AddUint64(hash, 1147483619)
+	}
+
+	// Only mixed in when set so that cache keys are unchanged for queries that don't extrapolate.
+	if req.Extrapolate {
+		hash = fnv1a.AddUint64(hash, extrapolationCacheKeySalt)
 	}
 
 	return hash

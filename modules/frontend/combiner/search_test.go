@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -236,7 +237,7 @@ func testSearchCombinesResults(t *testing.T, marshalingFormat api.MarshallingFor
 			},
 		}
 
-		resp, err := c.HTTPFinal()
+		resp, err := c.HTTPFinal(context.Background())
 		require.NoError(t, err)
 
 		actual := &tempopb.SearchResponse{}
@@ -427,11 +428,11 @@ func testSearchResponseCombiner(t *testing.T, marshalingFormat api.MarshallingFo
 				err = combiner.AddResponse(tc.response2)
 				require.NoError(t, err)
 
-				httpResp, err := combiner.HTTPFinal()
+				httpResp, err := combiner.HTTPFinal(context.Background())
 				require.Equal(t, tc.expectedStatus, httpResp.StatusCode)
 				require.Equal(t, tc.expectedHTTPError, err)
 
-				grpcresp, err := combiner.GRPCFinal()
+				grpcresp, err := combiner.GRPCFinal(context.Background())
 				require.Equal(t, tc.expectedGRPCError, err)
 				require.Equal(t, tc.expectedResponse, grpcresp)
 			})
@@ -775,7 +776,7 @@ func TestSearchCombinerPadTraceIDs(t *testing.T) {
 			if tc.useDiff {
 				resp, err = c.GRPCDiff()
 			} else {
-				resp, err = c.GRPCFinal()
+				resp, err = c.GRPCFinal(context.Background())
 			}
 			require.NoError(t, err)
 			require.NotNil(t, resp)
@@ -856,4 +857,21 @@ func TestSegmentSearchResponse(t *testing.T) {
 		require.Equal(t, input.Metrics, out[1].Metrics)
 		require.Equal(t, input.Metrics, out[2].Metrics)
 	})
+}
+
+func TestSearchReportsInspectedBytesBeforeRequestFails(t *testing.T) {
+	var reported []uint64
+	c := NewTypedSearch(10, false, api.MarshallingFormatProtobuf, false,
+		WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) }))
+
+	ok := func(b uint64) PipelineResponse {
+		return toHTTPResponseWithFormat(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{InspectedBytes: b}}, http.StatusOK, nil, api.MarshallingFormatProtobuf)
+	}
+	require.NoError(t, c.AddResponse(ok(5)))
+	require.NoError(t, c.AddResponse(toHTTPResponse(t, nil, http.StatusInternalServerError)))
+	require.NoError(t, c.AddResponse(ok(7))) // dropped: the combiner already quit
+
+	_, err := c.GRPCFinal(context.Background())
+	require.Error(t, err)
+	require.Equal(t, []uint64{5}, reported)
 }

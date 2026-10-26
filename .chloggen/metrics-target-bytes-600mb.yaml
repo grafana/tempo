@@ -1,0 +1,6 @@
+change_type: change
+component: query-frontend
+note: Increase the default TraceQL metrics `target_bytes_per_job` from 100MiB to 600MiB.
+issues: []
+subtext:
+user: mdisibio

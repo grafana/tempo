@@ -86,7 +86,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version-file: 'go.mod'
+          # This job also installs gotestsum from the tools module.
+          go-version-file: 'tools/go.mod'
           # cache managed below instead: setup-go keys on go.sum alone, so once that key
           # exists it never re-saves and the -race build output never gets cached.
           cache: false
@@ -233,7 +234,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version-file: 'go.mod'
+          # This job also installs gotestsum from the tools module.
+          go-version-file: 'tools/go.mod'
           # cache managed below instead, see the unit-tests job
           cache: false
       - name: Get year and week number
@@ -253,7 +255,7 @@ jobs:
             gobuild-${{ runner.os }}-e2e-${{ steps.get-year-week-number.outputs.date }}-
             gobuild-${{ runner.os }}-e2e-
       - name: Download e2e images
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: tempo-e2e-images
           path: /tmp
@@ -338,7 +340,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version-file: 'go.mod'
+          # vendor-check also tidies the tools module.
+          go-version-file: 'tools/go.mod'
 
       - name: Check vendor
         run: make vendor-check
@@ -397,7 +400,7 @@ jobs:
           fetch-depth: 0  # Fetch full history for proper diff computation
 
       - name: Download all coverage artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: coverage-*
           path: .coverage/

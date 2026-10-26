@@ -346,7 +346,7 @@ func (h *TempoHarness) GetConfig() (app.Config, error) {
 func (h *TempoHarness) restartServiceWithConfigOverlay(t *testing.T, service *e2e.HTTPService, overlayPath string) error {
 	// Stop the service
 	err := service.Stop()
-	if strings.Contains(err.Error(), "exit status 137") { // 137 is returned by linux when it is force killed b/c it doesn't stop in time.
+	if err != nil && strings.Contains(err.Error(), "exit status 137") { // 137 is returned by linux when it is force killed b/c it doesn't stop in time.
 		t.Logf("service %s was force killed during stop: %v", service.Name(), err)
 	} else if err != nil {
 		return fmt.Errorf("failed to stop service: %w", err)

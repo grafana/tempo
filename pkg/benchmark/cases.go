@@ -2,8 +2,8 @@ package benchmark
 
 import (
 	"errors"
-	"fmt"
 
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
@@ -15,14 +15,27 @@ const (
 	apiMetadata  = "metadata"
 )
 
-// basicMetricsQueries are the phase 1 metrics queries. Phase 1 does no
+const rateCaseID = "rate"
+
+// basicMetricsQueries are the fixed metrics queries. The fixed set does no
 // attribute profiling, so the grouped query groups by a well-known attribute.
 var basicMetricsQueries = []struct {
 	id    string
 	query string
 }{
-	{"rate", "{} | rate()"},
+	{rateCaseID, "{} | rate()"},
 	{"rate-by-service", "{} | rate() by (resource.service.name)"},
+}
+
+// drilldownQueries mirror what Traces Drilldown runs when it opens.
+var drilldownQueries = []struct {
+	id    string
+	query string
+}{
+	{rateCaseID, "{nestedSetParent<0 && true} | rate() with(sample=true)"},
+	{"errors", "{nestedSetParent<0 && true && status=error} | rate() with(sample=true)"},
+	{"duration", "{nestedSetParent<0 && true} | histogram_over_time(duration) with(sample=true)"},
+	{"by-service", "{nestedSetParent<0 && true} | rate() by (resource.service.name)"},
 }
 
 // tagNameScopes are the scopes a tag-name lookup is measured over. None means
@@ -44,21 +57,20 @@ type benchCase struct {
 	api   string
 	query string
 
-	executions func(*BlockProfile, []Shard, RunOptions) ([]execution, error)
+	executions func(*profile.BlockProfile, []Shard, RunOptions) ([]execution, error)
 }
 
-// phase1Cases is the fixed query set: no generated queries, no attribute
-// profiling.
-func phase1Cases() []benchCase {
+// fixedCases is the fixed query set: no generated queries, no attribute profiling.
+func fixedCases() []benchCase {
 	cases := []benchCase{
 		{
 			id:  "traceid/present",
 			api: apiTraceByID,
-			executions: func(profile *BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
-				if len(profile.TraceIDs.Present) == 0 {
+			executions: func(prof *profile.BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
+				if len(prof.TraceIDs.Present) == 0 {
 					return nil, errors.New("profile has no present trace IDs")
 				}
-				return traceByIDExecutions(profile.TraceIDs.Present, opts.searchOptions())
+				return traceByIDExecutions(prof.TraceIDs.Present, opts.searchOptions())
 			},
 		},
 		{
@@ -66,37 +78,23 @@ func phase1Cases() []benchCase {
 			// index rather than by reading a trace, so it is measured apart.
 			id:  "traceid/absent",
 			api: apiTraceByID,
-			executions: func(profile *BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
-				if len(profile.TraceIDs.Absent) == 0 {
+			executions: func(prof *profile.BlockProfile, _ []Shard, opts RunOptions) ([]execution, error) {
+				if len(prof.TraceIDs.Absent) == 0 {
 					return nil, errors.New("profile has no absent trace IDs")
 				}
-				return traceByIDExecutions(profile.TraceIDs.Absent, opts.searchOptions())
-			},
-		},
-		{
-			// The fetch path with nothing to prune by.
-			id:    "search/nopredicate",
-			api:   apiSearch,
-			query: "{}",
-			executions: func(profile *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				return searchExecutions("{}", shards, profile.Block, opts.searchOptions()), nil
+				return traceByIDExecutions(prof.TraceIDs.Absent, opts.searchOptions())
 			},
 		},
 	}
 
+	// The fetch path with nothing to prune by.
+	cases = append(cases, searchCase("search/nopredicate", "{}"))
+
 	for _, q := range basicMetricsQueries {
-		cases = append(cases, benchCase{
-			id:    "metrics/" + q.id,
-			api:   apiMetrics,
-			query: q.query,
-			executions: func(profile *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
-				if !profile.Block.EndTime.After(profile.Block.StartTime) {
-					return nil, fmt.Errorf("a metrics query needs a non-empty time window, but the block's is %s to %s",
-						profile.Block.StartTime, profile.Block.EndTime)
-				}
-				return metricsExecutions(q.query, shards, profile.Block, opts.searchOptions()), nil
-			},
-		})
+		cases = append(cases, metricsCase("metrics/"+q.id, q.query))
+	}
+	for _, q := range drilldownQueries {
+		cases = append(cases, metricsCase("metrics/drilldown/"+q.id, q.query))
 	}
 
 	// Tag names, one case per scope, with no TraceQL to filter by.
@@ -104,7 +102,7 @@ func phase1Cases() []benchCase {
 		cases = append(cases, benchCase{
 			id:  "metadata/tagnames/" + scope.String(),
 			api: apiMetadata,
-			executions: func(_ *BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
+			executions: func(_ *profile.BlockProfile, shards []Shard, opts RunOptions) ([]execution, error) {
 				return tagNamesExecutions(scope, shards, opts.searchOptions()), nil
 			},
 		})

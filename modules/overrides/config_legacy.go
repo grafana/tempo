@@ -29,7 +29,11 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		IngestionArtificialDelay:   c.Ingestion.ArtificialDelay,
 		IngestionRetryInfoEnabled:  c.Ingestion.RetryInfoEnabled,
 
-		Forwarders: c.Forwarders,
+		IngestionCreationGracePeriod: c.Ingestion.CreationGracePeriod,
+
+		Forwarders:         c.Forwarders,
+		ForwarderQueueSize: c.Forwarder.QueueSize,
+		ForwarderWorkers:   c.Forwarder.Workers,
 
 		MetricsGeneratorRingSize:                                                    c.MetricsGenerator.RingSize,
 		MetricsGeneratorProcessors:                                                  c.MetricsGenerator.Processors,
@@ -42,6 +46,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorRemoteWriteHeaders:                                          c.MetricsGenerator.RemoteWriteHeaders,
 		MetricsGeneratorForwarderQueueSize:                                          c.MetricsGenerator.Forwarder.QueueSize,
 		MetricsGeneratorForwarderWorkers:                                            c.MetricsGenerator.Forwarder.Workers,
+		MetricsGeneratorProcessorServiceGraphsMaxItems:                              c.MetricsGenerator.Processor.ServiceGraphs.MaxItems,
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      c.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            c.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        c.MetricsGenerator.Processor.ServiceGraphs.PeerAttributes,
@@ -82,6 +87,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		UnsafeQueryHints:              c.Read.UnsafeQueryHints,
 		LeftPadTraceIDs:               c.Read.LeftPadTraceIDs,
 		MetricsSpanOnlyFetch:          c.Read.MetricsSpanOnlyFetch,
+		MetricsExtrapolate:            c.Read.MetricsExtrapolate,
 		SpanPruningAwareness:          c.Read.SpanPruningAwareness,
 		EngineBytesTracking:           c.Read.EngineBytesTracking,
 		SpanPruningEnabled:            c.Read.SpanPruningEnabled,
@@ -109,12 +115,16 @@ type LegacyOverrides struct {
 	IngestionArtificialDelay   *time.Duration `yaml:"ingestion_artificial_delay" json:"ingestion_artificial_delay"`
 	IngestionRetryInfoEnabled  *bool          `yaml:"ingestion_retry_info_enabled" json:"ingestion_retry_info_enabled"`
 
+	IngestionCreationGracePeriod *time.Duration `yaml:"ingestion_creation_grace_period" json:"ingestion_creation_grace_period"`
+
 	// Ingester enforced limits.
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user" json:"max_traces_per_user"`
 	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user" json:"max_global_traces_per_user"`
 
 	// Forwarders
-	Forwarders []string `yaml:"forwarders" json:"forwarders"`
+	Forwarders         []string `yaml:"forwarders" json:"forwarders"`
+	ForwarderQueueSize int      `yaml:"forwarder_queue_size" json:"forwarder_queue_size"`
+	ForwarderWorkers   int      `yaml:"forwarder_workers" json:"forwarder_workers"`
 
 	// Metrics-generator config
 	MetricsGeneratorRingSize                                                    int                              `yaml:"metrics_generator_ring_size" json:"metrics_generator_ring_size"`
@@ -133,6 +143,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
 	MetricsGeneratorRemoteWriteHeaders                                          RemoteWriteHeaders               `yaml:"metrics_generator_remote_write_headers,omitempty" json:"metrics_generator_remote_write_headers,omitempty"`
+	MetricsGeneratorProcessorServiceGraphsMaxItems                              *int                             `yaml:"metrics_generator_processor_service_graphs_max_items,omitempty" json:"metrics_generator_processor_service_graphs_max_items,omitempty"`
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets                      []float64                        `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
 	MetricsGeneratorProcessorServiceGraphsDimensions                            []string                         `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes                        []string                         `yaml:"metrics_generator_processor_service_graphs_peer_attributes" json:"metrics_generator_processor_service_graphs_peer_attributes"`
@@ -172,6 +183,7 @@ type LegacyOverrides struct {
 	UnsafeQueryHints     bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
 	LeftPadTraceIDs      bool           `yaml:"left_pad_trace_ids" json:"left_pad_trace_ids"`
 	MetricsSpanOnlyFetch *bool          `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
+	MetricsExtrapolate   *bool          `yaml:"metrics_extrapolate,omitempty" json:"metrics_extrapolate,omitempty"`
 	SpanPruningAwareness bool           `yaml:"span_pruning_awareness,omitempty" json:"span_pruning_awareness,omitempty"`
 	EngineBytesTracking  *bool          `yaml:"engine_bytes_tracking,omitempty" json:"engine_bytes_tracking,omitempty"`
 	SpanPruningEnabled   *bool          `yaml:"span_pruning_enabled,omitempty" json:"span_pruning_enabled,omitempty"`
@@ -320,6 +332,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			MaxAttributeBytes:      l.IngestionMaxAttributeBytes,
 			ArtificialDelay:        l.IngestionArtificialDelay,
 			RetryInfoEnabled:       l.IngestionRetryInfoEnabled,
+			CreationGracePeriod:    l.IngestionCreationGracePeriod,
 		},
 		Read: ReadOverrides{
 			MaxBytesPerTagValuesQuery:     l.MaxBytesPerTagValuesQuery,
@@ -330,6 +343,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			UnsafeQueryHints:              l.UnsafeQueryHints,
 			LeftPadTraceIDs:               l.LeftPadTraceIDs,
 			MetricsSpanOnlyFetch:          l.MetricsSpanOnlyFetch,
+			MetricsExtrapolate:            l.MetricsExtrapolate,
 			SpanPruningAwareness:          l.SpanPruningAwareness,
 			EngineBytesTracking:           l.EngineBytesTracking,
 			SpanPruningEnabled:            l.SpanPruningEnabled,
@@ -356,6 +370,7 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			},
 			Processor: ProcessorOverrides{
 				ServiceGraphs: ServiceGraphsOverrides{
+					MaxItems:                              l.MetricsGeneratorProcessorServiceGraphsMaxItems,
 					HistogramBuckets:                      l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
 					Dimensions:                            l.MetricsGeneratorProcessorServiceGraphsDimensions,
 					PeerAttributes:                        l.MetricsGeneratorProcessorServiceGraphsPeerAttributes,
@@ -390,6 +405,10 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			MaxCardinalityPerLabel:          l.MetricsGeneratorMaxCardinalityPerLabel,
 		},
 		Forwarders: l.Forwarders,
+		Forwarder: ForwarderOverrides{
+			QueueSize: l.ForwarderQueueSize,
+			Workers:   l.ForwarderWorkers,
+		},
 		Global: GlobalOverrides{
 			MaxBytesPerTrace: l.MaxBytesPerTrace,
 		},

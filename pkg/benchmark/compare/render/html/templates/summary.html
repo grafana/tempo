@@ -1,8 +1,9 @@
 {{define "summary"}}{{template "head" .}}
 {{with .Summary}}
+{{if .Family}}<nav><a href="/{{.SummaryURL}}">← summary</a></nav>{{end}}
 <nav>{{range .Metrics}}<a href="/{{.URL}}" class="{{if .Active}}active{{end}}">{{.Label}}</a>{{end}}</nav>
 <nav>{{range .Stats}}<a href="/{{.URL}}" class="{{if .Active}}active{{end}}">{{.Label}}</a>{{end}}</nav>
-<h2>{{.Title}}</h2>
+<h2>{{.Title}}{{with .Family}} · {{.}}{{end}}</h2>
 <table class="data">
   <thead>
     <tr>
@@ -18,14 +19,14 @@
     <tr class="group"><th class="dim" colspan="99">{{.Group}}</th></tr>
     {{- else}}
     <tr>
-      <td><a href="/{{.URL}}">{{.ID}}</a>{{if .Problems}} <span class="warn" title="{{range .Problems}}{{.}}&#10;{{end}}">⚠</span>{{end}}</td>
+      <td><a href="/{{.URL}}">{{.ID}}</a>{{with .Cases}} <span class="dim">{{.}} cases</span>{{end}}{{if .Problems}} <span class="warn" title="{{range .Problems}}{{.}}&#10;{{end}}">⚠</span>{{end}}</td>
       {{- range .Cells}}
         {{- if .Incomparable}}
       <td class="sep warn" colspan="2">not comparable</td>
         {{- else if .Baseline}}
       <td class="sep">{{.Value}}</td>
         {{- else}}
-      <td class="sep">{{.Value}}</td><td class="{{.Change.Class}}">{{.Change.Text}}</td>
+      <td class="sep">{{.Value}}</td><td class="{{.Change.Class}}">{{.Change.Text}}{{with .Range.Text}} <span class="dim">{{.}}</span>{{end}}</td>
         {{- end}}
       {{- end}}
     </tr>

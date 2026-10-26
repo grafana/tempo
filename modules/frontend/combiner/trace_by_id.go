@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,8 @@ import (
 	tempo_io "github.com/grafana/tempo/v3/pkg/io"
 	"github.com/grafana/tempo/v3/pkg/model/trace"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 const (
@@ -39,18 +42,18 @@ type TraceByIDCombiner struct {
 // - translate tempopb.TraceByIDResponse to tempopb.Trace. all other combiners pass the same object through
 // - runs the zipkin dedupe logic on the fully combined trace
 // - encode the returned trace as either json or proto depending on the request
-func NewTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor) Combiner {
+func NewTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor, opts ...Option) Combiner {
 	return &TraceByIDCombiner{
 		c:               trace.NewCombiner(maxBytes, false),
 		code:            http.StatusNotFound,
 		contentType:     contentType,
-		MetricsCombiner: NewTraceByIDMetricsCombiner(),
+		MetricsCombiner: NewTraceByIDMetricsCombiner(opts...),
 		traceRedactor:   traceRedactor,
 	}
 }
 
-func NewTypedTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor) *TraceByIDCombiner {
-	return NewTraceByID(maxBytes, contentType, traceRedactor).(*TraceByIDCombiner)
+func NewTypedTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor, opts ...Option) *TraceByIDCombiner {
+	return NewTraceByID(maxBytes, contentType, traceRedactor, opts...).(*TraceByIDCombiner)
 }
 
 func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
@@ -113,7 +116,17 @@ func (c *TraceByIDCombiner) Result() *tempopb.Trace {
 	return t
 }
 
-func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
+func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (resp *http.Response, err error) {
+	ctx, span := tracer.Start(ctx, "combiner.HTTPFinal")
+	defer func() {
+		if err != nil {
+			span.SetStatus(codes.Error, "response finalization failed")
+		} else if resp != nil && (resp.StatusCode == http.StatusOK || resp.Body == http.NoBody) {
+			span.SetAttributes(attribute.Int64("response_bytes", resp.ContentLength))
+		}
+		span.End()
+	}()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -133,12 +146,9 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 		traceResult = &tempopb.Trace{}
 	}
 
-	// dedupe duplicate span ids
-	deduper := newDeduper()
-	traceResult = deduper.dedupe(traceResult)
+	traceResult = deduplicateTrace(ctx, traceResult)
 	if c.traceRedactor != nil {
-		err := c.traceRedactor.RedactTraceAttributes(traceResult)
-		if err != nil {
+		if err := redactTrace(ctx, traceResult, c.traceRedactor); err != nil {
 			if errors.Is(err, ErrTraceHidden) {
 				return &http.Response{
 					StatusCode: http.StatusNotFound,
@@ -151,14 +161,27 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	}
 
 	// marshal in the requested format
+	encoding := "json"
+	if c.contentType == api.MarshallingFormatProtobuf {
+		encoding = "protobuf"
+	}
+	span.SetAttributes(
+		attribute.String("format", encoding),
+		attribute.Int("span_count", countTraceSpans(traceResult)),
+	)
+	span.AddEvent("trace.marshal.start")
 	var buff []byte
-	var err error
 
 	if c.contentType == api.MarshallingFormatProtobuf {
 		buff, err = proto.Marshal(traceResult)
 	} else {
 		buff, err = tempopb.MarshalToJSONV1(traceResult)
 	}
+	if err != nil {
+		span.SetStatus(codes.Error, "trace marshalling failed")
+	}
+	span.SetAttributes(attribute.Int("response_bytes", len(buff)))
+	span.AddEvent("trace.marshal.done")
 	if err != nil {
 		return &http.Response{}, fmt.Errorf("error marshalling response: %w content type: %s", err, c.contentType)
 	}
