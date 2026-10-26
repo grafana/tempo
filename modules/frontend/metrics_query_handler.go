@@ -326,6 +326,6 @@ func logQueryInstantRequest(logger log.Logger, tenantID string, req *tempopb.Que
 		"tenant", tenantID,
 		"query", req.Query,
 		"range", time.Duration(req.End-req.Start),
-		"range_seconds", req.End-req.Start,
+		"range_nanos", req.End-req.Start,
 	)
 }
