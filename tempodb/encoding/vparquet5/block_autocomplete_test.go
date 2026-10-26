@@ -1232,6 +1232,7 @@ func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
 			attrScope := traceql.AttributeScopeFromString(string(scope))
 			mixed := traceql.NewScopedAttribute(attrScope, false, "mixed")
 			peer := traceql.NewScopedAttribute(attrScope, false, "peer")
+			unscoped := traceql.NewAttribute("mixed")
 
 			tagValues := func(tag traceql.Attribute, cond traceql.Condition) []tempopb.TagValue {
 				distinctValues := collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
@@ -1250,11 +1251,16 @@ func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
 				expected []tempopb.TagValue
 			}{
 				{"values of mixed", mixed, traceql.Condition{Attribute: peer, Op: traceql.OpExists}, []tempopb.TagValue{stringTagValue("a"), intTagValue(1)}},
+				{"values of unscoped mixed", unscoped, traceql.Condition{Attribute: peer, Op: traceql.OpExists}, []tempopb.TagValue{stringTagValue("a"), intTagValue(1)}},
 				{"values of mixed where mixed exists", mixed, traceql.Condition{Attribute: mixed, Op: traceql.OpExists}, []tempopb.TagValue{stringTagValue("a"), intTagValue(1)}},
 				{"values of peer where mixed exists", peer, traceql.Condition{Attribute: mixed, Op: traceql.OpExists}, []tempopb.TagValue{stringTagValue("x"), stringTagValue("y")}},
 				{"values of peer where mixed doesn't exist", peer, traceql.Condition{Attribute: mixed, Op: traceql.OpNotExists}, []tempopb.TagValue{stringTagValue("z")}},
 			}
 			for _, tc := range testCases {
+				// Unscoped tags don't look up event attributes, also on main.
+				if tc.tag == unscoped && scope == backend.DedicatedColumnScopeEvent {
+					continue
+				}
 				t.Run(tc.name, func(t *testing.T) {
 					require.ElementsMatch(t, tc.expected, tagValues(tc.tag, tc.cond))
 				})
