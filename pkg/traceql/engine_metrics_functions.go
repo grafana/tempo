@@ -45,6 +45,32 @@ func newAccumulator(op SimpleAggregationOp) accumulator {
 	return nil
 }
 
+// newAccumulators returns n empty accumulators for op, backed by a single allocation.
+func newAccumulators(op SimpleAggregationOp, n int) []accumulator {
+	switch op {
+	case minOverTimeAggregation:
+		return makeAccumulators(n, emptyMinAcc)
+	case maxOverTimeAggregation:
+		return makeAccumulators(n, emptyMaxAcc)
+	case sumOverTimeAggregation:
+		return makeAccumulators(n, emptySumAcc)
+	}
+	return nil
+}
+
+func makeAccumulators[T any, P interface {
+	*T
+	accumulator
+}](n int, empty T) []accumulator {
+	backing := make([]T, n)
+	accs := make([]accumulator, n)
+	for i := range backing {
+		backing[i] = empty
+		accs[i] = P(&backing[i])
+	}
+	return accs
+}
+
 // sumAcc is a Kahan-Neumaier compensated sum of v*weight. It is empty while
 // sum is NaN and comp is 0; a sum that became NaN (Inf + -Inf) has a NaN comp,
 // so it stays NaN instead of restarting.

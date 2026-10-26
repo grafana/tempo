@@ -1864,23 +1864,23 @@ type SimpleAggregator struct {
 	exemplarBuckets bucketSet
 	intervalMapper  IntervalMapper
 	op              SimpleAggregationOp
-	// comps holds the Kahan compensation for sum_over_time: comps[key][i]
-	// belongs to the running sum in ss[key].Values[i]. The other ops keep all
-	// their state in Values, so it is nil for them.
-	comps map[SeriesMapKey][]float64
+	// accumulators holds the state behind each value of ss for the over_time
+	// ops: accumulators[key][i] backs ss[key].Values[i]. Plain sums need no
+	// extra state, so it is nil for them and samples are added to ss directly.
+	accumulators map[SeriesMapKey][]accumulator
 }
 
 func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
-	var comps map[SeriesMapKey][]float64
-	if op == sumOverTimeAggregation {
-		comps = make(map[SeriesMapKey][]float64)
+	var accumulators map[SeriesMapKey][]accumulator
+	if op != sumAggregation {
+		accumulators = make(map[SeriesMapKey][]accumulator)
 	}
 	return &SimpleAggregator{
 		ss:              make(SeriesSet),
 		exemplarBuckets: newExemplarBucketSet(req.Exemplars, req.Start, req.End, req.Step, IsInstant(req)),
 		intervalMapper:  NewIntervalMapperFromReq(req),
 		op:              op,
-		comps:           comps,
+		accumulators:    accumulators,
 	}
 }
 
@@ -1898,41 +1898,28 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 				Values:    make([]float64, b.intervalMapper.IntervalCount()),
 				Exemplars: make([]Exemplar, 0, len(ts.Exemplars)),
 			}
-			if b.op != sumAggregation {
+			if b.accumulators != nil {
 				for i := range existing.Values {
 					existing.Values[i] = nan
 				}
-			}
-			if b.comps != nil {
-				b.comps[key] = make([]float64, len(existing.Values))
+				b.accumulators[key] = newAccumulators(b.op, len(existing.Values))
 			}
 
 			b.ss[key] = existing
 		}
 
-		comps := b.comps[key]
+		accs := b.accumulators[key]
 		for _, sample := range ts.Samples {
 			j := b.intervalMapper.IntervalMs(sample.TimestampMs)
 			if j < 0 || j >= len(existing.Values) {
 				continue
 			}
-			// The accumulators are copied in and out of Values, so the
-			// over_time ops share their logic without a heap object per value.
-			switch b.op {
-			case sumOverTimeAggregation:
-				acc := sumAcc{sum: existing.Values[j], comp: comps[j]}
-				acc.add(sample.Value, 1)
-				existing.Values[j], comps[j] = acc.sum, acc.comp
-			case minOverTimeAggregation:
-				acc := minAcc{v: existing.Values[j]}
-				acc.add(sample.Value, 1)
-				existing.Values[j] = acc.v
-			case maxOverTimeAggregation:
-				acc := maxAcc{v: existing.Values[j]}
-				acc.add(sample.Value, 1)
-				existing.Values[j] = acc.v
-			default:
+			if accs == nil {
 				existing.Values[j] += sample.Value
+			} else {
+				// Keep Values current so Results can return ss as-is.
+				accs[j].add(sample.Value, 1)
+				existing.Values[j] = accs[j].value()
 			}
 		}
 
@@ -1962,22 +1949,7 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 }
 
 func (b *SimpleAggregator) Results() SeriesSet {
-	if b.comps == nil {
-		return b.ss
-	}
-	// Add the compensation back into a copy, since ss keeps the running sums
-	// and Results can be called between Combines.
-	out := make(SeriesSet, len(b.ss))
-	for key, ts := range b.ss {
-		comps := b.comps[key]
-		values := make([]float64, len(ts.Values))
-		for i, sum := range ts.Values {
-			values[i] = sum + comps[i]
-		}
-		ts.Values = values
-		out[key] = ts
-	}
-	return out
+	return b.ss
 }
 
 func (b *SimpleAggregator) Length() int {
