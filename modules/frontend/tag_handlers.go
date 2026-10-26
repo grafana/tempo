@@ -573,6 +573,7 @@ func logTagsRequest(logger log.Logger, tenantID, handler, scope string, rangeSec
 		"tenant", tenantID,
 		"handler", handler,
 		"scope", scope,
+		"range", time.Duration(rangeSeconds)*time.Second,
 		"range_seconds", rangeSeconds,
 	)
 }
@@ -586,6 +587,7 @@ func logTagsResult(ctx context.Context, logger log.Logger, tenantID, handler, sc
 		"traceID", traceID,
 		"handler", handler,
 		"scope", scope,
+		"range", time.Duration(rangeSeconds)*time.Second,
 		"range_seconds", rangeSeconds,
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
@@ -601,6 +603,7 @@ func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query st
 		"handler", handler,
 		"tag", tagName,
 		"query", query,
+		"range", time.Duration(rangeSeconds)*time.Second,
 		"range_seconds", rangeSeconds,
 	)
 }
@@ -615,6 +618,7 @@ func logTagValuesResult(ctx context.Context, logger log.Logger, tenantID, handle
 		"handler", handler,
 		"tag", tagName,
 		"query", query,
+		"range", time.Duration(rangeSeconds)*time.Second,
 		"range_seconds", rangeSeconds,
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
