@@ -8,14 +8,14 @@ change_type: bug_fix
 component: traceql
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: "`!= nil`, `= nil`, `select()`, `by()` and tag autocomplete now find attributes that have a dedicated column, or a well-known column in vParquet4, but were sent with another type, for example an int in a string column."
+note: "Fix nil checks, `select()`, `by()` and tag autocomplete on attributes sent with another type than their dedicated column or vParquet4 well-known column, e.g. an int in a string column. `!= nil` missed these spans, `= nil` matched them, `select()` and `by()` returned nil, and autocomplete left out their values."
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
 issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
-subtext:
+subtext: "`{ event.x = nil }` on a dedicated event column no longer matches spans without events, the same as a generic event attribute."
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: electron0zero
