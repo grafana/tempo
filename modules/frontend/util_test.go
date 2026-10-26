@@ -222,3 +222,25 @@ func TestRecordResult_NilAdditionalMetrics(t *testing.T) {
 	recordResult(level.Info(logger), context.Background(), nil, "msg", "test")
 	require.Contains(t, logger.String(), "msg test")
 }
+
+func TestLogWithShape_RequestHeaderFields(t *testing.T) {
+	t.Parallel()
+
+	t.Run("appends header fields from the context", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := withRequestHeaderFields(context.Background(), []any{"header_user_agent", "Grafana/12.0.0"})
+		logger := &recordingLogger{}
+		logWithShape(level.Info(logger), ctx, "msg", "search response")
+		require.Equal(t, "level info msg search response header_user_agent Grafana/12.0.0\n", logger.String())
+	})
+
+	t.Run("logs only the given fields without header fields", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := withRequestHeaderFields(context.Background(), nil)
+		logger := &recordingLogger{}
+		logWithShape(level.Info(logger), ctx, "msg", "search response")
+		require.Equal(t, "level info msg search response\n", logger.String())
+	})
+}

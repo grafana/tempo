@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: query-frontend
+
+note: Add the request headers configured with `log_query_request_headers` to the per-query search and metrics response log lines, not only to the `query stats` line.
+
+issues: []
+
+subtext:
+
+user: ankit--sethi

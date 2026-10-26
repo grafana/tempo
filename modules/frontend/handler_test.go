@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
@@ -30,6 +31,22 @@ func TestFormatRequestHeaders(t *testing.T) {
 	}
 
 	require.Equal(t, expected, fields)
+}
+
+func TestHandlerPassesRequestHeaderFieldsToResponseLogs(t *testing.T) {
+	logger := &recordingLogger{}
+	h := newHandler([]string{"User-Agent"}, handlerRoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		// The per-query handlers log their response lines with the request context.
+		recordResult(level.Info(logger), r.Context(), nil, "msg", "search response")
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("test"))}, nil
+	}), log.NewNopLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/search", nil)
+	req.Header.Set("User-Agent", "Grafana/12.0.0")
+	req.Header.Set("X-Not-Configured", "ignored")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	require.Equal(t, "level info msg search response header_user_agent Grafana/12.0.0\n", logger.String())
 }
 
 type handlerRoundTripperFunc func(*http.Request) (*http.Response, error)
