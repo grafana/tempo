@@ -70,10 +70,11 @@ func (r *Regexp) MatchString(s string) bool {
 		}
 	}
 
-	matched := false
+	// Matching requires any pattern to match. Not matching requires that no pattern matches.
+	matched := !r.shouldMatch
 	for _, m := range r.matchers {
-		if m.MatchString(s) == r.shouldMatch {
-			matched = true
+		if m.MatchString(s) {
+			matched = r.shouldMatch
 			break
 		}
 	}

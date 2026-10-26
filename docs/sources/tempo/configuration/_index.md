@@ -1089,7 +1089,7 @@ query_frontend:
     [max_query_expression_size_bytes: <int> | default = 131072]
 
     # List of AST transformation names to disable globally for all TraceQL queries.
-    # Possible values: "or_to_in", "all" ("all" disables every transformation).
+    # Possible values: "or_to_in", "demorgan", "all" ("all" disables every transformation).
     # (default: <empty list>, all transformations enabled)
     [skip_ast_transformations: <list of strings> | default = []]
 

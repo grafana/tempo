@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"errors"
 	"fmt"
+	stdmath "math"
 	"math/rand"
 	"path"
 	"slices"
@@ -52,6 +53,7 @@ func TestSearchCompleteBlock(t *testing.T) {
 				searchRunner,
 				traceQLRunner,
 				traceQLNilRunner,
+				traceQLNegationRunner,
 				advancedTraceQLRunner,
 				groupTraceQLRunner,
 				traceQLStructural,
@@ -388,6 +390,108 @@ func traceQLNilRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 		}
 		require.NoError(t, err, "search request: %+v", req)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
+	}
+}
+
+// traceQLNegationRunner checks that negated expressions return the right spans from storage. The
+// expected trace has 4 spans: MySpan and RootSpan have span.foo = "Bar", and all spans last 1s except
+// RootSpan which lasts 2s. Like NULL in SQL, a comparison with a missing attribute doesn't match, and
+// neither does its negation, except for nil checks.
+func traceQLNegationRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
+	var (
+		ctx     = context.Background()
+		e       = traceql.NewEngine()
+		opts    = common.DefaultSearchOptions()
+		fetcher = traceql.NewSpansetFetcherWrapperBoth(
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return r.Fetch(ctx, meta, req, opts)
+			},
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+				return r.FetchSpans(ctx, meta, req, opts)
+			},
+		)
+	)
+
+	// The number of spans of the expected trace that match. The other traces are random.
+	matchedSpans := func(query string) int {
+		res, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: query, Limit: 100}, fetcher)
+		if errors.Is(err, util.ErrUnsupported) {
+			return -1
+		}
+		require.NoError(t, err, "search request: %s", query)
+
+		tr := actualForExpectedMeta(wantMeta, res)
+		if tr == nil {
+			return 0
+		}
+		n := 0
+		for _, ss := range tr.SpanSets {
+			n += int(ss.Matched)
+		}
+		return n
+	}
+
+	// The number of spans in all traces, counted by a metrics query.
+	start, end := uint64(900*time.Second), uint64(1100*time.Second)
+	countSpans := func(query string) int {
+		req := &tempopb.QueryRangeRequest{Query: query + " | count_over_time()", Start: start, End: end, Step: end - start}
+		eval, err := e.CompileMetricsQueryRange(req)
+		require.NoError(t, err, "metrics request: %s", query)
+		require.NoError(t, eval.Do(ctx, fetcher, start, end, 0), "metrics request: %s", query)
+
+		n := 0.0
+		for _, ts := range eval.Results() {
+			for _, v := range ts.Values {
+				if !stdmath.IsNaN(v) {
+					n += v
+				}
+			}
+		}
+		return int(n)
+	}
+
+	tcs := []struct {
+		query string
+		want  int
+	}{
+		// negations of intrinsics
+		{`{ !(name = "MySpan") }`, 3},
+		{`{ !(name = "MySpan" || name = "RootSpan") }`, 2},
+		{`{ !(name =~ "My.*" || name =~ "Root.*") }`, 2},
+		{`{ !(duration > 1s) }`, 3},
+		{`{ !(resource.service.name = "MyService") }`, 3},
+		{`{ resource.service.name = "RootService" && !(name = "RootSpan") }`, 0},
+		{`{ resource.service.name = "RootService" && !(name = "MySpan") }`, 1},
+		// negations of attributes. Spans without span.foo don't match, as for the comparison
+		{`{ !(span.foo = "Bar") }`, 0},
+		{`{ !(span.foo = "x") }`, 2},
+		{`{ !(span.foo != "x") }`, 0},
+		{`{ span.foo != "x" }`, 2},
+		// nil checks match missing attributes
+		{`{ !(span.foo != nil) }`, 2},
+		{`{ !(span.foo = nil) }`, 2},
+		{`{ !(span.missing != nil) }`, 4},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.query, func(t *testing.T) {
+			if got := matchedSpans(tc.query); got >= 0 {
+				require.Equal(t, tc.want, got, "search request: %s", tc.query)
+			}
+		})
+	}
+
+	// Metrics queries have a single fetch condition, which is trusted without checking the spans again.
+	// The negation and the comparison split all the spans, because every span has a name.
+	for _, q := range []string{
+		`{ name = "MySpan" }`,
+		`{ name =~ "My.*" || name =~ "Root.*" }`,
+		`{ name != "MySpan" && name != "RootSpan" }`,
+	} {
+		t.Run("metrics "+q, func(t *testing.T) {
+			total := countSpans(`{ }`)
+			require.Positive(t, total)
+			require.Equal(t, total, countSpans(q)+countSpans("{ !("+q[1:len(q)-1]+") }"), "metrics request: %s", q)
+		})
 	}
 }
 

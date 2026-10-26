@@ -950,7 +950,8 @@ func TestSpansetFilterOperatorPrecedence(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
-			actual, err := Parse(tc.in)
+			// precedence is a parsing concern, don't rewrite the expression
+			actual, err := ParseNoOptimizations(tc.in)
 
 			require.NoError(t, err)
 			require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(tc.expected))), actual)

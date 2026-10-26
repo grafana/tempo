@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,15 +73,14 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 			},
 			allConditions: true,
 		},
-		// TODO we need a smarter engine to handle this - we can either negate OpEqual or just fetch .fzz
-		// {
-		// 	query: `{ (.foo = "bar") = !(.fzz = "bzz") }`,
-		// 	conditions: []Condition{
-		// 		newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
-		// 		newCondition(NewAttribute("fzz"), OpNotEqual, NewStaticString("bzz")),
-		// 	},
-		// 	allConditions: true,
-		// },
+		{
+			query: `{ (.foo = "bar") = !(.fzz = "bzz") }`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("fzz"), OpNotEqual, NewStaticString("bzz")),
+			},
+			allConditions: true,
+		},
 		{
 			query: `{ (.foo = "bar") = !.bar }`,
 			conditions: []Condition{
@@ -466,10 +466,70 @@ func TestUnaryOperation_extractConditions(t *testing.T) {
 			allConditions: true,
 		},
 		{
+			// The negation is pushed down to the comparison, which flips the operator.
+			query: `{ !(name = "hello") }`,
+			conditions: []Condition{
+				newCondition(IntrinsicNameAttribute, OpNotEqual, NewStaticString("hello")),
+			},
+			allConditions: true,
+		},
+		{
+			query: `{ !(name =~ "h.*") }`,
+			conditions: []Condition{
+				newCondition(IntrinsicNameAttribute, OpNotRegex, NewStaticString("h.*")),
+			},
+			allConditions: true,
+		},
+		{
+			// De Morgan: !(a || b) = !a && !b
+			query: `{ !(name = "hello" || duration > 1s) }`,
+			conditions: []Condition{
+				newCondition(IntrinsicNameAttribute, OpNotEqual, NewStaticString("hello")),
+				newCondition(IntrinsicDurationAttribute, OpLessEqual, NewStaticDuration(time.Second)),
+			},
+			allConditions: true,
+		},
+		{
+			// De Morgan: !(a && b) = !a || !b
+			query: `{ !(name = "hello" && duration > 1s) }`,
+			conditions: []Condition{
+				newCondition(IntrinsicNameAttribute, OpNotEqual, NewStaticString("hello")),
+				newCondition(IntrinsicDurationAttribute, OpLessEqual, NewStaticDuration(time.Second)),
+			},
+			allConditions: false,
+		},
+		{
+			// Attributes work like intrinsics: spans without the attribute don't match either side.
+			query: `{ !(name = "hello" || span.a = "a") }`,
+			conditions: []Condition{
+				newCondition(IntrinsicNameAttribute, OpNotEqual, NewStaticString("hello")),
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "a"), OpNotEqual, NewStaticString("a")),
+			},
+			allConditions: true,
+		},
+		{
 			query: `{ !(span.a = "a" || span.a = "c") }`,
 			conditions: []Condition{
-				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "a"), OpEqual, NewStaticString("a")),
-				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "a"), OpEqual, NewStaticString("c")),
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "a"), OpNotIn, NewStaticStringArray([]string{"a", "c"})),
+			},
+			allConditions: true,
+		},
+		{
+			// An ordering operator can't be flipped for attributes that may be arrays. The columns
+			// are fetched but nothing is filtered, and span start time returns every span.
+			query: `{ !(span.n > 1) }`,
+			conditions: []Condition{
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "n"), OpNone),
+				newCondition(IntrinsicSpanStartTimeAttribute, OpNone),
+			},
+			allConditions: false,
+		},
+		{
+			query: `{ !(name = "hello" || span.n > 1) }`,
+			conditions: []Condition{
+				newCondition(IntrinsicNameAttribute, OpNotEqual, NewStaticString("hello")),
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "n"), OpNone),
+				newCondition(IntrinsicSpanStartTimeAttribute, OpNone),
 			},
 			allConditions: false,
 		},

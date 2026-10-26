@@ -488,6 +488,16 @@ Use `nil` to check for attributes that are missing or null  and `!= nil` to ensu
 { span.required_field != nil }
 ```
 
+A comparison with a missing attribute never matches, and neither does its negation.
+This is like `NULL` in SQL.
+For example, `{ span.http.method != "GET" }` and `{ !(span.http.method = "GET") }` both skip spans that don't have `span.http.method`.
+To match spans without an attribute, compare it to `nil` directly.
+For example, to find all spans that are not `GET` requests, including spans that don't have `span.http.method`:
+
+```
+{ span.http.method = nil || span.http.method != "GET" }
+```
+
 ### Comparison operators
 
 Comparison operators are used to test values within an expression.
