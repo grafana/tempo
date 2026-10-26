@@ -95,6 +95,7 @@ type Interface interface {
 	UnsafeQueryHints(userID string) bool
 	LeftPadTraceIDs(userID string) bool
 	MetricsSpanOnlyFetch(userID string) *bool
+	MetricsExtrapolate(userID string) *bool
 	SpanPruningAwareness(userID string) bool
 	EngineBytesTracking(userID string) *bool
 	SpanPruningEnabled(userID string) *bool

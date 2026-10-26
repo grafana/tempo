@@ -1303,11 +1303,12 @@ func TestQueryRangeRoundtripEmpty(t *testing.T) {
 
 func TestQueryRangeRoundtrip(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
-		Query:     "{ foo = `bar` }",
-		Start:     uint64(24 * time.Hour),
-		End:       uint64(25 * time.Hour),
-		Step:      uint64(30 * time.Second),
-		QueryMode: "foo",
+		Query:       "{ foo = `bar` }",
+		Start:       uint64(24 * time.Hour),
+		End:         uint64(25 * time.Hour),
+		Step:        uint64(30 * time.Second),
+		QueryMode:   "foo",
+		Extrapolate: true,
 	}
 
 	jsonBytes, err := json.Marshal(req.DedicatedColumns)
