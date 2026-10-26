@@ -818,6 +818,41 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 			})
 		}
 	}
+
+	// The engine builds select() output from AllAttributes, where a "nil" placeholder next to the generic value would show.
+	t.Run("span/int in string column, select through the engine", func(t *testing.T) {
+		id := test.ValidTraceID(nil)
+		dc := backend.DedicatedColumns{{Scope: backend.DedicatedColumnScopeSpan, Name: "mixed", Type: strCol}}
+		b := makeBackendBlockWithFillers(t, id, makeTrace(id, backend.DedicatedColumnScopeSpan, intValue, false, true), dc)
+		opts := common.DefaultSearchOptions()
+		f := traceql.NewSpansetFetcherWrapperBoth(
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return b.Fetch(ctx, req, opts)
+			},
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+				return b.FetchSpans(ctx, req, opts)
+			},
+		)
+		resp, err := traceql.NewEngine().ExecuteSearch(t.Context(), &tempopb.SearchRequest{Query: `{ span.other = "a" } | select(span.mixed)`, Limit: 1000, SpansPerSpanSet: 10}, f)
+		require.NoError(t, err)
+
+		var got []string
+		for _, tr := range resp.Traces {
+			if tr.TraceID != util.TraceIDToHexString(id) {
+				continue
+			}
+			for _, ss := range tr.SpanSets {
+				for _, sp := range ss.Spans {
+					for _, kv := range sp.Attributes {
+						if kv.Key == "mixed" {
+							got = append(got, kv.Value.String())
+						}
+					}
+				}
+			}
+		}
+		require.Equal(t, []string{intValue.String()}, got)
+	})
 }
 
 func searchesThatMatch(t *testing.T, traceIDText string) []struct {
