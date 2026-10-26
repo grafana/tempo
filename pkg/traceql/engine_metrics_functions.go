@@ -29,6 +29,22 @@ var (
 	emptyAvgAcc = avgAcc{sum: emptySumAcc}
 )
 
+// newAccumulator returns an empty accumulator for op, in a single allocation.
+func newAccumulator(op SimpleAggregationOp) accumulator {
+	switch op {
+	case minOverTimeAggregation:
+		acc := emptyMinAcc
+		return &acc
+	case maxOverTimeAggregation:
+		acc := emptyMaxAcc
+		return &acc
+	case sumOverTimeAggregation:
+		acc := emptySumAcc
+		return &acc
+	}
+	return nil
+}
+
 // newAccumulators returns n empty accumulators for op, backed by a single allocation.
 func newAccumulators(op SimpleAggregationOp, n int) []accumulator {
 	switch op {

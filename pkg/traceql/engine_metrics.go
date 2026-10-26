@@ -560,7 +560,7 @@ func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggr
 
 	return &OverTimeAggregator{
 		getSpanAttValue: fn,
-		acc:             newAccumulators(op, 1)[0],
+		acc:             newAccumulator(op),
 		op:              op,
 	}
 }
