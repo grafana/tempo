@@ -578,6 +578,17 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 
 // TestBackendBlockSearchTraceQLDedicatedColumnOtherType covers attributes with a dedicated column
 // whose value has another type, which the writer stores in generic attributes instead.
+// attributeEntries counts the entries of a, because compare() counts every entry of a span.
+func attributeEntries(sp traceql.Span, a traceql.Attribute) int {
+	n := 0
+	sp.AllAttributesFunc(func(got traceql.Attribute, _ traceql.Static) {
+		if got == a {
+			n++
+		}
+	})
+	return n
+}
+
 func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 	var (
 		intValue = &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}
@@ -611,6 +622,12 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{"int in string column, exists in or", strCol, intValue, false, `{ %[1]s.mixed != nil || %[1]s.missing = "x" }`, true},
 		{"int in string column, not exists in or", strCol, intValue, false, `{ %[1]s.mixed = nil || %[1]s.missing = "x" }`, false},
 		{"int in string column, exists and value", strCol, intValue, false, `{ %[1]s.mixed != nil && %[1]s.mixed = 1 }`, true},
+		{"int in string column, exists or value", strCol, intValue, false, `{ %[1]s.mixed != nil || %[1]s.mixed = 1 }`, true},
+		{"fits column, exists and value", strCol, strValue, false, `{ %[1]s.mixed != nil && %[1]s.mixed = "a" }`, true},
+		{"fits column, exists or other value", strCol, strValue, false, `{ %[1]s.mixed != nil || %[1]s.mixed = "b" }`, true},
+		{"fits column, not exists or value", strCol, strValue, false, `{ %[1]s.mixed = nil || %[1]s.mixed = "a" }`, true},
+		{"fits column, other value and other exists", strCol, strValue, false, `{ %[1]s.mixed = "b" && %[1]s.other != nil }`, false},
+		{"absent, exists or not exists", strCol, nil, false, `{ %[1]s.mixed != nil || %[1]s.mixed = nil }`, true},
 		{"int in string column, exists and other", strCol, intValue, false, `{ %[1]s.mixed != nil && %[1]s.other = "a" }`, true},
 		{"int in string column, not exists and other", strCol, intValue, false, `{ %[1]s.mixed = nil && %[1]s.other = "a" }`, false},
 		{"int in string column without other attrs, exists", strCol, intValue, true, `{ %[1]s.mixed != nil }`, true},
@@ -648,6 +665,7 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 					got, ok := sp.AttributeFor(a)
 					require.True(t, ok, "%s missing for %s", a, query)
 					require.Equal(t, v.EncodeToString(true), got.EncodeToString(true), "%s for %s", a, query)
+					require.Equal(t, 1, attributeEntries(sp, a), "%s entries for %s", a, query)
 				}
 			}
 		}
