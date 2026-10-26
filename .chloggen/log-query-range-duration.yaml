@@ -8,7 +8,7 @@ change_type: enhancement
 component: query-frontend
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Add a human-readable `range` duration to the query-frontend search, tags, and TraceQL metrics request and response log messages. Search logs now emit `range_nanos` instead of `range_seconds`.
+note: Add a human-readable `range` duration to the query-frontend search, tags, and TraceQL metrics request and response log messages. Search and tags logs now emit `range_nanos` instead of `range_seconds`.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
