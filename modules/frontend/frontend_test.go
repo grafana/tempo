@@ -261,7 +261,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			SLO: testSLOcfg,
 		},
 	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
-	assert.EqualError(t, err, "log_query_request_headers must not contain headers that carry credentials or session material: Authorization")
+	assert.EqualError(t, err, "log_query_request_headers: rejected headers: Authorization")
 	assert.Nil(t, f)
 }
 

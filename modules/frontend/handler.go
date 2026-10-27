@@ -87,7 +87,7 @@ func validateLogQueryRequestHeaders(headersToLog []string) error {
 		}
 	}
 	if len(rejected) > 0 {
-		return fmt.Errorf("rejected headers: %s", strings.Join(rejected, ", "))
+		return fmt.Errorf("log_query_request_headers: rejected headers: %s", strings.Join(rejected, ", "))
 	}
 	return nil
 }

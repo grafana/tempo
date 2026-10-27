@@ -53,7 +53,7 @@ func TestValidateLogQueryRequestHeaders(t *testing.T) {
 	require.NoError(t, validateLogQueryRequestHeaders([]string{"User-Agent", "x-plugin-id"}))
 
 	err := validateLogQueryRequestHeaders([]string{"User-Agent", "Authorization", "Cookie"})
-	require.EqualError(t, err, "log_query_request_headers must not contain headers that carry credentials or session material: Authorization, Cookie")
+	require.EqualError(t, err, "log_query_request_headers: rejected headers: Authorization, Cookie")
 }
 
 func TestHandlerDoesNotLogSensitiveHeaders(t *testing.T) {
