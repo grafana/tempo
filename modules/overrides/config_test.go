@@ -64,6 +64,10 @@ block_retention: 24h
 compaction_window: 4h
 
 max_search_duration: 5m
+max_metrics_scanned_bytes: 200_000_000_000
+min_metrics_duration: 24h
+max_search_scanned_bytes: 500_000_000_000
+min_search_duration: 48h
 `
 	inputJSON := `
 {
@@ -80,7 +84,11 @@ max_search_duration: 5m
 	"block_retention": "24h",
 	"compaction_window": "4h",
 
-	"max_search_duration": "5m"
+	"max_search_duration": "5m",
+	"max_metrics_scanned_bytes": 200000000000,
+	"min_metrics_duration": "24h",
+	"max_search_scanned_bytes": 500000000000,
+	"min_search_duration": "48h"
 }`
 
 	limitsYAML := LegacyOverrides{}
@@ -477,14 +485,18 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MaxBlocksPerTagValuesQuery:    100,
 		MaxConditionGroupsPerTagQuery: 5,
 
-		MaxSearchDuration:    model.Duration(10 * time.Minute),
-		MaxMetricsDuration:   model.Duration(30 * time.Minute),
-		UnsafeQueryHints:     true,
-		MetricsSpanOnlyFetch: boolPtr(true),
-		MetricsExtrapolate:   boolPtr(true),
-		SpanPruningAwareness: true,
-		EngineBytesTracking:  boolPtr(true),
-		SpanPruningEnabled:   boolPtr(true),
+		MaxSearchDuration:      model.Duration(10 * time.Minute),
+		MaxMetricsDuration:     model.Duration(30 * time.Minute),
+		MaxMetricsScannedBytes: 200 * 1024 * 1024 * 1024,
+		MinMetricsDuration:     model.Duration(15 * time.Minute),
+		MaxSearchScannedBytes:  500 * 1024 * 1024 * 1024,
+		MinSearchDuration:      model.Duration(48 * time.Hour),
+		UnsafeQueryHints:       true,
+		MetricsSpanOnlyFetch:   boolPtr(true),
+		MetricsExtrapolate:     boolPtr(true),
+		SpanPruningAwareness:   true,
+		EngineBytesTracking:    boolPtr(true),
+		SpanPruningEnabled:     boolPtr(true),
 
 		MaxBytesPerTrace: 10 * 1024 * 1024,
 
