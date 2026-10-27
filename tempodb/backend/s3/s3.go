@@ -740,9 +740,11 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		return nil, fmt.Errorf("create minio.DefaultTransport: %w", err)
 	}
 
-	/* minio sets MaxIdleConns to 100 but we should also increase per host to 100 */
-	customTransport.MaxIdleConnsPerHost = 100
-	customTransport.MaxIdleConns = 100
+	// Idle connections beyond these limits are closed when a request finishes, and the next
+	// burst of requests has to dial and TLS handshake new ones. minio's per-host default is 16.
+	customTransport.MaxIdleConns = valueOrDefault(cfg.MaxIdleConns, defaultMaxIdleConns)
+	customTransport.MaxIdleConnsPerHost = valueOrDefault(cfg.MaxIdleConnsPerHost, defaultMaxIdleConns)
+	instrumentation.CountDials(customTransport, "s3")
 
 	tlsConfig, err := cfg.GetTLSConfig()
 	if err != nil {
@@ -784,6 +786,13 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 
 	core.SetS3EnableDualstack(cfg.UseDualStack)
 	return core, err
+}
+
+func valueOrDefault(v, def int) int {
+	if v > 0 {
+		return v
+	}
+	return def
 }
 
 func readError(err error) error {

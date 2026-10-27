@@ -29,6 +29,10 @@ const (
 	// SSE-C config type constant to configure S3 server side encryption with customer provided keys
 	// https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html
 	SSEC = "SSE-C"
+
+	// defaultMaxIdleConns is the idle connection limit used when max_idle_connections or
+	// max_idle_connections_per_host is unset.
+	defaultMaxIdleConns = 100
 )
 
 var (
@@ -61,6 +65,8 @@ type Config struct {
 	RetryMaxAttempts    int            `yaml:"retry_max_attempts"`
 	RetryBackoffInitial time.Duration  `yaml:"retry_backoff_initial"`
 	RetryBackoffMax     time.Duration  `yaml:"retry_backoff_max"`
+	MaxIdleConns        int            `yaml:"max_idle_connections"`
+	MaxIdleConnsPerHost int            `yaml:"max_idle_connections_per_host"`
 	// SignatureV2 configures the object storage to use V2 signing instead of V4
 	SignatureV2      bool              `yaml:"signature_v2"`
 	ForcePathStyle   bool              `yaml:"forcepathstyle"`
@@ -85,6 +91,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.Var(&cfg.SecretKey, util.PrefixConfig(prefix, "s3.secret_key"), "s3 secret key.")
 	f.Var(&cfg.SessionToken, util.PrefixConfig(prefix, "s3.session_token"), "s3 session token.")
 	f.IntVar(&cfg.ListBlocksConcurrency, util.PrefixConfig(prefix, "s3.list_blocks_concurrency"), 3, "number of concurrent list calls to make to backend")
+	f.IntVar(&cfg.MaxIdleConns, util.PrefixConfig(prefix, "s3.max_idle_connections"), defaultMaxIdleConns, "maximum number of idle connections to keep open to the backend.")
+	f.IntVar(&cfg.MaxIdleConnsPerHost, util.PrefixConfig(prefix, "s3.max_idle_connections_per_host"), defaultMaxIdleConns, "maximum number of idle connections to keep open per backend host. Connections returned to a full pool are closed, so set this at or above the number of concurrent backend requests.")
 
 	f.StringVar(&cfg.SSE.Type, util.PrefixConfig(prefix, "s3.sse.type"), "", fmt.Sprintf("Enable AWS Server Side Encryption. Supported values: %s.", strings.Join(supportedSSETypes, ", ")))
 	f.StringVar(&cfg.SSE.KMSKeyID, util.PrefixConfig(prefix, "s3.sse.kms-key-id"), "", "KMS Key ID used to encrypt objects in S3")
