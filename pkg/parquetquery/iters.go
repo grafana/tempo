@@ -494,7 +494,8 @@ type SyncIterator struct {
 
 	maxDefinitionLevel int
 
-	dictPageReader dictPageReader // dictionary pushdown, see dict_pushdown.go
+	dictPageReader  dictPageReader  // dictionary pushdown, see dict_pushdown.go
+	plainPageReader plainPageReader // seeking within a page, see plain_page_reader.go
 
 	interner   *intern.Interner
 	makeResult func(t RowNumber, v *pq.Value) *IteratorResult
@@ -755,12 +756,19 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bo
 	return false, nil
 }
 
-// seekWithinPage decides if it should reslice the current page to jump directly to the desired row number
-// or allow the iterator to call Next() until it finds the desired row number. it uses the magicThreshold
-// as its balance point. if the number of Next()s to skip is less than the magicThreshold, it will not reslice
+// seekWithinPage decides if it should jump directly to the desired row number or allow the iterator
+// to call Next() until it finds the desired row number. it uses the magicThreshold as its balance
+// point. if the number of Next()s to skip is less than the magicThreshold, it will not jump. A page
+// read from its levels always jumps, by walking the levels. Otherwise it jumps by switching the
+// page to plainPageReader, or by reslicing the page when that can't read it.
 func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	rowSkipRelative := int(to[0] - c.curr[0])
 	if rowSkipRelative == 0 {
+		return
+	}
+
+	if c.dictPageReader.active || c.plainPageReader.active {
+		c.skipToRow(to)
 		return
 	}
 
@@ -808,6 +816,11 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 		return
 	}
 
+	if c.startPlainPageReader() {
+		c.skipToRow(to)
+		return
+	}
+
 	// reslice the page to jump directly to the desired row number
 	pg := c.currPage.Slice(int64(rowSkip-1), c.currPage.NumRows())
 
@@ -826,12 +839,28 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 		syncIteratorPoolPut(c.currBuf)
 		c.currBuf = nil
 	}
-	c.dictPageReader.setPage(pg)
-	if c.dictPageReader.active {
-		c.currValues = nil
-	} else {
-		c.currValues = pg.Values()
+	c.currValues = pg.Values()
+}
+
+// skipToRow moves the reader of the current page to the start of row to[0], if that's
+// further than the next row. The rest of the seek is left to next.
+func (c *SyncIterator) skipToRow(to RowNumber) {
+	if to[0] <= c.curr[0]+1 {
+		return
 	}
+	if c.dictPageReader.active {
+		if !c.dictPageReader.skipToRow(c.curr[0], to[0]) {
+			return
+		}
+		c.currPageN = c.dictPageReader.slot
+	} else {
+		if !c.plainPageReader.skipToRow(c.curr[0], to[0]) {
+			return
+		}
+		c.currPageN = c.plainPageReader.slot
+	}
+	// remove all detail below the row number
+	c.curr = TruncateRowNumber(0, to).Preceding()
 }
 
 // next is the core functionality of this iterator and returns the next matching result. This
@@ -886,6 +915,14 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 
 		if c.dictPageReader.active {
 			v, ok := c.nextMatchedValue(seeking)
+			if !ok {
+				c.setPage(nil) // page exhausted
+				continue
+			}
+			return c.curr, v, nil
+		}
+		if c.plainPageReader.active {
+			v, ok := c.nextPlainValue(seeking)
 			if !ok {
 				c.setPage(nil) // page exhausted
 				continue
@@ -978,6 +1015,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 	// Reset value buffers
 	c.currValues = nil
 	c.dictPageReader.setPage(nil)
+	c.plainPageReader.reset()
 	c.currPageMax = EmptyRowNumber()
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
