@@ -237,6 +237,62 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	assert.Nil(t, f)
 }
 
+func TestFrontendNegativeDurationFails(t *testing.T) {
+	tcs := []struct {
+		name    string
+		modify  func(cfg *Config)
+		wantErr string
+	}{
+		{
+			name:    "search min_duration",
+			modify:  func(cfg *Config) { cfg.Search.Sharder.MinDuration = -time.Hour },
+			wantErr: "frontend search min_duration should not be negative",
+		},
+		{
+			name:    "search max_duration",
+			modify:  func(cfg *Config) { cfg.Search.Sharder.MaxDuration = -time.Hour },
+			wantErr: "frontend search max_duration should not be negative",
+		},
+		{
+			name:    "metrics min_duration",
+			modify:  func(cfg *Config) { cfg.Metrics.Sharder.MinDuration = -time.Hour },
+			wantErr: "frontend metrics min_duration should not be negative",
+		},
+		{
+			name:    "metrics max_duration",
+			modify:  func(cfg *Config) { cfg.Metrics.Sharder.MaxDuration = -time.Hour },
+			wantErr: "frontend metrics max_duration should not be negative",
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Config{
+				TraceByID: TraceByIDConfig{QueryShards: maxQueryShards},
+				Search: SearchConfig{
+					Sharder: SearchSharderConfig{
+						ConcurrentRequests:    defaultConcurrentRequests,
+						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+						MostRecentShards:      defaultMostRecentShards,
+					},
+					SLO: testSLOcfg,
+				},
+				Metrics: MetricsConfig{
+					Sharder: QueryRangeSharderConfig{
+						ConcurrentRequests:    defaultConcurrentRequests,
+						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+						Interval:              5 * time.Minute,
+					},
+					SLO: testSLOcfg,
+				},
+			}
+			tc.modify(&cfg)
+			f, err := New(cfg, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
+			require.EqualError(t, err, tc.wantErr)
+			require.Nil(t, f)
+		})
+	}
+}
+
 func TestBlockMetasForSearch(t *testing.T) {
 	now := time.Now()
 

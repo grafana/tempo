@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/http"
@@ -37,6 +38,10 @@ type SearchSharderConfig struct {
 	DefaultLimit          uint32        `yaml:"default_result_limit"`
 	MaxLimit              uint32        `yaml:"max_result_limit"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
+	// MaxScannedBytes is the byte budget of backend blocks a search range may overlap. 0 disables the limit.
+	MaxScannedBytes uint64 `yaml:"max_scanned_bytes,omitempty"`
+	// MinDuration is the range always allowed when MaxScannedBytes is set, even if it is over the budget, unless MaxDuration is lower.
+	MinDuration time.Duration `yaml:"min_duration,omitempty"`
 	// QueryBackendAfter determines when to query backend storage vs ingesters only.
 	QueryBackendAfter      time.Duration `yaml:"query_backend_after,omitempty"`
 	IngesterShards         int           `yaml:"ingester_shards,omitempty"`
@@ -51,6 +56,7 @@ type asyncSearchSharder struct {
 	overrides overrides.Interface
 
 	cfg                    SearchSharderConfig
+	limiter                rangeLimiter
 	skipASTTransformations []string
 	logger                 log.Logger
 	jobsPerQuery           *prometheus.HistogramVec
@@ -58,6 +64,7 @@ type asyncSearchSharder struct {
 
 // newAsyncSearchSharder creates a sharding middleware for search
 func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, skipASTTransformations []string, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+	limiter := newSearchRangeLimiter(cfg, o, reader, logger)
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return asyncSearchSharder{
 			next:      next,
@@ -65,6 +72,7 @@ func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg Sea
 			overrides: o,
 
 			cfg:                    cfg,
+			limiter:                limiter,
 			skipASTTransformations: skipASTTransformations,
 			logger:                 logger,
 			jobsPerQuery:           jobsPerQuery,
@@ -101,17 +109,16 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	ctx, span := tracer.Start(requestCtx, "frontend.ShardSearch")
 	defer span.End()
 
-	// calculate and enforce max search duration
-	maxDuration := s.maxDuration(tenantID)
-	if maxDuration != 0 && time.Duration(searchReq.End-searchReq.Start)*time.Second > maxDuration {
-		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", maxDuration, searchReq.Start, searchReq.End)), nil
-	}
-
 	// Validate SpansPerSpanSet against MaxSpansPerSpanSet
 	// If MaxSpansPerSpanSet is 0, it means unlimited spans are allowed
 	// If MaxSpansPerSpanSet is non-zero, enforce the limit
 	if s.cfg.MaxSpansPerSpanSet != 0 && searchReq.SpansPerSpanSet > s.cfg.MaxSpansPerSpanSet {
 		return pipeline.NewBadRequest(fmt.Errorf("spans per span set exceeds %d. received %d", s.cfg.MaxSpansPerSpanSet, searchReq.SpansPerSpanSet)), nil
+	}
+
+	// After the spans per span set check, so searches it rejects stay out of the metrics and log.
+	if err := s.limiter.Limit(ctx, tenantID, time.Unix(int64(searchReq.Start), 0), time.Unix(int64(searchReq.End), 0)); err != nil {
+		return pipeline.NewBadRequest(err), nil
 	}
 
 	// buffer of shards+1 allows us to insert ingestReq and metrics
@@ -269,15 +276,49 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 	return resp, nil
 }
 
-// maxDuration returns the max search duration allowed for this tenant.
-func (s *asyncSearchSharder) maxDuration(tenantID string) time.Duration {
-	// check overrides first, if no overrides then grab from our config
-	maxDuration := s.overrides.MaxSearchDuration(tenantID)
-	if maxDuration != 0 {
-		return maxDuration
-	}
+// searchRangeLimiter checks searches in the sharder, after adjustEndWare caps the end.
+type searchRangeLimiter struct {
+	scannedBytesLimit
+	cfg       SearchSharderConfig
+	overrides overrides.Interface
+}
 
-	return s.cfg.MaxDuration
+var _ rangeLimiter = (*searchRangeLimiter)(nil)
+
+func newSearchRangeLimiter(cfg SearchSharderConfig, o overrides.Interface, reader tempodb.Reader, logger log.Logger) *searchRangeLimiter {
+	return &searchRangeLimiter{
+		scannedBytesLimit: scannedBytesLimit{
+			op:       searchOp,
+			kind:     "search",
+			reader:   reader,
+			filterFn: acceptAllBlocks,
+			maxErr: func(l rangeLimits, start, end time.Time) error {
+				return fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", l.maxDuration, start.Unix(), end.Unix())
+			},
+			logger: logger,
+		},
+		cfg:       cfg,
+		overrides: o,
+	}
+}
+
+func (l *searchRangeLimiter) Limit(ctx context.Context, tenantID string, start, end time.Time) error {
+	limits := rangeLimits{
+		minDuration:     cmp.Or(l.overrides.MinSearchDuration(tenantID), l.cfg.MinDuration),
+		maxDuration:     cmp.Or(l.overrides.MaxSearchDuration(tenantID), l.cfg.MaxDuration),
+		maxScannedBytes: cmp.Or(l.overrides.MaxSearchScannedBytes(tenantID), l.cfg.MaxScannedBytes),
+	}
+	// A search without a start reads only the live-stores, so there are no blocks to count.
+	if start.Unix() == 0 {
+		limits.maxScannedBytes = 0
+	}
+	// Whole seconds, like backendRange, so both cutoffs match unless a second passes in between.
+	cutoff := time.Unix(time.Now().Add(-l.cfg.QueryBackendAfter).Unix(), 0)
+	c, err := l.limit(ctx, tenantID, limits, start, end, cutoff)
+	if c != nil {
+		setSpanAttrsWithShape(ctx, c.fields()...)
+	}
+	return err
 }
 
 // backendRange returns a new start/end range for the backend based on the config parameter
