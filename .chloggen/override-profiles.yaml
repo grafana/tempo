@@ -1,0 +1,6 @@
+change_type: feature
+component: overrides
+note: Share named runtime override profiles across tenants to reduce configuration size and memory use.
+issues: []
+subtext:
+user: PatelFarhaan

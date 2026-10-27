@@ -27,6 +27,7 @@ type Interface interface {
 
 	// GetRuntimeOverridesFor returns the runtime overrides set for the given user excluding
 	// overrides from the user-configurable overrides, if enabled.
+	// The result is read-only and may be shared by multiple tenants.
 	GetRuntimeOverridesFor(userID string) *Overrides
 
 	// Config
