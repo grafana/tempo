@@ -11,8 +11,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/v3/pkg/benchmark/internal/benchtest"
 	"github.com/grafana/tempo/v3/pkg/benchmark/metrics"
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func blockPath(bucket string, meta *backend.BlockMeta) string {
@@ -21,12 +26,12 @@ func blockPath(bucket string, meta *backend.BlockMeta) string {
 
 func TestRun(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 300)
+	meta, r, bucket := benchtest.Block(t, 300)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 25})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 25})
 	require.NoError(t, err)
 
-	result, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{})
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{})
 	require.NoError(t, err)
 
 	require.Equal(t, ResultSchemaVersion, result.SchemaVersion)
@@ -35,8 +40,8 @@ func TestRun(t *testing.T) {
 	// is what makes an execution count legible next to Repeat.
 	require.Positive(t, result.Shards)
 	require.Equal(t, result.Shards, byAPI(t, result, apiSearch).Executions)
-	// 2 trace-by-ID + 1 search + 2 metrics + 6 tag name scopes.
-	require.Len(t, result.Cases, 11)
+	// 2 trace-by-ID + 1 search + 2 metrics + 4 drilldown + 6 tag name scopes.
+	require.Len(t, result.Cases, 15)
 
 	byID := map[string]CaseResult{}
 	for _, c := range result.Cases {
@@ -124,14 +129,115 @@ func TestRun(t *testing.T) {
 	require.Positive(t, byID["metadata/tagnames/instrumentation"].Metrics[metrics.PrefixResponse+"inspectedBytes"].Total)
 }
 
-func TestRunRepeatMultipliesExecutions(t *testing.T) {
-	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 200)
+// A block reports a tag name once per row group that has it, so the count
+// must be of distinct names or it would grow with the number of row groups.
+var attributePatterns = []string{"metrics/ranked_*/*/*/*", "metadata/ranked_*/tagvalues/*"}
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 10})
+func TestRunAttributeCases(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := benchtest.Block(t, 300)
+
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 5, NumAttributes: 100})
 	require.NoError(t, err)
 
-	result, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{Repeat: 3, Warmup: 1})
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{Cases: attributePatterns})
+	require.NoError(t, err)
+	require.Equal(t, attributePatterns, result.Options.Cases)
+
+	cardinality := map[string]uint64{}
+	for _, p := range prof.Attributes.Ranked {
+		cardinality[p.Scope+"."+p.Name] = p.Cardinality
+	}
+
+	groups := map[string]int{}
+	for _, c := range result.Cases {
+		require.Empty(t, c.Error, "case %s", c.ID)
+		require.Equal(t, result.Shards, c.Executions, "case %s must shard", c.ID)
+
+		parts := strings.Split(c.ID, "/")
+		// The pick group is the second part, and every attribute fits one.
+		require.Contains(t, []string{"ranked_dedicated", "ranked_generic"}, parts[1], c.ID)
+		group := parts[0] + "/" + parts[2]
+		groups[group]++
+
+		if group == "metadata/tagvalues" {
+			// Each shard reports the values it holds, so a value spread over
+			// shards is counted in each of them.
+			n := cardinality[parts[len(parts)-1]]
+			require.Positive(t, n, c.ID)
+			require.GreaterOrEqual(t, c.Matched, int64(n), c.ID)
+			require.LessOrEqual(t, c.Matched, int64(n)*int64(result.Shards), c.ID)
+			require.Positive(t, c.Metrics[metrics.PrefixResponse+"inspectedBytes"].Total, c.ID)
+			continue
+		}
+		require.Contains(t, []string{bandHigh, bandMedium, bandLow}, parts[3], c.ID)
+		// rate() returns a series per shard even when nothing matches, so the
+		// spans inspected are what show the filter matched.
+		require.Positive(t, c.Metrics[metrics.PrefixResponse+"inspectedSpans"].Total, "%s matched nothing", c.ID)
+	}
+
+	var ranked int
+	for _, p := range pickAttributes(prof.Attributes, rankedAttributesPerGroup, hasValues) {
+		ranked += len(bandValues(p))
+	}
+	require.Positive(t, ranked)
+	require.Equal(t, map[string]int{
+		"metrics/rate":       ranked,
+		"metrics/quantile":   ranked,
+		"metadata/tagvalues": len(pickAttributes(prof.Attributes, tagValueAttributesPerGroup, isStringAttribute)),
+	}, groups)
+}
+
+func TestRunRejectsInvalidCasePattern(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := benchtest.Block(t, 50)
+
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 5})
+	require.NoError(t, err)
+
+	_, err = Run(ctx, blockPath(bucket, meta), prof, RunOptions{Cases: []string{"["}})
+	require.ErrorContains(t, err, "invalid case pattern")
+}
+
+func TestTagNamesCountDistinctNames(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := benchtest.Block(t, 300)
+
+	rowGroups, err := benchtest.RowGroupCount(ctx, meta, r)
+	require.NoError(t, err)
+	require.Greater(t, rowGroups, 1)
+
+	_, raw, err := openLocalBlock(ctx, blockPath(bucket, meta))
+	require.NoError(t, err)
+	block, err := encoding.OpenBlock(meta, backend.NewReader(raw))
+	require.NoError(t, err)
+
+	var calls int
+	distinct := map[string]struct{}{}
+	require.NoError(t, block.SearchTags(ctx, traceql.AttributeScopeNone,
+		func(name string, scope traceql.AttributeScope) {
+			calls++
+			distinct[scope.String()+"."+name] = struct{}{}
+		},
+		func(uint64) {},
+		common.DefaultSearchOptions(),
+	))
+	require.Greater(t, calls, len(distinct), "fixture should repeat names across row groups")
+
+	executions := tagNamesExecutions(traceql.AttributeScopeNone, []Shard{{Index: 0, StartPage: 0, TotalPages: rowGroups}}, common.DefaultSearchOptions())
+	out, err := executions[0](ctx, block, RunOptions{})
+	require.NoError(t, err)
+	require.Equal(t, int64(len(distinct)), out.matched)
+}
+
+func TestRunRepeatMultipliesExecutions(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := benchtest.Block(t, 200)
+
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 10})
+	require.NoError(t, err)
+
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{Repeat: 3})
 	require.NoError(t, err)
 
 	for _, c := range result.Cases {
@@ -142,18 +248,45 @@ func TestRunRepeatMultipliesExecutions(t *testing.T) {
 	}
 }
 
+// A profile with ranked attributes generates a search per attribute and
+// selectivity band, each for a value the profile proves the block holds.
+func TestRunGeneratesAttributeCases(t *testing.T) {
+	ctx := context.Background()
+	meta, r, bucket := benchtest.Block(t, 300)
+
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 10, NumAttributes: 100})
+	require.NoError(t, err)
+
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{Cases: []string{"search/ranked_*/*/*"}})
+	require.NoError(t, err)
+	require.Len(t, result.Cases, len(casesOf(attributeCases(prof), apiSearch)))
+
+	// The fixture's span attributes take three bands of values: one value per
+	// trace or one value across the block.
+	bands := map[string]bool{}
+	for _, c := range result.Cases {
+		bands[strings.Split(c.ID, "/")[2]] = true
+
+		require.Empty(t, c.Error, "case %s", c.ID)
+		require.NotEmpty(t, c.Query, "case %s", c.ID)
+		require.Equal(t, result.Shards, c.Executions, "case %s", c.ID)
+		require.Positive(t, c.Matched, "case %s matched nothing; the profile's values were wrong", c.ID)
+	}
+	require.Equal(t, map[string]bool{bandHigh: true, bandMedium: true, bandLow: true}, bands)
+}
+
 // A profile from another block would make every lookup a miss, which would read
 // as a fast run rather than a broken one.
 func TestRunRejectsForeignProfile(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 100)
+	meta, r, bucket := benchtest.Block(t, 100)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 5})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 5})
 	require.NoError(t, err)
 
-	other := *profile.Block
+	other := *prof.Block
 	other.BlockID = backend.UUID(uuid.New())
-	foreign := *profile
+	foreign := *prof
 	foreign.Block = &other
 
 	_, err = Run(ctx, blockPath(bucket, meta), &foreign, RunOptions{})
@@ -162,13 +295,13 @@ func TestRunRejectsForeignProfile(t *testing.T) {
 
 func TestRunSimulatesBackendLatency(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 100)
+	meta, r, bucket := benchtest.Block(t, 100)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 5})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 5})
 	require.NoError(t, err)
 
 	const latency = 2 * time.Millisecond
-	result, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{BackendLatency: latency, BackendBandwidth: 1 << 30})
+	result, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{BackendLatency: latency, BackendBandwidth: 1 << 30})
 	require.NoError(t, err)
 	require.Equal(t, latency, result.Options.BackendLatency)
 
@@ -182,23 +315,23 @@ func TestRunSimulatesBackendLatency(t *testing.T) {
 
 func TestRunRejectsAllMode(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 100)
+	meta, r, bucket := benchtest.Block(t, 100)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: TraceIDsAll})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: profile.TraceIDsAll})
 	require.NoError(t, err)
 
-	_, err = Run(ctx, blockPath(bucket, meta), profile, RunOptions{})
+	_, err = Run(ctx, blockPath(bucket, meta), prof, RunOptions{})
 	require.ErrorContains(t, err, "embeds no IDs")
 }
 
 func TestResultRoundTrip(t *testing.T) {
 	ctx := context.Background()
-	meta, r, bucket := testBlock(t, 100)
+	meta, r, bucket := benchtest.Block(t, 100)
 
-	profile, err := ProfileBlock(ctx, meta, r, ProfileOptions{NumTraceIDs: 5})
+	prof, err := profile.Build(ctx, meta, r, profile.Options{NumTraceIDs: 5})
 	require.NoError(t, err)
 
-	want, err := Run(ctx, blockPath(bucket, meta), profile, RunOptions{})
+	want, err := Run(ctx, blockPath(bucket, meta), prof, RunOptions{})
 	require.NoError(t, err)
 
 	var buf bytes.Buffer

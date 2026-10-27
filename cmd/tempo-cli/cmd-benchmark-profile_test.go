@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/v3/pkg/benchmark"
+	"github.com/grafana/tempo/v3/pkg/benchmark/profile"
 )
 
 func TestParseTraceIDCount(t *testing.T) {
@@ -16,9 +16,9 @@ func TestParseTraceIDCount(t *testing.T) {
 	}{
 		{in: "0", want: 0},
 		{in: "10000", want: 10000},
-		{in: "all", want: benchmark.TraceIDsAll},
-		{in: "ALL", want: benchmark.TraceIDsAll},
-		{in: " all ", want: benchmark.TraceIDsAll},
+		{in: "all", want: profile.TraceIDsAll},
+		{in: "ALL", want: profile.TraceIDsAll},
+		{in: " all ", want: profile.TraceIDsAll},
 		{in: "-1", wantErr: true},
 		{in: "lots", wantErr: true},
 		{in: "", wantErr: true},

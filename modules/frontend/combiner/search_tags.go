@@ -1,6 +1,8 @@
 package combiner
 
 import (
+	"context"
+
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/collector"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
@@ -11,9 +13,9 @@ var (
 	_ GRPCCombiner[*tempopb.SearchTagsV2Response] = (*genericCombiner[*tempopb.SearchTagsV2Response])(nil)
 )
 
-func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat api.MarshallingFormat) Combiner {
+func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat api.MarshallingFormat, opts ...Option) Combiner {
 	d := collector.NewDistinctStringWithDiff(maxDataBytes, maxTagsPerScope, staleValueThreshold)
-	metricsCombiner := NewMetadataMetricsCombiner()
+	metricsCombiner := NewMetadataMetricsCombiner(opts...)
 
 	c := &genericCombiner[*tempopb.SearchTagsResponse]{
 		httpStatusCode: 200,
@@ -27,7 +29,7 @@ func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold
 			}
 			return nil
 		},
-		finalize: func(final *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
+		finalize: func(_ context.Context, final *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
 			final.TagNames = d.Strings()
 			final.Metrics = metricsCombiner.Metrics
 
@@ -52,10 +54,10 @@ func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold
 	return c
 }
 
-func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat api.MarshallingFormat) Combiner {
+func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat api.MarshallingFormat, opts ...Option) Combiner {
 	// Distinct collector map to collect scopes and scope values
 	distinctValues := collector.NewScopedDistinctStringWithDiff(maxDataBytes, maxTagsPerScope, staleValueThreshold)
-	metricsCombiner := NewMetadataMetricsCombiner()
+	metricsCombiner := NewMetadataMetricsCombiner(opts...)
 
 	c := &genericCombiner[*tempopb.SearchTagsV2Response]{
 		httpStatusCode: 200,
@@ -71,7 +73,7 @@ func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThresho
 			}
 			return nil
 		},
-		finalize: func(final *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
+		finalize: func(_ context.Context, final *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
 			collected := distinctValues.Strings()
 			final.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(collected))
 
@@ -111,12 +113,12 @@ func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThresho
 	return c
 }
 
-func NewTypedSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat api.MarshallingFormat) GRPCCombiner[*tempopb.SearchTagsResponse] {
-	return NewSearchTags(maxDataBytes, maxTagsPerScope, staleValueThreshold, marshalingFormat).(GRPCCombiner[*tempopb.SearchTagsResponse])
+func NewTypedSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat api.MarshallingFormat, opts ...Option) GRPCCombiner[*tempopb.SearchTagsResponse] {
+	return NewSearchTags(maxDataBytes, maxTagsPerScope, staleValueThreshold, marshalingFormat, opts...).(GRPCCombiner[*tempopb.SearchTagsResponse])
 }
 
-func NewTypedSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat api.MarshallingFormat) GRPCCombiner[*tempopb.SearchTagsV2Response] {
-	return NewSearchTagsV2(maxDataBytes, maxTagsPerScope, staleValueThreshold, marshalingFormat).(GRPCCombiner[*tempopb.SearchTagsV2Response])
+func NewTypedSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, marshalingFormat api.MarshallingFormat, opts ...Option) GRPCCombiner[*tempopb.SearchTagsV2Response] {
+	return NewSearchTagsV2(maxDataBytes, maxTagsPerScope, staleValueThreshold, marshalingFormat, opts...).(GRPCCombiner[*tempopb.SearchTagsV2Response])
 }
 
 // segmentSearchTagsResponse splits response into one or more SearchTagsResponse values, each within

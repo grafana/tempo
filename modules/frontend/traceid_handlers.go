@@ -16,7 +16,7 @@ import (
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
-func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor) *combiner.TraceByIDCombiner, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, ...combiner.Option) *combiner.TraceByIDCombiner, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -32,7 +32,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		}
 
 		// validate start and end parameter
-		_, _, _, _, _, reqErr := api.ParseTraceByIDRequest(req)
+		traceByIDReq, reqErr := api.ParseTraceByIDRequest(req)
 		if reqErr != nil {
 			return httpInvalidRequest(reqErr), nil
 		}
@@ -47,6 +47,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"msg", "trace id request",
 			"tenant", tenant,
 			"path", req.URL.Path,
+			"range", traceRange(traceByIDReq.Start, traceByIDReq.End),
+			"range_nanos", traceRange(traceByIDReq.Start, traceByIDReq.End).Nanoseconds(),
 		)
 
 		var traceRedactor combiner.TraceRedactor
@@ -58,7 +60,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			}
 		}
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor)
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, inspectedBytesReporter(traceByIDInspectedBytes, tenant))
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -89,6 +91,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"tenant", tenant,
 			"traceID", traceID,
 			"path", req.URL.Path,
+			"range", traceRange(traceByIDReq.Start, traceByIDReq.End),
+			"range_nanos", traceRange(traceByIDReq.Start, traceByIDReq.End).Nanoseconds(),
 			"duration_seconds", elapsed.Seconds(),
 			"inspected_bytes", inspectBytes,
 			"request_throughput", float64(inspectBytes)/elapsed.Seconds(),
@@ -109,7 +113,7 @@ func resolveSpanPruningEnabledByDefault(o overrides.Interface, tenant string, gl
 }
 
 // newTraceIDV2Handler creates a http.handler for trace by id requests
-func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -125,7 +129,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		}
 
 		// validate start and end parameter
-		_, _, _, _, _, reqErr := api.ParseTraceByIDRequest(req)
+		traceByIDReq, reqErr := api.ParseTraceByIDRequest(req)
 		if reqErr != nil {
 			return httpInvalidRequest(reqErr), nil
 		}
@@ -161,6 +165,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"msg", "trace id request",
 			"tenant", tenant,
 			"path", req.URL.Path,
+			"range", traceRange(traceByIDReq.Start, traceByIDReq.End),
+			"range_nanos", traceRange(traceByIDReq.Start, traceByIDReq.End).Nanoseconds(),
 		)
 
 		var traceRedactor combiner.TraceRedactor
@@ -184,7 +190,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		}
 		opts.TraceFilter = traceFilter
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts)
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts, inspectedBytesReporter(traceByIDInspectedBytes, tenant))
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -192,7 +198,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		elapsed := time.Since(start)
 
 		var bytesProcessed uint64
-		findResp, _ := comb.GRPCFinal()
+		findResp, _ := comb.GRPCFinal(req.Context())
 		if findResp != nil && findResp.Metrics != nil {
 			bytesProcessed = findResp.Metrics.InspectedBytes
 			if p := o.EngineBytesTracking(tenant); p != nil && *p {
@@ -213,6 +219,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"tenant", tenant,
 			"traceID", traceID,
 			"path", req.URL.Path,
+			"range", traceRange(traceByIDReq.Start, traceByIDReq.End),
+			"range_nanos", traceRange(traceByIDReq.Start, traceByIDReq.End).Nanoseconds(),
 			"inspected_bytes", bytesProcessed,
 			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
@@ -223,4 +231,12 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		recordTraceByIDMetrics(tenant, findResp.GetMetrics())
 		return resp, err
 	})
+}
+
+// traceRange returns the requested time range, or zero if start and end were not both provided.
+func traceRange(start, end time.Time) time.Duration {
+	if start.IsZero() || end.IsZero() || end.Before(start) {
+		return 0
+	}
+	return end.Sub(start)
 }

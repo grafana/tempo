@@ -1,0 +1,5 @@
+change_type: bug_fix
+component: block-builder
+note: Fix block-builder attaching partially decoded traces from an undecodable Kafka record to the next record, which could write them under the wrong tenant or crash the block-builder.
+issues: []
+user: mapno

@@ -348,6 +348,17 @@ func TestServiceGraphs_applyFilterPolicy(t *testing.T) {
 	}
 }
 
+func TestServiceGraphs_invalidMaxItems(t *testing.T) {
+	for _, maxItems := range []int{0, -1} {
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.MaxItems = maxItems
+
+		_, err := New(cfg, "test", &registry.TestRegistry{}, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+		require.ErrorContains(t, err, "max_items must be greater than zero")
+	}
+}
+
 func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	testRegistry := registry.TestRegistry{}
 
@@ -628,6 +639,19 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
+}
+
+func TestServiceGraphs_virtualNodeLabelDoesNotChangeConfig(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableVirtualNodeLabel = true
+
+	p, err := New(cfg, "test", registry.NewTestRegistry(), log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	// The instance replaces the processor whenever these differ.
+	require.Equal(t, cfg, p.(*Processor).Cfg)
 }
 
 func TestServiceGraphs_expiredEdges(t *testing.T) {

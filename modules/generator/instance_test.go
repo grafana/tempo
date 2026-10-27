@@ -255,6 +255,29 @@ func Test_instance_updateProcessors(t *testing.T) {
 		assert.Equal(t, expectedConfig, instance.processors[processor.HostInfoName].(*hostinfo.Processor).Cfg)
 	})
 
+	t.Run("replace servicegraphs processor with max items override", func(t *testing.T) {
+		overrides.processors = map[string]struct{}{
+			processor.ServiceGraphsName: {},
+			processor.SpanMetricsName:   {},
+			processor.HostInfoName:      {},
+		}
+		maxItems := 42
+		overrides.serviceGraphsMaxItems = &maxItems
+		t.Cleanup(func() { overrides.serviceGraphsMaxItems = nil })
+
+		err := instance.updateProcessors()
+		require.NoError(t, err)
+
+		require.Equal(t, 42, instance.processors[processor.ServiceGraphsName].(*servicegraphs.Processor).Cfg.MaxItems)
+
+		// removing the override restores the configured default
+		overrides.serviceGraphsMaxItems = nil
+		err = instance.updateProcessors()
+		require.NoError(t, err)
+
+		require.Equal(t, cfg.Processor.ServiceGraphs.MaxItems, instance.processors[processor.ServiceGraphsName].(*servicegraphs.Processor).Cfg.MaxItems)
+	})
+
 	t.Run("remove processor", func(t *testing.T) {
 		overrides.processors = nil
 		err := instance.updateProcessors()

@@ -192,6 +192,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			}
 		}
 
+		if c.opts.TraceWritten != nil {
+			c.opts.TraceWritten(int(compactionLevel), estimateProtoSizeFromParquetRow(lowestObject))
+		}
+
 		// Write trace.
 		// Note - not specifying trace start/end here, we set the overall block start/stop
 		// times from the input metas.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/google/uuid"
@@ -17,7 +18,6 @@ import (
 	"github.com/grafana/tempo/v3/pkg/cache"
 	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
-	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
@@ -130,7 +130,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
 
-	foundTrace, err := findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
+	foundTrace, err := findTraceByID(derivedCtx, traceID, b.meta, pf, rr, rowGroup)
 
 	result := &tempopb.TraceByIDResponse{
 		Trace:   foundTrace,
@@ -143,101 +143,32 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	return result, err
 }
 
-func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {
+func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rr *BackendReaderAt, rowGroup int) (*tempopb.Trace, error) {
 	// traceID column index
 	colIndex, _, maxDef := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if colIndex == -1 {
 		return nil, fmt.Errorf("unable to get index for column: %s", TraceIDColumnName)
 	}
 
-	// If no index then fallback to binary searching the rowgroups.
+	rowGroups := pf.RowGroups()
+
 	if rowGroup == -1 {
-		var (
-			numRowGroups = len(pf.RowGroups())
-			buf          = make(parquet.Row, 1)
-			err          error
-		)
-
-		// Cache of row group bounds
-		rowGroupMins := make([]common.ID, numRowGroups+1)
-		// todo: restore using meta min/max id once it works
-		//    https://github.com/grafana/tempo/issues/1903
-		rowGroupMins[0] = bytes.Repeat([]byte{0}, 16)
-		rowGroupMins[numRowGroups] = bytes.Repeat([]byte{255}, 16) // This is actually inclusive and the logic is special for the last row group below
-
-		// Gets the minimum trace ID within the row group. Since the column is sorted
-		// ascending we just read the first value from the first page.
-		getRowGroupMin := func(rgIdx int) (common.ID, error) {
-			minID := rowGroupMins[rgIdx]
-			if len(minID) > 0 {
-				// Already loaded
-				return minID, nil
-			}
-
-			pages := pf.RowGroups()[rgIdx].ColumnChunks()[colIndex].Pages()
-			defer pages.Close()
-
-			page, err := pages.ReadPage()
-			if err != nil {
-				return nil, err
-			}
-			defer parquet.Release(page)
-
-			c, err := page.Values().ReadValues(buf)
-			if err != nil && !errors.Is(err, io.EOF) {
-				return nil, err
-			}
-			if c < 1 {
-				return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), meta.BlockID, rgIdx)
-			}
-
-			// Clone ensures that the byte array is disconnected
-			// from the underlying i/o buffers.
-			minID = buf[0].Clone().ByteArray()
-			rowGroupMins[rgIdx] = minID
-			return minID, nil
-		}
-
-		rowGroup, err = binarySearch(numRowGroups, func(rgIdx int) (int, error) {
-			rgMinID, err := getRowGroupMin(rgIdx)
-			if err != nil {
-				return 0, err
-			}
-
-			if check := bytes.Compare(traceID, rgMinID); check <= 0 {
-				// Trace is before or in this group
-				return check, nil
-			}
-
-			rgMaxID, err := getRowGroupMin(rgIdx + 1)
-			if err != nil {
-				return 0, err
-			}
-
-			// This is actually the min of the next group, so check is exclusive not inclusive like min
-			// Except for the last group, it is inclusive
-			check := bytes.Compare(traceID, rgMaxID)
-			if check > 0 || (check == 0 && rgIdx < (numRowGroups-1)) {
-				// Trace is after this group
-				return 1, nil
-			}
-
-			// Must be in this group
-			return 0, nil
-		})
-		if err != nil {
-			return nil, fmt.Errorf("error binary searching row groups: %w", err)
+		var ok bool
+		rowGroup, ok = findRowGroupByStats(pf, colIndex, traceID)
+		if ok && rowGroup == -1 {
+			return nil, nil
 		}
 	}
 
-	if rowGroup == -1 {
-		// Not within the bounds of any row group
-		return nil, nil
+	// Without statistics, scan every row group.
+	firstRowGroup := 0
+	if rowGroup != -1 {
+		firstRowGroup = rowGroup
+		rowGroups = rowGroups[rowGroup : rowGroup+1]
 	}
 
-	// Now iterate the matching row group
 	iter := pq.NewSyncIterator(
-		ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex,
+		ctx, rowGroups, colIndex,
 		pq.SyncIteratorOptPredicate(pq.NewStringInPredicate([]string{string(traceID)})),
 		pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
 	)
@@ -255,10 +186,23 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	// The row number coming out of the iterator is relative,
 	// so offset it using the num rows in all previous groups
 	rowMatch := int64(0)
-	for _, rg := range pf.RowGroups()[0:rowGroup] {
+	for _, rg := range pf.RowGroups()[0:firstRowGroup] {
 		rowMatch += rg.NumRows()
 	}
 	rowMatch += int64(res.RowNumber[0])
+
+	// When the row group is unknown (statistics missing, all row groups scanned),
+	// skip it and SeekToRow reads sequentially.
+	//
+	// TODO: the sync iterator always knows which row group contains the match;
+	//  expose it so the offset index can be preloaded in this case too.
+	if rowGroup >= 0 {
+		// Load the offset index for every column chunk in the row group so that
+		// SeekToRow jumps directly to the page containing the row.
+		if err := preloadOffsetIndexes(rr, pf, rowGroup); err != nil {
+			return nil, fmt.Errorf("error loading offset indexes: %w", err)
+		}
+	}
 
 	// seek to row and read
 	_, _, readerOptions := SchemaWithDynamicChanges(meta.DedicatedColumns)
@@ -280,29 +224,84 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	return ParquetTraceToTempopbTrace(meta, tr), nil
 }
 
-// binarySearch that finds exact matching entry. Returns non-zero index when found, or -1 when not found
-// Inspired by sort.Search but makes uses of tri-state comparator to eliminate the last comparison when
-// we want to find exact match, not insertion point.
-func binarySearch(n int, compare func(int) (int, error)) (int, error) {
-	i, j := 0, n
-	for i < j {
-		h := int(uint(i+j) >> 1) // avoid overflow when computing h
-		c, err := compare(h)
-		if err != nil {
-			return -1, err
-		}
-		// i ≤ h < j
-		switch c {
-		case 0:
-			// Found exact match
-			return h, nil
-		case -1:
-			j = h
-		case 1:
-			i = h + 1
+// findRowGroupByStats returns the row group whose footer min/max contains traceID, or -1.
+// ok is false if any row group lacks statistics.
+func findRowGroupByStats(pf *parquet.File, colIndex int, traceID common.ID) (rowGroup int, ok bool) {
+	rgs := pf.Metadata().RowGroups
+	for _, rg := range rgs {
+		s := rg.Columns[colIndex].MetaData.Statistics
+		if len(s.MinValue) == 0 || len(s.MaxValue) == 0 {
+			return -1, false
 		}
 	}
 
-	// No match
-	return -1, nil
+	i := sort.Search(len(rgs), func(i int) bool {
+		return bytes.Compare(rgs[i].Columns[colIndex].MetaData.Statistics.MaxValue, traceID) >= 0
+	})
+	if i == len(rgs) || bytes.Compare(traceID, rgs[i].Columns[colIndex].MetaData.Statistics.MinValue) < 0 {
+		return -1, true
+	}
+	return i, true
+}
+
+// preloadOffsetIndexes loads the offset index for every column chunk in the given row group.
+// With the index loaded, SeekToRow jumps directly to the page containing a row
+// instead of reading and decoding all pages from the start of the row group.
+// A row group's offset indexes are written contiguously at the end of the file,
+// so they are read in a single request.
+// Column chunks without an offset index are skipped: SeekToRow reads sequentially for them.
+func preloadOffsetIndexes(r *BackendReaderAt, pf *parquet.File, rowGroup int) error {
+	cols := pf.Metadata().RowGroups[rowGroup].Columns
+	base, end := int64(-1), int64(0)
+	for i := range cols {
+		offset, length := cols[i].OffsetIndexOffset, cols[i].OffsetIndexLength
+		if offset == 0 {
+			continue
+		}
+		if base == -1 || offset < base {
+			base = offset
+		}
+		if e := offset + int64(length); e > end {
+			end = e
+		}
+	}
+	if base == -1 {
+		// No offset indexes in this row group.
+		return nil
+	}
+
+	buf := make([]byte, end-base)
+	if _, err := r.ReadAtWithCache(buf, base, cache.RoleParquetOffsetIdx); err != nil {
+		return err
+	}
+
+	region := &regionReaderAt{base: base, data: buf}
+	for _, cc := range pf.RowGroups()[rowGroup].ColumnChunks() {
+		fcc, ok := cc.(*parquet.FileColumnChunk)
+		if !ok {
+			continue
+		}
+		if _, err := fcc.OffsetIndexFrom(region); err != nil && !errors.Is(err, parquet.ErrMissingOffsetIndex) {
+			return err
+		}
+	}
+	return nil
+}
+
+// regionReaderAt serves ReadAt calls at absolute file offsets from an
+// in-memory copy of a file region starting at base.
+type regionReaderAt struct {
+	base int64
+	data []byte
+}
+
+func (r *regionReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	if off < r.base {
+		return 0, io.EOF
+	}
+	n := copy(p, r.data[off-r.base:])
+	if n < len(p) {
+		return n, io.EOF
+	}
+	return n, nil
 }

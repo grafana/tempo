@@ -17,13 +17,10 @@ import (
 	"github.com/grafana/tempo/v3/modules/overrides"
 )
 
-const (
-	defaultWorkerCount = 2
-	defaultQueueSize   = 100
-)
-
 type Overrides interface {
 	Forwarders(tenantID string) []string
+	ForwarderQueueSize(tenantID string) int
+	ForwarderWorkers(tenantID string) int
 }
 
 var _ Overrides = overrides.Interface(nil)
@@ -91,7 +88,9 @@ func (m *Manager) getOrCreateQueueList(tenantID string) (*queueList, bool) {
 	defer m.tenantToQueueListMu.Unlock()
 
 	forwarderNames := m.overrides.Forwarders(tenantID)
-	ql, err := newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder)
+	queueSize := m.overrides.ForwarderQueueSize(tenantID)
+	workerCount := m.overrides.ForwarderWorkers(tenantID)
+	ql, err := newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder, queueSize, workerCount)
 	if err != nil {
 		_ = level.Warn(m.logger).Log("msg", "failed to create queue list", "err", err)
 
@@ -155,11 +154,13 @@ func (m *Manager) updateQueueLists() {
 			continue
 		}
 
-		if ql.shouldUpdate(forwarderNames) {
+		queueSize := m.overrides.ForwarderQueueSize(tenantID)
+		workerCount := m.overrides.ForwarderWorkers(tenantID)
+		if ql.shouldUpdate(forwarderNames, queueSize, workerCount) {
 			go m.shutdownQueueList(tenantID, ql)
 			delete(m.tenantToQueueList, tenantID)
 
-			newQl, err := newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder)
+			newQl, err := newQueueList(m.logger, tenantID, forwarderNames, m.forwarderNameToForwarder, queueSize, workerCount)
 			if err != nil {
 				_ = level.Warn(m.logger).Log("msg", "failed to create queue list", "err", err)
 
@@ -215,7 +216,7 @@ type queueList struct {
 	list                 List
 }
 
-func newQueueList(logger log.Logger, tenantID string, forwarderNames []string, forwarderNameToForwarder map[string]Forwarder) (*queueList, error) {
+func newQueueList(logger log.Logger, tenantID string, forwarderNames []string, forwarderNameToForwarder map[string]Forwarder, queueSize, workerCount int) (*queueList, error) {
 	forwarderNameToQueue := make(map[string]*queue.Queue[ptrace.Traces], len(forwarderNames))
 	list := make(List, 0, len(forwarderNames))
 	for _, forwarderName := range forwarderNames {
@@ -227,8 +228,8 @@ func newQueueList(logger log.Logger, tenantID string, forwarderNames []string, f
 		queueCfg := queue.Config{
 			Name:        forwarderName,
 			TenantID:    tenantID,
-			Size:        defaultQueueSize,
-			WorkerCount: defaultWorkerCount,
+			Size:        queueSize,
+			WorkerCount: workerCount,
 		}
 
 		processFunc := func(ctx context.Context, traces ptrace.Traces) {
@@ -250,13 +251,14 @@ func newQueueList(logger log.Logger, tenantID string, forwarderNames []string, f
 	}, nil
 }
 
-func (l *queueList) shouldUpdate(forwarderNames []string) bool {
+func (l *queueList) shouldUpdate(forwarderNames []string, queueSize, workerCount int) bool {
 	if len(forwarderNames) != len(l.forwarderNameToQueue) {
 		return true
 	}
 
 	for _, forwarderName := range forwarderNames {
-		if _, found := l.forwarderNameToQueue[forwarderName]; !found {
+		q, found := l.forwarderNameToQueue[forwarderName]
+		if !found || q.ShouldUpdate(queueSize, workerCount) {
 			return true
 		}
 	}

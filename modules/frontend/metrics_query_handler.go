@@ -77,7 +77,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		httpReq = httpReq.Clone(ctx)
 
 		var finalResponse *tempopb.QueryInstantResponse
-		c, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries)
+		c, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, tenant))
 		if err != nil {
 			return err
 		}
@@ -159,7 +159,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		req.URL.Path = strings.ReplaceAll(req.URL.Path, api.PathMetricsQueryInstant, api.PathMetricsQueryRange)
 		req = api.BuildQueryRangeRequest(req, qr, "") // dedicated cols are never passed from the caller
 
-		combiner, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries)
+		combiner, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "query instant: query range combiner failed", "err", err)
 			return httpInvalidRequest(err), nil
@@ -178,7 +178,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		// --------------------------------------------------
 		// Get the final data and translate to instant.
 		// --------------------------------------------------
-		qrResp, err := combiner.GRPCFinal()
+		qrResp, err := combiner.GRPCFinal(req.Context())
 		if err != nil {
 			return nil, err
 		}
@@ -288,6 +288,7 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
+			"range", time.Duration(req.End-req.Start),
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
 			"error", err,
@@ -301,6 +302,7 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 		"tenant", tenantID,
 		"traceID", traceID,
 		"query", req.Query,
+		"range", time.Duration(req.End-req.Start),
 		"range_nanos", req.End-req.Start,
 		"duration_seconds", durationSeconds,
 		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
@@ -323,6 +325,7 @@ func logQueryInstantRequest(logger log.Logger, tenantID string, req *tempopb.Que
 		"msg", "query instant request",
 		"tenant", tenantID,
 		"query", req.Query,
-		"range_seconds", req.End-req.Start,
+		"range", time.Duration(req.End-req.Start),
+		"range_nanos", req.End-req.Start,
 	)
 }

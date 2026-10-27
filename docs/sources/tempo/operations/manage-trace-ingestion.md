@@ -57,6 +57,13 @@ This limit is enforced asynchronously in live-stores and block-builders.
 Traces that exceed this limit are partially dropped.
 Unusually large traces often indicate a retry loop or misconfigured instrumentation rather than normal application behavior.
 
+Use the `tempo_distributor_trace_size_bytes` histogram to observe the size distribution of every trace received by the distributor, per tenant.
+Unlike the limits above, this histogram records all traces, so you can see how close traces get to the limit before they are dropped.
+
+The distributor sees each push request separately, so a trace sent across many requests shows up as several smaller samples.
+Use the `tempodb_compaction_trace_size_bytes` histogram to observe the size of combined traces written by compaction, per tenant and compaction level.
+Each compaction level rewrites the trace, so filter to the highest level to approximate the final trace size.
+
 ### Example configuration
 
 To estimate the rate limit you need, multiply your average span size by your peak spans-per-second across all services for a given tenant.
@@ -116,6 +123,8 @@ The following table lists the possible `reason` values:
 | `live_traces_exceeded`        | Active trace count exceeded `max_traces_per_user`.          | Live-store             |
 | `invalid_trace_id`            | Batch contained a trace ID that isn't 128 bits.             | Distributor            |
 | `invalid_span_id`             | Batch contained a span ID that isn't 64 bits or was all zeros. | Distributor         |
+| `too_far_in_future`           | Span start or end time was more than `creation_grace_period` in the future. | Distributor |
+| `invalid_duration`            | Span end time was before its start time.                    | Distributor            |
 | `trace_too_large_to_compact`  | Trace too large for the backend-worker to compact.          | Backend-worker         |
 | `unknown_error`               | Unexpected error during span processing.                    | Live-store             |
 

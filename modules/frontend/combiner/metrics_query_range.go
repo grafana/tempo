@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"math"
 	"net/http"
@@ -38,7 +39,7 @@ var (
 )
 
 // NewQueryRange returns a query range combiner.
-func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner, error) {
+func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int, opts ...Option) (Combiner, error) {
 	// if a limit is being enforced, honor the request if it is less than the limit
 	// else set it to max limit
 	maxSeries := int(req.MaxSeries)
@@ -53,7 +54,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 	completionTracker := &shardtracker.CompletionTracker{}
 	maxSeriesReachedErrorMsg := fmt.Sprintf("Response exceeds maximum series limit of %d, a partial response is returned. Warning: the accuracy of each individual value is not guaranteed.", maxSeries)
 
-	metricsCombiner := NewQueryRangeMetricsCombiner()
+	metricsCombiner := NewQueryRangeMetricsCombiner(opts...)
 	lastCompletedThrough := shardtracker.TimestampNever
 	c := &genericCombiner[*tempopb.QueryRangeResponse]{
 		httpStatusCode: 200,
@@ -83,7 +84,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 			}
 			return nil
 		},
-		finalize: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
+		finalize: func(_ context.Context, _ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
 			resp := combiner.Response()
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
@@ -160,8 +161,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int) (Combiner
 	return c, nil
 }
 
-func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
-	c, err := NewQueryRange(req, maxSeries)
+func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int, opts ...Option) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
+	c, err := NewQueryRange(req, maxSeries, opts...)
 	if err != nil {
 		return nil, err
 	}

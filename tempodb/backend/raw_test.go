@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -333,4 +334,29 @@ func TestNoCompactFlag(t *testing.T) {
 			fmt.Sprintf("%s/%s", tenantID, blockID.String()): 1,
 		},
 	}, rawWriter.deleteCalls)
+}
+
+func TestBlockMetaCorruption(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    string
+		corrupt bool
+	}{
+		{name: "empty", data: "", corrupt: true},
+		{name: "truncated", data: `{"blockID":"`, corrupt: true},
+		{name: "garbage", data: "\x00\x01\x02", corrupt: true},
+		// well-formed JSON of the wrong shape is not evidence of corruption, it may be a schema this binary does not know
+		{name: "wrong field type", data: `{"blockID": 5}`, corrupt: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mr := &MockRawReader{R: []byte(tc.data)}
+			r := NewReader(mr)
+
+			_, err := r.BlockMeta(context.Background(), uuid.New(), tenantID)
+			require.Error(t, err)
+			require.Equal(t, tc.corrupt, errors.Is(err, ErrCorruptMeta), "err: %v", err)
+		})
+	}
 }

@@ -21,7 +21,7 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.35.0
 # https://hub.docker.com/repository/docker/grafana/tempo-ci-tools/
 # built by: .github/workflows/docker-ci-tools.yml
-TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-7e3ad96-20260916-174433
+TEMPO_CI_TOOLS_IMAGE ?= grafana/tempo-ci-tools:main-94c57ce-20261021-065935
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
@@ -166,7 +166,7 @@ test-with-cover-tempodb-wal: tools-test  ## Test tempodb/wal with code coverage
 	mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(GOTEST_OPT) -coverprofile=$(COVERAGE_DIR)/tempodb-wal.out $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
 
-# tests in tempodb/encoding/vparquet3, vparquet4, vparquet5
+# tests in tempodb/encoding/vparquet4, vparquet5
 .PHONY: test-with-cover-tempodb-encoding
 test-with-cover-tempodb-encoding: tools-test ## Run tempodb vparquet encoding tests with code coverage
 	mkdir -p $(COVERAGE_DIR)

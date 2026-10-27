@@ -210,3 +210,79 @@ func TestCompact(t *testing.T) {
 	require.Equal(t, uint32(1), newMeta[0].ReplicationFactor)
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }
+
+func TestCompactTraceWritten(t *testing.T) {
+	rawR, rawW, _, err := local.New(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
+	ctx := context.Background()
+
+	blockConfig := common.BlockConfig{Version: VersionString}
+	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	require.NoError(t, common.ValidateConfig(&blockConfig))
+
+	meta1 := createTestBlock(t, ctx, &blockConfig, r, w, 10, 10, 10, 1, nil)
+	meta2 := createTestBlock(t, ctx, &blockConfig, r, w, 10, 10, 10, 1, nil)
+	metaLevel2 := createTestBlock(t, ctx, &blockConfig, r, w, 10, 10, 10, 1, nil)
+	metaLevel2.CompactionLevel = 2
+
+	// Same trace ID with different spans in each block, so compaction takes the real combine path.
+	sch, _, _ := SchemaWithDynamicChanges(nil)
+	splitID := test.ValidTraceID(nil)
+	var splitFragments []*backend.BlockMeta
+	largestFragment := 0
+	for range 2 {
+		inMeta := &backend.BlockMeta{TenantID: tenantID, BlockID: backend.NewUUID(), TotalObjects: 1, ReplicationFactor: 1}
+		sb, outMeta := newStreamingBlock(ctx, &blockConfig, inMeta, r, w, tempo_io.NewBufferedWriter)
+		trp, _ := traceToParquet(inMeta, splitID, test.MakeTraceWithSpanCount(1, 10, splitID), nil)
+		largestFragment = max(largestFragment, estimateProtoSizeFromParquetRow(sch.Deconstruct(nil, trp)))
+		require.NoError(t, sb.Add(trp, 0, 0))
+		_, err := sb.Complete()
+		require.NoError(t, err)
+		splitFragments = append(splitFragments, outMeta)
+	}
+
+	tests := []struct {
+		name      string
+		inputs    []*backend.BlockMeta
+		drop      bool
+		wantCount int
+		wantLevel int
+		wantMin   int
+	}{
+		{name: "distinct traces", inputs: []*backend.BlockMeta{meta1, meta2}, wantCount: 20, wantMin: 1},
+		{name: "duplicate traces", inputs: []*backend.BlockMeta{meta1, meta1}, wantCount: 10, wantMin: 1},
+		{name: "split trace is combined", inputs: splitFragments, wantCount: 1, wantMin: largestFragment + 1},
+		{name: "highest input level", inputs: []*backend.BlockMeta{meta1, metaLevel2}, wantCount: 20, wantLevel: 2, wantMin: 1},
+		{name: "dropped traces", inputs: []*backend.BlockMeta{meta1}, drop: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var sizes []int
+			c := NewCompactor(common.CompactionOptions{
+				BlockConfig:       blockConfig,
+				OutputBlocks:      1,
+				ObjectsCombined:   func(_, _ int) {},
+				DedupedSpans:      func(_, _ int) {},
+				DisconnectedTrace: func() {},
+				RootlessTrace:     func() {},
+				DropObject:        func(common.ID) bool { return tt.drop },
+				TraceWritten: func(compactionLevel, bytes int) {
+					require.Equal(t, tt.wantLevel, compactionLevel)
+					sizes = append(sizes, bytes)
+				},
+			})
+
+			_, err := c.Compact(ctx, log.NewNopLogger(), r, w, tt.inputs)
+			require.NoError(t, err)
+			require.Len(t, sizes, tt.wantCount)
+			for _, s := range sizes {
+				require.GreaterOrEqual(t, s, tt.wantMin)
+			}
+		})
+	}
+}

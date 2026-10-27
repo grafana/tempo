@@ -59,7 +59,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		tenant, _ := user.ExtractOrgID(ctx)
 		start := time.Now()
 
-		comb, err := newCombiner(req, cfg.Search.Sharder, api.MarshallingFormatProtobuf, o.LeftPadTraceIDs(tenant))
+		comb, err := newCombiner(req, cfg.Search.Sharder, api.MarshallingFormatProtobuf, o.LeftPadTraceIDs(tenant), inspectedBytesReporter(searchInspectedBytes, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "search streaming: could not create combiner", "err", err)
 			return status.Error(codes.InvalidArgument, err.Error())
@@ -117,7 +117,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
-		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat, o.LeftPadTraceIDs(tenant))
+		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat, o.LeftPadTraceIDs(tenant), inspectedBytesReporter(searchInspectedBytes, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "search: could not create combiner", "err", err)
 			return httpInvalidRequest(err), nil
@@ -145,7 +145,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 	})
 }
 
-func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig, marshalingFormat api.MarshallingFormat, padTraceIDs bool) (combiner.GRPCCombiner[*tempopb.SearchResponse], error) {
+func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig, marshalingFormat api.MarshallingFormat, padTraceIDs bool, opts ...combiner.Option) (combiner.GRPCCombiner[*tempopb.SearchResponse], error) {
 	limit, err := adjustLimit(req.Limit, cfg.DefaultLimit, cfg.MaxLimit)
 	if err != nil {
 		return nil, err
@@ -164,7 +164,7 @@ func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig, marshaling
 		}
 	}
 
-	return combiner.NewTypedSearch(int(limit), mostRecent, marshalingFormat, padTraceIDs), nil
+	return combiner.NewTypedSearch(int(limit), mostRecent, marshalingFormat, padTraceIDs, opts...), nil
 }
 
 // adjusts the limit based on provided config
@@ -210,7 +210,8 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
-			"range_seconds", req.End-req.Start,
+			"range", time.Duration(req.End-req.Start)*time.Second,
+			"range_nanos", int64(time.Duration(req.End-req.Start)*time.Second),
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
 			"error", err,
@@ -224,7 +225,8 @@ func logResult(ctx context.Context, logger log.Logger, tenantID string, duration
 		"tenant", tenantID,
 		"traceID", traceID,
 		"query", req.Query,
-		"range_seconds", req.End-req.Start,
+		"range", time.Duration(req.End-req.Start)*time.Second,
+		"range_nanos", int64(time.Duration(req.End-req.Start)*time.Second),
 		"duration_seconds", durationSeconds,
 		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
 		"total_requests", resp.Metrics.TotalJobs,
@@ -244,7 +246,8 @@ func logRequest(logger log.Logger, tenantID string, req *tempopb.SearchRequest) 
 		"msg", "search request",
 		"tenant", tenantID,
 		"query", req.Query,
-		"range_seconds", req.End-req.Start,
+		"range", time.Duration(req.End-req.Start)*time.Second,
+		"range_nanos", int64(time.Duration(req.End-req.Start)*time.Second),
 		"limit", req.Limit,
 		"spans_per_spanset", req.SpansPerSpanSet,
 	)
