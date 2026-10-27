@@ -48,6 +48,10 @@ type QueryRangeSharderConfig struct {
 	ConcurrentRequests    int           `yaml:"concurrent_jobs,omitempty"`
 	TargetBytesPerRequest int           `yaml:"target_bytes_per_job,omitempty"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
+	// MaxScannedBytes is the byte budget of backend blocks a query range may overlap. 0 disables the limit.
+	MaxScannedBytes uint64 `yaml:"max_scanned_bytes,omitempty"`
+	// MinDuration is the range always allowed when MaxScannedBytes is set, even if it is over the budget, unless MaxDuration is lower.
+	MinDuration time.Duration `yaml:"min_duration,omitempty"`
 	// QueryBackendAfter determines when to query backend storage vs ingesters only.
 	QueryBackendAfter time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval          time.Duration `yaml:"interval,omitempty"`
@@ -111,6 +115,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewBadRequest(errors.New("step must be greater than 0")), nil
 	}
 
+	// NOTE - the handler already aligned req, and aligning again widens start by one more step.
 	traceql.AlignRequest(req)
 
 	// Instant queries must not compute exemplars
@@ -203,9 +208,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	// range is checked for each window.
 	start := time.Unix(0, int64(backendReq.Start))
 	end := time.Unix(0, int64(backendReq.End))
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, func(m *backend.BlockMeta) bool {
-		return m.ReplicationFactor == backend.MetricsGeneratorReplicationFactor
-	})
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, isRF1Block)
 	if len(blocks) == 0 {
 		// no need to search backend
 		close(reqCh)
