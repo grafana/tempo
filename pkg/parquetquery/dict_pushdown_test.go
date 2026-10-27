@@ -248,7 +248,7 @@ func TestDictPushdownNeedsFileColumn(t *testing.T) {
 }
 
 // TestDictPushdownLongSeek: a seek past more than 1000 values (seekWithinPage's
-// magicThreshold) reslices the page and points the reader at the slice.
+// magicThreshold) walks the page's levels to the target row.
 func TestDictPushdownLongSeek(t *testing.T) {
 	var rows []dictRow
 	for i := range 20_000 {
