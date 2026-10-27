@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -146,9 +147,13 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 
 	// try listing objects
 	if confirm {
-		_, err = core.ListObjectsV2(cfg.Bucket, listPrefix(backend.KeyPathWithPrefix(nil, cfg.Prefix)), "", "", "/", 1)
+		prefix := cfg.Prefix
+		if isDirectoryBucket(cfg.Bucket) {
+			prefix = listPrefix(backend.KeyPathWithPrefix(nil, cfg.Prefix))
+		}
+		_, err = listObjects(core, cfg.Bucket, prefix, "", "/", 1)
 		if err != nil {
-			return nil, fmt.Errorf("unexpected error from ListObjectsV2 on %s: %w", cfg.Bucket, err)
+			return nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
 		}
 	}
 
@@ -367,18 +372,19 @@ func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]stri
 	prefix := listPrefix(keypath)
 	var objects []string
 
-	nextToken := ""
+	nextMarker := ""
 	isTruncated := true
 	for isTruncated {
-		res, err := rw.core.ListObjectsV2(rw.cfg.Bucket, prefix, "", nextToken, "/", 0)
+		// ListObjects(bucket, prefix, nextMarker, delimiter string, maxKeys int)
+		res, err := listObjects(rw.core, rw.cfg.Bucket, prefix, nextMarker, "/", 0)
 		if err != nil {
 			return nil, fmt.Errorf("error listing blocks in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
 		}
 		isTruncated = res.IsTruncated
-		nextToken = res.NextContinuationToken
+		nextMarker = res.NextMarker
 
 		level.Debug(rw.logger).Log("msg", "listing blocks", "keypath", path.Join(keypath...)+"/",
-			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextContinuationToken", res.NextContinuationToken)
+			"found", len(res.CommonPrefixes), "IsTruncated", res.IsTruncated, "NextMarker", res.NextMarker)
 
 		for _, cp := range res.CommonPrefixes {
 			objects = append(objects, strings.Split(strings.TrimPrefix(cp.Prefix, prefix), "/")[0])
@@ -754,34 +760,25 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		customTransport.TLSClientConfig = tlsConfig
 	}
 
+	return newCore(cfg, creds, customTransport, hedge)
+}
+
+// newCore returns a client for the bucket of cfg that sends its requests with base.
+func newCore(cfg *Config, creds *credentials.Credentials, base http.RoundTripper, hedge bool) (*minio.Core, error) {
+	var err error
 	endpoint := cfg.Endpoint
 	lookup := minio.BucketLookupType(cfg.BucketLookupType)
 	if cfg.ForcePathStyle {
 		lookup = minio.BucketLookupPath
 	}
 
-	var base http.RoundTripper = customTransport
 	if isDirectoryBucket(cfg.Bucket) {
-		if cfg.Region == "" {
-			return nil, fmt.Errorf("region is required for S3 directory bucket %s", cfg.Bucket)
+		var bucketURL *url.URL
+		endpoint, lookup, bucketURL, err = directoryBucketEndpoint(cfg, lookup)
+		if err != nil {
+			return nil, err
 		}
-		if endpoint == "" {
-			endpoint = s3ExpressZonalEndpoint(cfg.Bucket, cfg.Region)
-		}
-		// directory buckets only accept virtual-hosted-style requests
-		if lookup == minio.BucketLookupAuto && strings.HasSuffix(endpoint, ".amazonaws.com") {
-			lookup = minio.BucketLookupDNS
-		}
-
-		scheme := "https"
-		if cfg.Insecure {
-			scheme = "http"
-		}
-		sessionURL := scheme + "://" + endpoint + "/" + cfg.Bucket + "/?session"
-		if lookup == minio.BucketLookupDNS {
-			sessionURL = scheme + "://" + cfg.Bucket + "." + endpoint + "/?session"
-		}
-		base = newS3ExpressTransport(base, creds, cfg.Region, sessionURL)
+		base = newS3ExpressTransport(base, creds, cfg.Region, bucketURL)
 	}
 
 	// add instrumentation
@@ -820,6 +817,23 @@ func listPrefix(keypath backend.KeyPath) string {
 		prefix += "/"
 	}
 	return prefix
+}
+
+// listObjects lists a page of the objects under prefix with ListObjects (V1). Directory buckets
+// only support ListObjectsV2, so they are listed with it instead, and marker and NextMarker hold
+// its continuation tokens.
+func listObjects(core *minio.Core, bucket, prefix, marker, delimiter string, maxKeys int) (minio.ListBucketResult, error) {
+	if !isDirectoryBucket(bucket) {
+		return core.ListObjects(bucket, prefix, marker, delimiter, maxKeys)
+	}
+
+	res, err := core.ListObjectsV2(bucket, prefix, "", marker, delimiter, maxKeys)
+	return minio.ListBucketResult{
+		CommonPrefixes: res.CommonPrefixes,
+		Contents:       res.Contents,
+		IsTruncated:    res.IsTruncated,
+		NextMarker:     res.NextContinuationToken,
+	}, err
 }
 
 func readError(err error) error {

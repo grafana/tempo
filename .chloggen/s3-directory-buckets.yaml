@@ -16,7 +16,8 @@ issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext: |
-  The S3 backend now lists objects only with ListObjectsV2, and lists directory buckets without `start-after` or relying on key order.
+  Directory buckets are listed with ListObjectsV2, without `start-after` or relying on key order. General purpose buckets keep using the same list APIs as before.
+  Retention now deletes every object of a block, not only the first 1000.
   Requests to directory buckets use S3 Express session authentication (CreateSession), like the AWS SDKs.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".

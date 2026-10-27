@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +44,36 @@ func s3ExpressZonalEndpoint(bucket, region string) string {
 	return "s3express-" + parts[len(parts)-2] + "." + region + ".amazonaws.com"
 }
 
+// directoryBucketEndpoint returns the endpoint and the bucket lookup type to reach the directory
+// bucket of cfg with, and the URL of the bucket. The endpoint defaults to the bucket's Zonal
+// endpoint. Requests to amazonaws.com endpoints are virtual-hosted style, the only style directory
+// buckets accept, unless lookup asks for path-style requests.
+func directoryBucketEndpoint(cfg *Config, lookup minio.BucketLookupType) (string, minio.BucketLookupType, *url.URL, error) {
+	if cfg.Region == "" {
+		return "", lookup, nil, fmt.Errorf("region is required for S3 directory bucket %s", cfg.Bucket)
+	}
+
+	endpoint := cfg.Endpoint
+	if endpoint == "" {
+		endpoint = s3ExpressZonalEndpoint(cfg.Bucket, cfg.Region)
+	}
+	if lookup == minio.BucketLookupAuto {
+		lookup = minio.BucketLookupPath
+		if strings.HasSuffix((&url.URL{Host: endpoint}).Hostname(), ".amazonaws.com") {
+			lookup = minio.BucketLookupDNS
+		}
+	}
+
+	bucketURL := &url.URL{Scheme: "https", Host: endpoint, Path: "/" + cfg.Bucket + "/"}
+	if lookup == minio.BucketLookupDNS {
+		bucketURL.Host, bucketURL.Path = cfg.Bucket+"."+endpoint, "/"
+	}
+	if cfg.Insecure {
+		bucketURL.Scheme = "http"
+	}
+	return endpoint, lookup, bucketURL, nil
+}
+
 // createSessionResult uses the S3 namespace, as AWS does. minio-go only decodes CreateSession
 // responses in that namespace, including those sessionResponse answers its requests with.
 type createSessionResult struct {
@@ -62,25 +93,33 @@ type createSessionResult struct {
 // credentials instead.
 //
 // minio-go signs requests for the s3 service, and only uses sessions for directory buckets in some
-// Availability Zones, so the transport replaces the signature of every request it sends.
+// Availability Zones, so the transport replaces the signature of every request it sends. minio-go
+// also sends the requests for those buckets to the S3 Regional endpoint, so the transport sends
+// every request to the bucket's endpoint.
 // https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-create-session.html
 type s3ExpressTransport struct {
 	next       http.RoundTripper
 	creds      *credentials.Credentials
 	region     string
+	host       string
 	sessionURL string
 	now        func() time.Time
 
+	// mtx makes concurrent requests wait for the session one of them creates, instead of each
+	// creating its own
 	mtx     sync.Mutex
 	session credentials.Value
 }
 
-func newS3ExpressTransport(next http.RoundTripper, creds *credentials.Credentials, region, sessionURL string) *s3ExpressTransport {
+// newS3ExpressTransport returns a transport sending requests through next to the directory bucket
+// at bucketURL.
+func newS3ExpressTransport(next http.RoundTripper, creds *credentials.Credentials, region string, bucketURL *url.URL) *s3ExpressTransport {
 	return &s3ExpressTransport{
 		next:       next,
 		creds:      creds,
 		region:     region,
-		sessionURL: sessionURL,
+		host:       bucketURL.Host,
+		sessionURL: bucketURL.String() + "?session",
 		now:        time.Now,
 	}
 }
@@ -107,6 +146,8 @@ func (t *s3ExpressTransport) RoundTrip(req *http.Request) (*http.Response, error
 	}
 
 	signed := req.Clone(req.Context())
+	signed.URL.Host = t.host
+	signed.Host = t.host
 	for _, h := range []string{"Authorization", "X-Amz-Date", "X-Amz-Security-Token", "X-Amz-S3session-Token"} {
 		signed.Header.Del(h)
 	}

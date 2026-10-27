@@ -69,19 +69,22 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	// list every object before deleting any, so the deletes can't affect the pagination
 	var keys []string
-	nextToken := ""
-	isTruncated := true
-	for isTruncated {
-		res, err := rw.core.ListObjectsV2(rw.cfg.Bucket, path, "", nextToken, "/", 0)
+	marker := ""
+	for {
+		// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
+		res, err := listObjects(rw.core, rw.cfg.Bucket, path, marker, "/", 0)
 		if err != nil {
 			return fmt.Errorf("error listing objects in bucket %s: %w", rw.cfg.Bucket, err)
 		}
-		isTruncated = res.IsTruncated
-		nextToken = res.NextContinuationToken
-
 		for _, obj := range res.Contents {
 			keys = append(keys, obj.Key)
 		}
+
+		// some S3-compatible stores don't return NextMarker, those only have their first page cleared
+		if !res.IsTruncated || res.NextMarker == "" {
+			break
+		}
+		marker = res.NextMarker
 	}
 
 	level.Debug(rw.logger).Log("msg", "listing objects", "found", len(keys))

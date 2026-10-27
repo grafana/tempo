@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -57,20 +58,38 @@ func TestClearBlock(t *testing.T) {
 		keys = append(keys, "tempo/tenant/"+blockID.String()+"/"+name)
 	}
 
-	bucket, endpoint := newFakeBucket(t, true, append(keys, otherKeys...)...)
-	_, _, c, err := NewNoConfirm(&Config{
-		Region:    "blerg",
-		AccessKey: "test",
-		SecretKey: flagext.SecretWithValue("test"),
-		Bucket:    directoryBucketName,
-		Prefix:    "tempo",
-		Insecure:  true,
-		Endpoint:  endpoint,
-	})
-	require.NoError(t, err)
+	tests := []struct {
+		name           string
+		bucket         string
+		omitNextMarker bool
+		expectedLeft   int
+	}{
+		{name: "general purpose bucket", bucket: "blerg"},
+		{name: "directory bucket", bucket: directoryBucketName},
+		{
+			// without a NextMarker to continue from, only the first page is cleared
+			name:           "general purpose bucket without NextMarker",
+			bucket:         "blerg",
+			omitNextMarker: true,
+			expectedLeft:   len(keys) - 2,
+		},
+	}
 
-	require.NoError(t, c.ClearBlock(blockID, "tenant"))
-	assert.ElementsMatch(t, otherKeys, bucket.remainingKeys())
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			bucket, endpoint := newFakeBucket(t, isDirectoryBucket(tc.bucket), slices.Concat(keys, otherKeys)...)
+			bucket.omitNextMarker = tc.omitNextMarker
+			cfg := fakeConfig(tc.bucket, endpoint)
+			cfg.Prefix = "tempo"
+			_, _, c, err := NewNoConfirm(cfg)
+			require.NoError(t, err)
+
+			require.NoError(t, c.ClearBlock(blockID, "tenant"))
+			remaining := bucket.remainingKeys()
+			assert.Subset(t, remaining, otherKeys)
+			assert.Len(t, remaining, len(otherKeys)+tc.expectedLeft)
+		})
+	}
 }
 
 func TestMarkBlockCompacted(t *testing.T) {
