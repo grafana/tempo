@@ -1055,8 +1055,9 @@ query_frontend:
     [multi_tenant_queries_enabled: <bool>]
 
     # Comma-separated list of request header names to include in query logs. Applies
-    # to both the query stats log line and the per-query search and metrics response
-    # log lines. Headers that carry credentials or session material, such as
+    # to both the query stats log line and the per-query response log lines for
+    # search, metrics, trace by ID and tag queries. Header values longer than 1 KiB
+    # are truncated. Headers that carry credentials or session material, such as
     # Authorization and Cookie, are rejected at startup.
     [log_query_request_headers: <string> | default = ""]
 

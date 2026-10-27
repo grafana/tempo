@@ -42,10 +42,30 @@ func TestFormatRequestHeadersDropsUnsafeChars(t *testing.T) {
 	require.Equal(t, []interface{}{"header_user_agent", "Grafana/12.0.0 level=error msg=injected[31m"}, fields)
 }
 
+func TestFormatRequestHeadersTruncatesLongValues(t *testing.T) {
+	atLimit := strings.Repeat("a", maxLoggedHeaderValueLength)
+	// The two-byte é starts at the last byte inside the limit, so truncation cuts it in half.
+	overLimit := strings.Repeat("a", maxLoggedHeaderValueLength-1) + "é" + strings.Repeat("b", 100)
+
+	h := http.Header{}
+	h.Set("X-At-Limit", atLimit)
+	h.Set("X-Over-Limit", overLimit)
+
+	fields := formatRequestHeaders(&h, safeHeadersToLog([]string{"X-At-Limit", "X-Over-Limit"}))
+
+	require.Equal(t, []interface{}{
+		"header_x_at_limit", atLimit,
+		"header_x_over_limit", strings.Repeat("a", maxLoggedHeaderValueLength-1) + "...",
+	}, fields)
+}
+
 func TestSafeHeadersToLogDropsSensitiveHeaders(t *testing.T) {
 	headers := safeHeadersToLog([]string{"User-Agent", "Authorization", "cookie", "X-API-Key", " Proxy-Authorization ", "x-plugin-id"})
 
-	require.Equal(t, []safeHeader{"User-Agent", "x-plugin-id"}, headers)
+	require.Equal(t, []safeHeader{
+		{name: "User-Agent", logKey: "header_user_agent"},
+		{name: "X-Plugin-Id", logKey: "header_x_plugin_id"},
+	}, headers)
 }
 
 func TestValidateLogQueryRequestHeaders(t *testing.T) {

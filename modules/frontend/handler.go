@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/textproto"
 	"slices"
 	"strings"
 	"time"
@@ -30,6 +31,10 @@ import (
 const (
 	// nil response in ServeHTTP
 	NilResponseError = "nil resp in ServeHTTP"
+
+	// maxLoggedHeaderValueLength caps each logged request header value, because a
+	// client controls the value and it is logged on more than one line per query.
+	maxLoggedHeaderValueLength = 1024
 )
 
 var (
@@ -100,9 +105,17 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Install a query-shape cell so the async-weight middleware can stamp it
 	// for the per-query response log lines further down the call chain.
-	r = r.WithContext(pipeline.WithQueryShapeCell(r.Context()))
-	ctx := r.Context()
+	ctx := pipeline.WithQueryShapeCell(r.Context())
 	start := time.Now()
+
+	var headerFields []interface{}
+	if len(f.safeHeadersToLog) != 0 {
+		headerFields = formatRequestHeaders(&r.Header, f.safeHeadersToLog)
+		// Pass the header fields down so the per-query response log lines can include them too.
+		ctx = withRequestHeaderFields(ctx, headerFields)
+	}
+	r = r.WithContext(ctx)
+
 	orgID, _ := user.ExtractOrgID(ctx)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
@@ -110,13 +123,6 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span := trace.SpanFromContext(r.Context())
 	if span != nil {
 		span.SetAttributes(attribute.String("orgID", orgID))
-	}
-
-	var headerFields []interface{}
-	if len(f.safeHeadersToLog) != 0 {
-		headerFields = formatRequestHeaders(&r.Header, f.safeHeadersToLog)
-		// Pass the header fields down so the per-query response log lines can include them too.
-		r = r.WithContext(withRequestHeaderFields(r.Context(), headerFields))
 	}
 
 	resp, err := f.roundTripper.RoundTrip(r)
@@ -195,21 +201,20 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // safeHeader is an HTTP request header that has been validated as
 // safe to log: it is not in the sensitive-header deny list. Values must be
 // constructed via newSafeHeader so the deny-list check cannot be bypassed.
-type safeHeader string
+type safeHeader struct {
+	name   string // canonical header name, for example User-Agent
+	logKey string // log field name, for example header_user_agent
+}
 
 func newSafeHeader(name string) (safeHeader, bool) {
 	if isSensitiveHeaderName(name) {
-		return "", false
+		return safeHeader{}, false
 	}
-	return safeHeader(name), true
-}
-
-func (s safeHeader) String() string {
-	return string(s)
-}
-
-func (s safeHeader) log() string {
-	return fmt.Sprintf("header_%s", strings.ReplaceAll(strings.ToLower(string(s)), "-", "_"))
+	name = strings.TrimSpace(name)
+	return safeHeader{
+		name:   textproto.CanonicalMIMEHeaderKey(name),
+		logKey: "header_" + strings.ReplaceAll(strings.ToLower(name), "-", "_"),
+	}, true
 }
 
 // skips headers regardless of the log_query_request_headers configuration.
@@ -229,13 +234,30 @@ func safeHeadersToLog(headersToLog []string) (safeHeaders []safeHeader) {
 }
 
 // formatRequestHeaders returns the log fields for every header in headersToLog
-// that is present in the request. Control and formatting characters are dropped
-// from the values so a client cannot inject log lines.
+// that is present in the request. Values longer than maxLoggedHeaderValueLength
+// are truncated. Control and formatting characters are dropped from the values
+// so a client cannot inject log lines.
 func formatRequestHeaders(h *http.Header, headersToLog []safeHeader) (fields []interface{}) {
 	for _, s := range headersToLog {
-		if v := strings.TrimSpace(h.Get(s.String())); v != "" {
-			fields = append(fields, s.log(), dskitlog.DropUnsafeChars(v).String())
+		// s.name is canonical already, so read the map directly instead of h.Get.
+		vv := (*h)[s.name]
+		if len(vv) == 0 {
+			continue
 		}
+		v := strings.TrimSpace(vv[0])
+		if v == "" {
+			continue
+		}
+		truncated := len(v) > maxLoggedHeaderValueLength
+		if truncated {
+			// Truncate before sanitizing: the sanitizer drops a rune cut in half.
+			v = v[:maxLoggedHeaderValueLength]
+		}
+		v = dskitlog.DropUnsafeChars(v).String()
+		if truncated {
+			v += "..."
+		}
+		fields = append(fields, s.logKey, v)
 	}
 	return fields
 }
