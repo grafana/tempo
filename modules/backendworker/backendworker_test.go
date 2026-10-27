@@ -313,10 +313,8 @@ func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
 }
 
 // TestCompletionNotFoundIsTerminal verifies that a codes.NotFound response
-// from the scheduler on a job-completion call (UpdateJob) is treated as
-// terminal for that job: the worker must drop the job rather than retrying
-// the completion call forever via callSchedulerWithBackoff (which loops
-// indefinitely by default, since Backoff.MaxRetries defaults to 0). See
+// from the scheduler on a job-completion call (UpdateJob) drops the job rather
+// than retrying indefinitely through callSchedulerWithBackoff. See
 // https://github.com/grafana/tempo/issues/7879.
 func TestCompletionNotFoundIsTerminal(t *testing.T) {
 	limitCfg := overrides.Config{}
@@ -368,11 +366,9 @@ func TestCompletionNotFoundIsTerminal(t *testing.T) {
 	require.Equal(t, 1, nextCalls, "worker must resume calling Next() for new work after dropping the NotFound job")
 }
 
-// TestCallSchedulerWithBackoffNotFound verifies that codes.NotFound is
-// terminal in callSchedulerWithBackoff unless the caller lists it as an
-// expected error. Next() does, because the scheduler returns NotFound on an
-// empty queue and the worker should keep polling; the completion calls do
-// not, because NotFound there means the job is gone. See
+// TestCallSchedulerWithBackoffNotFound verifies that the generic retry loop
+// retries NotFound, while updateJob handles it once for each job status. Next()
+// lists NotFound as expected because an empty queue is normal. See
 // https://github.com/grafana/tempo/issues/7879.
 func TestCallSchedulerWithBackoffNotFound(t *testing.T) {
 	limitCfg := overrides.Config{}
@@ -390,15 +386,17 @@ func TestCallSchedulerWithBackoffNotFound(t *testing.T) {
 
 	notFound := status.Error(codes.NotFound, "not found")
 
-	t.Run("terminal when not expected", func(t *testing.T) {
+	t.Run("retried when not expected", func(t *testing.T) {
 		var calls int
 		err := w.callSchedulerWithBackoff(ctx, func(context.Context) error {
 			calls++
-			return notFound
+			if calls < 3 {
+				return notFound
+			}
+			return nil
 		})
-		require.Error(t, err)
-		require.True(t, isNotFound(err))
-		require.Equal(t, 1, calls)
+		require.NoError(t, err)
+		require.Equal(t, 3, calls)
 	})
 
 	t.Run("retried when expected", func(t *testing.T) {
@@ -413,6 +411,22 @@ func TestCallSchedulerWithBackoffNotFound(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 3, calls)
 	})
+
+	for _, jobStatus := range []tempopb.JobStatus{
+		tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		tempopb.JobStatus_JOB_STATUS_FAILED,
+	} {
+		t.Run("update "+jobStatus.String(), func(t *testing.T) {
+			var calls int
+			w.backendScheduler = &mockScheduler{updateJob: func(_ context.Context, _ *tempopb.UpdateJobStatusRequest, _ ...grpc.CallOption) (*tempopb.UpdateJobStatusResponse, error) {
+				calls++
+				return nil, notFound
+			}}
+			err := w.updateJob(ctx, &tempopb.UpdateJobStatusRequest{JobId: "missing-job", Status: jobStatus})
+			require.NoError(t, err)
+			require.Equal(t, 1, calls)
+		})
+	}
 }
 
 // TestCompleteRedactionJobFailsOnGenuineError verifies that completeRedactionJob
