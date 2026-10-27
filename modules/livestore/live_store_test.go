@@ -317,6 +317,7 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
@@ -346,6 +347,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
@@ -379,6 +381,7 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
@@ -416,6 +419,7 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 }
 

@@ -55,6 +55,41 @@ func TestLiveTracesSizesAndLen(t *testing.T) {
 	}
 }
 
+func TestHasIdle(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		empty       bool
+		maxIdle     time.Duration
+		maxLive     time.Duration
+		elapsed     time.Duration
+		immediate   bool
+		wantHasIdle bool
+	}{
+		{"empty", true, time.Second, time.Hour, 2 * time.Second, false, false},
+		{"empty immediate", true, time.Second, time.Hour, 0, true, false},
+		{"active", false, time.Second, time.Hour, 0, false, false},
+		{"immediate", false, time.Second, time.Hour, 0, true, true},
+		{"idle boundary", false, time.Second, time.Hour, time.Second, false, false},
+		{"idle", false, time.Second, time.Hour, time.Second + time.Nanosecond, false, true},
+		{"live boundary", false, time.Hour, time.Second, time.Second, false, false},
+		{"live", false, time.Hour, time.Second, time.Second + time.Nanosecond, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			lt := New(func(batch []byte) uint64 { return uint64(len(batch)) }, tc.maxIdle, tc.maxLive, testTenantID)
+			created := time.Unix(1000, 0)
+			if !tc.empty {
+				require.NoError(t, lt.PushWithTimestampAndLimits(created, []byte("trace-id"), []byte("batch"), 0, 0))
+			}
+			beforeLen, beforeSize := lt.Len(), lt.Size()
+			now := created.Add(tc.elapsed)
+			require.Equal(t, tc.wantHasIdle, lt.HasIdle(now, tc.immediate))
+			require.Equal(t, beforeLen, lt.Len())
+			require.Equal(t, beforeSize, lt.Size())
+			require.Equal(t, tc.wantHasIdle, len(slices.Collect(lt.CutIdle(now, tc.immediate))) > 0)
+		})
+	}
+}
+
 func TestCutIdleDueToIdleTime(t *testing.T) {
 	lt := New(func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, time.Second, time.Hour, testTenantID)
 

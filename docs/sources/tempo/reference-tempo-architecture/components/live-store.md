@@ -101,6 +101,11 @@ it replays from Kafka, and the WAL provides a way to serve queries during replay
 The WAL is eventually cut into complete blocks that are also stored locally.
 These blocks are queryable until the data ages out of the live-store's retention window.
 
+The live-store creates a tenant's WAL head block and writer when the first trace is flushed from memory.
+After cutting that block, it creates the next head block only when another trace is flushed.
+This avoids retaining an empty WAL writer for each inactive tenant;
+the tenant instance and its metadata remain in memory.
+
 ## Key metrics
 
 | Metric | Description |

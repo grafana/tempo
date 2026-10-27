@@ -146,6 +146,7 @@ type instance struct {
 	maxTraceLogger     *util_log.RateLimitedLogger
 	liveTracesIterNext func() (*livetraces.LiveTrace[*v1.ResourceSpans], bool)
 	liveTracesIterStop func()
+	liveTracesToWrite  uint64 // Remaining traces in the cut iterator.
 
 	// Metrics
 	tracesCreatedTotal prometheus.Counter
@@ -177,13 +178,9 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncod
 		tracesCreatedTotal:     metricTracesCreatedTotal.WithLabelValues(instanceID),
 		bytesReceivedTotal:     metricBytesReceivedTotal,
 		reclaim:                newQuarantine(cfg.BlockReclaimGrace),
+		lastCutTime:            time.Now(),
 	}
 	i.blocks.Store(emptyBlockSnapshot())
-
-	err := i.resetHeadBlock()
-	if err != nil {
-		return nil, err
-	}
 
 	return i, nil
 }
@@ -358,8 +355,27 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 	// Set metrics before cutting (similar to ingester)
 	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
 	metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
+	now := time.Now()
+	if i.blocks.Load().headBlock == nil && (i.liveTracesToWrite > 0 || (i.liveTracesIterNext == nil && i.liveTraces.HasIdle(now, immediate))) {
+		// Create the writer before CutIdle detaches traces or its iterator
+		// advances, so a failed allocation leaves all unwritten traces retryable.
+		i.blocksMtx.Lock()
+		var err error
+		if i.blocks.Load().headBlock == nil {
+			err = i.resetHeadBlock()
+		}
+		i.blocksMtx.Unlock()
+		if err != nil {
+			i.liveTracesMtx.Unlock()
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return false, err
+		}
+	}
 	if i.liveTracesIterNext == nil {
-		i.liveTracesIterNext, i.liveTracesIterStop = iter.Pull(i.liveTraces.CutIdle(time.Now(), immediate))
+		before := i.liveTraces.Len()
+		i.liveTracesIterNext, i.liveTracesIterStop = iter.Pull(i.liveTraces.CutIdle(now, immediate))
+		i.liveTracesToWrite = before - i.liveTraces.Len()
 	}
 
 	i.liveTracesMtx.Unlock()
@@ -381,9 +397,11 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 			span.SetStatus(codes.Error, err.Error())
 			i.liveTracesIterStop()
 			i.liveTracesIterNext, i.liveTracesIterStop = nil, nil
+			i.liveTracesToWrite = 0
 			return false, err
 		}
 
+		i.liveTracesToWrite--
 		tracesCut++
 		i.tracesCreatedTotal.Inc()
 
@@ -426,6 +444,7 @@ func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1
 
 	hb := i.blocks.Load().headBlock
 	if hb == nil {
+		// Allocate the WAL writer only when there is a trace to persist.
 		if err := i.resetHeadBlock(); err != nil {
 			return 0, err
 		}
@@ -499,7 +518,6 @@ func (i *instance) resetHeadBlock() error {
 		return err
 	}
 	i.blocks.Store(i.blocks.Load().withHeadBlock(block))
-	i.lastCutTime = time.Now()
 	return nil
 }
 
@@ -581,6 +599,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 
 	// Move headBlock into walBlocks and clear head, in one published snapshot.
 	i.blocks.Store(snap.withWALBlockAdded(id, hb).withHeadBlock(nil))
+	i.lastCutTime = time.Now()
 
 	span.SetAttributes(
 		attribute.String("blockID", id.String()),
@@ -588,12 +607,6 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 	)
 
 	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String(), "size", blockSize)
-
-	if err := i.resetHeadBlock(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return uuid.Nil, err
-	}
 
 	recordBlockCutMetric(reason)
 

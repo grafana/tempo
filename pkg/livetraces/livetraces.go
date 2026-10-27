@@ -118,6 +118,18 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 	return nil
 }
 
+// HasIdle reports whether CutIdle would remove any traces without modifying them.
+func (l *LiveTraces[T]) HasIdle(now time.Time, immediate bool) bool {
+	idleSince := now.Add(-l.maxIdleTime)
+	liveSince := now.Add(-l.maxLiveTime)
+	for _, tr := range l.Traces {
+		if tr.LastAppend.Before(idleSince) || tr.CreatedAt.Before(liveSince) || immediate {
+			return true
+		}
+	}
+	return false
+}
+
 func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) iter.Seq[*LiveTrace[T]] {
 	idleSince := now.Add(-l.maxIdleTime)
 	liveSince := now.Add(-l.maxLiveTime)

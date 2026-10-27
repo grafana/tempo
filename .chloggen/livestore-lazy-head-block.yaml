@@ -1,0 +1,6 @@
+change_type: enhancement
+component: live-store
+note: Reduce memory and open file usage for inactive tenants by creating WAL head blocks only when traces are flushed.
+issues: []
+subtext: Tenant instances remain in memory, but no longer retain empty WAL writers before receiving data or after a block is cut.
+user: PatelFarhaan
