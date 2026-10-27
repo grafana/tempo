@@ -1,5 +1,6 @@
 package vparquet3
 
+
 import (
 	"context"
 	"fmt"
@@ -854,6 +855,44 @@ func TestFetchTagValuesFiltersTraceID(t *testing.T) {
 		stringTagValue("hello"),
 		stringTagValue("world"),
 	}, distinctValues.Values())
+}
+
+// TestFetchTagValuesFiltersUnknownTraceID ensures that an unmatched trace ID
+// does not leak autocomplete values from another trace.
+func TestFetchTagValuesFiltersUnknownTraceID(t *testing.T) {
+	tr := fullyPopulatedTestTrace(common.ID{0x01})
+	block := makeBackendBlockWithTraces(t, []*Trace{tr})
+
+	conditions, err := traceql.ExtractConditionGroups(
+		`{ trace:id = "ff000000000000000000000000000000" }`,
+		traceql.DefaultMaxConditionGroupsPerTagQuery,
+	)
+	require.NoError(t, err)
+
+	tag, err := traceql.ParseIdentifier("name")
+	require.NoError(t, err)
+	for i := range conditions {
+		conditions[i] = append(conditions[i], traceql.Condition{
+			Attribute: tag,
+			Op:        traceql.OpNone,
+		})
+	}
+
+	values := collector.NewDistinctValue[tempopb.TagValue](
+		1_000_000,
+		0,
+		0,
+		func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) },
+	)
+	err = block.FetchTagValues(
+		context.Background(),
+		traceql.FetchTagValuesRequest{ConditionGroups: conditions, TagName: tag},
+		traceql.MakeCollectTagValueFunc(values.Collect),
+		func(uint64) {},
+		common.DefaultSearchOptions(),
+	)
+	require.NoError(t, err)
+	require.Empty(t, values.Values())
 }
 
 func TestFetchTagValuesWithOrConditions(t *testing.T) {
