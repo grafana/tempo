@@ -1056,7 +1056,8 @@ query_frontend:
 
     # Comma-separated list of request header names to include in query logs. Applies
     # to both the query stats log line and the per-query search and metrics response
-    # log lines.
+    # log lines. Headers that carry credentials or session material, such as
+    # Authorization and Cookie, are rejected at startup.
     [log_query_request_headers: <string> | default = ""]
 
     # Set a maximum timeout for all api queries at which point the frontend will cancel queued jobs

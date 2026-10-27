@@ -2,7 +2,7 @@ change_type: enhancement
 
 component: query-frontend
 
-note: Add the request headers configured with `log_query_request_headers` to the per-query search and metrics response log lines, not only to the `query stats` line.
+note: Add the request headers configured with `log_query_request_headers` to the per-query search and metrics response log lines, not only to the `query stats` line. Tempo now refuses to start if the list contains a header that carries credentials, such as `Authorization` or `Cookie`, and drops control characters from logged header values.
 
 issues: []
 

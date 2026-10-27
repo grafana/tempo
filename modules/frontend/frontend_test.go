@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	v1 "github.com/grafana/tempo/v3/modules/frontend/v1"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
@@ -234,6 +235,33 @@ func TestFrontendBadConfigFails(t *testing.T) {
 		},
 	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "most recent shards must be greater than 0")
+	assert.Nil(t, f)
+
+	f, err = New(Config{
+		Config: v1.Config{
+			LogQueryRequestHeaders: []string{"User-Agent", "Authorization"},
+		},
+		TraceByID: TraceByIDConfig{
+			QueryShards: maxQueryShards,
+		},
+		Search: SearchConfig{
+			Sharder: SearchSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
+			},
+			SLO: testSLOcfg,
+		},
+		Metrics: MetricsConfig{
+			Sharder: QueryRangeSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				Interval:              5 * time.Minute,
+			},
+			SLO: testSLOcfg,
+		},
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
+	assert.EqualError(t, err, "log_query_request_headers must not contain headers that carry credentials or session material: Authorization")
 	assert.Nil(t, f)
 }
 

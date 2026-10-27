@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/grpcutil"
+	dskitlog "github.com/grafana/dskit/log"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
@@ -34,23 +36,60 @@ var (
 	errCanceled              = httpgrpc.Error(util.StatusClientClosedRequest, context.Canceled.Error())
 	errDeadlineExceeded      = httpgrpc.Error(http.StatusGatewayTimeout, context.DeadlineExceeded.Error())
 	errRequestEntityTooLarge = httpgrpc.Error(http.StatusRequestEntityTooLarge, "http: request body too large")
+
+	// sensitiveHeaderNames is the deny list of HTTP header names whose values
+	// carry credentials or session material and must never appear in logs.
+	sensitiveHeaderNames = []string{
+		"authorization",
+		"proxy-authorization",
+		"cookie",
+		"set-cookie",
+		"x-api-key",
+		"x-auth-token",
+		"x-amz-security-token",
+		"authentication-info",
+		"www-authenticate",
+		"proxy-authenticate",
+		"x-csrf-token",
+		"x-xsrf-token",
+		"x-access-token",
+		"x-session-token",
+		"x-forwarded-authorization",
+		"x-auth-request-access-token",
+		"x-id-token",
+	}
 )
 
 // handler exists to wrap a roundtripper with an HTTP handler. It wraps all
 // frontend endpoints and should only contain functionality that is common to all.
 type handler struct {
-	roundTripper           http.RoundTripper
-	logger                 log.Logger
-	logQueryRequestHeaders flagext.StringSliceCSV
+	roundTripper     http.RoundTripper
+	logger           log.Logger
+	safeHeadersToLog []safeHeader
 }
 
 // newHandler creates a handler
 func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
 	return &handler{
-		logQueryRequestHeaders: LogQueryRequestHeaders,
-		roundTripper:           rt,
-		logger:                 logger,
+		safeHeadersToLog: safeHeadersToLog(LogQueryRequestHeaders),
+		roundTripper:     rt,
+		logger:           logger,
 	}
+}
+
+// validateLogQueryRequestHeaders rejects a log_query_request_headers list that
+// contains headers which carry credentials or session material.
+func validateLogQueryRequestHeaders(headersToLog []string) error {
+	var rejected []string
+	for _, h := range headersToLog {
+		if isSensitiveHeaderName(h) {
+			rejected = append(rejected, h)
+		}
+	}
+	if len(rejected) > 0 {
+		return fmt.Errorf("rejected headers: %s", strings.Join(rejected, ", "))
+	}
+	return nil
 }
 
 // ServeHTTP implements http.Handler
@@ -74,8 +113,8 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var headerFields []interface{}
-	if len(f.logQueryRequestHeaders) != 0 {
-		headerFields = formatRequestHeaders(&r.Header, f.logQueryRequestHeaders)
+	if len(f.safeHeadersToLog) != 0 {
+		headerFields = formatRequestHeaders(&r.Header, f.safeHeadersToLog)
 		// Pass the header fields down so the per-query response log lines can include them too.
 		r = r.WithContext(withRequestHeaderFields(r.Context(), headerFields))
 	}
@@ -153,10 +192,49 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	level.Info(f.logger).Log(logMessage...)
 }
 
-func formatRequestHeaders(h *http.Header, headersToLog []string) (fields []interface{}) {
+// safeHeader is an HTTP request header that has been validated as
+// safe to log: it is not in the sensitive-header deny list. Values must be
+// constructed via newSafeHeader so the deny-list check cannot be bypassed.
+type safeHeader string
+
+func newSafeHeader(name string) (safeHeader, bool) {
+	if isSensitiveHeaderName(name) {
+		return "", false
+	}
+	return safeHeader(name), true
+}
+
+func (s safeHeader) String() string {
+	return string(s)
+}
+
+func (s safeHeader) log() string {
+	return fmt.Sprintf("header_%s", strings.ReplaceAll(strings.ToLower(string(s)), "-", "_"))
+}
+
+// skips headers regardless of the log_query_request_headers configuration.
+func isSensitiveHeaderName(name string) bool {
+	return slices.Contains(sensitiveHeaderNames, strings.ToLower(strings.TrimSpace(name)))
+}
+
+// safeHeadersToLog drops sensitive headers from headersToLog. Config validation
+// rejects them already; this keeps them out of the logs if validation is skipped.
+func safeHeadersToLog(headersToLog []string) (safeHeaders []safeHeader) {
+	for _, h := range headersToLog {
+		if s, ok := newSafeHeader(h); ok {
+			safeHeaders = append(safeHeaders, s)
+		}
+	}
+	return safeHeaders
+}
+
+// formatRequestHeaders returns the log fields for every header in headersToLog
+// that is present in the request. Control and formatting characters are dropped
+// from the values so a client cannot inject log lines.
+func formatRequestHeaders(h *http.Header, headersToLog []safeHeader) (fields []interface{}) {
 	for _, s := range headersToLog {
-		if v := h.Get(s); v != "" {
-			fields = append(fields, fmt.Sprintf("header_%s", strings.ReplaceAll(strings.ToLower(s), "-", "_")), v)
+		if v := strings.TrimSpace(h.Get(s.String())); v != "" {
+			fields = append(fields, s.log(), dskitlog.DropUnsafeChars(v).String())
 		}
 	}
 	return fields

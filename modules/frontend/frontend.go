@@ -119,6 +119,10 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than query end cutoff (%v)", cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff)
 	}
 
+	if err := validateLogQueryRequestHeaders(cfg.Config.LogQueryRequestHeaders); err != nil {
+		return nil, err
+	}
+
 	jobsPerQuery := promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
 		Name:                            "tempo_query_frontend_jobs_per_query",
 		Help:                            "Number of planned jobs per query in the query frontend.",
