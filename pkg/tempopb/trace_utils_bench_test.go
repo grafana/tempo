@@ -9,11 +9,13 @@ import (
 	"github.com/grafana/tempo/v3/pkg/util"
 )
 
+var benchmarkJSONSizes = []struct {
+	name  string
+	bytes int
+}{{"3MB", 3_000_000}, {"30MB", 30_000_000}, {"120MB", 120_000_000}}
+
 func BenchmarkMarshalToJSONV1(b *testing.B) {
-	for _, size := range []struct {
-		name  string
-		bytes int
-	}{{"3MB", 3_000_000}, {"30MB", 30_000_000}, {"120MB", 120_000_000}} {
+	for _, size := range benchmarkJSONSizes {
 		b.Run(size.name, func(b *testing.B) {
 			trace, jsonBytes := benchmarkJSONTrace(b, size.bytes)
 			b.ReportAllocs()
@@ -25,6 +27,21 @@ func BenchmarkMarshalToJSONV1(b *testing.B) {
 				}
 				if len(encoded) != jsonBytes {
 					b.Fatalf("JSON size = %d, expected %d", len(encoded), jsonBytes)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkMarshalTraceByIDResponseToJSON(b *testing.B) {
+	for _, size := range benchmarkJSONSizes {
+		b.Run(size.name, func(b *testing.B) {
+			trace, _ := benchmarkJSONTrace(b, size.bytes)
+			response := &tempopb.TraceByIDResponse{Trace: trace, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 4096}}
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := tempopb.MarshalTraceByIDResponseToJSON(response); err != nil {
+					b.Fatal(err)
 				}
 			}
 		})

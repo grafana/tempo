@@ -342,7 +342,8 @@ func (c *genericCombiner[T]) internalMarshalAs(ctx context.Context, final T) ([]
 	var contentType string
 	var err error
 
-	if response, ok := any(final).(*tempopb.TraceByIDResponse); ok {
+	traceResponse, isTrace := any(final).(*tempopb.TraceByIDResponse)
+	if isTrace {
 		encoding := "json" // The LLM representation is also JSON encoded.
 		if c.httpMarshalingFormat == api.MarshallingFormatProtobuf {
 			encoding = "protobuf"
@@ -350,7 +351,7 @@ func (c *genericCombiner[T]) internalMarshalAs(ctx context.Context, final T) ([]
 		span := oteltrace.SpanFromContext(ctx)
 		span.SetAttributes(
 			attribute.String("format", encoding),
-			attribute.Int("span_count", countTraceSpans(response.Trace)),
+			attribute.Int("span_count", countTraceSpans(traceResponse.Trace)),
 		)
 		span.AddEvent("trace.marshal.start")
 		defer func() {
@@ -379,10 +380,14 @@ func (c *genericCombiner[T]) internalMarshalAs(ctx context.Context, final T) ([]
 	case api.MarshallingFormatJSON:
 		fallthrough
 	default:
-		var bodyString string
-		bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
 		contentType = string(api.MarshallingFormatJSON)
-		bodyBytes = unsafeStringToBytes(bodyString)
+		if isTrace {
+			bodyBytes, err = tempopb.MarshalTraceByIDResponseToJSON(traceResponse)
+		} else {
+			var bodyString string
+			bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
+			bodyBytes = unsafeStringToBytes(bodyString)
+		}
 	}
 
 	return bodyBytes, contentType, err

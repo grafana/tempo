@@ -473,3 +473,33 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+// The JSON response must match jsonpb's encoding of the protobuf response.
+func TestTraceByIDV2HTTPFinalJSONMatchesJsonpb(t *testing.T) {
+	body, err := proto.Marshal(&tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(3, []byte{0x01, 0x02}),
+		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100},
+	})
+	require.NoError(t, err)
+	final := func(format api.MarshallingFormat) []byte {
+		c := NewTraceByIDV2(0, format, nil, TraceByIDV2Options{})
+		require.NoError(t, c.AddResponse(MockResponse{&http.Response{
+			StatusCode: 200,
+			Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+			Body:       io.NopCloser(bytes.NewReader(body)),
+		}}))
+		resp, err := c.HTTPFinal(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, string(format), resp.Header.Get(api.HeaderContentType))
+		out, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, int64(len(out)), resp.ContentLength)
+		return out
+	}
+
+	response := &tempopb.TraceByIDResponse{}
+	require.NoError(t, proto.Unmarshal(final(api.MarshallingFormatProtobuf), response))
+	want, err := new(jsonpb.Marshaler).MarshalToString(response)
+	require.NoError(t, err)
+	require.Equal(t, want, string(final(api.MarshallingFormatJSON)))
+}
