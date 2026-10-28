@@ -3,6 +3,7 @@ package livestore
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	util_log "github.com/grafana/tempo/v3/pkg/util/log"
 	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces int) (*instance, *LiveStore) {
@@ -61,6 +63,7 @@ func TestInstanceCreatesHeadBlockLazily(t *testing.T) {
 	ls.cutOneInstanceToWal(t.Context(), inst, true)
 	require.Nil(t, inst.blocks.Load().headBlock)
 	require.Empty(t, inst.blocks.Load().walBlocks)
+	require.Nil(t, inst.toFlush)
 
 	for range 2 {
 		id = test.ValidTraceID(nil)
@@ -119,6 +122,7 @@ func TestHeadBlockCreationFailureRetainsLiveTraces(t *testing.T) {
 			require.Nil(t, inst.blocks.Load().headBlock)
 			require.Equal(t, uint64(2), inst.liveTraces.Len())
 			require.Equal(t, liveBytes, inst.liveTraces.Size())
+			require.Nil(t, inst.toFlush)
 			for j, id := range ids {
 				requireTraceInLiveStore(t, ls, id, traces[j])
 			}
@@ -133,14 +137,30 @@ func TestHeadBlockCreationFailureRetainsLiveTraces(t *testing.T) {
 	}
 }
 
-func TestHeadBlockCreationFailureRetainsCutIterator(t *testing.T) {
+func TestHeadBlockCreationFailureRetainsPendingTraces(t *testing.T) {
 	inst, ls := defaultInstance(t)
 	inst.Cfg.MaxBlockBytes = 1
-	traces, ids := pushTracesToInstance(t, inst, 3)
+	ids := [][]byte{
+		test.ValidTraceID([]byte{4}),
+		test.ValidTraceID([]byte{2}),
+		test.ValidTraceID([]byte{3}),
+	}
+	traces := make([]*tempopb.Trace, 0, len(ids))
+	for _, id := range ids {
+		trace := test.MakeTrace(1, id)
+		traces = append(traces, trace)
+		pushTrace(t.Context(), t, inst, trace, id)
+	}
 
 	drained, err := inst.cutIdleTraces(t.Context(), true)
 	require.NoError(t, err)
 	require.False(t, drained)
+	require.Zero(t, inst.liveTraces.Len())
+	require.Len(t, inst.toFlush, 2)
+	require.Equal(t, ids[2], inst.toFlush[0].ID)
+	require.Equal(t, ids[0], inst.toFlush[1].ID)
+	pending := inst.toFlush
+	nextTrace, lastTrace := pending[0], pending[1]
 	_, err = inst.cutBlocks(t.Context(), true)
 	require.NoError(t, err)
 
@@ -148,14 +168,88 @@ func TestHeadBlockCreationFailureRetainsCutIterator(t *testing.T) {
 	drained, err = inst.cutIdleTraces(t.Context(), true)
 	require.Error(t, err)
 	require.False(t, drained)
+	require.Len(t, inst.toFlush, 2)
+	require.Same(t, nextTrace, inst.toFlush[0])
+	require.Same(t, lastTrace, inst.toFlush[1])
 	restore()
+
+	// New ingestion must not replace the pending batch, even when its ID sorts first.
+	newID := test.ValidTraceID([]byte{1})
+	newTrace := test.MakeTrace(1, newID)
+	pushTrace(t.Context(), t, inst, newTrace, newID)
+	for remaining := 1; remaining >= 0; remaining-- {
+		drained, err = inst.cutIdleTraces(t.Context(), true)
+		require.NoError(t, err)
+		require.False(t, drained)
+		require.Len(t, inst.toFlush, remaining)
+		require.Equal(t, uint64(1), inst.liveTraces.Len())
+		require.Nil(t, pending[1-remaining], "consumed slots must release their trace references")
+		if remaining > 0 {
+			require.Same(t, lastTrace, inst.toFlush[0])
+		} else {
+			require.Nil(t, inst.toFlush, "the final pop must release the backing slice")
+		}
+		_, err = inst.cutBlocks(t.Context(), true)
+		require.NoError(t, err)
+	}
 
 	ls.cutOneInstanceToWal(t.Context(), inst, true)
 	for j, id := range ids {
 		requireTraceInLiveStore(t, ls, id, traces[j])
 	}
+	requireTraceInLiveStore(t, ls, newID, newTrace)
+	require.Nil(t, inst.toFlush)
 	require.Nil(t, inst.blocks.Load().headBlock)
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+func TestAppendTraceFailureDiscardsPendingTraces(t *testing.T) {
+	inst, ls := defaultInstance(t)
+	inst.Cfg.MaxBlockBytes = 1
+	pushTracesToInstance(t, inst, 3)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.False(t, drained)
+	require.Len(t, inst.toFlush, 2)
+
+	head := inst.blocks.Load().headBlock
+	appendErr := errors.New("append failed")
+	failing := &appendErrorWALBlock{WALBlock: head, err: appendErr}
+	inst.blocks.Store(inst.blocks.Load().withHeadBlock(failing))
+	drained, err = inst.cutIdleTraces(t.Context(), true)
+	require.ErrorIs(t, err, appendErr)
+	require.False(t, drained)
+	require.Nil(t, inst.toFlush)
+	require.Zero(t, inst.liveTraces.Len())
+	require.Equal(t, 1, failing.calls)
+
+	// Append failures retain the existing discard behavior rather than retrying the batch.
+	drained, err = inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.True(t, drained)
+	require.Equal(t, 1, failing.calls)
+	inst.blocks.Store(inst.blocks.Load().withHeadBlock(head))
+	_, err = inst.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+
+	id := test.ValidTraceID(nil)
+	trace := test.MakeTrace(1, id)
+	pushTrace(t.Context(), t, inst, trace, id)
+	ls.cutOneInstanceToWal(t.Context(), inst, true)
+	requireTraceInLiveStore(t, ls, id, trace)
+	require.Nil(t, inst.toFlush)
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+type appendErrorWALBlock struct {
+	common.WALBlock
+	err   error
+	calls int
+}
+
+func (b *appendErrorWALBlock) AppendTrace(common.ID, *tempopb.Trace, uint32, uint32, bool) error {
+	b.calls++
+	return b.err
 }
 
 func blockWALCreation(t *testing.T, ls *LiveStore) func() {

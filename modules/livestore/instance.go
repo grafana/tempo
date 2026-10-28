@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"iter"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -140,13 +139,13 @@ type instance struct {
 	reclaim *quarantine
 
 	// Live traces
-	liveTracesMtx      sync.Mutex
-	liveTraces         *livetraces.LiveTraces[*v1.ResourceSpans]
-	traceSizes         *tracesizes.Tracker
-	maxTraceLogger     *util_log.RateLimitedLogger
-	liveTracesIterNext func() (*livetraces.LiveTrace[*v1.ResourceSpans], bool)
-	liveTracesIterStop func()
-	liveTracesToWrite  uint64 // Remaining traces in the cut iterator.
+	liveTracesMtx  sync.Mutex
+	liveTraces     *livetraces.LiveTraces[*v1.ResourceSpans]
+	traceSizes     *tracesizes.Tracker
+	maxTraceLogger *util_log.RateLimitedLogger
+
+	// toFlush is owned by the cut loop until it stops for shutdown.
+	toFlush []*livetraces.LiveTrace[*v1.ResourceSpans]
 
 	// Metrics
 	tracesCreatedTotal prometheus.Counter
@@ -356,9 +355,9 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
 	metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
 	now := time.Now()
-	if i.blocks.Load().headBlock == nil && (i.liveTracesToWrite > 0 || (i.liveTracesIterNext == nil && i.liveTraces.HasIdle(now, immediate))) {
-		// Create the writer before CutIdle detaches traces or its iterator
-		// advances, so a failed allocation leaves all unwritten traces retryable.
+	if i.blocks.Load().headBlock == nil && (len(i.toFlush) > 0 || i.liveTraces.HasIdle(now, immediate)) {
+		// Create the writer before CutIdle detaches traces or toFlush advances,
+		// so a failed allocation leaves all unwritten traces retryable.
 		i.blocksMtx.Lock()
 		var err error
 		if i.blocks.Load().headBlock == nil {
@@ -372,10 +371,8 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 			return false, err
 		}
 	}
-	if i.liveTracesIterNext == nil {
-		before := i.liveTraces.Len()
-		i.liveTracesIterNext, i.liveTracesIterStop = iter.Pull(i.liveTraces.CutIdle(now, immediate))
-		i.liveTracesToWrite = before - i.liveTraces.Len()
+	if len(i.toFlush) == 0 {
+		i.toFlush = i.liveTraces.CutIdle(now, immediate)
 	}
 
 	i.liveTracesMtx.Unlock()
@@ -386,22 +383,21 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 
 	// Write traces to head block, cutting when MaxBlockBytes is reached.
 	span.AddEvent("writing traces to head block")
-	for {
-		t, ok := i.liveTracesIterNext()
-		if !ok {
-			break
-		}
+	for len(i.toFlush) > 0 {
+		t := i.toFlush[0]
 		blockSize, err := i.writeHeadBlock(t.ID, t)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
-			i.liveTracesIterStop()
-			i.liveTracesIterNext, i.liveTracesIterStop = nil, nil
-			i.liveTracesToWrite = 0
+			i.toFlush = nil
 			return false, err
 		}
 
-		i.liveTracesToWrite--
+		i.toFlush[0] = nil
+		i.toFlush = i.toFlush[1:]
+		if len(i.toFlush) == 0 {
+			i.toFlush = nil
+		}
 		tracesCut++
 		i.tracesCreatedTotal.Inc()
 
@@ -411,9 +407,6 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 			return false, nil
 		}
 	}
-
-	i.liveTracesIterStop()
-	i.liveTracesIterNext, i.liveTracesIterStop = nil, nil
 
 	if tracesCut == 0 { // no traces to process
 		return true, nil

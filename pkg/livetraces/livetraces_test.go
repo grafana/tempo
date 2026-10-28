@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand/v2"
-	"slices"
 	"testing"
 	"time"
 
@@ -43,7 +42,7 @@ func TestLiveTracesSizesAndLen(t *testing.T) {
 		require.Equal(t, expectedLen, lt.Len())
 
 		// cut some traces and confirm size/len
-		for tr := range lt.CutIdle(nowTime, false) {
+		for _, tr := range lt.CutIdle(nowTime, false) {
 			for _, rs := range tr.Batches {
 				expectedSz -= uint64(rs.Size())
 			}
@@ -85,7 +84,7 @@ func TestHasIdle(t *testing.T) {
 			require.Equal(t, tc.wantHasIdle, lt.HasIdle(now, tc.immediate))
 			require.Equal(t, beforeLen, lt.Len())
 			require.Equal(t, beforeSize, lt.Size())
-			require.Equal(t, tc.wantHasIdle, len(slices.Collect(lt.CutIdle(now, tc.immediate))) > 0)
+			require.Equal(t, tc.wantHasIdle, len(lt.CutIdle(now, tc.immediate)) > 0)
 		})
 	}
 }
@@ -102,7 +101,7 @@ func TestCutIdleDueToIdleTime(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut at 500 ms, should cut nothing
-	cutTraces := slices.Collect(lt.CutIdle(rootTime.Add(500*time.Millisecond), false))
+	cutTraces := lt.CutIdle(rootTime.Add(500*time.Millisecond), false)
 	require.Equal(t, 0, len(cutTraces))
 
 	// push at 1 second
@@ -110,11 +109,11 @@ func TestCutIdleDueToIdleTime(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut at 1.5 seconds, should cut nothing
-	cutTraces = slices.Collect(lt.CutIdle(rootTime.Add(1500*time.Millisecond), false))
+	cutTraces = lt.CutIdle(rootTime.Add(1500*time.Millisecond), false)
 	require.Equal(t, 0, len(cutTraces))
 
 	// cut at 2.5 seconds, should cut the trace b/c it's been idle for 1.5 seconds
-	cutTraces = slices.Collect(lt.CutIdle(rootTime.Add(2500*time.Millisecond), false))
+	cutTraces = lt.CutIdle(rootTime.Add(2500*time.Millisecond), false)
 	require.Equal(t, 1, len(cutTraces))
 	require.Equal(t, id, cutTraces[0].ID)
 
@@ -133,7 +132,7 @@ func TestCutIdleDueToLiveTime(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut at 500 ms, should cut nothing
-	cutTraces := slices.Collect(lt.CutIdle(rootTime.Add(500*time.Millisecond), false))
+	cutTraces := lt.CutIdle(rootTime.Add(500*time.Millisecond), false)
 	require.Equal(t, 0, len(cutTraces))
 
 	// push at 1 second
@@ -141,12 +140,12 @@ func TestCutIdleDueToLiveTime(t *testing.T) {
 	require.NoError(t, err)
 
 	// cut at 1.5 seconds, should cut the trace b/c it's been live for 1.5 seconds!
-	cutTraces = slices.Collect(lt.CutIdle(rootTime.Add(1500*time.Millisecond), false))
+	cutTraces = lt.CutIdle(rootTime.Add(1500*time.Millisecond), false)
 	require.Equal(t, 1, len(cutTraces))
 	require.Equal(t, id, cutTraces[0].ID)
 
 	// cut at 2.5 seconds, should cut nothing
-	cutTraces = slices.Collect(lt.CutIdle(rootTime.Add(2500*time.Millisecond), false))
+	cutTraces = lt.CutIdle(rootTime.Add(2500*time.Millisecond), false)
 	require.Equal(t, 0, len(cutTraces))
 
 	require.Equal(t, 0, len(lt.Traces))
