@@ -320,6 +320,11 @@ func TestRedactBlockQueryNarrowingConditions(t *testing.T) {
 		{"not equal", `{resource.service.name = "claude-code-cli" && span.full_command != "ls"}`, hex(idLsla, idEmpty)},
 		{"regex is anchored", `{resource.service.name = "claude-code-cli" && span.full_command =~ "ls.*"}`, hex(idLs)},
 		{"not-regex", `{resource.service.name = "claude-code-cli" && span.full_command !~ "ls.*"}`, hex(idLsla, idEmpty)},
+		// An || across attributes disables storage-level enforcement of all conditions (an || on one
+		// attribute is folded into a regex), so the narrowing condition is evaluated by the engine alone.
+		{"not equal with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command != "ls"}`, hex(idLsla, idEmpty)},
+		{"not-regex with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command !~ "ls.*"}`, hex(idLsla, idEmpty)},
+		{"regex with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command =~ "ls.*"}`, hex(idLs)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, found, _, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, tc.query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, RedactionWindow{})

@@ -223,6 +223,16 @@ func TestRedactionQueryNarrowingConditions(t *testing.T) {
 			query:   `{ resource.service.name = "a" && span.http.status_code >= 500 }`,
 			wantErr: "not allowed in redaction query",
 		},
+		{
+			name:    "invalid regex",
+			query:   `{ resource.service.name = "a" && span.foo =~ "[" }`,
+			wantErr: "invalid regex",
+		},
+		{
+			name:    "invalid not-regex",
+			query:   `{ resource.service.name = "a" && span.foo !~ "(" }`,
+			wantErr: "invalid regex",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validateRedactionQuery(tc.query)

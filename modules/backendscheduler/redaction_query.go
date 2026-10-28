@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grafana/tempo/v3/pkg/regexp"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
@@ -105,8 +106,14 @@ func validateRedactionRegex(lhs, rhs traceql.FieldExpression) error {
 	if !ok {
 		return errors.New("redaction query regex comparisons must be <attribute> =~ <regex>")
 	}
-	if static, ok := rhs.(traceql.Static); !ok || static.Type != traceql.TypeString {
+	static, ok := rhs.(traceql.Static)
+	if !ok || static.Type != traceql.TypeString {
 		return errors.New("redaction query regex must be a string literal")
+	}
+	// ParseNoOptimizations does not compile regex literals; fail here rather than in every worker job.
+	pattern := static.EncodeToString(false)
+	if _, err := regexp.NewRegexp([]string{pattern}, true); err != nil {
+		return fmt.Errorf("invalid regex %q: %w", pattern, err)
 	}
 	return validateRedactionAttribute(attr)
 }
