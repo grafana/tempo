@@ -1190,6 +1190,15 @@ func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
 	intOf := func(i int64) *v1_common.AnyValue {
 		return &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: i}}
 	}
+	tagValues := func(t *testing.T, block *backendBlock, tag traceql.Attribute, cond traceql.Condition) []tempopb.TagValue {
+		distinctValues := collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+		req := traceql.FetchTagValuesRequest{
+			TagName:         tag,
+			ConditionGroups: [][]traceql.Condition{{cond, {Attribute: tag, Op: traceql.OpNone}}},
+		}
+		require.NoError(t, block.FetchTagValues(t.Context(), req, traceql.MakeCollectTagValueFunc(distinctValues.Collect), func(uint64) {}, common.DefaultSearchOptions()))
+		return distinctValues.Values()
+	}
 
 	for _, scope := range []backend.DedicatedColumnScope{backend.DedicatedColumnScopeSpan, backend.DedicatedColumnScopeResource} {
 		t.Run(string(scope), func(t *testing.T) {
@@ -1229,16 +1238,6 @@ func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
 			peer := traceql.NewScopedAttribute(attrScope, false, "peer")
 			unscoped := traceql.NewAttribute("mixed")
 
-			tagValues := func(tag traceql.Attribute, cond traceql.Condition) []tempopb.TagValue {
-				distinctValues := collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-				req := traceql.FetchTagValuesRequest{
-					TagName:         tag,
-					ConditionGroups: [][]traceql.Condition{{cond, {Attribute: tag, Op: traceql.OpNone}}},
-				}
-				require.NoError(t, block.FetchTagValues(t.Context(), req, traceql.MakeCollectTagValueFunc(distinctValues.Collect), func(uint64) {}, common.DefaultSearchOptions()))
-				return distinctValues.Values()
-			}
-
 			testCases := []struct {
 				name     string
 				tag      traceql.Attribute
@@ -1253,7 +1252,7 @@ func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
 			}
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
-					require.ElementsMatch(t, tc.expected, tagValues(tc.tag, tc.cond))
+					require.ElementsMatch(t, tc.expected, tagValues(t, block, tc.tag, tc.cond))
 				})
 			}
 
@@ -1298,13 +1297,7 @@ func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
 
 		spanMixed := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "mixed")
 		resMixed := traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "mixed")
-		distinctValues := collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-		req := traceql.FetchTagValuesRequest{
-			TagName:         spanMixed,
-			ConditionGroups: [][]traceql.Condition{{{Attribute: resMixed, Op: traceql.OpExists}, {Attribute: spanMixed, Op: traceql.OpNone}}},
-		}
-		require.NoError(t, block.FetchTagValues(t.Context(), req, traceql.MakeCollectTagValueFunc(distinctValues.Collect), func(uint64) {}, common.DefaultSearchOptions()))
-		require.ElementsMatch(t, []tempopb.TagValue{stringTagValue("a")}, distinctValues.Values())
+		require.ElementsMatch(t, []tempopb.TagValue{stringTagValue("a")}, tagValues(t, block, spanMixed, traceql.Condition{Attribute: resMixed, Op: traceql.OpExists}))
 	})
 
 	// Well-known columns also store values of another type in generic attributes.
@@ -1325,13 +1318,7 @@ func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
 
 		method := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod)
 		peer := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "peer")
-		distinctValues := collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-		req := traceql.FetchTagValuesRequest{
-			TagName:         method,
-			ConditionGroups: [][]traceql.Condition{{{Attribute: peer, Op: traceql.OpExists}, {Attribute: method, Op: traceql.OpNone}}},
-		}
-		require.NoError(t, block.FetchTagValues(t.Context(), req, traceql.MakeCollectTagValueFunc(distinctValues.Collect), func(uint64) {}, common.DefaultSearchOptions()))
-		require.ElementsMatch(t, []tempopb.TagValue{stringTagValue("GET"), intTagValue(1)}, distinctValues.Values())
+		require.ElementsMatch(t, []tempopb.TagValue{stringTagValue("GET"), intTagValue(1)}, tagValues(t, block, method, traceql.Condition{Attribute: peer, Op: traceql.OpExists}))
 	})
 }
 
