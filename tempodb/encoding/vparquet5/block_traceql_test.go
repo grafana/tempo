@@ -821,6 +821,35 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		}
 	}
 
+	// Unscoped conditions read the same dedicated column as the scoped ones.
+	for _, scope := range []backend.DedicatedColumnScope{backend.DedicatedColumnScopeSpan, backend.DedicatedColumnScopeResource} {
+		for _, q := range []string{`{ %[1]s.mixed = nil || .mixed != nil }`, `{ %[1]s.mixed != nil && .mixed = 1 }`} {
+			query := fmt.Sprintf(q, scope)
+			t.Run(fmt.Sprintf("%s/unscoped/%s", scope, query), func(t *testing.T) {
+				id := test.ValidTraceID(nil)
+				dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: strCol}}
+				want := func(traceql.Span) map[traceql.Attribute]traceql.Static {
+					return map[traceql.Attribute]traceql.Static{mixedAttr(scope): traceql.NewStaticInt(1)}
+				}
+				fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, makeTrace(id, scope, intValue, false, true), query, want)
+				require.NotEmpty(t, fetchIDs, "Fetch: %s", query)
+				require.NotEmpty(t, fetchSpansIDs, "FetchSpans: %s", query)
+			})
+		}
+	}
+
+	// Each dedicated column of a scope gets its own existence iterator.
+	for _, scope := range scopes {
+		query := fmt.Sprintf(`{ %[1]s.mixed != nil || %[1]s.other != nil }`, scope)
+		t.Run(fmt.Sprintf("%s/two columns/%s", scope, query), func(t *testing.T) {
+			id := test.ValidTraceID(nil)
+			dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: strCol}, {Scope: scope, Name: "other", Type: strCol}}
+			fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, makeTrace(id, scope, nil, false, true), query, nil)
+			require.NotEmpty(t, fetchIDs, "Fetch: %s", query)
+			require.NotEmpty(t, fetchSpansIDs, "FetchSpans: %s", query)
+		})
+	}
+
 	// The engine builds select() output from AllAttributes, where a "nil" placeholder next to the generic value would show.
 	t.Run("span/int in string column, select through the engine", func(t *testing.T) {
 		id := test.ValidTraceID(nil)
