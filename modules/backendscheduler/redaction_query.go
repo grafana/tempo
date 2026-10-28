@@ -40,8 +40,8 @@ func validateRedactionQuery(query string) error {
 }
 
 // validateRedactionExpr requires fe to be an && of conditions with at least one positive condition:
-// an = comparison, or an || of = comparisons. The other conditions only narrow that match, so a
-// typo in one of them cannot widen the deletion beyond the positive anchor.
+// an = comparison, or an || of = comparisons. The other conditions (!=, =~, !~, != nil) only narrow
+// that match, so a typo in one of them cannot widen the deletion beyond the positive anchor.
 func validateRedactionExpr(fe traceql.FieldExpression) error {
 	hasPositive := false
 	for _, cond := range redactionConditions(fe) {
@@ -90,11 +90,25 @@ func validateRedactionCondition(cond traceql.FieldExpression) (positive bool, er
 		return true, validateRedactionComparison(bin.LHS, bin.RHS)
 	case traceql.OpOr:
 		return true, validateRedactionEqualityGroup(bin)
+	case traceql.OpNotEqual:
+		return false, validateRedactionComparison(bin.LHS, bin.RHS)
+	case traceql.OpRegex, traceql.OpNotRegex:
+		return false, validateRedactionRegex(bin.LHS, bin.RHS)
 	default:
-		// Negation against a value is excluded on purpose: its match set is the complement
-		// (potentially all data), as catastrophic as a bad regex on an irreversible delete.
-		return false, fmt.Errorf("operator %v not allowed in redaction query; only = and != nil are supported", bin.Op)
+		return false, fmt.Errorf("operator %v not allowed in redaction query; only =, !=, =~, !~ and != nil are supported", bin.Op)
 	}
+}
+
+// validateRedactionRegex requires `<attribute> =~ "<regex>"` (or !~).
+func validateRedactionRegex(lhs, rhs traceql.FieldExpression) error {
+	attr, ok := lhs.(traceql.Attribute)
+	if !ok {
+		return errors.New("redaction query regex comparisons must be <attribute> =~ <regex>")
+	}
+	if static, ok := rhs.(traceql.Static); !ok || static.Type != traceql.TypeString {
+		return errors.New("redaction query regex must be a string literal")
+	}
+	return validateRedactionAttribute(attr)
 }
 
 // validateRedactionEqualityGroup requires every branch of an || to be an = comparison.
@@ -143,7 +157,7 @@ func validateRedactionComparison(lhs, rhs traceql.FieldExpression) error {
 	case rIsAttr && lIsStatic:
 		attr = rAttr
 	default:
-		return errors.New("redaction query comparisons must be <attribute> = <value>")
+		return errors.New("redaction query comparisons must be between an attribute and a literal value")
 	}
 
 	return validateRedactionAttribute(attr)

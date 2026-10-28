@@ -264,6 +264,81 @@ func TestRedactBlockQueryDisjunctionAcrossScopes(t *testing.T) {
 	require.Equal(t, int64(1), newMeta.TotalObjects, "only the non-matching trace survives")
 }
 
+// traceForService builds a single-span trace for a service, with optional span attributes.
+func traceForService(id []byte, service string, spanAttrs ...*v1_common.KeyValue) *tempopb.Trace {
+	sp := test.MakeSpan(id)
+	sp.Attributes = append(sp.Attributes, spanAttrs...)
+	return &tempopb.Trace{ResourceSpans: []*v1_trace.ResourceSpans{{
+		Resource: &v1_resource.Resource{Attributes: []*v1_common.KeyValue{
+			test.MakeAttribute("service.name", service),
+		}},
+		ScopeSpans: []*v1_trace.ScopeSpans{{
+			Scope: &v1_common.InstrumentationScope{Name: "redaction service test"},
+			Spans: []*v1_trace.Span{sp},
+		}},
+	}}}
+}
+
+// TestRedactBlockQueryNarrowingConditions pins which traces !=, =~ and !~ select under a positive
+// filter. A span missing the attribute matches none of them, and regexes are fully anchored.
+func TestRedactBlockQueryNarrowingConditions(t *testing.T) {
+	r, w, c, _ := testConfig(t, 0)
+	ctx := context.Background()
+
+	idLs := test.ValidTraceID(nil)
+	idLsla := test.ValidTraceID(nil)
+	idEmpty := test.ValidTraceID(nil)
+	idMissing := test.ValidTraceID(nil)
+	idOtherService := test.ValidTraceID(nil)
+	now := uint32(time.Now().Unix())
+
+	data := []testData{
+		{idLs, traceForService(idLs, "claude-code-cli", test.MakeAttribute("full_command", "ls")), now, now},
+		{idLsla, traceForService(idLsla, "claude-code-cli", test.MakeAttribute("full_command", "xls -la")), now, now},
+		{idEmpty, traceForService(idEmpty, "claude-code-cli", test.MakeAttribute("full_command", "")), now, now},
+		{idMissing, traceForService(idMissing, "claude-code-cli"), now, now},
+		{idOtherService, traceForService(idOtherService, "keep", test.MakeAttribute("full_command", "ls")), now, now},
+	}
+	blk := cutTestBlockWithTraces(t, w, data)
+	require.Equal(t, int64(5), blk.BlockMeta().TotalObjects)
+
+	hex := func(ids ...[]byte) []string {
+		out := make([]string, 0, len(ids))
+		for _, id := range ids {
+			out = append(out, util.TraceIDToHexString(id))
+		}
+		sort.Strings(out)
+		return out
+	}
+
+	for _, tc := range []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{"non-empty", `{resource.service.name = "claude-code-cli" && span.full_command != ""}`, hex(idLs, idLsla)},
+		{"not equal", `{resource.service.name = "claude-code-cli" && span.full_command != "ls"}`, hex(idLsla, idEmpty)},
+		{"regex is anchored", `{resource.service.name = "claude-code-cli" && span.full_command =~ "ls.*"}`, hex(idLs)},
+		{"not-regex", `{resource.service.name = "claude-code-cli" && span.full_command !~ "ls.*"}`, hex(idLsla, idEmpty)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, found, _, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, tc.query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, RedactionWindow{})
+			require.NoError(t, err)
+			require.Equal(t, len(tc.want), found)
+			require.Equal(t, tc.want, survivingTraceIDs(t, r, blk.BlockMeta(), tc.query))
+		})
+	}
+
+	t.Run("apply", func(t *testing.T) {
+		query := `{resource.service.name = "claude-code-cli" && span.full_command != ""}`
+		_, found, newMeta, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{})
+		require.NoError(t, err)
+		require.Equal(t, 2, found)
+		require.NotNil(t, newMeta)
+		require.Equal(t, hex(idEmpty, idMissing, idOtherService), survivingTraceIDs(t, r, newMeta, `{resource.service.name != nil}`))
+	})
+}
+
 // TestRedactBlockOneSidedWindowStillBounds verifies a window with only one bound set still bounds the
 // per-block scan.
 //

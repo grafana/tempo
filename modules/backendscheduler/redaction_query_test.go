@@ -31,28 +31,28 @@ func TestValidateRedactionQuery(t *testing.T) {
 			query:   `{resource.namespace = "prod" && span.http.target = "/checkout"}`,
 			wantErr: false,
 		},
-		// --- rejected: operators outside the subset ---
+		{
+			name:    "negation within AND",
+			query:   `{resource.namespace = "prod" && span.http.target != "/health"}`,
+			wantErr: false,
+		},
+		// --- rejected: no positive filter ---
+		// Negation or a regex alone has a blast radius of everything it fails to exclude, so a
+		// typo is catastrophic on a delete path.
 		{
 			name:    "regex match",
 			query:   `{resource.service_name =~ "a.*"}`,
 			wantErr: true,
 		},
 		{
-			name:    "ordered comparison",
-			query:   `{span.http.status_code > 400}`,
-			wantErr: true,
-		},
-		// Negation is rejected: its blast radius is the complement of the match set
-		// (potentially all data), so a typo is as catastrophic as a bad regex on a
-		// delete path.
-		{
 			name:    "negation (complement blast radius)",
 			query:   `{span.http.target != "/health"}`,
 			wantErr: true,
 		},
+		// --- rejected: operators outside the subset ---
 		{
-			name:    "negation within AND",
-			query:   `{resource.namespace = "prod" && span.http.target != "/health"}`,
+			name:    "ordered comparison",
+			query:   `{span.http.status_code > 400}`,
 			wantErr: true,
 		},
 		// --- rejected: shape outside a single spanset filter ---
@@ -133,14 +133,14 @@ func TestRedactionQueryExistenceForms(t *testing.T) {
 		},
 
 		{
-			name:    "negation against a value is still refused",
+			name:    "negation against a value alone is refused",
 			query:   `{ span.foo != "bar" }`,
-			wantErr: "not allowed in redaction query",
+			wantErr: "at least one = comparison",
 		},
 		{
-			name:    "negation against a number is still refused",
+			name:    "negation against a number alone is refused",
 			query:   `{ span.http.status_code != 500 }`,
-			wantErr: "not allowed in redaction query",
+			wantErr: "at least one = comparison",
 		},
 		{
 			name:    "existence on an unscoped attribute is refused",
@@ -158,8 +158,69 @@ func TestRedactionQueryExistenceForms(t *testing.T) {
 			wantErr: "not allowed in redaction query",
 		},
 		{
-			name:    "not-regex stays refused",
+			name:    "not-regex alone is refused",
 			query:   `{ span.foo !~ "bar" }`,
+			wantErr: "at least one = comparison",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateRedactionQuery(tc.query)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+// TestRedactionQueryNarrowingConditions covers !=, =~ and !~, which are allowed only alongside a
+// positive filter.
+func TestRedactionQueryNarrowingConditions(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		query   string
+		wantErr string
+	}{
+		{name: "non-empty check", query: `{ resource.service.name = "claude-code-cli" && span.full_command != "" }`},
+		{name: "regex", query: `{ resource.k8s.cluster.name = "data-prd" && resource.service.name =~ "svc-a|svc-b" }`},
+		{name: "not-regex with existence", query: `{ resource.service.name = "api" && span.enduser.id != nil && span.enduser.id !~ "[0-9a-f]{64}" }`},
+		{name: "or group with regex", query: `{ (resource.service.name = "a" || resource.service.name = "b") && span.http.url =~ ".*/users.*" }`},
+
+		{
+			name:    "regex anchor is not positive",
+			query:   `{ resource.service.name =~ "claude-code.*" && span.full_command != "" }`,
+			wantErr: "at least one = comparison",
+		},
+		{
+			name:    "negation inside or",
+			query:   `{ resource.service.name = "a" || span.foo != "x" }`,
+			wantErr: "may only join = comparisons",
+		},
+		{
+			name:    "regex inside or",
+			query:   `{ resource.service.name = "a" && (span.foo =~ "x.*" || span.bar =~ "y.*") }`,
+			wantErr: "may only join = comparisons",
+		},
+		{
+			name:    "regex on an unscoped attribute",
+			query:   `{ resource.service.name = "a" && .foo =~ "x.*" }`,
+			wantErr: "must be scoped to resource. or span.",
+		},
+		{
+			name:    "not-regex on a parent-scoped attribute",
+			query:   `{ resource.service.name = "a" && parent.span.foo !~ "x.*" }`,
+			wantErr: "must not be parent-scoped",
+		},
+		{
+			name:    "negation on a parent-scoped attribute",
+			query:   `{ resource.service.name = "a" && parent.span.foo != "x" }`,
+			wantErr: "must not be parent-scoped",
+		},
+		{
+			name:    "ordered comparison stays refused with a positive filter",
+			query:   `{ resource.service.name = "a" && span.http.status_code >= 500 }`,
 			wantErr: "not allowed in redaction query",
 		},
 	} {
