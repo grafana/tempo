@@ -1758,6 +1758,19 @@ storage:
             # The maximum duration to wait between retry attempts on failed S3 requests.
             [retry_backoff_max: <duration>]
 
+            # Optional. Default is 100
+            # Example: "max_idle_connections_per_host: 400"
+            # The maximum number of idle connections kept open to the S3 endpoint. When more requests than
+            # this finish at the same time, the extra connections are closed, and later requests open new
+            # ones with a new TCP and TLS handshake. Set this at or above the number of concurrent S3
+            # requests, for example the storage pool max_workers on queriers.
+            [max_idle_connections_per_host: <int>]
+
+            # Optional. Default is 100
+            # Example: "max_idle_connections: 400"
+            # The maximum number of idle connections kept open across all S3 hosts.
+            [max_idle_connections: <int>]
+
             # Optional
             # Example: "tags: {'key': 'value'}"
             # A map of key value strings for user tags to store on the S3 objects. This helps set up filters in S3 lifecycles.
