@@ -16,6 +16,7 @@ import (
 	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
 	"github.com/grafana/tempo/v3/pkg/util/listtomap"
 	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -298,6 +299,78 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 				SpanNameSanitization: "invalid",
 			}},
 			expErr: "span_name_sanitization \"invalid\" is not valid, valid values: [ dry_run enabled]",
+		},
+		{
+			name:      "read.max_search_duration negative",
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{MaxSearchDuration: model.Duration(-time.Hour)}},
+			expErr:    "read.max_search_duration must not be negative, got -1h0m0s",
+		},
+		{
+			name:      "read.min_search_duration negative",
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{MinSearchDuration: model.Duration(-time.Hour)}},
+			expErr:    "read.min_search_duration must not be negative, got -1h0m0s",
+		},
+		{
+			name:      "read.max_metrics_duration negative",
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{MaxMetricsDuration: model.Duration(-time.Hour)}},
+			expErr:    "read.max_metrics_duration must not be negative, got -1h0m0s",
+		},
+		{
+			name:      "read.min_metrics_duration negative",
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{MinMetricsDuration: model.Duration(-time.Hour)}},
+			expErr:    "read.min_metrics_duration must not be negative, got -1h0m0s",
+		},
+		{
+			name: "read.min_search_duration above read.max_search_duration",
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
+				MinSearchDuration: model.Duration(2 * time.Hour),
+				MaxSearchDuration: model.Duration(time.Hour),
+			}},
+			expErr: "read.min_search_duration 2h0m0s is greater than read.max_search_duration 1h0m0s",
+		},
+		{
+			name: "read.min_search_duration equal to read.max_search_duration",
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
+				MinSearchDuration: model.Duration(time.Hour),
+				MaxSearchDuration: model.Duration(time.Hour),
+			}},
+		},
+		{
+			// The query-frontend caps min at max at query time when an override mixes with the config.
+			name: "read.min_search_duration above query_frontend max_duration",
+			cfg:  searchDurations(0, time.Hour),
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
+				MinSearchDuration: model.Duration(2 * time.Hour),
+			}},
+		},
+		{
+			name: "read.max_search_duration below query_frontend min_duration",
+			cfg:  searchDurations(2*time.Hour, 0),
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
+				MaxSearchDuration: model.Duration(time.Hour),
+			}},
+		},
+		{
+			name: "read.min_metrics_duration above read.max_metrics_duration",
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
+				MinMetricsDuration: model.Duration(2 * time.Hour),
+				MaxMetricsDuration: model.Duration(time.Hour),
+			}},
+			expErr: "read.min_metrics_duration 2h0m0s is greater than read.max_metrics_duration 1h0m0s",
+		},
+		{
+			name: "read.min_metrics_duration equal to read.max_metrics_duration",
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
+				MinMetricsDuration: model.Duration(time.Hour),
+				MaxMetricsDuration: model.Duration(time.Hour),
+			}},
+		},
+		{
+			name: "read.min_metrics_duration with no read.max_metrics_duration",
+			cfg:  metricsDurations(0, time.Hour),
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
+				MinMetricsDuration: model.Duration(2 * time.Hour),
+			}},
 		},
 	}
 
@@ -911,4 +984,18 @@ func Test_overridesValidator(t *testing.T) {
 			}
 		})
 	}
+}
+
+func searchDurations(minDuration, maxDuration time.Duration) Config {
+	var cfg Config
+	cfg.Frontend.Search.Sharder.MinDuration = minDuration
+	cfg.Frontend.Search.Sharder.MaxDuration = maxDuration
+	return cfg
+}
+
+func metricsDurations(minDuration, maxDuration time.Duration) Config {
+	var cfg Config
+	cfg.Frontend.Metrics.Sharder.MinDuration = minDuration
+	cfg.Frontend.Metrics.Sharder.MaxDuration = maxDuration
+	return cfg
 }

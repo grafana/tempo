@@ -2,11 +2,13 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/grafana/tempo/v3/modules/generator/validation"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
+	"github.com/prometheus/common/model"
 )
 
 type runtimeConfigValidator struct {
@@ -70,6 +72,28 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 	spanBuckets := config.MetricsGenerator.Processor.SpanMetrics.HistogramBuckets
 	if err := validation.ValidateHistogramBuckets(spanBuckets, "metrics_generator.processor.span_metrics.histogram_buckets"); err != nil {
 		return warnings, err
+	}
+
+	for _, d := range []struct {
+		name  string
+		value model.Duration
+	}{
+		{"read.max_search_duration", config.Read.MaxSearchDuration},
+		{"read.min_search_duration", config.Read.MinSearchDuration},
+		{"read.max_metrics_duration", config.Read.MaxMetricsDuration},
+		{"read.min_metrics_duration", config.Read.MinMetricsDuration},
+	} {
+		if d.value < 0 {
+			return warnings, fmt.Errorf("%s must not be negative, got %s", d.name, time.Duration(d.value))
+		}
+	}
+
+	// Only values set in the same block, since each component validates against its own query_frontend config.
+	if minSearch, maxSearch := config.Read.MinSearchDuration, config.Read.MaxSearchDuration; maxSearch > 0 && minSearch > maxSearch {
+		return warnings, fmt.Errorf("read.min_search_duration %s is greater than read.max_search_duration %s", time.Duration(minSearch), time.Duration(maxSearch))
+	}
+	if minMetrics, maxMetrics := config.Read.MinMetricsDuration, config.Read.MaxMetricsDuration; maxMetrics > 0 && minMetrics > maxMetrics {
+		return warnings, fmt.Errorf("read.min_metrics_duration %s is greater than read.max_metrics_duration %s", time.Duration(minMetrics), time.Duration(maxMetrics))
 	}
 
 	return

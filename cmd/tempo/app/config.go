@@ -233,10 +233,6 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnTraceByIDConcurrentShards)
 	}
 
-	if minAboveMax(c.Frontend.Metrics.Sharder.MinDuration, c.Frontend.Metrics.Sharder.MaxDuration) {
-		warnings = append(warnings, warnMetricsMinDurationAboveMaxDuration)
-	}
-
 	if c.BackendScheduler.Work.PruneAge <= (c.StorageConfig.Trace.BlocklistPoll * 2) {
 		warnings = append(warnings, warnBackendSchedulerPruneAgeLessThanBlocklistPoll)
 	}
@@ -259,10 +255,6 @@ func (c *Config) CheckConfig() []ConfigWarning {
 			Message: "query_frontend.rf1_after is deprecated and will be removed in a future release.",
 			Explain: "Non-metric query paths now query all blocks regardless of replication factor. This setting is ignored.",
 		})
-	}
-
-	if minAboveMax(c.Frontend.Search.Sharder.MinDuration, c.Frontend.Search.Sharder.MaxDuration) {
-		warnings = append(warnings, warnSearchMinDurationAboveMaxDuration)
 	}
 
 	return warnings
@@ -324,11 +316,6 @@ var (
 		Explain: "Please remove ConcurrentShards or set it to a value less than or equal to QueryShards",
 	}
 
-	warnMetricsMinDurationAboveMaxDuration = ConfigWarning{
-		Message: "query_frontend.metrics.min_duration is greater than query_frontend.metrics.max_duration",
-		Explain: "min_duration is lowered to max_duration",
-	}
-
 	warnMCPServerEnabled = ConfigWarning{
 		Message: "c.Frontend.MCPServer.Enabled is enabled.",
 		Explain: "Querying Tempo with an LLM will result in tracing data being sent to the LLM. Review your LLM provider's documentation and confirm you are comfortable with this.",
@@ -343,17 +330,7 @@ var (
 		Message: "Block-builder partition assigment is configured by c.BlockBuilder.PartitionAssigment and c.BlockBuilder.PartitionsPerInstance",
 		Explain: "When both parameters are used c.BlockBuilder.PartitionAssigment takes precedence over c.BlockBuilder.PartitionsPerInstance",
 	}
-
-	warnSearchMinDurationAboveMaxDuration = ConfigWarning{
-		Message: "query_frontend.search.min_duration is greater than query_frontend.search.max_duration",
-		Explain: "min_duration is lowered to max_duration",
-	}
 )
-
-// minAboveMax reports a min_duration over max_duration. A max_duration of 0 means no max.
-func minAboveMax(minDuration, maxDuration time.Duration) bool {
-	return maxDuration > 0 && minDuration > maxDuration
-}
 
 func (c *Config) tracesAndOverridesStorageConflict() bool {
 	traceStorage := c.StorageConfig.Trace

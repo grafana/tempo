@@ -237,7 +237,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	assert.Nil(t, f)
 }
 
-func TestFrontendNegativeDurationFails(t *testing.T) {
+func TestFrontendDurationValidation(t *testing.T) {
 	tcs := []struct {
 		name    string
 		modify  func(cfg *Config)
@@ -263,6 +263,38 @@ func TestFrontendNegativeDurationFails(t *testing.T) {
 			modify:  func(cfg *Config) { cfg.Metrics.Sharder.MaxDuration = -time.Hour },
 			wantErr: "frontend metrics max_duration should not be negative",
 		},
+		{
+			name: "search min_duration above max_duration",
+			modify: func(cfg *Config) {
+				cfg.Search.Sharder.MinDuration = 2 * time.Hour
+				cfg.Search.Sharder.MaxDuration = time.Hour
+			},
+			wantErr: "frontend search min_duration should not be greater than max_duration",
+		},
+		{
+			name: "metrics min_duration above max_duration",
+			modify: func(cfg *Config) {
+				cfg.Metrics.Sharder.MinDuration = 2 * time.Hour
+				cfg.Metrics.Sharder.MaxDuration = time.Hour
+			},
+			wantErr: "frontend metrics min_duration should not be greater than max_duration",
+		},
+		{
+			name: "min_duration equal to max_duration",
+			modify: func(cfg *Config) {
+				cfg.Search.Sharder.MinDuration = time.Hour
+				cfg.Search.Sharder.MaxDuration = time.Hour
+				cfg.Metrics.Sharder.MinDuration = time.Hour
+				cfg.Metrics.Sharder.MaxDuration = time.Hour
+			},
+		},
+		{
+			name: "min_duration with no max_duration",
+			modify: func(cfg *Config) {
+				cfg.Search.Sharder.MinDuration = time.Hour
+				cfg.Metrics.Sharder.MinDuration = time.Hour
+			},
+		},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
@@ -287,6 +319,11 @@ func TestFrontendNegativeDurationFails(t *testing.T) {
 			}
 			tc.modify(&cfg)
 			f, err := New(cfg, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				require.NotNil(t, f)
+				return
+			}
 			require.EqualError(t, err, tc.wantErr)
 			require.Nil(t, f)
 		})

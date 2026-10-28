@@ -131,6 +131,14 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("frontend metrics max_duration should not be negative")
 	}
 
+	if cfg.Search.Sharder.MaxDuration > 0 && cfg.Search.Sharder.MinDuration > cfg.Search.Sharder.MaxDuration {
+		return nil, fmt.Errorf("frontend search min_duration should not be greater than max_duration")
+	}
+
+	if cfg.Metrics.Sharder.MaxDuration > 0 && cfg.Metrics.Sharder.MinDuration > cfg.Metrics.Sharder.MaxDuration {
+		return nil, fmt.Errorf("frontend metrics min_duration should not be greater than max_duration")
+	}
+
 	if cfg.QueryEndCutoff > cfg.Search.Sharder.QueryBackendAfter {
 		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than query end cutoff (%v)", cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff)
 	}
