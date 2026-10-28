@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: traceql
+
+note: Drop spans outside a TraceQL metrics query's window by span start time in storage, for queries without inter-span conditions
+
+issues: []
+
+subtext:
+
+user: zhxiaogg

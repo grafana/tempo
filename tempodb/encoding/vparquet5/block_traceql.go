@@ -1673,7 +1673,7 @@ func (i *spansetIterator) Close() {
 //                                                            V
 
 func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns) (*spansetIterator, error) {
-	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, rowGroups, pf, dc, false, req.TraceSampler, req.SpanSampler)
+	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.TraceStartTimeUnixNanos, req.TraceEndTimeUnixNanos, rowGroups, pf, dc, false, req.TraceSampler, req.SpanSampler)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}

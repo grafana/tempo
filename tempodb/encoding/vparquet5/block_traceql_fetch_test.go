@@ -1,10 +1,18 @@
 package vparquet5
 
 import (
+	"bytes"
+	"context"
 	"math/rand"
+	"sort"
 	"testing"
+	"time"
 
 	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/pkg/util/test"
@@ -195,4 +203,141 @@ func TestSelectAllFetchSpansOnly(t *testing.T) {
 		gotSp.rowNum = rn
 	}
 	require.True(t, found, "trace was found")
+}
+
+// spanTimeTestBlock has traces every 15s over an hour, each with spans up to 5m after
+// the trace start, so traces straddle the edges of any window inside the hour.
+func spanTimeTestBlock(t *testing.T) (*backendBlock, time.Time) {
+	start := time.Now().Add(-2 * time.Hour).Truncate(time.Hour)
+	offsets := []time.Duration{0, 30 * time.Second, time.Minute, 2 * time.Minute, 5 * time.Minute}
+	names := []string{"a", "b", "c"}
+
+	traces := make([]*Trace, 0, 240)
+	for i := range 240 {
+		traceStart := start.Add(time.Duration(i) * 15 * time.Second)
+		spans := make([]*v1.Span, 0, len(offsets))
+		for j, off := range offsets {
+			s := &v1.Span{
+				SpanId:            test.ValidTraceID(nil)[:8],
+				Name:              names[(i+j)%len(names)],
+				StartTimeUnixNano: uint64(traceStart.Add(off).UnixNano()),
+				EndTimeUnixNano:   uint64(traceStart.Add(off + time.Duration(j+1)*time.Second).UnixNano()),
+			}
+			if (i+j)%4 == 0 {
+				s.Status = &v1.Status{Code: v1.Status_STATUS_CODE_ERROR}
+			}
+			spans = append(spans, s)
+		}
+		id := test.ValidTraceID(nil)
+		pb := &tempopb.Trace{ResourceSpans: []*v1.ResourceSpans{{
+			Resource:   &v1_resource.Resource{Attributes: []*v1_common.KeyValue{{Key: "service.name", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "svc"}}}}},
+			ScopeSpans: []*v1.ScopeSpans{{Spans: spans}},
+		}}}
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, pb, nil)
+		traces = append(traces, tr)
+	}
+	sort.Slice(traces, func(i, j int) bool { return bytes.Compare(traces[i].TraceID, traces[j].TraceID) < 0 })
+	return makeBackendBlockWithTraces(t, traces), start
+}
+
+func TestMetricsSpanTimePushdownSameResults(t *testing.T) {
+	block, start := spanTimeTestBlock(t)
+	opts := common.DefaultSearchOptions()
+	fetcher := traceql.NewSpansetFetcherWrapperBoth(
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, opts)
+		},
+		func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+			return block.FetchSpans(ctx, req, opts)
+		},
+	)
+	blockStart, blockEnd := uint64(start.UnixNano()), uint64(start.Add(66*time.Minute).UnixNano())
+
+	queries := []string{
+		`{} | count_over_time()`,
+		`{ status = error } | rate()`,
+		`{ name = "a" || name = "b" } | count_over_time() by (name)`,
+		`{ resource.service.name = "svc" && name != "c" } | count_over_time() by (status)`,
+		`{} | quantile_over_time(duration, .5, .9)`,
+		`{} >> { status = error } | count_over_time()`,
+	}
+	windows := []struct {
+		name       string
+		start, end time.Time
+	}{
+		{"whole block", start, start.Add(66 * time.Minute)},
+		{"aligned 10m", start.Add(20 * time.Minute), start.Add(30 * time.Minute)},
+		{"unaligned 10m", start.Add(20*time.Minute + 7*time.Second), start.Add(30*time.Minute + 3*time.Second)},
+	}
+
+	// The span-only fetch pushes span start down; the full-trace fetch never does.
+	run := func(t *testing.T, query string, st, end time.Time, spanOnly bool) traceql.SeriesSet {
+		req := &tempopb.QueryRangeRequest{Query: query, Step: uint64(time.Minute), Start: uint64(st.UnixNano()), End: uint64(end.UnixNano()), MaxSeries: 1000}
+		eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, traceql.WithTimeOverlapCutoff(0.2), traceql.WithSpanOnlyFetch(spanOnly))
+		require.NoError(t, err)
+		require.NoError(t, eval.Do(t.Context(), fetcher, blockStart, blockEnd, int(req.MaxSeries)))
+		return eval.Results()
+	}
+
+	for _, w := range windows {
+		for _, q := range queries {
+			t.Run(w.name+"/"+q, func(t *testing.T) {
+				off := run(t, q, w.start, w.end, false)
+				on := run(t, q, w.start, w.end, true)
+				require.NotEmpty(t, off)
+				require.Equal(t, len(off), len(on))
+				for k, s := range off {
+					require.Contains(t, on, k)
+					require.Equal(t, s.Values, on[k].Values)
+				}
+			})
+		}
+	}
+}
+
+func TestFetchSpansSpanStartTimeBounds(t *testing.T) {
+	block, start := spanTimeTestBlock(t)
+	min, max := start.Add(20*time.Minute), start.Add(30*time.Minute)
+
+	for _, tc := range []struct {
+		name      string
+		precision time.Duration // 0 reads the nanosecond column, 60s the rounded one
+		slack     time.Duration
+	}{
+		{"nanoseconds", 0, 0},
+		{"rounded 60s", time.Minute, 2 * time.Minute},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			count := func(bounded bool) (n int) {
+				req := traceql.FetchSpansRequest{
+					Conditions:    []traceql.Condition{{Attribute: traceql.IntrinsicSpanStartTimeAttribute, Precision: tc.precision}},
+					AllConditions: true,
+				}
+				if bounded {
+					req.SpanStartTimeUnixNanos = uint64(min.UnixNano())
+					req.SpanEndTimeUnixNanos = uint64(max.UnixNano())
+				}
+				resp, err := block.FetchSpans(t.Context(), req, common.DefaultSearchOptions())
+				require.NoError(t, err)
+				defer resp.Results.Close()
+				for {
+					s, err := resp.Results.Next(t.Context())
+					require.NoError(t, err)
+					if s == nil {
+						return n
+					}
+					n++
+					if bounded {
+						st := s.StartTimeUnixNanos()
+						require.GreaterOrEqual(t, st, uint64(min.Add(-tc.slack).UnixNano()))
+						require.LessOrEqual(t, st, uint64(max.Add(tc.slack).UnixNano()))
+					}
+				}
+			}
+			all, bounded := count(false), count(true)
+			require.Equal(t, 240*5, all)
+			require.Greater(t, bounded, 0)
+			require.Less(t, bounded, all/2)
+		})
+	}
 }
