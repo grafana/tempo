@@ -265,6 +265,10 @@ dashboard_utils {
           $.panel('Latency') +
           $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.compactor))
         )
-      ),
+      )
+      // Autoscaling rows are grouped at the bottom so they don't interleave with the request-path rows.
+      .addRowIf($._config.autoscaling.gateway.enabled, $.autoscalingRow('Gateway', 'gateway'))
+      .addRowIf($._config.autoscaling.distributor.enabled, $.autoscalingRow('Distributor', 'distributor'))
+      .addRowIf($._config.autoscaling.metrics_generator.enabled, $.autoscalingRow('Metrics-generator', 'metrics_generator')),
   },
 }
