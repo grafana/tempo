@@ -369,7 +369,7 @@ func createResourceIterators(
 		}
 	}
 
-	existsColumns := map[string]bool{}
+	existsIters := existenceIters{}
 	for _, cond := range conditions {
 
 		// Well-known selector?
@@ -392,10 +392,9 @@ func createResourceIterators(
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
 			if existsCond, ok := dedicatedExistenceCondition(conditions, cond); ok {
-				if existsColumns[c.ColumnPath] {
+				if !existsIters.add(c.ColumnPath, existsCond.Op) {
 					continue
 				}
-				existsColumns[c.ColumnPath] = true
 				existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, c.ColumnPath,
 					DefinitionLevelResourceSpans, columnPathResourceAttrKey, func() (parquetquery.Iterator, error) {
 						return detachScopedAttributes(createScopedAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceAttrs,
@@ -531,7 +530,7 @@ func createSpanIterators(
 		}
 	}
 
-	existsColumns := map[string]bool{}
+	existsIters := existenceIters{}
 	for _, cond := range conditions {
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
@@ -689,10 +688,9 @@ func createSpanIterators(
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
 			if existsCond, ok := dedicatedExistenceCondition(conditions, cond); ok {
-				if existsColumns[c.ColumnPath] {
+				if !existsIters.add(c.ColumnPath, existsCond.Op) {
 					continue
 				}
-				existsColumns[c.ColumnPath] = true
 				existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, c.ColumnPath,
 					DefinitionLevelResourceSpansILSSpan, columnPathSpanAttrKey, func() (parquetquery.Iterator, error) {
 						return detachScopedAttributes(createScopedAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceSpansILSSpanAttrs,
@@ -847,7 +845,7 @@ func createEventIterators(
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
-	existsColumns := map[string]bool{}
+	existsIters := existenceIters{}
 	for _, cond := range conditions {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicEventName:
@@ -869,10 +867,9 @@ func createEventIterators(
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
 			if existsCond, ok := dedicatedExistenceCondition(conditions, cond); ok {
-				if existsColumns[c.ColumnPath] {
+				if !existsIters.add(c.ColumnPath, existsCond.Op) {
 					continue
 				}
-				existsColumns[c.ColumnPath] = true
 				existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, c.ColumnPath,
 					DefinitionLevelResourceSpansILSSpanEvent, columnPathEventAttrKey, func() (parquetquery.Iterator, error) {
 						return detachScopedAttributes(createScopedAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceSpansILSSpanEventAttrs,

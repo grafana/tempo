@@ -1976,7 +1976,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		}
 	}
 
-	existsColumns := map[string]bool{}
+	existsIters := existenceIters{}
 	for _, cond := range conditions {
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
@@ -2110,10 +2110,9 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		// Well-known attribute?
 		if entry, ok := WellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
 			if existsCond, ok := dedicatedExistenceCondition(conditions, cond); ok {
-				if existsColumns[entry.ColumnPath] {
+				if !existsIters.add(entry.ColumnPath, existsCond.Op) {
 					continue
 				}
-				existsColumns[entry.ColumnPath] = true
 				existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, entry.ColumnPath,
 					DefinitionLevelResourceSpansILSSpan, DefinitionLevelResourceSpansILSSpanAttrs,
 					columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
@@ -2139,10 +2138,9 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
 			if existsCond, ok := dedicatedExistenceCondition(conditions, cond); ok {
-				if existsColumns[c.ColumnPath] {
+				if !existsIters.add(c.ColumnPath, existsCond.Op) {
 					continue
 				}
-				existsColumns[c.ColumnPath] = true
 				existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, c.ColumnPath,
 					DefinitionLevelResourceSpansILSSpan, DefinitionLevelResourceSpansILSSpanAttrs,
 					columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
@@ -2382,15 +2380,14 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
-	existsColumns := map[string]bool{}
+	existsIters := existenceIters{}
 	for _, cond := range conditions {
 		// Well-known selector?
 		if entry, ok := WellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
 			if existsCond, ok := dedicatedExistenceCondition(conditions, cond); ok {
-				if existsColumns[entry.ColumnPath] {
+				if !existsIters.add(entry.ColumnPath, existsCond.Op) {
 					continue
 				}
-				existsColumns[entry.ColumnPath] = true
 				existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, entry.ColumnPath,
 					DefinitionLevelResourceSpans, DefinitionLevelResourceAttrs,
 					columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
@@ -2415,10 +2412,9 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
 			if existsCond, ok := dedicatedExistenceCondition(conditions, cond); ok {
-				if existsColumns[c.ColumnPath] {
+				if !existsIters.add(c.ColumnPath, existsCond.Op) {
 					continue
 				}
-				existsColumns[c.ColumnPath] = true
 				existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, c.ColumnPath,
 					DefinitionLevelResourceSpans, DefinitionLevelResourceAttrs,
 					columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
@@ -3028,7 +3024,7 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 
 // dedicatedExistenceCondition merges the existence checks on cond's attribute, so 1 iterator selects each value once.
 func dedicatedExistenceCondition(conditions []traceql.Condition, cond traceql.Condition) (traceql.Condition, bool) {
-	var exists, notExists, none bool
+	var exists, none bool
 	for _, c := range conditions {
 		if c.Attribute.Name != cond.Attribute.Name {
 			continue
@@ -3036,8 +3032,6 @@ func dedicatedExistenceCondition(conditions []traceql.Condition, cond traceql.Co
 		switch c.Op {
 		case traceql.OpExists:
 			exists = true
-		case traceql.OpNotExists:
-			notExists = true
 		case traceql.OpNone:
 			none = true
 		}
@@ -3045,17 +3039,35 @@ func dedicatedExistenceCondition(conditions []traceql.Condition, cond traceql.Co
 
 	merged := cond
 	switch {
-	case none || (exists && notExists):
+	case none:
 		merged.Op = traceql.OpNone
+	case cond.Op == traceql.OpNotExists:
+		// = nil and != nil select disjoint rows, so they keep separate iterators.
 	case exists:
 		merged.Op = traceql.OpExists
-	case notExists && cond.Op == traceql.OpNotExists:
-		merged.Op = traceql.OpNotExists
 	default:
 		// A value condition next to = nil only matches other rows.
 		return cond, false
 	}
 	return merged, true
+}
+
+type existenceIterKey struct {
+	columnPath string
+	op         traceql.Operator
+}
+
+// existenceIters records the existence iterators already built, so conditions sharing one select each value once.
+type existenceIters map[existenceIterKey]struct{}
+
+// add returns false when the iterator for columnPath and op is already built.
+func (e existenceIters) add(columnPath string, op traceql.Operator) bool {
+	k := existenceIterKey{columnPath: columnPath, op: op}
+	if _, ok := e[k]; ok {
+		return false
+	}
+	e[k] = struct{}{}
+	return true
 }
 
 // createDedicatedExistenceIterator also reads generic attributes for != nil, = nil and select/by, because values of another type than the dedicated or well-known column are written there.
