@@ -1277,6 +1277,44 @@ func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
 			})
 		})
 	}
+
+	// A resource condition on the same name doesn't select the span tag's values.
+	t.Run("span mixed where resource mixed exists", func(t *testing.T) {
+		id := test.ValidTraceID(nil)
+		tr := &tempopb.Trace{}
+		for i, kv := range []struct{ span, res *v1_common.KeyValue }{
+			{span: &v1_common.KeyValue{Key: "mixed", Value: strOf("a")}, res: &v1_common.KeyValue{Key: "mixed", Value: strOf("r")}},
+			{span: &v1_common.KeyValue{Key: "mixed", Value: intOf(1)}},
+		} {
+			rs := &v1.ResourceSpans{Resource: &v1_resource.Resource{}, ScopeSpans: []*v1.ScopeSpans{{Spans: []*v1.Span{{
+				TraceId:           id,
+				SpanId:            []byte{1, 2, 3, 4, 5, 6, 7, byte(i)},
+				Name:              "test",
+				StartTimeUnixNano: uint64(100 * time.Second),
+				EndTimeUnixNano:   uint64(200 * time.Second),
+				Attributes:        []*v1_common.KeyValue{kv.span},
+			}}}}}
+			if kv.res != nil {
+				rs.Resource.Attributes = []*v1_common.KeyValue{kv.res}
+			}
+			tr.ResourceSpans = append(tr.ResourceSpans, rs)
+		}
+		dc := backend.DedicatedColumns{
+			{Scope: backend.DedicatedColumnScopeSpan, Name: "mixed", Type: backend.DedicatedColumnTypeString},
+			{Scope: backend.DedicatedColumnScopeResource, Name: "mixed", Type: backend.DedicatedColumnTypeString},
+		}
+		block := makeBackendBlockWithFillers(t, id, tr, dc)
+
+		spanMixed := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "mixed")
+		resMixed := traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "mixed")
+		distinctValues := collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+		req := traceql.FetchTagValuesRequest{
+			TagName:         spanMixed,
+			ConditionGroups: [][]traceql.Condition{{{Attribute: resMixed, Op: traceql.OpExists}, {Attribute: spanMixed, Op: traceql.OpNone}}},
+		}
+		require.NoError(t, block.FetchTagValues(t.Context(), req, traceql.MakeCollectTagValueFunc(distinctValues.Collect), func(uint64) {}, common.DefaultSearchOptions()))
+		require.ElementsMatch(t, []tempopb.TagValue{stringTagValue("a")}, distinctValues.Values())
+	})
 }
 
 func TestFetchTagValuesWithIDIntrinsics(t *testing.T) {

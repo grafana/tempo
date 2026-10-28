@@ -718,6 +718,41 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		}
 	}
 
+	// Unscoped conditions read the same dedicated column as the scoped ones.
+	for _, scope := range []backend.DedicatedColumnScope{backend.DedicatedColumnScopeSpan, backend.DedicatedColumnScopeResource} {
+		for _, q := range []string{`{ %[1]s.mixed = nil || .mixed != nil }`, `{ %[1]s.mixed != nil && .mixed = 1 }`} {
+			query := fmt.Sprintf(q, scope)
+			t.Run(fmt.Sprintf("%s/unscoped/%s", scope, query), func(t *testing.T) {
+				mixed := []*v1_common.KeyValue{{Key: "mixed", Value: intValue}}
+				id := test.ValidTraceID(nil)
+				tr := makeTrace(id, nil, mixed)
+				if scope == backend.DedicatedColumnScopeResource {
+					tr = makeTrace(id, mixed, nil)
+				}
+				dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: strCol}}
+				want := map[traceql.Attribute]traceql.Static{
+					traceql.NewScopedAttribute(traceql.AttributeScopeFromString(string(scope)), false, "mixed"): traceql.NewStaticInt(1),
+				}
+				checkQuery(t, dc, id, tr, query, true, want)
+			})
+		}
+	}
+
+	// Each dedicated column of a scope gets its own existence iterator.
+	for _, scope := range []backend.DedicatedColumnScope{backend.DedicatedColumnScopeSpan, backend.DedicatedColumnScopeResource} {
+		query := fmt.Sprintf(`{ %[1]s.mixed != nil || %[1]s.other != nil }`, scope)
+		t.Run(fmt.Sprintf("%s/two columns/%s", scope, query), func(t *testing.T) {
+			other := []*v1_common.KeyValue{{Key: "other", Value: strValue}}
+			id := test.ValidTraceID(nil)
+			tr := makeTrace(id, nil, other)
+			if scope == backend.DedicatedColumnScopeResource {
+				tr = makeTrace(id, other, nil)
+			}
+			dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: strCol}, {Scope: scope, Name: "other", Type: strCol}}
+			checkQuery(t, dc, id, tr, query, true, nil)
+		})
+	}
+
 	// Well-known columns also store values of another type in generic attributes.
 	wellKnownCases := []struct {
 		query string
@@ -738,6 +773,9 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{`{ resource.service.name != nil }`, true, nil},
 		{`{ span.http.url != nil && span.http.url = nil }`, false, nil},
 		{`{ resource.k8s.pod.name != nil && resource.k8s.pod.name = nil }`, false, nil},
+		{`{ span.http.method != nil && span.http.method = 1 }`, true, map[traceql.Attribute]traceql.Static{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod): traceql.NewStaticInt(1)}},
+		{`{ span.http.method = 1 && span.http.method != nil }`, true, map[traceql.Attribute]traceql.Static{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod): traceql.NewStaticInt(1)}},
+		{`{ resource.k8s.namespace.name = 1 && resource.k8s.namespace.name != nil }`, true, map[traceql.Attribute]traceql.Static{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName): traceql.NewStaticInt(1)}},
 		{`{ span.http.method }`, true, map[traceql.Attribute]traceql.Static{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod): traceql.NewStaticInt(1)}},
 		{`{ span.http.url }`, true, map[traceql.Attribute]traceql.Static{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl): traceql.NewStaticString("a")}},
 		{`{ resource.k8s.namespace.name }`, true, map[traceql.Attribute]traceql.Static{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName): traceql.NewStaticInt(1)}},
