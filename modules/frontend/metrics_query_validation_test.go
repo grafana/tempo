@@ -241,6 +241,20 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			wantSpanResult: scannedBytesResultRejected,
 		},
 		{
+			// a-over's max_duration rejection has no check, so the span must not show b-fits' fitting check.
+			name:  "a max_duration rejection without a check leaves the span empty",
+			orgID: "b-fits|a-over",
+			perTenant: `overrides:
+  a-over:
+    read:
+      max_metrics_duration: 1h
+  b-fits:
+    read:
+      max_metrics_scanned_bytes: 350
+`,
+			wantErr: "metrics query time range exceeds the maximum allowed duration of 1h0m0s",
+		},
+		{
 			name:           "tenants that all fit put the first check on the span",
 			orgID:          "b-fits|d-fits",
 			cfg:            QueryRangeSharderConfig{MaxScannedBytes: 350},
