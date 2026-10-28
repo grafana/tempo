@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"math"
 	"net/http"
@@ -83,7 +84,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeriesLimit int, opts ...O
 			}
 			return nil
 		},
-		finalize: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
+		finalize: func(_ context.Context, _ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
 			resp := combiner.Response()
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}

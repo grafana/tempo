@@ -8,6 +8,9 @@ func sumOverTime() func(curr float64, n float64) (res float64) {
 		if math.IsNaN(sum) {
 			return inc
 		}
+		if math.IsNaN(inc) {
+			return sum
+		}
 		y := inc - comp
 		sum, c := kahanSumInc(y, sum, 0) // Compensation is applied on every step, hence we pass 0 to reset it
 		comp = c

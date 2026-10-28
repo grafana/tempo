@@ -596,7 +596,7 @@ storage:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
             version: vParquet5
-            parquet_row_group_size_bytes: 100000000
+            parquet_row_group_size_bytes: 250000000
             parquet_dedicated_columns:
                 - scope: resource
                   name: k8s.cluster.name
@@ -658,7 +658,7 @@ storage:
             chunk_size_bytes: 1000000
             prefetch_trace_count: 1000
             read_buffer_count: 32
-            read_buffer_size_bytes: 1048576
+            read_buffer_size_bytes: 2097152
             cache_control:
                 footer: false
                 column_index: false
@@ -711,6 +711,8 @@ storage:
             retry_max_attempts: 10
             retry_backoff_initial: 200ms
             retry_backoff_max: 1s
+            max_idle_connections: 100
+            max_idle_connections_per_host: 100
             signature_v2: false
             forcepathstyle: false
             enable_dual_stack: false
@@ -810,6 +812,8 @@ overrides:
                 retry_max_attempts: 10
                 retry_backoff_initial: 200ms
                 retry_backoff_max: 1s
+                max_idle_connections: 100
+                max_idle_connections_per_host: 100
                 signature_v2: false
                 forcepathstyle: false
                 enable_dual_stack: false

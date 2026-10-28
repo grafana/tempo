@@ -69,15 +69,20 @@ func TestExtrapolationFilterEndToEnd(t *testing.T) {
 
 	cases := []struct {
 		query string
+		opts  []traceql.CompileOption
 		want  float64
 		descr string
 	}{
-		{`{resource.service.name="shop-backend"} | count_over_time()`, 5, "naive shop"},
-		{`{resource.service.name="shop-backend"} | count_over_time() with(extrapolate=true)`, 10, "extrap shop = 2x"},
-		{`{resource.service.name="tempo-vulture"} | count_over_time()`, 10, "naive vulture"},
-		{`{resource.service.name="tempo-vulture"} | count_over_time() with(extrapolate=true)`, 10, "extrap vulture = 1x (no tracestate)"},
-		{`{} | count_over_time()`, 15, "naive all"},
-		{`{} | count_over_time() with(extrapolate=true)`, 20, "extrap all = 5*2 + 10*1"},
+		{`{resource.service.name="shop-backend"} | count_over_time()`, nil, 5, "naive shop"},
+		{`{resource.service.name="shop-backend"} | count_over_time() with(extrapolate=true)`, nil, 10, "extrap shop = 2x"},
+		{`{resource.service.name="tempo-vulture"} | count_over_time()`, nil, 10, "naive vulture"},
+		{`{resource.service.name="tempo-vulture"} | count_over_time() with(extrapolate=true)`, nil, 10, "extrap vulture = 1x (no tracestate)"},
+		{`{} | count_over_time()`, nil, 15, "naive all"},
+		{`{} | count_over_time() with(extrapolate=true)`, nil, 20, "extrap all = 5*2 + 10*1"},
+		{`{resource.service.name="shop-backend"} | count_over_time()`, []traceql.CompileOption{traceql.WithExtrapolation(true)}, 10, "default on"},
+		{`{resource.service.name="shop-backend"} | count_over_time() with(extrapolate=false)`, []traceql.CompileOption{traceql.WithExtrapolation(true)}, 5, "default on, hint off"},
+		{`{resource.service.name="shop-backend"} | count_over_time()`, []traceql.CompileOption{traceql.WithExtrapolation(false)}, 5, "default off"},
+		{`{resource.service.name="shop-backend"} | count_over_time() with(extrapolate=true)`, []traceql.CompileOption{traceql.WithExtrapolation(false)}, 10, "default off, hint on"},
 	}
 
 	for _, tc := range cases {
@@ -90,7 +95,7 @@ func TestExtrapolationFilterEndToEnd(t *testing.T) {
 				MaxSeries: 1000,
 			}
 			eng := traceql.NewEngine()
-			eval, err := eng.CompileMetricsQueryRange(req)
+			eval, err := eng.CompileMetricsQueryRange(req, tc.opts...)
 			require.NoError(t, err)
 			err = eval.Do(ctx, fetcher, st, end, int(req.MaxSeries))
 			require.NoError(t, err)

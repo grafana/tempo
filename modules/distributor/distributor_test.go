@@ -568,6 +568,99 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedEnds:   []uint32{60},
 		},
 		{
+			name: "one trace - same scope name and version, different scope attributes",
+			batches: []*v1.ResourceSpans{
+				{
+					ScopeSpans: []*v1.ScopeSpans{
+						{
+							Scope: &v1_common.InstrumentationScope{
+								Name:       "test",
+								Version:    "1.0",
+								Attributes: []*v1_common.KeyValue{makeAttribute("scope.label", "alpha")},
+							},
+							Spans: []*v1.Span{
+								{
+									TraceId:           traceIDA,
+									Name:              "spanA",
+									SpanId:            spanID,
+									StartTimeUnixNano: uint64(30 * time.Second),
+									EndTimeUnixNano:   uint64(40 * time.Second),
+								},
+							},
+						},
+						{
+							Scope: &v1_common.InstrumentationScope{
+								Name:       "test",
+								Version:    "1.0",
+								Attributes: []*v1_common.KeyValue{makeAttribute("scope.label", "beta")},
+							},
+							Spans: []*v1.Span{
+								{
+									TraceId:           traceIDA,
+									Name:              "spanB",
+									SpanId:            spanID,
+									StartTimeUnixNano: uint64(50 * time.Second),
+									EndTimeUnixNano:   uint64(60 * time.Second),
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
+			expectedTraces: []*tempopb.Trace{
+				{
+					ResourceSpans: []*v1.ResourceSpans{
+						{
+							ScopeSpans: []*v1.ScopeSpans{
+								{
+									Scope: &v1_common.InstrumentationScope{
+										Name:       "test",
+										Version:    "1.0",
+										Attributes: []*v1_common.KeyValue{makeAttribute("scope.label", "alpha")},
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId:           traceIDA,
+											Name:              "spanA",
+											SpanId:            spanID,
+											StartTimeUnixNano: uint64(30 * time.Second),
+											EndTimeUnixNano:   uint64(40 * time.Second),
+										},
+									},
+								},
+							},
+						},
+						{
+							ScopeSpans: []*v1.ScopeSpans{
+								{
+									Scope: &v1_common.InstrumentationScope{
+										Name:       "test",
+										Version:    "1.0",
+										Attributes: []*v1_common.KeyValue{makeAttribute("scope.label", "beta")},
+									},
+									Spans: []*v1.Span{
+										{
+											TraceId:           traceIDA,
+											Name:              "spanB",
+											SpanId:            spanID,
+											StartTimeUnixNano: uint64(50 * time.Second),
+											EndTimeUnixNano:   uint64(60 * time.Second),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIDs: [][]byte{
+				traceIDA,
+			},
+			expectedStarts: []uint32{30},
+			expectedEnds:   []uint32{60},
+		},
+		{
 			name: "two traces - two batches - don't combine across batches",
 			batches: []*v1.ResourceSpans{
 				{

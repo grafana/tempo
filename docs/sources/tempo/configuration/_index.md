@@ -1758,6 +1758,19 @@ storage:
             # The maximum duration to wait between retry attempts on failed S3 requests.
             [retry_backoff_max: <duration>]
 
+            # Optional. Default is 100
+            # Example: "max_idle_connections_per_host: 400"
+            # The maximum number of idle connections kept open to the S3 endpoint. When more requests than
+            # this finish at the same time, the extra connections are closed, and later requests open new
+            # ones with a new TCP and TLS handshake. Set this at or above the number of concurrent S3
+            # requests, for example the storage pool max_workers on queriers.
+            [max_idle_connections_per_host: <int>]
+
+            # Optional. Default is 100
+            # Example: "max_idle_connections: 400"
+            # The maximum number of idle connections kept open across all S3 hosts.
+            [max_idle_connections: <int>]
+
             # Optional
             # Example: "tags: {'key': 'value'}"
             # A map of key value strings for user tags to store on the S3 objects. This helps set up filters in S3 lifecycles.
@@ -2118,7 +2131,7 @@ Defines re-used configuration blocks.
 # an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
 #  create larger footers but will be harder to shard when searching. It is difficult to calculate
 #  this field directly and it may vary based on workload. This is roughly a lower bound.
-[parquet_row_group_size_bytes: <int> | default = 100MB]
+[parquet_row_group_size_bytes: <int> | default = 250MB]
 
 # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
 # generic attribute key-value list. This allows for more efficient searching of these attributes.
@@ -2323,7 +2336,7 @@ multi:
 
 # Size of read buffers used when performing search on a vparquet block. This value times the read_buffer_count
 # is the total amount of bytes used for buffering when performing search on a parquet block.
-[read_buffer_size_bytes: <int> | default = 1048576]
+[read_buffer_size_bytes: <int> | default = 2097152]
 
 # Granular cache control settings for parquet metadata objects
 # Deprecated. See [Cache](#cache) section.
@@ -2485,6 +2498,12 @@ overrides:
       # which is enabled by default. Set to false to opt out for the tenant.
       # May be overridden by query hints.
       [metrics_spanonly_fetch: <bool> | default = true]
+
+      # EXPERIMENTAL
+      # Per-user toggle for extrapolating TraceQL metrics from the per-span
+      # sampling probability by default. May be overridden by the
+      # extrapolate query hint.
+      [metrics_extrapolate: <bool> | default = false]
 
       # EXPERIMENTAL
       # When enabled, queries report an additional metric indicating whether the
