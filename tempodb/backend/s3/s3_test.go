@@ -873,6 +873,70 @@ func TestObjectStorageClass(t *testing.T) {
 	}
 }
 
+func TestReadRangeRequestsExactBytes(t *testing.T) {
+	tests := []struct {
+		name          string
+		offset        uint64
+		length        int
+		expectedRange string
+	}{
+		{
+			name:          "from start",
+			offset:        0,
+			length:        10,
+			expectedRange: "bytes=0-9",
+		},
+		{
+			name:          "with offset",
+			offset:        10,
+			length:        5,
+			expectedRange: "bytes=10-14",
+		},
+		{
+			name:          "single byte",
+			offset:        0,
+			length:        1,
+			expectedRange: "bytes=0-0",
+		},
+		{
+			name:          "empty buffer",
+			offset:        10,
+			length:        0,
+			expectedRange: "bytes=10-10",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var capturedRange string
+			server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/object") {
+					capturedRange = r.Header.Get("Range")
+					w.Header().Set("Last-Modified", "Fri, 01 Mar 2024 00:00:00 GMT")
+					w.WriteHeader(http.StatusPartialContent)
+					_, _ = w.Write(make([]byte, tc.length))
+					return
+				}
+				_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><ListBucketResult></ListBucketResult>`))
+			})
+
+			r, _, _, err := New(&Config{
+				Region:    "blerg",
+				AccessKey: "test",
+				SecretKey: flagext.SecretWithValue("test"),
+				Bucket:    "blerg",
+				Insecure:  true,
+				Endpoint:  server.URL[7:], // [7:] -> strip http://
+			})
+			require.NoError(t, err)
+
+			err = r.ReadRange(context.Background(), "object", backend.KeyPath{"test"}, tc.offset, make([]byte, tc.length), nil)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedRange, capturedRange)
+		})
+	}
+}
+
 func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
 	const (
 		prefix             = "a/b/c"
