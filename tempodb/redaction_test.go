@@ -325,6 +325,9 @@ func TestRedactBlockQueryNarrowingConditions(t *testing.T) {
 		{"not equal with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command != "ls"}`, hex(idLsla, idEmpty)},
 		{"not-regex with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command !~ "ls.*"}`, hex(idLsla, idEmpty)},
 		{"regex with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command =~ "ls.*"}`, hex(idLs)},
+		// Narrowing conditions joined by || next to the positive filter.
+		{"or of equality and regex", `{resource.service.name = "claude-code-cli" && (span.full_command = "ls" || span.full_command =~ "xls.*")}`, hex(idLs, idLsla)},
+		{"or of negation and existence", `{resource.service.name = "claude-code-cli" && (span.full_command != "ls" || span.nope != nil)}`, hex(idLsla, idEmpty)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, found, _, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, tc.query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, RedactionWindow{})
@@ -342,6 +345,34 @@ func TestRedactBlockQueryNarrowingConditions(t *testing.T) {
 		require.NotNil(t, newMeta)
 		require.Equal(t, hex(idEmpty, idMissing, idOtherService), survivingTraceIDs(t, r, newMeta, `{resource.service.name != nil}`))
 	})
+}
+
+// TestRedactBlockQueryExistenceDisjunction checks an || of existence checks ANDed with an equality:
+// a trace carrying either attribute is dropped, one carrying neither survives.
+func TestRedactBlockQueryExistenceDisjunction(t *testing.T) {
+	r, w, c, _ := testConfig(t, 0)
+	ctx := context.Background()
+
+	idA := test.ValidTraceID(nil)
+	idB := test.ValidTraceID(nil)
+	idKeep := test.ValidTraceID(nil)
+	now := uint32(time.Now().Unix())
+
+	data := []testData{
+		{idA, traceWithSpanAttr(idA, "a", "x"), now, now},
+		{idB, traceWithSpanAttr(idB, "b", "x"), now, now},
+		{idKeep, traceWithSpanAttr(idKeep, "c", "x"), now, now},
+	}
+	query := `{resource.service.name = "test-service" && (span.a != nil || span.b != nil)}`
+
+	blk := cutTestBlockWithTraces(t, w, data)
+	require.Equal(t, int64(3), blk.BlockMeta().TotalObjects)
+
+	_, found, newMeta, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{})
+	require.NoError(t, err)
+	require.Equal(t, 2, found)
+	require.NotNil(t, newMeta)
+	require.Equal(t, []string{util.TraceIDToHexString(idKeep)}, survivingTraceIDs(t, r, newMeta, `{resource.service.name = "test-service"}`))
 }
 
 // TestRedactBlockOneSidedWindowStillBounds verifies a window with only one bound set still bounds the

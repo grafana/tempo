@@ -40,22 +40,21 @@ func validateRedactionQuery(query string) error {
 	return validateRedactionExpr(filter.Expression)
 }
 
-// validateRedactionExpr requires fe to be an && of conditions with at least one positive condition:
-// an = comparison, or an || of = comparisons. The other conditions (!=, =~, !~, != nil) only narrow
-// that match, so a typo in one of them cannot widen the deletion beyond the positive anchor.
+// validateRedactionExpr requires fe to be an && of conditions, at least one of them a positive filter
+// (see isRedactionPositiveFilter). The other conditions may combine comparisons (=, !=, =~, !~,
+// != nil) with && and || freely:
+// ANDed with the positive filter, they can only narrow its match, so a typo in one of them cannot
+// widen the deletion beyond it.
 func validateRedactionExpr(fe traceql.FieldExpression) error {
-	hasPositive := false
+	if err := validateRedactionCondition(fe); err != nil {
+		return err
+	}
 	for _, cond := range redactionConditions(fe) {
-		positive, err := validateRedactionCondition(cond)
-		if err != nil {
-			return err
+		if isRedactionPositiveFilter(cond) {
+			return nil
 		}
-		hasPositive = hasPositive || positive
 	}
-	if !hasPositive {
-		return errors.New("redaction query must include at least one = comparison (or an || of = comparisons) joined by &&")
-	}
-	return nil
+	return errors.New("redaction query must include at least one = comparison (or a parenthesised || of = comparisons) joined to the rest of the query by &&")
 }
 
 // redactionConditions flattens a tree of && into its conditions.
@@ -66,37 +65,54 @@ func redactionConditions(fe traceql.FieldExpression) []traceql.FieldExpression {
 	return []traceql.FieldExpression{fe}
 }
 
-// validateRedactionCondition checks one &&-joined condition and reports whether it is positive.
-func validateRedactionCondition(cond traceql.FieldExpression) (positive bool, err error) {
+// isRedactionPositiveFilter reports whether fe is an = comparison or an || of = comparisons.
+func isRedactionPositiveFilter(fe traceql.FieldExpression) bool {
+	bin, ok := fe.(*traceql.BinaryOperation)
+	if !ok {
+		return false
+	}
+	switch bin.Op {
+	case traceql.OpEqual:
+		return true
+	case traceql.OpOr:
+		return isRedactionPositiveFilter(bin.LHS) && isRedactionPositiveFilter(bin.RHS)
+	default:
+		return false
+	}
+}
+
+// validateRedactionCondition checks that fe combines only the comparisons the subset allows, with && / ||.
+func validateRedactionCondition(fe traceql.FieldExpression) error {
 	// The grammar rewrites `attr != nil` into a unary OpExists, so it never reaches the
 	// operator switch below as a negation.
-	if un, ok := cond.(traceql.UnaryOperation); ok {
+	if un, ok := fe.(traceql.UnaryOperation); ok {
 		if un.Op != traceql.OpExists {
-			return false, fmt.Errorf("operator %v not allowed in redaction query", un.Op)
+			return fmt.Errorf("operator %v not allowed in redaction query", un.Op)
 		}
 		attr, ok := un.Expression.(traceql.Attribute)
 		if !ok {
-			return false, fmt.Errorf("redaction query existence checks must name an attribute, got %T", un.Expression)
+			return fmt.Errorf("redaction query existence checks must name an attribute, got %T", un.Expression)
 		}
-		return false, validateRedactionAttribute(attr)
+		return validateRedactionAttribute(attr)
 	}
 
-	bin, ok := cond.(*traceql.BinaryOperation)
+	bin, ok := fe.(*traceql.BinaryOperation)
 	if !ok {
-		return false, fmt.Errorf("redaction query supports only comparisons and existence checks joined by &&, got %T", cond)
+		return fmt.Errorf("redaction query supports only comparisons and existence checks joined by && / ||, got %T", fe)
 	}
 
 	switch bin.Op {
-	case traceql.OpEqual:
-		return true, validateRedactionComparison(bin.LHS, bin.RHS)
-	case traceql.OpOr:
-		return true, validateRedactionEqualityGroup(bin)
-	case traceql.OpNotEqual:
-		return false, validateRedactionComparison(bin.LHS, bin.RHS)
+	case traceql.OpAnd, traceql.OpOr:
+		if err := validateRedactionCondition(bin.LHS); err != nil {
+			return err
+		}
+		return validateRedactionCondition(bin.RHS)
+	case traceql.OpEqual, traceql.OpNotEqual:
+		return validateRedactionComparison(bin.LHS, bin.RHS)
 	case traceql.OpRegex, traceql.OpNotRegex:
-		return false, validateRedactionRegex(bin.LHS, bin.RHS)
+		return validateRedactionRegex(bin.LHS, bin.RHS)
 	default:
-		return false, fmt.Errorf("operator %v not allowed in redaction query; only =, !=, =~, !~ and != nil are supported", bin.Op)
+		return fmt.Errorf("operator %v not allowed in redaction query; only =, !=, =~, !~ and != nil are supported", bin.Op)
 	}
 }
 
@@ -116,22 +132,6 @@ func validateRedactionRegex(lhs, rhs traceql.FieldExpression) error {
 		return fmt.Errorf("invalid regex %q: %w", pattern, err)
 	}
 	return validateRedactionAttribute(attr)
-}
-
-// validateRedactionEqualityGroup requires every branch of an || to be an = comparison.
-func validateRedactionEqualityGroup(fe traceql.FieldExpression) error {
-	if bin, ok := fe.(*traceql.BinaryOperation); ok {
-		switch bin.Op {
-		case traceql.OpOr:
-			if err := validateRedactionEqualityGroup(bin.LHS); err != nil {
-				return err
-			}
-			return validateRedactionEqualityGroup(bin.RHS)
-		case traceql.OpEqual:
-			return validateRedactionComparison(bin.LHS, bin.RHS)
-		}
-	}
-	return errors.New("|| in a redaction query may only join = comparisons")
 }
 
 // validateRedactionAttribute requires an attribute the subset can act on: scoped to resource. or
