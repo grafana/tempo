@@ -713,8 +713,8 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 	// Bound the scan to the redaction window so each block is read only over the requested
 	// range. See RedactionWindow.fetchBounds for why both fetch fields move together.
 	if start, end, ok := window.fetchBounds(); ok {
-		req.StartTimeUnixNanos = start
-		req.EndTimeUnixNanos = end
+		req.TraceStartTimeUnixNanos = start
+		req.TraceEndTimeUnixNanos = end
 	}
 
 	// Request trace-level metadata in the second pass so each returned spanset carries its

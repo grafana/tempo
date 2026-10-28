@@ -573,22 +573,22 @@ func searchesThatMatch(t *testing.T, traceIDText string) []struct {
 		{
 			"Time range inside trace",
 			traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(1100 * time.Second),
-				EndTimeUnixNanos:   uint64(1200 * time.Second),
+				TraceStartTimeUnixNanos: uint64(1100 * time.Second),
+				TraceEndTimeUnixNanos:   uint64(1200 * time.Second),
 			},
 		},
 		{
 			"Time range overlap start",
 			traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(900 * time.Second),
-				EndTimeUnixNanos:   uint64(1100 * time.Second),
+				TraceStartTimeUnixNanos: uint64(900 * time.Second),
+				TraceEndTimeUnixNanos:   uint64(1100 * time.Second),
 			},
 		},
 		{
 			"Time range overlap end",
 			traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(1900 * time.Second),
-				EndTimeUnixNanos:   uint64(2100 * time.Second),
+				TraceStartTimeUnixNanos: uint64(1900 * time.Second),
+				TraceEndTimeUnixNanos:   uint64(2100 * time.Second),
 			},
 		},
 		// Intrinsics
@@ -817,15 +817,15 @@ func searchesThatDontMatch(t *testing.T) []struct {
 		{
 			name: "Time range after trace",
 			req: traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(20000 * time.Second),
-				EndTimeUnixNanos:   uint64(30000 * time.Second),
+				TraceStartTimeUnixNanos: uint64(20000 * time.Second),
+				TraceEndTimeUnixNanos:   uint64(30000 * time.Second),
 			},
 		},
 		{
 			name: "Time range before trace",
 			req: traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(600 * time.Second),
-				EndTimeUnixNanos:   uint64(700 * time.Second),
+				TraceStartTimeUnixNanos: uint64(600 * time.Second),
+				TraceEndTimeUnixNanos:   uint64(700 * time.Second),
 			},
 		},
 		{
