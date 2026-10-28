@@ -628,7 +628,7 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 	}
 
 	// checkQuery reads the trace from a block with filler traces, and runs both fetch paths.
-	// want returns the attribute values a matched span must return. It returns the IDs of the matched spans of the trace.
+	// want returns the attribute values a matched span must return. checkQuery returns the IDs of the matched spans of the trace.
 	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, want func(traceql.Span) map[traceql.Attribute]traceql.Static) (fetchIDs, fetchSpansIDs []string) {
 		requireValues := func(path string, sp traceql.Span) {
 			if want == nil {
