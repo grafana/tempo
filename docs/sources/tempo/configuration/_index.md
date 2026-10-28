@@ -1136,7 +1136,7 @@ query_frontend:
         [max_scanned_bytes: <int>]
 
         # A search of this range or shorter is always allowed, even if it scans more than max_scanned_bytes.
-        # Has no effect when max_scanned_bytes is 0. If min_duration is above max_duration, max_duration wins.
+        # Has no effect when max_scanned_bytes is 0. Tempo fails to start if min_duration is above max_duration.
         # 0 means no minimum.
         # (default: 0s)
         [min_duration: <duration>]
@@ -1237,7 +1237,7 @@ query_frontend:
         [max_scanned_bytes: <int> | default = 0 ]
 
         # A metrics query of this range or shorter is always allowed, even if it scans more than max_scanned_bytes.
-        # Has no effect when max_scanned_bytes is 0. If min_duration is above max_duration, max_duration wins.
+        # Has no effect when max_scanned_bytes is 0. Tempo fails to start if min_duration is above max_duration.
         # 0 means no minimum.
         [min_duration: <duration> | default = 0s ]
 
@@ -2527,6 +2527,7 @@ overrides:
 
       # Per-user search min_duration. Replaces query_frontend.search.min_duration for this tenant.
       #  A search of this range or shorter is always allowed, unless the tenant's max_duration is lower.
+      #  Must not be above max_search_duration when both are set.
       # 0 (default) uses the front-end configuration.
       [min_search_duration: <duration> | default = 0s]
 
@@ -2542,6 +2543,7 @@ overrides:
 
       # Per-user metrics min_duration. Replaces query_frontend.metrics.min_duration for this tenant.
       #  A metrics query of this range or shorter is always allowed, unless the tenant's max_duration is lower.
+      #  Must not be above max_metrics_duration when both are set.
       # 0 (default) uses the front-end configuration.
       [min_metrics_duration: <duration> | default = 0s]
 

@@ -50,7 +50,7 @@ It's then raised to `min_duration` and capped at `max_duration`.
 Longer queries are rejected with a 400 error that reports the allowed range and asks the user to reduce the time range.
 If the newest data in the range is already over the limit, `min_duration` is `0`, and the query ends more than `query_backend_after` ago, no shorter range fits, so the error reports that and gives no range to retry with.
 A query of `min_duration` or less is always allowed.
-If `min_duration` is above `max_duration`, `max_duration` wins.
+Tempo fails to start if `min_duration` is above `max_duration`. A per-tenant overrides reload fails if a tenant sets `min_search_duration` above `max_search_duration`, or `min_metrics_duration` above `max_metrics_duration`, and Tempo keeps the last valid overrides. If a tenant override and the `query_frontend` value give a `min_duration` above `max_duration`, `max_duration` wins.
 Data newer than `query_backend_after` isn't counted.
 Metrics queries are counted over the requested range. Step alignment can widen the scanned range by up to 4 steps, so a query with a large step can scan more than `max_scanned_bytes`, the same as with `max_duration`.
 `0` (default) disables the limit, and `min_duration` has no effect without `max_scanned_bytes`.

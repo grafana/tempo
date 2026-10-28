@@ -50,7 +50,7 @@ type QueryRangeSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	// MaxScannedBytes is the byte budget of backend blocks a query range may overlap. 0 disables the limit.
 	MaxScannedBytes uint64 `yaml:"max_scanned_bytes,omitempty"`
-	// MinDuration is the range always allowed when MaxScannedBytes is set, even if it is over the budget, unless MaxDuration is lower.
+	// MinDuration is the range always allowed when MaxScannedBytes is set, even if it is over the budget.
 	MinDuration time.Duration `yaml:"min_duration,omitempty"`
 	// QueryBackendAfter determines when to query backend storage vs ingesters only.
 	QueryBackendAfter time.Duration `yaml:"query_backend_after,omitempty"`
