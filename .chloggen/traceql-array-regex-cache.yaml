@@ -1,6 +1,0 @@
-change_type: bug_fix
-component: traceql
-note: "Fix `unexpected numbers of pre-compiled regexp` when a regex condition sees both array and scalar values of an attribute."
-issues: []
-subtext:
-user: zhxiaogg

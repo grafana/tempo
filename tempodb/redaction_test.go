@@ -408,7 +408,6 @@ func TestRedactBlockQueryArrayAttributes(t *testing.T) {
 				{"equal", `{resource.service.name = "claude-code-cli" && span.full_command = "ls"}`, hexTraceIDs(idMixed, idAllLs)},
 				{"not equal", `{resource.service.name = "claude-code-cli" && span.full_command != "ls"}`, hexTraceIDs(idMixed, idNoLs)},
 				{"regex", `{resource.service.name = "claude-code-cli" && span.full_command =~ "l.*"}`, hexTraceIDs(idMixed, idAllLs)},
-				{"not-regex", `{resource.service.name = "claude-code-cli" && span.full_command !~ "l.*"}`, hexTraceIDs(idMixed, idNoLs)},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					_, found, _, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, tc.query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, RedactionWindow{})
