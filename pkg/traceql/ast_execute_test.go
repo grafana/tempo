@@ -910,6 +910,23 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 			[]*Spanset{},
 		},
+		// array and scalar values of the same attribute share the compiled regex
+		{
+			"{ .foo !~ `l.*` }",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"pwd", "cd"})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("pwd")}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("ls")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"pwd", "cd"})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("pwd")}},
+				}},
+			},
+		},
 		{
 			"{ .foo = `test` }",
 			[]*Spanset{

@@ -594,9 +594,16 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 				l, r = r, l
 			}
 
+			// one regex per element when the elements are the patterns; a single one when the pattern is
+			// the scalar, so the cache stays valid for scalar values of the same attribute
+			expIdx := i
+			if flipOperands {
+				expIdx = 0
+			}
+
 			var exp []*regexp.Regexp
-			if len(o.compiledExpressions) > i {
-				exp = o.compiledExpressions[i : i+1]
+			if len(o.compiledExpressions) > expIdx {
+				exp = o.compiledExpressions[expIdx : expIdx+1]
 			}
 
 			res, exp, err := binOpExecuteScalar(elemOp, l, r, exp)
@@ -604,7 +611,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 				return NewStaticNil(), err
 			}
 
-			if len(o.compiledExpressions) == i {
+			if len(o.compiledExpressions) == expIdx {
 				o.compiledExpressions = append(o.compiledExpressions, exp...)
 			}
 
