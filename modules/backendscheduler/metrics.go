@@ -25,6 +25,11 @@ var (
 		Name:      "backend_scheduler_jobs_failed_total",
 		Help:      "Total number of jobs that failed",
 	}, []string{"tenant", "job_type"})
+	metricLastSuccessfulJobTimestamp = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_last_successful_job_timestamp_seconds",
+		Help:      "Unix timestamp of the last job of each type that completed successfully and was applied to the blocklist",
+	}, []string{"job_type"})
 	metricJobsActive = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_jobs_active",
