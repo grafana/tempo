@@ -47,7 +47,9 @@ func TestWriteMetrics(t *testing.T) {
 
 		// kafka producer buffer metrics. The gauge is exported by kprom and the distribution summary by the Producer.
 		assertMetricInDelta(t, distributor, "tempo_distributor_buffered_produce_bytes", 0, float64(countBytes), nil)
-		assertMetricGreater(t, distributor, "tempo_distributor_buffered_produce_bytes_distribution_count", 0, nil)
+		distSamples, err := distributor.SumMetrics([]string{"tempo_distributor_buffered_produce_bytes_distribution"}, e2e.WithMetricCount)
+		require.NoError(t, err)
+		require.Greater(t, distSamples[0], float64(0))
 		assertMetricGreater(t, distributor, "tempo_distributor_buffered_produce_bytes_limit", 0, nil)
 
 		// livestore
