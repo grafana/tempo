@@ -168,8 +168,7 @@ func TestDictPushdownEngages(t *testing.T) {
 // as the per-row path does.
 func TestDictPushdownCountsRows(t *testing.T) {
 	f := dictTestFile(t)
-	var stats PredicateStats
-	it := NewSyncIterator(context.TODO(), f.RowGroups(), 0, SyncIteratorOptPredicate(NewStringInPredicate([]string{"shop"})), SyncIteratorOptStats(&stats))
+	it := NewSyncIterator(context.TODO(), f.RowGroups(), 0, SyncIteratorOptPredicate(NewStringInPredicate([]string{"shop"})))
 	defer it.Close()
 	drain(t, it)
 
@@ -179,8 +178,8 @@ func TestDictPushdownCountsRows(t *testing.T) {
 			kept++
 		}
 	}
-	require.Equal(t, int64(600), stats.InspectedValues)
-	require.Equal(t, kept, stats.KeptValues)
+	require.Equal(t, int64(600), it.Stats().InspectedValues)
+	require.Equal(t, kept, it.Stats().KeptValues)
 }
 
 // TestDictPushdownFileSchemaMismatch: a file opened with a schema that doesn't match

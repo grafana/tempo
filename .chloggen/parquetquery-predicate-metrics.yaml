@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: storage
+
+note: Add `tempo_parquetquery_predicate_decisions_total` to show, per tenant, how many column chunks, pages and values query predicates keep or prune.
+
+issues: []
+
+subtext:
+
+user: zhxiaogg
