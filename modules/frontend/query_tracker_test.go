@@ -201,7 +201,7 @@ func TestHandlerTracksDecodedQueryText(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tracker := &recordingQueryTracker{}
-			handler := newHandlerWithTracker(nil, testRoundTripper(func(*http.Request) (*http.Response, error) {
+			handler := newHandler(nil, testRoundTripper(func(*http.Request) (*http.Response, error) {
 				return &http.Response{StatusCode: http.StatusInternalServerError, Header: make(http.Header), Body: http.NoBody}, nil
 			}), log.NewNopLogger(), tracker)
 

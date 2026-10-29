@@ -251,22 +251,18 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, o, logger, dataAccessController)
 
 	queryTrackerInstance := newQueryTracker(cfg.QueryTracker, logger, registerer)
-	trackedHandler := func(rt http.RoundTripper) http.Handler {
-		return newHandlerWithTracker(cfg.Config.LogQueryRequestHeaders, rt, logger, queryTrackerInstance)
-	}
-
 	f := &QueryFrontend{
 		// http/discrete
-		TraceByIDHandler:           trackedHandler(traces),
-		TraceByIDHandlerV2:         trackedHandler(tracesV2),
-		TraceDiffHandler:           trackedHandler(traceDiff),
-		SearchHandler:              trackedHandler(search),
-		SearchTagsHandler:          trackedHandler(searchTags),
-		SearchTagsV2Handler:        trackedHandler(searchTagsV2),
-		SearchTagsValuesHandler:    trackedHandler(searchTagValues),
-		SearchTagsValuesV2Handler:  trackedHandler(searchTagValuesV2),
-		MetricsQueryInstantHandler: trackedHandler(queryInstant),
-		MetricsQueryRangeHandler:   trackedHandler(queryRange),
+		TraceByIDHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger, queryTrackerInstance),
+		TraceByIDHandlerV2:         newHandler(cfg.Config.LogQueryRequestHeaders, tracesV2, logger, queryTrackerInstance),
+		TraceDiffHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traceDiff, logger, queryTrackerInstance),
+		SearchHandler:              newHandler(cfg.Config.LogQueryRequestHeaders, search, logger, queryTrackerInstance),
+		SearchTagsHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger, queryTrackerInstance),
+		SearchTagsV2Handler:        newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger, queryTrackerInstance),
+		SearchTagsValuesHandler:    newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, logger, queryTrackerInstance),
+		SearchTagsValuesV2Handler:  newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger, queryTrackerInstance),
+		MetricsQueryInstantHandler: newHandler(cfg.Config.LogQueryRequestHeaders, queryInstant, logger, queryTrackerInstance),
+		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger, queryTrackerInstance),
 
 		// grpc/streaming
 		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, o, logger, dataAccessController),

@@ -24,7 +24,7 @@ func TestHandlerLogsConfiguredRequestHeaders(t *testing.T) {
 	var logs bytes.Buffer
 	h := newHandler([]string{"X-Request-ID"}, testRoundTripper(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: http.NoBody}, nil
-	}), log.NewLogfmtLogger(&logs))
+	}), log.NewLogfmtLogger(&logs), noOpQueryTracker{})
 	req := httptest.NewRequest(http.MethodGet, "/api/search", nil)
 	req.Header.Set("X-Request-ID", "request-123")
 	req.Header.Set("X-Unconfigured-Header", "do-not-log")
@@ -212,7 +212,7 @@ func TestQueryTrackerShowsActiveStreamingQuery(t *testing.T) {
 	require.Len(t, activePage.Queries, 1)
 	require.Equal(t, query, activePage.Queries[0].Query)
 	// HTTP and gRPC store the same decoded expression.
-	h := newHandlerWithTracker(nil, testRoundTripper(func(*http.Request) (*http.Response, error) {
+	h := newHandler(nil, testRoundTripper(func(*http.Request) (*http.Response, error) {
 		queries := tracker.trackedQueries("tenant-a")
 		require.Len(t, queries, 2)
 		require.Equal(t, queries[0].Query, queries[1].Query)
