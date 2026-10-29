@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 
 	tempo_io "github.com/grafana/tempo/v3/pkg/io"
-	"github.com/grafana/tempo/v3/tempodb/backend/instrumentation"
 )
 
 const (
@@ -222,7 +221,24 @@ func withRole(ctx context.Context, cacheInfo *CacheInfo) context.Context {
 	if cacheInfo == nil {
 		return ctx
 	}
-	return instrumentation.ContextWithRole(ctx, string(cacheInfo.Role))
+	return ContextWithRole(ctx, string(cacheInfo.Role))
+}
+
+const RoleNone = "none"
+
+type roleKey struct{}
+
+// ContextWithRole tags backend requests made with ctx with role, e.g. the cache role of the object.
+func ContextWithRole(ctx context.Context, role string) context.Context {
+	return context.WithValue(ctx, roleKey{}, role)
+}
+
+// RoleFromContext returns the role set by ContextWithRole, or RoleNone.
+func RoleFromContext(ctx context.Context) string {
+	if role, ok := ctx.Value(roleKey{}).(string); ok && role != "" {
+		return role
+	}
+	return RoleNone
 }
 
 // Tenants implements backend.Reader

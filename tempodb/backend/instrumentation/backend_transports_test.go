@@ -11,6 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 func TestCountDials(t *testing.T) {
@@ -70,9 +72,9 @@ func TestTransportRoleLabel(t *testing.T) {
 		return m.GetHistogram().GetSampleCount()
 	}
 
-	bloom, none := count("bloom"), count(roleNone)
-	get(ContextWithRole(context.Background(), "bloom"))
+	bloom, none := count("bloom"), count(backend.RoleNone)
+	get(backend.ContextWithRole(context.Background(), "bloom"))
 	get(context.Background())
 	require.Equal(t, bloom+1, count("bloom"))
-	require.Equal(t, none+1, count(roleNone))
+	require.Equal(t, none+1, count(backend.RoleNone))
 }
