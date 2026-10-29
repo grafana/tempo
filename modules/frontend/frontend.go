@@ -282,6 +282,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		logger:        logger,
 	}
 	if tracker, ok := queryTrackerInstance.(*queryTracker); ok {
+		// if Query Tracker is enabled, the HTML Renderer is added
+		// Otherwise, return 404
 		f.QueryTrackerHandler = tracker.tenantsHandler()
 		f.QueryTrackerTenantHandler = tracker.tenantHandler()
 	}

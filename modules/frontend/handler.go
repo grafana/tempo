@@ -60,7 +60,12 @@ func newHandlerWithTracker(logQueryRequestHeaders flagext.StringSliceCSV, rt htt
 
 // ServeHTTP implements http.Handler
 func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer f.queryTracker.track(r.Context(), r.Method, r.URL.Path, httpQueryText(r))()
+	params := r.URL.Query()
+	query := params.Get("q")
+	if query == "" {
+		query = params.Get("query")
+	}
+	defer f.queryTracker.track(r.Context(), r.Method, r.URL.Path, query)()
 	defer func() {
 		_ = r.Body.Close()
 	}()
@@ -144,15 +149,6 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"status", statusCode,
 	)
 	level.Info(f.logger).Log(logMessage...)
-}
-
-func httpQueryText(r *http.Request) string {
-	query := r.URL.Query().Get("q")
-	if query != "" {
-		return query
-	}
-
-	return r.URL.Query().Get("query")
 }
 
 func formatRequestHeaders(h *http.Header, headersToLog []string) (fields []interface{}) {

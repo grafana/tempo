@@ -6,18 +6,16 @@ import (
 	"html/template"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
 
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/tempo/v3/pkg/util"
 )
 
-// trackedQuery is the public representation of a query currently being processed
-// by this query-frontend instance.
 type trackedQuery struct {
 	ID        uint64    `json:"id"`
 	Tenant    string    `json:"tenant"`
@@ -121,11 +119,7 @@ func truncateQuery(query string, maxBytes int) string {
 	if maxBytes <= 0 || len(query) <= maxBytes {
 		return query
 	}
-	query = query[:maxBytes]
-	for !utf8.ValidString(query) {
-		query = query[:len(query)-1]
-	}
-	return query
+	return strings.ToValidUTF8(query[:maxBytes], "")
 }
 
 func (t *queryTracker) trackedQueries(tenant string) []trackedQuery {
@@ -187,11 +181,11 @@ func (t *queryTracker) tenantsHandler() http.HandlerFunc {
 
 func (t *queryTracker) tenantHandler() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tenant := mux.Vars(r)["tenant"]
-		if tenant == "" {
+		tenantId := mux.Vars(r)["tenant"]
+		if tenantId == "" {
 			http.Error(w, "tenant ID can't be empty", http.StatusBadRequest)
 			return
 		}
-		util.RenderHTTPResponse(w, queryTrackerPage{Now: time.Now(), Tenant: tenant, Queries: t.trackedQueries(tenant), MaxQueriesPerTenant: t.maxQueriesPerTenant, MaxQueryTextBytes: t.maxQueryTextBytes}, queryTrackerTemplate, r)
+		util.RenderHTTPResponse(w, queryTrackerPage{Now: time.Now(), Tenant: tenantId, Queries: t.trackedQueries(tenantId), MaxQueriesPerTenant: t.maxQueriesPerTenant, MaxQueryTextBytes: t.maxQueryTextBytes}, queryTrackerTemplate, r)
 	})
 }

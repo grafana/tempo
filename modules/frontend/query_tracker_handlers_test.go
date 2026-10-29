@@ -33,22 +33,16 @@ func TestHandlerLogsConfiguredRequestHeaders(t *testing.T) {
 	require.NotContains(t, logs.String(), "do-not-log")
 }
 
-type lifecycleQueryTracker struct {
-	pushes, pops                int
-	method, path, query, tenant string
-}
-
-func (r *lifecycleQueryTracker) track(ctx context.Context, method, path, query string) func() {
-	r.pushes++
-	r.method, r.path, r.query = method, path, query
-	r.tenant, _ = user.ExtractOrgID(ctx)
-	return func() { r.pops++ }
-}
-
 func TestQueryFrontendTracksStreamingQueries(t *testing.T) {
 	const query = "{ .status = \"error\" }"
-	for _, fail := range []bool{false, true} {
-		t.Run(map[bool]string{false: "success", true: "error"}[fail], func(t *testing.T) {
+	for _, outcome := range []struct {
+		name string
+		fail bool
+	}{
+		{name: "success", fail: false},
+		{name: "error", fail: true},
+	} {
+		t.Run(outcome.name, func(t *testing.T) {
 			tests := []struct {
 				name   string
 				invoke func(*QueryFrontend, func() error) error
@@ -90,18 +84,18 @@ func TestQueryFrontendTracksStreamingQueries(t *testing.T) {
 			}
 			for _, tc := range tests {
 				t.Run(tc.name, func(t *testing.T) {
-					recorder := &lifecycleQueryTracker{}
+					recorder := &recordingQueryTracker{}
 					f := &QueryFrontend{queryTracker: recorder}
 					expectedErr := errors.New("handler failed")
 					err := tc.invoke(f, func() error {
 						require.Equal(t, 1, recorder.pushes)
 						require.Zero(t, recorder.pops)
-						if fail {
+						if outcome.fail {
 							return expectedErr
 						}
 						return nil
 					})
-					if fail {
+					if outcome.fail {
 						require.ErrorIs(t, err, expectedErr)
 					} else {
 						require.NoError(t, err)
@@ -119,13 +113,19 @@ func TestQueryFrontendTracksStreamingQueries(t *testing.T) {
 }
 
 func TestHTTPQueryTrackerLifecycle(t *testing.T) {
-	for _, fail := range []bool{false, true} {
-		t.Run(map[bool]string{false: "success", true: "error"}[fail], func(t *testing.T) {
-			recorder := &lifecycleQueryTracker{}
+	for _, outcome := range []struct {
+		name string
+		fail bool
+	}{
+		{name: "success", fail: false},
+		{name: "error", fail: true},
+	} {
+		t.Run(outcome.name, func(t *testing.T) {
+			recorder := &recordingQueryTracker{}
 			h := newHandlerWithTracker(nil, testRoundTripper(func(*http.Request) (*http.Response, error) {
 				require.Equal(t, 1, recorder.pushes)
 				require.Zero(t, recorder.pops)
-				if fail {
+				if outcome.fail {
 					return nil, errors.New("upstream failed")
 				}
 				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: http.NoBody}, nil
@@ -136,7 +136,7 @@ func TestHTTPQueryTrackerLifecycle(t *testing.T) {
 			h.ServeHTTP(response, req)
 			require.Equal(t, 1, recorder.pushes)
 			require.Equal(t, 1, recorder.pops)
-			if fail {
+			if outcome.fail {
 				require.Equal(t, http.StatusInternalServerError, response.Code)
 			} else {
 				require.Equal(t, http.StatusOK, response.Code)
@@ -154,15 +154,21 @@ func TestQueryFrontendTracksHTTPHandlers(t *testing.T) {
 		"instant": f.MetricsQueryInstantHandler, "range": f.MetricsQueryRangeHandler,
 	} {
 		t.Run(name, func(t *testing.T) {
-			for _, fail := range []bool{false, true} {
-				t.Run(map[bool]string{false: "success", true: "error"}[fail], func(t *testing.T) {
-					recorder := &lifecycleQueryTracker{}
+			for _, outcome := range []struct {
+				name string
+				fail bool
+			}{
+				{name: "success", fail: false},
+				{name: "error", fail: true},
+			} {
+				t.Run(outcome.name, func(t *testing.T) {
+					recorder := &recordingQueryTracker{}
 					wrapped := h.(*handler)
 					wrapped.queryTracker = recorder
 					wrapped.roundTripper = testRoundTripper(func(*http.Request) (*http.Response, error) {
 						require.Equal(t, 1, recorder.pushes)
 						require.Zero(t, recorder.pops)
-						if fail {
+						if outcome.fail {
 							return nil, errors.New("upstream failed")
 						}
 						return &http.Response{StatusCode: 200, Header: make(http.Header), Body: http.NoBody}, nil

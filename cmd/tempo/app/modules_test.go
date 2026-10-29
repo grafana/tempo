@@ -103,13 +103,19 @@ func TestRegisterQueryTrackerHandlers(t *testing.T) {
 }
 
 func TestInitQueryFrontendRegistersQueryTrackerHandlersWhenEnabled(t *testing.T) {
-	for _, enabled := range []bool{false, true} {
-		t.Run(map[bool]string{false: "disabled", true: "enabled"}[enabled], func(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		enabled bool
+	}{
+		{name: "disabled", enabled: false},
+		{name: "enabled", enabled: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			previous := prometheus.DefaultRegisterer
 			prometheus.DefaultRegisterer = prometheus.NewRegistry()
 			t.Cleanup(func() { prometheus.DefaultRegisterer = previous })
 			cfg := NewDefaultConfig()
-			cfg.Frontend.QueryTracker.Enabled = enabled
+			cfg.Frontend.QueryTracker.Enabled = tc.enabled
 			router := mux.NewRouter()
 			grpcServer := grpc.NewServer()
 			t.Cleanup(grpcServer.Stop)
@@ -127,7 +133,7 @@ func TestInitQueryFrontendRegistersQueryTrackerHandlersWhenEnabled(t *testing.T)
 			for _, path := range []string{api.PathQueryTracker, api.PathQueryTracker + "/tenant-a"} {
 				response := httptest.NewRecorder()
 				router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
-				if enabled {
+				if tc.enabled {
 					require.Equal(t, http.StatusOK, response.Code)
 					require.Contains(t, response.Header().Get("Content-Type"), "text/html")
 				} else {

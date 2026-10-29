@@ -18,20 +18,21 @@ import (
 )
 
 type recordingQueryTracker struct {
-	method string
-	path   string
-	query  string
+	pushes, pops                int
+	method, path, query, tenant string
 }
 
 type testRoundTripper func(*http.Request) (*http.Response, error)
 
 func (f testRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
-func (t *recordingQueryTracker) track(_ context.Context, method, path, query string) func() {
+func (t *recordingQueryTracker) track(ctx context.Context, method, path, query string) func() {
+	t.pushes++
 	t.method = method
 	t.path = path
 	t.query = query
-	return func() {}
+	t.tenant, _ = user.ExtractOrgID(ctx)
+	return func() { t.pops++ }
 }
 
 func TestQueryTracker(t *testing.T) {
