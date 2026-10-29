@@ -33,21 +33,21 @@ func (h *ColumnChunkHelper) Dictionary() parquet.Dictionary {
 // footerStats is implemented by file column chunks, whose statistics come with the
 // file footer and need no backend request.
 type footerStats interface {
-	Bounds() (min, max parquet.Value, ok bool)
+	Bounds() (minV, maxV parquet.Value, ok bool)
 	NullCount() int64
 }
 
-// FooterStats returns the chunk's min, max and null count from the file footer. min and
-// max are null for an all-null chunk, which has no bounds. ok is false when the chunk
+// FooterStats returns the chunk's min, max and null count from the file footer. minV and
+// maxV are null for an all-null chunk, which has no bounds. ok is false when the chunk
 // doesn't carry them, as for one not read from a file.
-func (h *ColumnChunkHelper) FooterStats() (min, max parquet.Value, nulls int64, ok bool) {
+func (h *ColumnChunkHelper) FooterStats() (minV, maxV parquet.Value, nulls int64, ok bool) {
 	s, isFile := h.ColumnChunk.(footerStats)
 	if !isFile {
-		return min, max, 0, false
+		return minV, maxV, 0, false
 	}
 	nulls = s.NullCount()
-	if min, max, ok = s.Bounds(); ok {
-		return min, max, nulls, true
+	if minV, maxV, ok = s.Bounds(); ok {
+		return minV, maxV, nulls, true
 	}
 	if nulls == h.NumValues() {
 		return parquet.Value{}, parquet.Value{}, nulls, true
