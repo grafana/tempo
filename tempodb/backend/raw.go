@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/tempodb/backend/instrumentation"
 )
 
 const (
@@ -97,7 +98,7 @@ func NewWriter(w RawWriter) Writer {
 
 // Write implements backend.Writer
 func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, cacheInfo *CacheInfo) error {
-	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), bytes.NewReader(buffer), int64(len(buffer)), cacheInfo)
+	return w.w.Write(withRole(ctx, cacheInfo), name, KeyPathForBlock(blockID, tenantID), bytes.NewReader(buffer), int64(len(buffer)), cacheInfo)
 }
 
 // Write implements backend.Writer
@@ -198,7 +199,7 @@ func NewReader(r RawReader) Reader {
 
 // Read implements backend.Reader
 func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, cacheInfo *CacheInfo) ([]byte, error) {
-	objReader, size, err := r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), cacheInfo)
+	objReader, size, err := r.r.Read(withRole(ctx, cacheInfo), name, KeyPathForBlock(blockID, tenantID), cacheInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +214,15 @@ func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUI
 
 // ReadRange implements backend.Reader
 func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, cacheInfo *CacheInfo) error {
-	return r.r.ReadRange(ctx, name, KeyPathForBlock(blockID, tenantID), offset, buffer, cacheInfo)
+	return r.r.ReadRange(withRole(ctx, cacheInfo), name, KeyPathForBlock(blockID, tenantID), offset, buffer, cacheInfo)
+}
+
+// withRole tags ctx with the cache role so backend request metrics can be split by it.
+func withRole(ctx context.Context, cacheInfo *CacheInfo) context.Context {
+	if cacheInfo == nil {
+		return ctx
+	}
+	return instrumentation.ContextWithRole(ctx, string(cacheInfo.Role))
 }
 
 // Tenants implements backend.Reader

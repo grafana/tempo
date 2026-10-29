@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: storage
+
+note: Add a `role` label (e.g. `bloom`, `parquet-footer`, `parquet-page`, `trace-id-index`, `none`) to `tempodb_backend_request_duration_seconds`.
+
+issues: []
+
+subtext:
+
+user: zhxiaogg

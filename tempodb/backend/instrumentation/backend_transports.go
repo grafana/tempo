@@ -19,7 +19,23 @@ var requestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	NativeHistogramBucketFactor:     1.1,
 	NativeHistogramMaxBucketNumber:  100,
 	NativeHistogramMinResetDuration: 1 * time.Hour,
-}, []string{"operation", "status_code"})
+}, []string{"operation", "status_code", "role"})
+
+const roleNone = "none"
+
+type roleKey struct{}
+
+// ContextWithRole tags backend requests made with ctx with role, e.g. the cache role of the object.
+func ContextWithRole(ctx context.Context, role string) context.Context {
+	return context.WithValue(ctx, roleKey{}, role)
+}
+
+func roleFromContext(ctx context.Context) string {
+	if role, ok := ctx.Value(roleKey{}).(string); ok && role != "" {
+		return role
+	}
+	return roleNone
+}
 
 var connectionsDialed = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempodb",
@@ -60,7 +76,7 @@ func (i instrumentedTransport) RoundTrip(req *http.Request) (*http.Response, err
 	start := time.Now()
 	resp, err := i.next.RoundTrip(req)
 	if err == nil {
-		i.observer.WithLabelValues(req.Method, strconv.Itoa(resp.StatusCode)).Observe(time.Since(start).Seconds())
+		i.observer.WithLabelValues(req.Method, strconv.Itoa(resp.StatusCode), roleFromContext(req.Context())).Observe(time.Since(start).Seconds())
 	}
 	return resp, err
 }
