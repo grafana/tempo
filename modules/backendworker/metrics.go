@@ -11,6 +11,11 @@ var (
 		Name:      "backend_worker_jobs_total",
 		Help:      "Total number of jobs processed",
 	}, []string{})
+	metricWorkerLastSuccessfulJobTimestamp = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "backend_worker_last_successful_job_timestamp_seconds",
+		Help:      "Unix timestamp of the last job of each type that this worker completed successfully",
+	}, []string{"job_type"})
 	metricWorkerBadJobsReceived = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "backend_worker_bad_jobs_received_total",

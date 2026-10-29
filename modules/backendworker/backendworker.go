@@ -261,6 +261,16 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 
 	metricWorkerJobsTotal.WithLabelValues().Inc()
 
+	if err := w.processJob(ctx, resp); err != nil {
+		return err
+	}
+
+	metricWorkerLastSuccessfulJobTimestamp.WithLabelValues(resp.Type.String()).SetToCurrentTime()
+
+	return nil
+}
+
+func (w *BackendWorker) processJob(ctx context.Context, resp *tempopb.NextJobResponse) error {
 	switch resp.Type {
 	case tempopb.JobType_JOB_TYPE_COMPACTION:
 		return w.processCompactionJob(ctx, resp)

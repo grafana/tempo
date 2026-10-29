@@ -109,12 +109,14 @@ This endpoint is useful for diagnosing stalled jobs, verifying that workers are 
 | `tempo_backend_scheduler_jobs_active` | Jobs currently assigned to a worker |
 | `tempo_backend_scheduler_jobs_pending` | Jobs enqueued and not yet assigned to a worker. Unlike `jobs_active`, which is bounded by the number of workers, this is queue depth and indicates whether more worker capacity is needed |
 | `tempo_backend_scheduler_job_duration_seconds` | Job execution duration histogram |
+| `tempo_backend_scheduler_last_successful_job_timestamp_seconds` | Unix timestamp of the last job of each type that completed successfully and was applied to the blocklist |
+| `tempo_backend_worker_last_successful_job_timestamp_seconds` | Unix timestamp of the last job of each type that this worker completed successfully |
 | `tempodb_blocklist_length` | Number of live blocks per tenant; high values indicate compaction is falling behind |
 | `tempodb_compaction_outstanding_blocks` | Outstanding blocks awaiting compaction per tenant; the primary autoscaling signal |
 | `tempo_backend_worker_redaction_block_missing_total` | Redaction jobs whose target block was absent from the live blocklist; a potential redaction coverage gap |
 | `tempo_backend_scheduler_redaction_traces_found_total` | Traces matched by redaction jobs, by tenant and mode; `mode=apply` counts traces actually removed, `mode=dry_run` counts previewed blast radius |
 
-Most scheduler job metrics carry `tenant` and `job_type` labels; `tempo_backend_scheduler_job_duration_seconds` carries only `job_type`.
+Most scheduler job metrics carry `tenant` and `job_type` labels; `tempo_backend_scheduler_job_duration_seconds` and the `last_successful_job_timestamp_seconds` gauges carry only `job_type`.
 The `job_type` label uses protobuf enum string values: `JOB_TYPE_COMPACTION`, `JOB_TYPE_RETENTION`, and `JOB_TYPE_REDACTION`.
 The duration histogram measures elapsed time from job creation to completion, not execution time alone.
 
