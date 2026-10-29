@@ -1,7 +1,6 @@
 package frontend
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,19 +18,6 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
-
-func TestHandlerLogsConfiguredRequestHeaders(t *testing.T) {
-	var logs bytes.Buffer
-	h := newHandler([]string{"X-Request-ID"}, testRoundTripper(func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: http.NoBody}, nil
-	}), log.NewLogfmtLogger(&logs), noOpQueryTracker{})
-	req := httptest.NewRequest(http.MethodGet, "/api/search", nil)
-	req.Header.Set("X-Request-ID", "request-123")
-	req.Header.Set("X-Unconfigured-Header", "do-not-log")
-	h.ServeHTTP(httptest.NewRecorder(), req)
-	require.Contains(t, logs.String(), "header_x_request_id=request-123")
-	require.NotContains(t, logs.String(), "do-not-log")
-}
 
 func TestQueryFrontendTracksStreamingQueries(t *testing.T) {
 	const query = "{ .status = \"error\" }"

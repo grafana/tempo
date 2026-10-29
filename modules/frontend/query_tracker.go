@@ -189,7 +189,7 @@ type queryTrackerPage struct {
 
 func (t *queryTracker) tenantsHandler() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		util.RenderHTTPResponse(w, queryTrackerPage{Now: time.Now(), Tenants: t.trackedTenants(), MaxQueriesPerTenant: t.maxQueriesPerTenant, MaxQueryTextBytes: t.maxQueryTextBytes}, queryTrackerTemplate, r)
+		util.RenderHTTPResponse(w, queryTrackerPage{Now: time.Now().UTC(), Tenants: t.trackedTenants(), MaxQueriesPerTenant: t.maxQueriesPerTenant, MaxQueryTextBytes: t.maxQueryTextBytes}, queryTrackerTemplate, r)
 	})
 }
 
