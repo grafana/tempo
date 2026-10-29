@@ -280,11 +280,10 @@ func traceForService(id []byte, service string, spanAttrs ...*v1_common.KeyValue
 }
 
 // TestRedactBlockQueryNarrowingConditions pins which traces !=, =~ and !~ select under a positive
-// filter. A span missing the attribute matches none of them, and regexes are fully anchored.
+// filter. A span missing the attribute matches none of them, and regexes are fully anchored. Each case
+// runs with the attribute in the generic, a dedicated and a dedicated array column, since each takes a
+// different predicate path in the fetch layer.
 func TestRedactBlockQueryNarrowingConditions(t *testing.T) {
-	r, w, c, _ := testConfig(t, 0)
-	ctx := context.Background()
-
 	idLs := test.ValidTraceID(nil)
 	idLsla := test.ValidTraceID(nil)
 	idEmpty := test.ValidTraceID(nil)
@@ -299,8 +298,6 @@ func TestRedactBlockQueryNarrowingConditions(t *testing.T) {
 		{idMissing, traceForService(idMissing, "claude-code-cli"), now, now},
 		{idOtherService, traceForService(idOtherService, "keep", test.MakeAttribute("full_command", "ls")), now, now},
 	}
-	blk := cutTestBlockWithTraces(t, w, data)
-	require.Equal(t, int64(5), blk.BlockMeta().TotalObjects)
 
 	hex := func(ids ...[]byte) []string {
 		out := make([]string, 0, len(ids))
@@ -311,40 +308,59 @@ func TestRedactBlockQueryNarrowingConditions(t *testing.T) {
 		return out
 	}
 
-	for _, tc := range []struct {
-		name  string
-		query string
-		want  []string
+	for _, layout := range []struct {
+		name string
+		dc   backend.DedicatedColumns
 	}{
-		{"non-empty", `{resource.service.name = "claude-code-cli" && span.full_command != ""}`, hex(idLs, idLsla)},
-		{"not equal", `{resource.service.name = "claude-code-cli" && span.full_command != "ls"}`, hex(idLsla, idEmpty)},
-		{"regex is anchored", `{resource.service.name = "claude-code-cli" && span.full_command =~ "ls.*"}`, hex(idLs)},
-		{"not-regex", `{resource.service.name = "claude-code-cli" && span.full_command !~ "ls.*"}`, hex(idLsla, idEmpty)},
-		// An || across attributes disables storage-level enforcement of all conditions (an || on one
-		// attribute is folded into a regex), so the narrowing condition is evaluated by the engine alone.
-		{"not equal with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command != "ls"}`, hex(idLsla, idEmpty)},
-		{"not-regex with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command !~ "ls.*"}`, hex(idLsla, idEmpty)},
-		{"regex with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command =~ "ls.*"}`, hex(idLs)},
-		// Narrowing conditions joined by || next to the positive filter.
-		{"or of equality and regex", `{resource.service.name = "claude-code-cli" && (span.full_command = "ls" || span.full_command =~ "xls.*")}`, hex(idLs, idLsla)},
-		{"or of negation and existence", `{resource.service.name = "claude-code-cli" && (span.full_command != "ls" || span.nope != nil)}`, hex(idLsla, idEmpty)},
+		{"generic column", nil},
+		{"dedicated column", backend.DedicatedColumns{{Scope: "span", Name: "full_command", Type: "string"}}},
+		{"dedicated array column", backend.DedicatedColumns{{Scope: "span", Name: "full_command", Type: "string", Options: backend.DedicatedColumnOptions{backend.DedicatedColumnOptionArray}}}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			_, found, _, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, tc.query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, RedactionWindow{})
-			require.NoError(t, err)
-			require.Equal(t, len(tc.want), found)
-			require.Equal(t, tc.want, survivingTraceIDs(t, r, blk.BlockMeta(), tc.query))
+		t.Run(layout.name, func(t *testing.T) {
+			r, w, c, _ := testConfig(t, 0)
+			ctx := context.Background()
+
+			blk := cutTestBlockWithDedicatedColumns(t, w, layout.dc, data)
+			require.Equal(t, int64(5), blk.BlockMeta().TotalObjects)
+			require.ElementsMatch(t, layout.dc, blk.BlockMeta().DedicatedColumns)
+
+			for _, tc := range []struct {
+				name  string
+				query string
+				want  []string
+			}{
+				{"non-empty", `{resource.service.name = "claude-code-cli" && span.full_command != ""}`, hex(idLs, idLsla)},
+				{"not equal", `{resource.service.name = "claude-code-cli" && span.full_command != "ls"}`, hex(idLsla, idEmpty)},
+				{"regex is anchored", `{resource.service.name = "claude-code-cli" && span.full_command =~ "ls.*"}`, hex(idLs)},
+				{"not-regex", `{resource.service.name = "claude-code-cli" && span.full_command !~ "ls.*"}`, hex(idLsla, idEmpty)},
+				// An || across attributes disables storage-level enforcement of all conditions (an || on one
+				// attribute is folded into a regex), so the narrowing condition is evaluated by the engine alone.
+				{"not equal with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command != "ls"}`, hex(idLsla, idEmpty)},
+				{"not-regex with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command !~ "ls.*"}`, hex(idLsla, idEmpty)},
+				{"regex with or group", `{(resource.service.name = "claude-code-cli" || resource.namespace = "none") && span.full_command =~ "ls.*"}`, hex(idLs)},
+				// Narrowing conditions joined by || next to the positive filter.
+				{"or of equality and regex", `{resource.service.name = "claude-code-cli" && (span.full_command = "ls" || span.full_command =~ "xls.*")}`, hex(idLs, idLsla)},
+				{"or of negation and existence", `{resource.service.name = "claude-code-cli" && (span.full_command != "ls" || span.nope != nil)}`, hex(idLsla, idEmpty)},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					_, found, _, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, tc.query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, RedactionWindow{})
+					require.NoError(t, err)
+					require.Equal(t, len(tc.want), found)
+					require.Equal(t, tc.want, survivingTraceIDs(t, r, blk.BlockMeta(), tc.query))
+				})
+			}
+
+			t.Run("apply", func(t *testing.T) {
+				query := `{resource.service.name = "claude-code-cli" && span.full_command != ""}`
+				_, found, newMeta, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{})
+				require.NoError(t, err)
+				require.Equal(t, 2, found)
+				require.NotNil(t, newMeta)
+				require.ElementsMatch(t, layout.dc, newMeta.DedicatedColumns)
+				require.Equal(t, hex(idEmpty, idMissing, idOtherService), survivingTraceIDs(t, r, newMeta, `{resource.service.name != nil}`))
+			})
 		})
 	}
-
-	t.Run("apply", func(t *testing.T) {
-		query := `{resource.service.name = "claude-code-cli" && span.full_command != ""}`
-		_, found, newMeta, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, query, tempopb.RedactionMode_REDACTION_MODE_APPLY, RedactionWindow{})
-		require.NoError(t, err)
-		require.Equal(t, 2, found)
-		require.NotNil(t, newMeta)
-		require.Equal(t, hex(idEmpty, idMissing, idOtherService), survivingTraceIDs(t, r, newMeta, `{resource.service.name != nil}`))
-	})
 }
 
 // TestRedactBlockQueryExistenceDisjunction checks an || of existence checks ANDed with an equality:
