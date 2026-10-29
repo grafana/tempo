@@ -1,7 +1,7 @@
 # Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
 
 # One of: breaking | change | feature | enhancement | bug_fix | security
-change_type: breaking
+change_type: change
 
 # Component or area of the change. Must be one of the components in .chloggen/config.yaml,
 # e.g. distributor, querier, query-frontend, storage, operations.
