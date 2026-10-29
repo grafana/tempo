@@ -297,7 +297,7 @@ func TestMetricsSpanTimePushdownSameResults(t *testing.T) {
 
 func TestFetchSpansSpanStartTimeBounds(t *testing.T) {
 	block, start := spanTimeTestBlock(t)
-	min, max := start.Add(20*time.Minute), start.Add(30*time.Minute)
+	winStart, winEnd := start.Add(20*time.Minute), start.Add(30*time.Minute)
 
 	for _, tc := range []struct {
 		name      string
@@ -314,8 +314,8 @@ func TestFetchSpansSpanStartTimeBounds(t *testing.T) {
 					AllConditions: true,
 				}
 				if bounded {
-					req.SpanStartTimeUnixNanos = uint64(min.UnixNano())
-					req.SpanEndTimeUnixNanos = uint64(max.UnixNano())
+					req.SpanStartTimeUnixNanos = uint64(winStart.UnixNano())
+					req.SpanEndTimeUnixNanos = uint64(winEnd.UnixNano())
 				}
 				resp, err := block.FetchSpans(t.Context(), req, common.DefaultSearchOptions())
 				require.NoError(t, err)
@@ -329,8 +329,8 @@ func TestFetchSpansSpanStartTimeBounds(t *testing.T) {
 					n++
 					if bounded {
 						st := s.StartTimeUnixNanos()
-						require.GreaterOrEqual(t, st, uint64(min.Add(-tc.slack).UnixNano()))
-						require.LessOrEqual(t, st, uint64(max.Add(tc.slack).UnixNano()))
+						require.GreaterOrEqual(t, st, uint64(winStart.Add(-tc.slack).UnixNano()))
+						require.LessOrEqual(t, st, uint64(winEnd.Add(tc.slack).UnixNano()))
 					}
 				}
 			}
