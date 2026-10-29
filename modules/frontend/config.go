@@ -159,7 +159,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Metrics.MaxIntervals = 10_000
 
 	cfg.QueryEndCutoff = 30 * time.Second
-	cfg.QueryTracker.MaxQueriesPerTenant = 20
+	cfg.QueryTracker.MaxQueriesPerTenant = 100
 	cfg.QueryTracker.MaxQueryTextBytes = 4096
 
 	// enabling an mcp server opens the door to send tracing data to an LLM. it should require
