@@ -13,7 +13,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type ReplaceMatchArguments[K any] struct {
+type replaceMatchArguments[K any] struct {
 	Target            ottl.GetSetter[K]
 	Pattern           ottl.StringGetter[K]
 	Replacement       ottl.StringGetter[K]
@@ -25,15 +25,17 @@ type replaceMatchFuncArgs[K any] struct {
 	Input ottl.StringGetter[K]
 }
 
+// NewReplaceMatchFactory returns a factory for the replace_match OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#replace_match
 func NewReplaceMatchFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("replace_match", &ReplaceMatchArguments[K]{}, createReplaceMatchFunction[K])
+	return ottl.NewFactory("replace_match", &replaceMatchArguments[K]{}, createReplaceMatchFunction[K])
 }
 
 func createReplaceMatchFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*ReplaceMatchArguments[K])
+	args, ok := oArgs.(*replaceMatchArguments[K])
 
 	if !ok {
-		return nil, errors.New("ReplaceMatchFactory args must be of type *ReplaceMatchArguments[K]")
+		return nil, errors.New("ReplaceMatchFactory args must be of type *replaceMatchArguments[K]")
 	}
 
 	return replaceMatch(args.Target, args.Pattern, args.Replacement, args.Function, args.ReplacementFormat)

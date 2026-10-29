@@ -8,6 +8,29 @@ $defs:
         type: array
         items:
           type: string
+  max_in_flight_config:
+    description: MaxInFlightConfig limits concurrent unmarshal-plus-Consume calls for one partition worker.
+    type: object
+    properties:
+      bytes:
+        description: Bytes caps the bytes of the records in flight, from the start of their call until the mark passes them. A record counts its key, value, and headers after decompression, plus a fixed overhead of about 250 bytes per record and 40 per header, so empty records count too. 0 means no cap. A record above the cap still runs, alone. It has no effect when Records is 1.
+        type: integer
+      records:
+        description: Records is how many calls may run at once. Default 1.
+        type: integer
+      window:
+        description: Window is per_fetch (default) or cross_fetch. per_fetch waits for every call of a fetched batch before it starts the next batch. cross_fetch keeps starting records from later batches while both limits have room. Use it when the next consumer holds Consume open until it has a full batch, such as an exporter with wait_for_result and batch.min_size, so it sees more than one fetch at a time. More records sit unmarked behind a slow one, so more can replay after a crash or rebalance. cross_fetch requires Records above 1 and Bytes above 0.
+        type: string
+  max_prefetch_config:
+    description: MaxPrefetchConfig limits the fetched batches waiting for one partition worker.
+    type: object
+    properties:
+      batches:
+        description: Batches is how many fetched batches may wait for each partition worker. Default 1. Must be greater than zero when independent processing is enabled.
+        type: integer
+      bytes:
+        description: Bytes caps the bytes of the waiting batches, counted the way max_in_flight.bytes counts records. Fetching pauses once the waiting batches reach the cap, so a batch that crosses it is still admitted and the overshoot is at most one batch. 0 means no cap. It has no effect when Batches is 1.
+        type: integer
   message_marking:
     type: object
     properties:
@@ -33,6 +56,22 @@ $defs:
       kafka_receiver_records_delay:
         description: KafkaReceiverRecordsDelay controls whether the metric kafka_receiver_records_delay that measures the time in seconds between producing and receiving a batch of records will be reported or not. This metric is not reported by default because it may slow down high-volume consuming.
         $ref: metric_config
+  partition_processing:
+    description: PartitionProcessing controls optional independent processing of assigned Kafka partitions.
+    type: object
+    properties:
+      independent:
+        description: Independent enables independent partition workers. Records stay ordered within a partition unless MaxInFlight.Records is above 1.
+        type: boolean
+      max_buffered_batches:
+        description: 'MaxBufferedBatches bounds the number of fetched batches waiting for each partition worker. Deprecated [v0.164.0]: use partition_processing.max_prefetch.batches instead. Will be removed in v0.166.0.'
+        type: integer
+      max_in_flight:
+        description: MaxInFlight limits concurrent unmarshal-plus-Consume calls for each independent partition worker.
+        $ref: max_in_flight_config
+      max_prefetch:
+        description: MaxPrefetch limits the fetched batches waiting for each independent partition worker.
+        $ref: max_prefetch_config
   telemetry_config:
     type: object
     properties:
@@ -73,6 +112,9 @@ properties:
   metrics:
     description: Metrics holds configuration about how metrics should be consumed.
     $ref: topic_encoding_config
+  partition_processing:
+    description: PartitionProcessing controls optional independent processing of assigned topic partitions.
+    $ref: partition_processing
   profiles:
     description: Profiles holds configuration about how profiles should be consumed.
     $ref: topic_encoding_config

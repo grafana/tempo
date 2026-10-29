@@ -5,12 +5,16 @@ package kafka // import "github.com/open-telemetry/opentelemetry-collector-contr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"math/rand/v2"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-msk-iam-sasl-signer-go/signer"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	krb5client "github.com/jcmturner/gokrb5/v8/client"
 	krb5config "github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/keytab"
@@ -69,6 +73,7 @@ func NewFranzSyncProducer(
 		kgo.ProducerBatchCompression(codec),
 		kgo.ProducerLinger(cfg.Linger),
 		kgo.ProducerBatchMaxBytes(int32(cfg.MaxMessageBytes)),
+		kgo.BrokerMaxWriteBytes(int32(cfg.MaxBrokerWriteBytes)),
 		kgo.MaxBufferedRecords(cfg.FlushMaxMessages),
 	)...)
 	if err != nil {
@@ -114,6 +119,7 @@ func NewFranzConsumerGroup(
 		kgo.FetchMaxBytes(consumerCfg.MaxFetchSize),
 		kgo.FetchMaxPartitionBytes(consumerCfg.MaxPartitionFetchSize),
 		kgo.FetchMaxWait(consumerCfg.MaxFetchWait),
+		kgo.MaxDecompressBatchBytes(consumerCfg.MaxDecompressBatchBytes),
 	}, opts...)...)
 	if err != nil {
 		return nil, err
@@ -162,8 +168,10 @@ func NewFranzConsumerGroup(
 		opts = append(opts, kgo.InstanceID(consumerCfg.GroupInstanceID))
 	}
 
-	// Configure rebalance strategy
-	balancerOpt, err := balancerOptFromStrategy(consumerCfg.GroupRebalanceStrategy, host)
+	balancerOpt, err := balancerOptFromStrategies(
+		consumerCfg.GroupRebalanceStrategies,
+		host,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -203,39 +211,72 @@ func NewFranzClusterAdminClient(
 	return kadm.NewClient(cl), cl, nil
 }
 
-// balancerOptFromStrategy returns a kgo.Opt that sets the group balancer, or
-// nil if strategy is empty (franz-go default applies). Built-in strategy names
-// map to the corresponding kgo balancer. Any other value is treated as a
-// component ID referencing an extension that implements kgo.GroupBalancer.
-func balancerOptFromStrategy(strategy configkafka.GroupRebalanceStrategy, host component.Host) (kgo.Opt, error) {
+// balancerOptFromStrategies returns a kgo.Opt that sets the group balancers, or
+// nil if no strategy is configured (franz-go default applies). The deprecated
+// singular strategy and the strategies list are mutually exclusive (enforced by
+// ConsumerConfig.Validate).
+func balancerOptFromStrategies(
+	strategies []configkafka.GroupRebalanceStrategy,
+	host component.Host,
+) (kgo.Opt, error) {
+	if len(strategies) == 0 {
+		return nil, nil
+	}
+
+	balancers, err := balancersFromStrategies(strategies, host)
+	if err != nil {
+		return nil, err
+	}
+	return kgo.Balancers(balancers...), nil
+}
+
+func balancersFromStrategies(strategies []configkafka.GroupRebalanceStrategy, host component.Host) ([]kgo.GroupBalancer, error) {
+	balancers := make([]kgo.GroupBalancer, 0, len(strategies))
+	for i, strategy := range strategies {
+		field := fmt.Sprintf("group_rebalance_strategies[%d]", i)
+		balancer, err := balancerFromStrategy(strategy, field, host)
+		if err != nil {
+			return nil, err
+		}
+		if balancer != nil {
+			balancers = append(balancers, balancer)
+		}
+	}
+	if len(balancers) == 0 {
+		return nil, errors.New("group_rebalance_strategies has no valid group rebalance strategies")
+	}
+	return balancers, nil
+}
+
+func balancerFromStrategy(strategy configkafka.GroupRebalanceStrategy, field string, host component.Host) (kgo.GroupBalancer, error) {
 	switch strategy {
 	case "":
 		return nil, nil
 	case configkafka.RangeBalanceStrategy:
-		return kgo.Balancers(kgo.RangeBalancer()), nil
+		return kgo.RangeBalancer(), nil
 	case configkafka.RoundRobinBalanceStrategy:
-		return kgo.Balancers(kgo.RoundRobinBalancer()), nil
+		return kgo.RoundRobinBalancer(), nil
 	case configkafka.StickyBalanceStrategy:
-		return kgo.Balancers(kgo.StickyBalancer()), nil
+		return kgo.StickyBalancer(), nil
 	case configkafka.CooperativeStickyBalanceStrategy:
-		return kgo.Balancers(kgo.CooperativeStickyBalancer()), nil
+		return kgo.CooperativeStickyBalancer(), nil
 	default:
 		var id component.ID
 		if err := id.UnmarshalText([]byte(strategy)); err != nil {
 			return nil, fmt.Errorf(
-				"group_rebalance_strategy %q is not a built-in strategy or a valid extension ID: %w",
-				strategy, err,
+				"%s %q is not a built-in strategy or a valid extension ID: %w",
+				field, strategy, err,
 			)
 		}
 		ext, ok := host.GetExtensions()[id]
 		if !ok {
-			return nil, fmt.Errorf("group_rebalance_strategy extension %q not found", id)
+			return nil, fmt.Errorf("%s extension %q not found", field, id)
 		}
 		balancer, ok := ext.(kgo.GroupBalancer)
 		if !ok {
-			return nil, fmt.Errorf("extension %q does not implement kgo.GroupBalancer", id)
+			return nil, fmt.Errorf("%s extension %q does not implement kgo.GroupBalancer", field, id)
 		}
-		return kgo.Balancers(balancer), nil
+		return balancer, nil
 	}
 }
 
@@ -255,9 +296,6 @@ func commonOpts(
 		kgo.DisableClientMetrics(),
 	)
 	tlsConfig := clientCfg.TLS
-	if tlsConfig == nil {
-		tlsConfig = clientCfg.Authentication.TLS
-	}
 	// Configure TLS if needed
 	if tlsConfig != nil {
 		tlsCfg, err := tlsConfig.LoadTLSConfig(ctx)
@@ -268,16 +306,8 @@ func commonOpts(
 			opts = append(opts, kgo.DialTLSConfig(tlsCfg))
 		}
 	}
-	// Configure authentication
-	if clientCfg.Authentication.PlainText != nil {
-		auth := plain.Auth{
-			User: clientCfg.Authentication.PlainText.Username,
-			Pass: clientCfg.Authentication.PlainText.Password,
-		}
-		opts = append(opts, kgo.SASL(auth.AsMechanism()))
-	}
 	if clientCfg.Authentication.SASL != nil {
-		saslOpt, err := configureKgoSASL(clientCfg.Authentication.SASL, host)
+		saslOpt, err := configureKgoSASL(ctx, clientCfg.Authentication.SASL, host)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure SASL: %w", err)
 		}
@@ -302,9 +332,19 @@ func commonOpts(
 	if clientCfg.Metadata.RefreshInterval > 0 {
 		opts = append(opts, kgo.MetadataMaxAge(clientCfg.Metadata.RefreshInterval))
 	}
+	// Applied unconditionally so an explicit zero disables retries.
+	opts = append(opts, kgo.RequestRetries(clientCfg.Metadata.Retry.Max))
+	// A zero backoff would busy-retry an unhealthy broker, so treat it as unset.
+	if clientCfg.Metadata.Retry.Backoff > 0 {
+		opts = append(opts, kgo.RetryBackoffFn(newRetryBackoffFn(clientCfg.Metadata.Retry.Backoff)))
+	}
 	// Configure connection idle timeout
 	if clientCfg.ConnIdleTimeout > 0 {
 		opts = append(opts, kgo.ConnIdleTimeout(clientCfg.ConnIdleTimeout))
+	}
+	// Configure dial timeout
+	if clientCfg.DialTimeout > 0 {
+		opts = append(opts, kgo.DialTimeout(clientCfg.DialTimeout))
 	}
 	// Configure the min/max protocol version if provided
 	if clientCfg.ProtocolVersion != "" {
@@ -324,7 +364,46 @@ func commonOpts(
 	return opts, nil
 }
 
-func configureKgoSASL(cfg *configkafka.SASLConfig, host component.Host) (kgo.Opt, error) {
+// retryBackoffCap is franz-go's default maximum wait between retries.
+const retryBackoffCap = 5 * time.Second
+
+// newRetryBackoffFn mirrors franz-go's default jittered exponential backoff,
+// taking the minimum from metadata::retry::backoff. At the 250ms default it is
+// equivalent to the franz-go default.
+func newRetryBackoffFn(minBackoff time.Duration) func(int) time.Duration {
+	maxBackoff := max(retryBackoffCap, minBackoff)
+	return func(fails int) time.Duration {
+		if fails <= 0 {
+			return minBackoff
+		}
+		backoff := minBackoff << (fails - 1)
+		// Overflow means the doubling is far past the cap.
+		if backoff>>(fails-1) != minBackoff {
+			return maxBackoff
+		}
+		jittered := time.Duration(float64(backoff) * (0.8 + 0.4*rand.Float64()))
+		if jittered <= 0 {
+			return maxBackoff
+		}
+		return min(jittered, maxBackoff)
+	}
+}
+
+// loadAWSCredentialsProvider resolves the default AWS credentials provider.
+// LoadDefaultConfig wraps it in an aws.CredentialsCache. It is a variable so
+// tests can replace it.
+var loadAWSCredentialsProvider = func(ctx context.Context, region string) (aws.CredentialsProvider, error) {
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region),
+		awsconfig.WithCredentialsCacheOptions(func(o *aws.CredentialsCacheOptions) {
+			o.ExpiryWindow = time.Minute
+		}))
+	if err != nil {
+		return nil, err
+	}
+	return awsCfg.Credentials, nil
+}
+
+func configureKgoSASL(ctx context.Context, cfg *configkafka.SASLConfig, host component.Host) (kgo.Opt, error) {
 	var m sasl.Mechanism
 	switch cfg.Mechanism {
 	case PLAIN:
@@ -334,8 +413,14 @@ func configureKgoSASL(cfg *configkafka.SASLConfig, host component.Host) (kgo.Opt
 	case SCRAMSHA512:
 		m = scram.Auth{User: cfg.Username, Pass: cfg.Password}.AsSha512Mechanism()
 	case AWSMSKIAMOAUTHBEARER:
+		// Resolve the credentials provider once per client so cached
+		// credentials are reused across SASL authentications.
+		credsProvider, err := loadAWSCredentialsProvider(ctx, cfg.AWSMSK.Region)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load AWS config: %w", err)
+		}
 		m = oauth.Oauth(func(ctx context.Context) (oauth.Auth, error) {
-			token, _, err := signer.GenerateAuthToken(ctx, cfg.AWSMSK.Region)
+			token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(ctx, cfg.AWSMSK.Region, credsProvider)
 			return oauth.Auth{Token: token}, err
 		})
 	case OAUTHBEARER:
@@ -344,10 +429,12 @@ func configureKgoSASL(cfg *configkafka.SASLConfig, host component.Host) (kgo.Opt
 		if !exists {
 			return nil, fmt.Errorf("extension %s is not configured", cfg.OAuthBearerTokenSource)
 		}
+		ts, ok := oauthExt.(contextTokenSource)
+		if !ok {
+			return nil, fmt.Errorf("oauthbearer_token_source extension %q does not implement Token(context.Context)", cfg.OAuthBearerTokenSource)
+		}
 
 		m = oauth.Oauth(func(ctx context.Context) (oauth.Auth, error) {
-			ts := oauthExt.(contextTokenSource)
-
 			token, err := ts.Token(ctx)
 			if err != nil {
 				return oauth.Auth{}, err

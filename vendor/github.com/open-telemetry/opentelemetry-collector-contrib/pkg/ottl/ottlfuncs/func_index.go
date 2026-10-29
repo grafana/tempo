@@ -13,20 +13,22 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type IndexArguments[K any] struct {
+type indexArguments[K any] struct {
 	Target ottl.Getter[K]
 	Value  ottl.Getter[K]
 }
 
+// NewIndexFactory returns a factory for the Index OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#index
 func NewIndexFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Index", &IndexArguments[K]{}, createIndexFunction[K])
+	return ottl.NewFactory("Index", &indexArguments[K]{}, createIndexFunction[K])
 }
 
 func createIndexFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*IndexArguments[K])
+	args, ok := oArgs.(*indexArguments[K])
 
 	if !ok {
-		return nil, errors.New("IndexFactory args must be of type *IndexArguments[K]")
+		return nil, errors.New("IndexFactory args must be of type *indexArguments[K]")
 	}
 
 	return index(ottl.NewValueComparator(), args.Target, args.Value), nil

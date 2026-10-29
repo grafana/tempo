@@ -14,21 +14,23 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type ParseKeyValueArguments[K any] struct {
+type parseKeyValueArguments[K any] struct {
 	Target        ottl.StringGetter[K]
 	Delimiter     ottl.Optional[string]
 	PairDelimiter ottl.Optional[string]
 }
 
+// NewParseKeyValueFactory returns a factory for the ParseKeyValue OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#parsekeyvalue
 func NewParseKeyValueFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ParseKeyValue", &ParseKeyValueArguments[K]{}, createParseKeyValueFunction[K])
+	return ottl.NewFactory("ParseKeyValue", &parseKeyValueArguments[K]{}, createParseKeyValueFunction[K])
 }
 
 func createParseKeyValueFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*ParseKeyValueArguments[K])
+	args, ok := oArgs.(*parseKeyValueArguments[K])
 
 	if !ok {
-		return nil, errors.New("ParseKeyValueFactory args must be of type *ParseKeyValueArguments[K]")
+		return nil, errors.New("ParseKeyValueFactory args must be of type *parseKeyValueArguments[K]")
 	}
 
 	return parseKeyValue[K](args.Target, args.Delimiter, args.PairDelimiter)

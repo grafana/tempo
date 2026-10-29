@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package b3 // import "go.opentelemetry.io/contrib/propagators/b3"
+package b3
 
 type config struct {
 	// InjectEncoding are the B3 encodings used when injecting trace

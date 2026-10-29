@@ -51,8 +51,8 @@ $defs:
 description: Config defines configuration for Jaeger receiver.
 type: object
 properties:
+  protocols:
+    $ref: protocols
   remote_sampling:
     x-pointer: true
     $ref: remote_sampling_config
-allOf:
-  - $ref: protocols

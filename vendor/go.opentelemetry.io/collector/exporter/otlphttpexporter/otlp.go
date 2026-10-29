@@ -193,8 +193,7 @@ func (e *baseExporter) export(ctx context.Context, requestURL string, request []
 
 	resp, err := e.client.Do(req)
 	if err != nil {
-		var urlErr *url.Error
-		if errors.As(err, &urlErr) {
+		if urlErr, ok := errors.AsType[*url.Error](err); ok {
 			urlErr.URL = req.URL.String()
 		}
 		return fmt.Errorf("failed to make an HTTP request: %w", err)
@@ -203,14 +202,26 @@ func (e *baseExporter) export(ctx context.Context, requestURL string, request []
 	defer func() {
 		// Discard any remaining response body when we are done reading.
 		_, _ = io.CopyN(io.Discard, resp.Body, maxHTTPResponseReadBytes)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
-		return handlePartialSuccessResponse(resp, partialSuccessHandler)
+		if err := handlePartialSuccessResponse(resp, partialSuccessHandler); err != nil {
+			return consumererror.NewPermanent(err)
+		}
+		return nil
 	}
 
 	respStatus := readResponseStatus(resp)
+
+	// Report the URL the transport actually sent the request to. Middleware
+	// RoundTrippers may clone the request and rewrite its URL, leaving req with
+	// only the configured placeholder. Redact userinfo: the rewritten URL is not
+	// under the exporter's control and the error ends up in logs.
+	destURL := req.URL.Redacted()
+	if resp.Request != nil && resp.Request.URL != nil {
+		destURL = resp.Request.URL.Redacted()
+	}
 
 	// Format the error message. Use the status if it is present in the response.
 	var errString string
@@ -218,11 +229,13 @@ func (e *baseExporter) export(ctx context.Context, requestURL string, request []
 	if respStatus != nil {
 		errString = fmt.Sprintf(
 			"error exporting items, request to %s responded with HTTP Status Code %d, Message=%s, Details=%v",
-			requestURL, resp.StatusCode, respStatus.Message, respStatus.Details)
+			destURL, resp.StatusCode, respStatus.Message, respStatus.Details,
+		)
 	} else {
 		errString = fmt.Sprintf(
 			"error exporting items, request to %s responded with HTTP Status Code %d",
-			requestURL, resp.StatusCode)
+			destURL, resp.StatusCode,
+		)
 	}
 	formattedErr = statusutil.NewStatusFromMsgAndHTTPCode(errString, resp.StatusCode).Err()
 

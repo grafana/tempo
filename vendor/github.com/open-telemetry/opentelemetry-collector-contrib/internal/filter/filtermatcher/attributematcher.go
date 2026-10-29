@@ -9,10 +9,10 @@ import (
 	"strconv"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/xpdata/xhash"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil"
 )
 
 type AttributesMatcher []AttributeMatcher
@@ -68,7 +68,7 @@ func NewAttributesMatcher(config filterset.Config, attributes []filterconfig.Att
 			case filterset.Strict:
 				entry.AttributeValue = &valueIdentifier{
 					value:     val,
-					valueHash: pdatautil.ValueHash(val),
+					valueHash: xhash.ValueHash(val),
 				}
 			default:
 				return nil, filterset.NewUnrecognizedMatchTypeError(config.MatchType)
@@ -144,5 +144,5 @@ func attributeValueMatch(vi *valueIdentifier, val pcommon.Value) bool {
 		return vi.value.Int() == val.Int()
 	}
 	// Use hash for other complex data types.
-	return vi.valueHash == pdatautil.ValueHash(val)
+	return vi.valueHash == xhash.ValueHash(val)
 }

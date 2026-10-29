@@ -62,19 +62,21 @@ func (bd base64Decoder) DecodeString(src string) (any, error) {
 	return string(buf), nil
 }
 
-type DecodeArguments[K any] struct {
+type decodeArguments[K any] struct {
 	Target   ottl.Getter[K]
 	Encoding ottl.StringGetter[K]
 }
 
+// NewDecodeFactory returns a factory for the Decode OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#decode
 func NewDecodeFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Decode", &DecodeArguments[K]{}, createDecodeFunction[K])
+	return ottl.NewFactory("Decode", &decodeArguments[K]{}, createDecodeFunction[K])
 }
 
 func createDecodeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*DecodeArguments[K])
+	args, ok := oArgs.(*decodeArguments[K])
 	if !ok {
-		return nil, errors.New("DecodeFactory args must be of type *DecodeArguments[K]")
+		return nil, errors.New("DecodeFactory args must be of type *decodeArguments[K]")
 	}
 
 	return decode(args.Target, args.Encoding)

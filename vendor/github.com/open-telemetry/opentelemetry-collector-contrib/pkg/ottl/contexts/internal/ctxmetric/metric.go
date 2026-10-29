@@ -181,35 +181,15 @@ func accessDataPoints[K Context]() ottl.StandardGetSetter[K] {
 			metric := tCtx.GetMetric()
 			switch metric.Type() {
 			case pmetric.MetricTypeSum:
-				newDataPoints, err := ctxutil.ExpectType[pmetric.NumberDataPointSlice](val)
-				if err != nil {
-					return err
-				}
-				newDataPoints.CopyTo(metric.Sum().DataPoints())
+				return ctxutil.SetPSliceValue(metric.Sum().DataPoints(), pmetric.NewNumberDataPointSlice, val)
 			case pmetric.MetricTypeGauge:
-				newDataPoints, err := ctxutil.ExpectType[pmetric.NumberDataPointSlice](val)
-				if err != nil {
-					return err
-				}
-				newDataPoints.CopyTo(metric.Gauge().DataPoints())
+				return ctxutil.SetPSliceValue(metric.Gauge().DataPoints(), pmetric.NewNumberDataPointSlice, val)
 			case pmetric.MetricTypeHistogram:
-				newDataPoints, err := ctxutil.ExpectType[pmetric.HistogramDataPointSlice](val)
-				if err != nil {
-					return err
-				}
-				newDataPoints.CopyTo(metric.Histogram().DataPoints())
+				return ctxutil.SetPSliceValue(metric.Histogram().DataPoints(), pmetric.NewHistogramDataPointSlice, val)
 			case pmetric.MetricTypeExponentialHistogram:
-				newDataPoints, err := ctxutil.ExpectType[pmetric.ExponentialHistogramDataPointSlice](val)
-				if err != nil {
-					return err
-				}
-				newDataPoints.CopyTo(metric.ExponentialHistogram().DataPoints())
+				return ctxutil.SetPSliceValue(metric.ExponentialHistogram().DataPoints(), pmetric.NewExponentialHistogramDataPointSlice, val)
 			case pmetric.MetricTypeSummary:
-				newDataPoints, err := ctxutil.ExpectType[pmetric.SummaryDataPointSlice](val)
-				if err != nil {
-					return err
-				}
-				newDataPoints.CopyTo(metric.Summary().DataPoints())
+				return ctxutil.SetPSliceValue(metric.Summary().DataPoints(), pmetric.NewSummaryDataPointSlice, val)
 			}
 			return nil
 		},

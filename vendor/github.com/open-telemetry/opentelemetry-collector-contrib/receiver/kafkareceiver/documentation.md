@@ -111,6 +111,8 @@ The uncompressed size in bytes of received records seen by the client.
 
 Current message offset
 
+Reported only for currently assigned partitions after processing at least one record. Reporting stops when a partition is lost, revoked, or terminally paused, and resumes after a reassigned partition processes a record. Temporary backpressure and rewind pauses continue reporting the last observed offset. With eager group_rebalance_strategies (e.g. range), every rebalance revokes all partitions, so each series pauses until that partition's next record; the default cooperative-sticky strategy only affects moved partitions.
+
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
 | 1 | Gauge | Int | Development |
@@ -163,6 +165,8 @@ Deprecated in favor of kafka_receiver_records.
 ### otelcol_kafka_receiver_offset_lag
 
 Current offset lag
+
+Reported only for currently assigned partitions after processing at least one record. Reporting stops when a partition is lost, revoked, or terminally paused, and resumes after a reassigned partition processes a record. Temporary backpressure and rewind pauses continue reporting the last observed lag. With eager group_rebalance_strategies (e.g. range), every rebalance revokes all partitions, so each series pauses until that partition's next record; the default cooperative-sticky strategy only affects moved partitions.
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
@@ -235,7 +239,6 @@ Optional, only reported when enabled via config.
 Note that this metric may slow down high-volume consuming.
 Only produced when franz-go is enabled.
 This metric is reported with an assumption that the exporter and the receiver clocks are synchronized.
-
 
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |

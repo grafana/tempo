@@ -10,20 +10,22 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type SetArguments[K any] struct {
+type setArguments[K any] struct {
 	Target ottl.Setter[K]
 	Value  ottl.Getter[K]
 }
 
+// NewSetFactory returns a factory for the set OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#set
 func NewSetFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("set", &SetArguments[K]{}, createSetFunction[K])
+	return ottl.NewFactory("set", &setArguments[K]{}, createSetFunction[K])
 }
 
 func createSetFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*SetArguments[K])
+	args, ok := oArgs.(*setArguments[K])
 
 	if !ok {
-		return nil, errors.New("SetFactory args must be of type *SetArguments[K]")
+		return nil, errors.New("SetFactory args must be of type *setArguments[K]")
 	}
 
 	return set(args.Target, args.Value), nil
@@ -36,13 +38,11 @@ func set[K any](target ottl.Setter[K], value ottl.Getter[K]) ottl.ExprFunc[K] {
 			return nil, err
 		}
 
-		// No fields currently support `null` as a valid type.
-		if val != nil {
-			err = target.Set(ctx, tCtx, val)
-			if err != nil {
-				return nil, err
-			}
+		err = target.Set(ctx, tCtx, val)
+		if err != nil {
+			return nil, err
 		}
+
 		return nil, nil
 	}
 }

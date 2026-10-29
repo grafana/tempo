@@ -27,12 +27,13 @@ const (
 // obsQueue is a helper to add observability to a queue.
 type obsQueue[T request.Request] struct {
 	Queue[T]
-	tb                      *metadata.TelemetryBuilder
-	metricAttr              metric.MeasurementOption
-	enqueueFailedInst       metric.Int64Counter
-	queueBatchSizeInst      metric.Int64Histogram
-	queueBatchSizeBytesInst metric.Int64Histogram
-	tracer                  trace.Tracer
+	tb                   *metadata.TelemetryBuilder
+	metricAttr           metric.MeasurementOption
+	enqueueFailedInst    metric.Int64Counter
+	enqueueSizeInst      metric.Int64Histogram
+	enqueueSizeBytesInst metric.Int64Histogram
+	tracer               trace.Tracer
+	spanAttrs            trace.SpanStartEventOption
 }
 
 func newObsQueue[T request.Request](set Settings[T], delegate Queue[T]) (Queue[T], error) {
@@ -66,6 +67,7 @@ func newObsQueue[T request.Request](set Settings[T], delegate Queue[T]) (Queue[T
 		tb:         tb,
 		metricAttr: metric.WithAttributeSet(attribute.NewSet(exporterAttr)),
 		tracer:     tracer,
+		spanAttrs:  trace.WithAttributes(exporterAttr, attribute.String(dataTypeKey, set.Signal.String())),
 	}
 
 	switch set.Signal {
@@ -79,8 +81,8 @@ func newObsQueue[T request.Request](set Settings[T], delegate Queue[T]) (Queue[T
 		or.enqueueFailedInst = tb.ExporterEnqueueFailedProfileSamples
 	}
 
-	or.queueBatchSizeInst = tb.ExporterQueueBatchSendSize
-	or.queueBatchSizeBytesInst = tb.ExporterQueueBatchSendSizeBytes
+	or.enqueueSizeInst = tb.ExporterEnqueueSize
+	or.enqueueSizeBytesInst = tb.ExporterEnqueueSizeBytes
 
 	return or, nil
 }
@@ -95,10 +97,12 @@ func (or *obsQueue[T]) Offer(ctx context.Context, req T) error {
 	// be modified by the downstream components like the batcher.
 	numItems := req.ItemsCount()
 
-	or.queueBatchSizeInst.Record(ctx, int64(numItems), or.metricAttr)
-	or.queueBatchSizeBytesInst.Record(ctx, int64(req.BytesSize()), or.metricAttr)
+	or.enqueueSizeInst.Record(ctx, int64(numItems), or.metricAttr)
+	if or.enqueueSizeBytesInst.Enabled(ctx) {
+		or.enqueueSizeBytesInst.Record(ctx, int64(req.BytesSize()), or.metricAttr)
+	}
 
-	ctx, span := or.tracer.Start(ctx, "exporter/enqueue")
+	ctx, span := or.tracer.Start(ctx, "exporter/enqueue", or.spanAttrs)
 	err := or.Queue.Offer(ctx, req)
 	span.End()
 

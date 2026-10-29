@@ -12,34 +12,32 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type TimeArguments[K any] struct {
+type timeArguments[K any] struct {
 	Time     ottl.StringGetter[K]
 	Format   string
 	Location ottl.Optional[string]
 	Locale   ottl.Optional[string]
 }
 
+// NewTimeFactory returns a factory for the Time OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#time
 func NewTimeFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Time", &TimeArguments[K]{}, createTimeFunction[K])
+	return ottl.NewFactory("Time", &timeArguments[K]{}, createTimeFunction[K])
 }
 
 func createTimeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*TimeArguments[K])
+	args, ok := oArgs.(*timeArguments[K])
 
 	if !ok {
-		return nil, errors.New("TimeFactory args must be of type *TimeArguments[K]")
+		return nil, errors.New("TimeFactory args must be of type *timeArguments[K]")
 	}
 
-	return Time(args.Time, args.Format, args.Location, args.Locale)
+	return parseTime(args.Time, args.Format, args.Location, args.Locale)
 }
 
-func Time[K any](inputTime ottl.StringGetter[K], format string, location, locale ottl.Optional[string]) (ottl.ExprFunc[K], error) {
+func parseTime[K any](inputTime ottl.StringGetter[K], format string, location, locale ottl.Optional[string]) (ottl.ExprFunc[K], error) {
 	if format == "" {
 		return nil, errors.New("format cannot be nil")
-	}
-	gotimeFormat, err := timeutils.StrptimeToGotime(format)
-	if err != nil {
-		return nil, err
 	}
 
 	var defaultLocation *string
@@ -63,7 +61,10 @@ func Time[K any](inputTime ottl.StringGetter[K], format string, location, locale
 		inputTimeLocale = &l
 	}
 
-	ctimeSubstitutes := timeutils.GetStrptimeNativeSubstitutes(format)
+	parser, err := timeutils.NewStrptimeParser(format)
+	if err != nil {
+		return nil, err
+	}
 
 	return func(ctx context.Context, tCtx K) (any, error) {
 		t, err := inputTime.Get(ctx, tCtx)
@@ -75,15 +76,11 @@ func Time[K any](inputTime ottl.StringGetter[K], format string, location, locale
 		}
 		var timestamp time.Time
 		if inputTimeLocale != nil {
-			timestamp, err = timeutils.ParseLocalizedGotime(gotimeFormat, t, loc, *inputTimeLocale)
+			timestamp, err = parser.ParseLocalized(t, loc, *inputTimeLocale)
 		} else {
-			timestamp, err = timeutils.ParseGotime(gotimeFormat, t, loc)
+			timestamp, err = parser.Parse(t, loc)
 		}
 		if err != nil {
-			var timeErr *time.ParseError
-			if errors.As(err, &timeErr) {
-				return nil, timeutils.ToStrptimeParseError(timeErr, format, ctimeSubstitutes)
-			}
 			return nil, err
 		}
 		return timestamp, nil

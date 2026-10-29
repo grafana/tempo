@@ -14,19 +14,21 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type Murmur3Hash128Arguments[K any] struct {
+type murmur3Hash128Arguments[K any] struct {
 	Target ottl.StringGetter[K]
 }
 
+// NewMurmur3Hash128Factory returns a factory for the Murmur3Hash128 OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#murmur3hash128
 func NewMurmur3Hash128Factory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Murmur3Hash128", &Murmur3Hash128Arguments[K]{}, createMurmur3Hash128Function[K])
+	return ottl.NewFactory("Murmur3Hash128", &murmur3Hash128Arguments[K]{}, createMurmur3Hash128Function[K])
 }
 
 func createMurmur3Hash128Function[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*Murmur3Hash128Arguments[K])
+	args, ok := oArgs.(*murmur3Hash128Arguments[K])
 
 	if !ok {
-		return nil, errors.New("Murmur3Hash128Factory args must be of type *Murmur3Hash128Arguments[K]")
+		return nil, errors.New("Murmur3Hash128Factory args must be of type *murmur3Hash128Arguments[K]")
 	}
 
 	return murmur3Hash128(args.Target), nil

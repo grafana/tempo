@@ -17,8 +17,8 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/expr"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterottl"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlprofile"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlresource"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/xprofile/ottlprofile"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor/internal/condition"
 )
 
@@ -110,7 +110,7 @@ func (fpp *filterProfileProcessor) processSkipExpression(ctx context.Context, pd
 	pd.ResourceProfiles().RemoveIf(func(rp pprofile.ResourceProfiles) bool {
 		resource := rp.Resource()
 		if fpp.skipResourceExpr != nil {
-			tCtx := ottlresource.NewTransformContextPtr(resource, rp)
+			tCtx := ottlresource.NewTransformContext(resource, rp)
 			skip, err := fpp.skipResourceExpr.Eval(ctx, tCtx)
 			tCtx.Close()
 			if err != nil {
@@ -126,7 +126,7 @@ func (fpp *filterProfileProcessor) processSkipExpression(ctx context.Context, pd
 		}
 		rp.ScopeProfiles().RemoveIf(func(sp pprofile.ScopeProfiles) bool {
 			sp.Profiles().RemoveIf(func(profile pprofile.Profile) bool {
-				tCtx := ottlprofile.NewTransformContextPtr(rp, sp, profile, dic)
+				tCtx := ottlprofile.NewTransformContext(rp, sp, profile, dic)
 				defer tCtx.Close()
 				skip, err := fpp.skipProfileExpr.Eval(ctx, tCtx)
 				if err != nil {

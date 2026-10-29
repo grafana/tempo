@@ -6,6 +6,8 @@ package ottl // import "github.com/open-telemetry/opentelemetry-collector-contri
 import (
 	"context"
 	"fmt"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlerror"
 )
 
 // boolExpr represents a condition in OTTL
@@ -143,7 +145,7 @@ func (e *orExprs[K]) Eval(ctx context.Context, tCtx K) (bool, error) {
 	return false, nil
 }
 
-func (p *Parser[K]) newComparisonExpr(comparison *comparison) (boolExpr[K], error) {
+func (p *parseContext[K]) newComparisonExpr(comparison *comparison) (boolExpr[K], error) {
 	if comparison == nil {
 		return newAlwaysTrue[K](), nil
 	}
@@ -187,7 +189,7 @@ func (e *comparisonExpr[K]) Eval(ctx context.Context, tCtx K) (bool, error) {
 	return e.comparator.compare(a, b, e.op), nil
 }
 
-func (p *Parser[K]) newBoolExpr(expr *booleanExpression) (boolExpr[K], error) {
+func (p *parseContext[K]) newBoolExpr(expr *booleanExpression) (boolExpr[K], error) {
 	if expr == nil {
 		return newAlwaysTrue[K](), nil
 	}
@@ -207,7 +209,7 @@ func (p *Parser[K]) newBoolExpr(expr *booleanExpression) (boolExpr[K], error) {
 	return newOrExprs(funcs), nil
 }
 
-func (p *Parser[K]) newBooleanTermEvaluator(term *term) (boolExpr[K], error) {
+func (p *parseContext[K]) newBooleanTermEvaluator(term *term) (boolExpr[K], error) {
 	if term == nil {
 		return newAlwaysTrue[K](), nil
 	}
@@ -227,7 +229,7 @@ func (p *Parser[K]) newBooleanTermEvaluator(term *term) (boolExpr[K], error) {
 	return newAndExprs(funcs), nil
 }
 
-func (p *Parser[K]) newBooleanValueEvaluator(value *booleanValue) (boolExpr[K], error) {
+func (p *parseContext[K]) newBooleanValueEvaluator(value *booleanValue) (boolExpr[K], error) {
 	if value == nil {
 		return newAlwaysTrue[K](), nil
 	}
@@ -254,7 +256,7 @@ func (p *Parser[K]) newBooleanValueEvaluator(value *booleanValue) (boolExpr[K], 
 				return nil, err
 			}
 		default:
-			return nil, fmt.Errorf("unhandled boolean operation %v", value)
+			return nil, ottlerror.Errorf(value.Pos, "unhandled boolean operation %v", value)
 		}
 	case value.SubExpr != nil:
 		boolExpr, err = p.newBoolExpr(value.SubExpr)
@@ -262,7 +264,7 @@ func (p *Parser[K]) newBooleanValueEvaluator(value *booleanValue) (boolExpr[K], 
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("unhandled boolean operation %v", value)
+		return nil, ottlerror.Errorf(value.Pos, "unhandled boolean operation %v", value)
 	}
 
 	if value.Negation != nil {
@@ -271,20 +273,20 @@ func (p *Parser[K]) newBooleanValueEvaluator(value *booleanValue) (boolExpr[K], 
 	return boolExpr, nil
 }
 
-func (p *Parser[K]) newConverterEvaluator(c converter) (boolExpr[K], error) {
+func (p *parseContext[K]) newConverterEvaluator(c converter) (boolExpr[K], error) {
 	getter, err := p.newGetterFromConverter(c)
 	if err != nil {
 		return nil, err
 	}
 
-	return newConverterExpr(getter)
+	return newConverterExpr(c, getter)
 }
 
-func newConverterExpr[K any](getter Getter[K]) (boolExpr[K], error) {
+func newConverterExpr[K any](c converter, getter Getter[K]) (boolExpr[K], error) {
 	if val, ok := GetLiteralValue(getter); ok {
 		boolResult, okResult := val.(bool)
 		if !okResult {
-			return nil, fmt.Errorf("value returned from Converter in constant expression must be bool but got %T", val)
+			return nil, ottlerror.Errorf(c.Pos, "value returned from Converter in constant expression must be bool but got %T", val)
 		}
 		return newLiteralExpr[K](boolResult), nil
 	}

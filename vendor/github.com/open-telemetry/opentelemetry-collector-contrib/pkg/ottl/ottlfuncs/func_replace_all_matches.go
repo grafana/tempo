@@ -14,7 +14,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type ReplaceAllMatchesArguments[K any] struct {
+type replaceAllMatchesArguments[K any] struct {
 	Target            ottl.PMapGetSetter[K]
 	Pattern           ottl.StringGetter[K]
 	Replacement       ottl.StringGetter[K]
@@ -26,15 +26,17 @@ type replaceAllMatchesFuncArgs[K any] struct {
 	Input ottl.StringGetter[K]
 }
 
+// NewReplaceAllMatchesFactory returns a factory for the replace_all_matches OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#replace_all_matches
 func NewReplaceAllMatchesFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("replace_all_matches", &ReplaceAllMatchesArguments[K]{}, createReplaceAllMatchesFunction[K])
+	return ottl.NewFactory("replace_all_matches", &replaceAllMatchesArguments[K]{}, createReplaceAllMatchesFunction[K])
 }
 
 func createReplaceAllMatchesFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*ReplaceAllMatchesArguments[K])
+	args, ok := oArgs.(*replaceAllMatchesArguments[K])
 
 	if !ok {
-		return nil, errors.New("ReplaceAllMatchesFactory args must be of type *ReplaceAllMatchesArguments[K]")
+		return nil, errors.New("ReplaceAllMatchesFactory args must be of type *replaceAllMatchesArguments[K]")
 	}
 
 	return replaceAllMatches(args.Target, args.Pattern, args.Replacement, args.Function, args.ReplacementFormat)

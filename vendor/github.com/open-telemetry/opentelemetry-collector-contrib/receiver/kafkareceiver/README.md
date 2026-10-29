@@ -5,7 +5,6 @@ The Kafka Receiver receives telemetry data from Kafka, with configurable topics 
 with the `kafkaexporter` configured with `include_metadata_keys`, The Kafka Receiver will also propagate the Kafka
 headers to the downstream pipeline, giving access to the rest of the pipeline to arbitrary metadata keys and values.
 
-
 | Status        |           |
 | ------------- |-----------|
 | Stability     | [development]: profiles   |
@@ -13,7 +12,8 @@ headers to the downstream pipeline, giving access to the rest of the pipeline to
 | Distributions | [core], [contrib] |
 | Issues        | [![Open issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aopen%20label%3Areceiver%2Fkafka%20&label=open&color=orange&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aopen+is%3Aissue+label%3Areceiver%2Fkafka) [![Closed issues](https://img.shields.io/github/issues-search/open-telemetry/opentelemetry-collector-contrib?query=is%3Aissue%20is%3Aclosed%20label%3Areceiver%2Fkafka%20&label=closed&color=blue&logo=opentelemetry)](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues?q=is%3Aclosed+is%3Aissue+label%3Areceiver%2Fkafka) |
 | Code coverage | [![codecov](https://codecov.io/github/open-telemetry/opentelemetry-collector-contrib/graph/main/badge.svg?component=receiver_kafka)](https://app.codecov.io/gh/open-telemetry/opentelemetry-collector-contrib/tree/main/?components%5B0%5D=receiver_kafka&displayType=list) |
-| [Code Owners](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/CONTRIBUTING.md#becoming-a-code-owner)    | [@pavolloffay](https://www.github.com/pavolloffay), [@MovieStoreGuy](https://www.github.com/MovieStoreGuy), [@axw](https://www.github.com/axw), [@paulojmdias](https://www.github.com/paulojmdias) |
+| [Code Owners](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/CONTRIBUTING.md#becoming-a-code-owner)    | [@pavolloffay](https://www.github.com/pavolloffay), [@MovieStoreGuy](https://www.github.com/MovieStoreGuy), [@paulojmdias](https://www.github.com/paulojmdias) |
+| Emeritus      | [@axw](https://www.github.com/axw) |
 
 [development]: https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/component-stability.md#development
 [beta]: https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/component-stability.md#beta
@@ -31,8 +31,7 @@ headers to the downstream pipeline, giving access to the rest of the pipeline to
 > To enable this feature, prefix your topic with the `^` character. This is identical to how the `librdkafka`
 > client works.
 >
-> If you use the `^` prefix, in the deprecated `topic` setting, if **any** of the topics have the `^` prefix,
-> regex consuming will be enabled.
+> If **any** of the topics have the `^` prefix, regex consuming will be enabled and `exclude_topics` can be used (see [Regex topic patterns with exclusions](#regex-topic-patterns-with-exclusions) for an example).
 
 There are no required settings.
 
@@ -42,51 +41,37 @@ The following settings can be optionally configured:
 - `protocol_version` (default = 2.1.0): Kafka protocol version.
 - `resolve_canonical_bootstrap_servers_only` (default = false): Whether to resolve then reverse-lookup broker IPs during startup
 - `logs`
-  - `topic` (Deprecated [v0.142.0]: use `topics`)
-     (default = otlp\_logs): If this is set, it will take precedence over default value of `topics`
   - `topics` (default = otlp\_logs): List of kafka topics from which to consume logs
   - `encoding` (default = otlp\_proto): The encoding for the Kafka topic. See [Supported encodings](#supported-encodings).
-  - `exclude_topic` (Deprecated [v0.142.0]: use `exclude_topics`)
-     (default = ""): If this is set, it will take precedence over default value of `exclude_topics`
-  - `exclude_topics` (default = ""): When using regex topic patterns (prefix with `^`), this regex pattern excludes matching topics.
+  - `exclude_topics` (default = []): When at least one entry in topics is a regex pattern (prefix with ^), topics matching any of these regular expressions are excluded.
 - `metrics`
-  - `topic` (Deprecated [v0.142.0]: use `topics`)
-     (default = otlp\_metrics): If this is set, it will take precedence over default value of `topics`
   - `topics` (default = otlp\_metrics): List of Kafka topic from which to consume metrics.
   - `encoding` (default = otlp\_proto): The encoding for the Kafka topic. See [Supported encodings](#supported-encodings).
-  - `exclude_topic` (Deprecated [v0.142.0]: use `exclude_topics`)
-     (default = ""): If this is set, it will take precedence over default value of `exclude_topics`
-  - `exclude_topics` (default = ""): When using regex topic patterns (prefix with `^`), this regex pattern excludes matching topics.
+  - `exclude_topics` (default = []): When at least one entry in topics is a regex pattern (prefix with ^), topics matching any of these regular expressions are excluded.
 - `traces`
-  - `topic` (Deprecated [v0.142.0]: use `topics`)
-     (default = otlp\_spans): If this is set, it will take precedence over default value of `topics`
   - `topics` (default = otlp\_spans): List of Kafka topic from which to consume traces.
   - `encoding` (default = otlp\_proto): The encoding for the Kafka topic. See [Supported encodings](#supported-encodings).
-  - `exclude_topic` (Deprecated [v0.142.0]: use `exclude_topics`)
-     (default = ""): If this is set, it will take precedence over default value of `exclude_topics`
-  - `exclude_topics` (default = ""): When using regex topic patterns (prefix with `^`), this regex pattern excludes matching topics.
+  - `exclude_topics` (default = []): When at least one entry in topics is a regex pattern (prefix with ^), topics matching any of these regular expressions are excluded.
 - `profiles`
-  - `topic`  (Deprecated [v0.142.0]: use `topics`)
-     (default = otlp\_profiles): If this is set, it will take precedence over default value of `topics`
   - `topics` (default = otlp\_profiles): List of Kafka topic from which to consume profiles.
   - `encoding` (default = otlp\_proto): The encoding for the Kafka topic. See [Supported encodings](#supported-encodings).
-  - `exclude_topic` (Deprecated [v0.142.0]: use `exclude_topics`)
-     (default = ""): If this is set, it will take precedence over default value of `exclude_topics`
-  - `exclude_topics` (default = ""): When using regex topic patterns (prefix with `^`), this regex pattern excludes matching topics.
+  - `exclude_topics` (default = []): When at least one entry in topics is a regex pattern (prefix with ^), topics matching any of these regular expressions are excluded.
 - `group_id` (default = otel-collector): The consumer group that receiver will be consuming messages from
 - `client_id` (default = otel-collector): The consumer client ID that receiver will use
 - `rack_id` (default = ""): The rack identifier for this client. When set and brokers are configured with a rack-aware replica selector, the client will prefer fetching from the closest replica.
 - `use_leader_epoch` (default = true): (Experimental) When enabled, the consumer uses the leader epoch returned by brokers (KIP-320) to detect log truncation. Setting this to false clears the leader epoch from fetch offsets, disabling KIP-320. Disabling can improve compatibility with brokers that don’t fully support leader epochs (e.g., Azure Event Hubs), at the cost of losing automatic log-truncation safety.
 - `conn_idle_timeout` (default = `9m`): The time after which idle connections to Kafka brokers are not reused and may be closed.
+- `dial_timeout` (default = `10s`): The time allowed to establish a connection to a Kafka broker.
 - `initial_offset` (default = latest): The initial offset to use if no offset was previously committed. Must be `latest` or `earliest`.
 - `session_timeout` (default = `10s`): The request timeout for detecting client failures when using Kafka’s group management facilities.
 - `heartbeat_interval` (default = `3s`): The expected time between heartbeats to the consumer coordinator when using Kafka’s group management facilities.
-- `group_rebalance_strategy` (default = `cooperative-sticky`): The strategy used to assign partitions to consumers within a consumer group during rebalances. Built-in values are:
+- `group_rebalance_strategies`: Ordered list of strategies to advertise to Kafka. Kafka selects the first advertised strategy supported by every member of the consumer group. When omitted, the franz-go default applies, currently `cooperative-sticky`. This field is mutually exclusive with `group_rebalance_strategy`; setting both fails validation. This can be used for rolling migrations between assignment protocols. Built-in values are:
   - `range`: Assigns partitions per topic based on a contiguous range. See [RangeAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/RangeAssignor.html).
   - `roundrobin`: Assigns partitions across all topics in a round-robin fashion. See [RoundRobinAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/RoundRobinAssignor.html).
   - `sticky`: Minimises partition movement across rebalances. See [StickyAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/StickyAssignor.html).
   - `cooperative-sticky`: Like `sticky`, but uses cooperative (incremental) rebalancing to avoid a full stop-the-world rebalance. See [CooperativeStickyAssignor](https://kafka.apache.org/31/javadoc/org/apache/kafka/clients/consumer/CooperativeStickyAssignor.html).
   - Any other value is interpreted as the component ID of a registered extension that implements `kgo.GroupBalancer`, which allows a custom partition-assignment strategy to be plugged in.
+- `group_rebalance_strategy` (default = `cooperative-sticky`, Deprecated [v0.154.0]: use `group_rebalance_strategies` instead): The strategy used to assign partitions to consumers within a consumer group during rebalances. Accepts the same values as `group_rebalance_strategies`. Setting this value logs a deprecation warning on startup. It is mutually exclusive with `group_rebalance_strategies`; setting both fails validation.
 - `group_instance_id`: A unique identifier for the consumer instance within a consumer group.
   - If set to a non-empty string, the consumer is treated as a static member of the group. This means that the consumer will maintain its partition assignments across restarts and rebalances, as long as it rejoins the group with the same `group_instance_id`.
   - If set to an empty string (or not set), the consumer is treated as a dynamic member. In this case, the consumer's partition assignments may change during rebalances.
@@ -95,6 +80,7 @@ The following settings can be optionally configured:
 - `max_fetch_size` (default = `1048576`): The maximum number of message bytes to fetch in a request, defaults to 1MB. Must be greater than or equal to `min_fetch_size`.
 - `max_fetch_wait` (default = `250ms`): The maximum amount of time the broker should wait for `min_fetch_size` bytes to be available before returning anyway.
 - `max_partition_fetch_size` (default = `1048576`): The default number of message bytes to fetch in a request per partition, defaults to 1MB. If a single record batch is larger than this value, the broker will still return it to ensure the consumer can make progress.
+- `max_decompress_batch_bytes` (default = `1073741824`, 1 GiB): The maximum number of bytes to allow for decompressing a single Kafka record batch. This limit is applied after decompression, so it bounds the memory required for a decompressed record batch. This setting is independent of `max_fetch_size` and `max_partition_fetch_size`, which limit compressed bytes on the wire. If a record batch exceeds this decompression limit, the partition will stop making progress until the configuration is increased and the consumer is restarted.
 - `tls`: see [TLS Configuration Settings](https://github.com/open-telemetry/opentelemetry-collector/blob/main/config/configtls/README.md) for the full set of available options.
 - `auth`
   - `plain_text` (Deprecated in v0.123.0: use sasl with mechanism set to PLAIN instead.)
@@ -103,9 +89,10 @@ The following settings can be optionally configured:
   - `sasl`
     - `username`: The username to use.
     - `password`: The password to use.
-    - `mechanism`: The sasl mechanism to use (SCRAM-SHA-256, SCRAM-SHA-512, AWS_MSK_IAM_OAUTHBEARER, or PLAIN)
+    - `mechanism`: The sasl mechanism to use (SCRAM-SHA-256, SCRAM-SHA-512, AWS_MSK_IAM_OAUTHBEARER, OAUTHBEARER, or PLAIN)
     - `aws_msk`
       - `region`: AWS Region in case of AWS_MSK_IAM_OAUTHBEARER mechanism
+    - `oauthbearer_token_source`: The component ID of an authenticator extension that provides OAuth2 tokens (e.g. `oauth2client` or `azure_auth`). Required when `mechanism` is `OAUTHBEARER`; the extension must be listed under `service.extensions`.
   - `tls` (Deprecated in v0.124.0: configure tls at the top level): this is an alias for tls at the top level.
   - `kerberos`
     - `service_name`: Kerberos service name
@@ -117,13 +104,18 @@ The following settings can be optionally configured:
     - `keytab_file`: Path to keytab file. i.e /etc/security/kafka.keytab
     - `disable_fast_negotiation`: Disable PA-FX-FAST negotiation (Pre-Authentication Framework - Fast). Some common Kerberos implementations do not support PA-FX-FAST negotiation. This is set to `false` by default.
 - `metadata`
-  - `full` (default = true): Whether to maintain a full set of metadata. When
-    disabled, the client does not make the initial request to broker at the
-    startup.
+  - `full` (deprecated): No longer has any effect. Metadata is only fetched for
+    the topics the client consumes from.
   - `refresh_interval` (default = 10m): The refreshInterval controls the frequency at which cluster metadata is refreshed in the background.
   - `retry`
-    - `max` (default = 3): The number of retries to get metadata
-    - `backoff` (default = 250ms): How long to wait between metadata retries
+    - `max` (default = 20): The number of times to retry a retriable request.
+      Applies to consumer group and offset commit/fetch requests. It does not
+      apply to fetch requests, nor to the client's internal metadata refresh,
+      which caps itself at 3 retries.
+    - `backoff` (default = 250ms): The minimum time to wait before retrying a
+      request. Each successive retry doubles the wait, with jitter applied,
+      capped at `max(5s, backoff)`. Unlike `max`, this applies to every retry
+      path, including fetches.
 - `autocommit`
   - `enable`: (default = true) Whether or not to auto-commit updated offsets back to the broker
   - `interval`: (default = 1s) How frequently to commit updated offsets. Ineffective unless auto-commit is enabled
@@ -133,6 +125,16 @@ The following settings can be optionally configured:
     **Note: when `error_backoff` is enabled, the failed record is automatically retried on the next poll cycle once all retries are exhausted. Without `error_backoff`, the partition remains paused until a rebalance occurs.**
   - `on_permanent_error`: (default = value of `on_error`) If false, messages that generate permanent errors are not marked. If true, messages that generate permanent errors are marked.
     **Note: this can block the entire partition in case a message processing returns a permanent error. Permanent errors are not retried via `error_backoff`, but the uncommitted message will be reprocessed after a rebalance.**
+- `partition_processing`:
+  - `independent` (default = false): Process each assigned topic partition sequentially in its own worker so a blocked partition does not block polling healthy partitions. Requires `autocommit.enable` to be true.
+  - `max_prefetch`:
+    - `batches` (default = 1): Maximum number of fetched batches waiting for each partition worker. Must be greater than zero when independent processing is enabled.
+    - `bytes` (default = 0, no cap): Fetching for a partition pauses once the batches waiting for its worker reach this many bytes. Bytes are counted as in `max_in_flight.bytes`. A batch that crosses the cap is still admitted, so the overshoot is at most one batch. Must not be negative. Applies only when `independent` is true and `batches` is above 1.
+  - `max_buffered_batches` (deprecated, use `max_prefetch.batches`): Same as `max_prefetch.batches`. Setting both is an error. Will be removed in v0.166.0.
+  - `max_in_flight`:
+    - `records` (default = 1): Maximum number of concurrent unmarshal-plus-Consume calls for each partition worker. Applies only when `independent` is true. Must be greater than zero when independent processing is enabled. Values above 1 give up record ordering within a partition. Values above 1 always mark after processing, so `message_marking.after: false` does not mark before Consume.
+    - `bytes` (default = 0, no cap): Maximum bytes held by the records of each partition worker that have started and are not marked yet. A record counts its key, value, and headers after decompression, plus a fixed overhead of about 250 bytes per record and 40 per header. Must not be negative. Applies only when `independent` is true and `records` is above 1. A record above the cap still runs, alone.
+    - `window` (default = `per_fetch`): `per_fetch` waits for every call of a fetched batch before it starts the next batch. `cross_fetch` keeps starting records from later batches while `records` and `bytes` have room. Applies only when `independent` is true. `cross_fetch` requires `records` above 1 and `bytes` above 0.
 - `header_extraction`:
   - `extract_headers` (default = false): Allows user to attach header fields to resource attributes in otel pipeline
   - `headers` (default = []): List of headers they'd like to extract from kafka record.
@@ -160,8 +162,8 @@ Available for all signals:
 
 Available only for traces:
 
-- `jaeger_proto`: the payload is deserialized to a single Jaeger proto `Span`.
-- `jaeger_json`: the payload is deserialized to a single Jaeger JSON Span using `jsonpb`.
+- `jaeger_proto` (Deprecated [v0.164.0]: use [`jaegerencodingextension`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/encoding/jaegerencodingextension) with `protocol: protobuf`): the payload is deserialized to a single Jaeger proto `Span`.
+- `jaeger_json` (Deprecated [v0.164.0]: use [`jaegerencodingextension`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/encoding/jaegerencodingextension) with `protocol: json`): the payload is deserialized to a single Jaeger JSON Span using `jsonpb`.
 - `zipkin_proto`: the payload is deserialized into a list of Zipkin proto spans.
 - `zipkin_json`: the payload is deserialized into a list of Zipkin V2 JSON spans.
 - `zipkin_thrift`: the payload is deserialized into a list of Zipkin Thrift spans.
@@ -170,7 +172,7 @@ Available only for logs:
 
 - `raw`: the payload's bytes are inserted as the body of a log record.
 - `text`: the payload are decoded as text and inserted as the body of a log record. By default, it uses UTF-8 to decode. You can use `text_<ENCODING>`, like `text_utf-8`, `text_shift_jis`, etc., to customize this behavior.
-- `json`: the payload is decoded as JSON and inserted as the body of a log record.
+- `json` (Deprecated [v0.164.0]: use [`jsonlogencodingextension`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/encoding/jsonlogencodingextension) with `array_mode: false`): the payload is decoded as JSON and inserted as the body of a log record.
 - `azure_resource_logs` (Deprecated [v0.149.0]: use [`azureencodingextension`](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/encoding/azureencodingextension)): the payload is converted from Azure Resource Logs format to OTel format.
 
 ### Message metadata propagation
@@ -184,8 +186,11 @@ consumed message:
 
 Additionally, all Kafka message headers are included in the request metadata.
 
-This metadata can then be used throughout the pipeline, for example to set attributes using the
-[attributes processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/attributesprocessor/README.md).
+This metadata can then be used throughout the pipeline, for example to set attributes using the [attributes processor](../../processor/attributesprocessor/README.md).
+
+### Trace context propagation
+
+The receiver extracts the trace context from record headers, using the propagators configured in `service::telemetry::traces::propagators`. The receiver span starts a new trace and links to the extracted trace context. Propagators are only installed when `service::telemetry::traces` also has processors configured, so without them, no trace context is extracted.
 
 ### Example configurations
 
@@ -214,6 +219,40 @@ receivers:
         password: "secret"
         mechanism: "SCRAM-SHA-512"
 ```
+
+#### SASL/OAUTHBEARER (OAuth2 token source)
+
+The `OAUTHBEARER` mechanism delegates token acquisition and refresh to an authenticator
+extension referenced by `oauthbearer_token_source`, such as
+[`oauth2clientauth`](../../extension/oauth2clientauthextension/README.md):
+
+```yaml
+extensions:
+  oauth2client:
+    client_id: someclientid
+    client_secret: someclientsecret
+    token_url: https://example.com/oauth2/default/v1/token
+
+receivers:
+  kafka:
+    tls:
+      insecure: false
+    auth:
+      sasl:
+        mechanism: OAUTHBEARER
+        oauthbearer_token_source: oauth2client
+
+service:
+  extensions: [oauth2client]
+  pipelines:
+    logs:
+      receivers: [kafka]
+      exporters: [debug]
+```
+
+The [`azureauth`](../../extension/azureauthextension/README.md) extension can also be used
+as a token source, which supports managed identity, workload identity, and service principal
+for authenticating against Azure Event Hubs.
 
 #### Header extraction
 
@@ -249,8 +288,13 @@ When using the `franz-go` client, you can consume from multiple topics using reg
 and exclude specific topics from consumption. This is useful when you want to consume from
 a dynamic set of topics but need to filter out certain ones.
 
-**Note:** Both `topic` and `exclude_topic` must use regex patterns (prefix with `^`) for
-exclusion to work. This feature is only available with the franz-go client.
+[!NOTE]
+`exclude_topics` only takes effect when at least one entry in `topics` is a regex pattern
+(prefixed with `^`); the receiver fails config validation otherwise.
+
+Entries in `exclude_topics` are regular expressions matched **unanchored**, so
+`exclude_topics: ["test"]` also excludes a topic named `prod-test-1`. Prefix them with `^`
+(and anchor with `$` where appropriate), as in the example below.
 
 ```yaml
 receivers:
@@ -272,3 +316,44 @@ In the example above:
   but will exclude `logs-test` and `logs-dev`
 - For metrics: the receiver will consume from topics like `metrics-app`, `metrics-infra`
   but will exclude any topics starting with `metrics-internal-`
+
+#### Independent partition processing
+
+> **NOTE**: Independent partition processing requires `autocommit.enable: true`. The receiver rejects configurations that combine independent processing with manual commits.
+
+Independent partition processing runs each assigned partition in its own worker. A blocked partition does not block polling or workers for other partitions.
+
+Each partition has one worker and one mailbox. `max_prefetch.batches` is how many fetched batches may wait in that mailbox. It is not a record count or a worker count. A full mailbox pauses only that partition. The partition resumes when a slot is free.
+
+`max_prefetch.bytes` (default 0, no cap) also limits the bytes of the batches waiting in the mailbox. A partition pauses once those bytes reach the cap, and it resumes once they drop below it and a batch slot is free. It has no effect with the default `batches: 1`, because an empty mailbox always admits a batch and the batch count then pauses fetching.
+
+`max_in_flight.records` (default 1) is how many unmarshal-plus-Consume calls one partition worker may run at once. With the default `window: per_fetch`, the worker starts those calls only for records in the current fetched batch, and waits for all of them before it takes the next batch. An idle partition still has one worker. At 1, records stay in offset order inside the partition. Above 1, later records can reach Consume before earlier ones finish.
+
+`max_in_flight.bytes` (default 0, no cap) also limits the bytes of the records the worker has started and not yet marked: key, value, and headers after decompression, plus about 250 bytes per record and 40 per header, so empty records count too. A finished record keeps its bytes until the mark passes it, so `bytes` also bounds how much finished data can pile up behind a slow record. The worker starts a record only when both limits have room. Use it to size memory when record sizes vary. The batches waiting in the mailbox are bounded by `max_prefetch` instead, and the batch the worker is processing is outside both caps. With `cross_fetch`, the Kafka record batch the oldest unmarked record was decoded from is also outside this cap, and it can come from an earlier fetch.
+
+`max_in_flight.window: cross_fetch` lets the worker take the next batch while calls from earlier batches still run, up to `records` and `bytes` for the whole partition. Use it when the next consumer holds Consume open until it has aggregated enough data, for example an exporter with `sending_queue.wait_for_result: true` and `batch.min_size` set. With `per_fetch`, such a consumer never sees more than one fetched batch at once and flushes undersized batches on its timeout. Marking is the same in both modes: the worker marks only the contiguous accepted prefix, in fetch order. The cost is a larger replay window. Records that finished above a slow or failed record stay unmarked, and a crash or rebalance replays them. After a revoke, data already accepted by a batching exporter can still export while the next owner replays it. Under `wait_for_result`, the sending queue also limits the window, so `sending_queue.queue_size` must exceed `batch.min_size` by at least the largest record.
+
+Unmarshal must be safe for concurrent calls. The receiver uses one unmarshaler for all workers. It cannot clone encoding extensions. Independent workers call Unmarshal at the same time across partitions. `max_in_flight.records` above 1 does the same inside a partition. 
+
+> **WARNING**: Built-in `text` and `text_*` encodings keep one decoder and are not concurrent-safe. Encoding extensions must be concurrent-safe as well.
+
+When `max_in_flight.records` is above 1, the worker marks the contiguous accepted prefix as soon as those records finish. Message marking can put a rejected record in that prefix. This happens when `after` is false, or when `on_error` or `on_permanent_error` is true. Later records can still be in Consume. The worker always marks after processing, so `message_marking.after: false` does not mark before Consume. Kafka commits marks on the autocommit interval (default 1s). A crash re-fetches from the last committed offset, which can lag the marks.
+
+Above 1, an unmarked failure stops new calls on that partition. The worker waits for calls already in Consume, then rewinds or pauses. Before a rewind, it remembers offsets it already finished above the failed record and skips Consume for them on the next fetch. A new owner after pause or rebalance does not skip those offsets, so they can reach Consume again. While the failed call still runs, including backoff, other slots can start more records from the same fetch, or from later fetches with `cross_fetch`.
+
+Resource usage grows with the number of assigned partitions and `max_prefetch`. Queued data per partition stays below `max_prefetch.bytes` plus one batch when `bytes` is set. Total memory per partition is roughly that bound, plus the batch the worker is processing, plus `max_in_flight.bytes` for the window. A larger `max_in_flight.records` starts more in-flight pipeline calls per partition.
+
+When a partition is revoked, its worker is cancelled and queued batches are discarded. The next owner fetches from the committed offset. Standard Kafka at-least-once delivery still applies.
+
+```yaml
+receivers:
+  kafka:
+    partition_processing:
+      independent: true
+      max_prefetch:
+        batches: 2
+        bytes: 33554432
+      max_in_flight:
+        records: 4
+        bytes: 33554432
+```

@@ -1,7 +1,8 @@
 status:
   disable_codecov_badge: true
   codeowners:
-    active: [pavolloffay, MovieStoreGuy, axw, paulojmdias]
+    active: [pavolloffay, MovieStoreGuy, paulojmdias]
+    emeritus: [axw]
 
 tests:
   goleak:

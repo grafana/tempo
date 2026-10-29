@@ -18,5 +18,9 @@ const (
 // https://github.com/open-telemetry/opentelemetry-specification/blob/34b907207f3dfe1635a35c4cdac6b6ab3a495e18/specification/trace/sdk_exporters/jaeger.md#events
 const eventNameAttr = "event"
 
+// spanFlagsSampled is bit 0 of the OTLP Span.flags field, the W3C Trace Context
+// "sampled" trace flag (SPAN_FLAGS_TRACE_FLAGS_MASK covers bits 0-7).
+const spanFlagsSampled = uint32(1)
+
 // errType indicates that a value is not convertible to the target type.
 var errType = errors.New("invalid type")

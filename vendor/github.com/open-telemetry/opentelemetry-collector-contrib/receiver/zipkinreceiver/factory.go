@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/coredistro"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver/internal/metadata"
 )
 
@@ -35,8 +36,10 @@ func createDefaultConfig() component.Config {
 	netAddr := confignet.NewDefaultAddrConfig()
 	netAddr.Transport = confignet.TransportTypeTCP
 	netAddr.Endpoint = defaultHTTPEndpoint
+	serverConfig := confighttp.NewDefaultServerConfig()
+	serverConfig.NetAddr = netAddr
 	return &Config{
-		ServerConfig:    confighttp.ServerConfig{NetAddr: netAddr},
+		ServerConfig:    serverConfig,
 		ParseStringTags: false,
 	}
 }
@@ -48,6 +51,7 @@ func createTracesReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (receiver.Traces, error) {
+	coredistro.WarnRemoval(set.TelemetrySettings, set.BuildInfo, "v0.167.0", coredistro.JaegerZipkinCoda)
 	rCfg := cfg.(*Config)
 	return newReceiver(rCfg, nextConsumer, set)
 }

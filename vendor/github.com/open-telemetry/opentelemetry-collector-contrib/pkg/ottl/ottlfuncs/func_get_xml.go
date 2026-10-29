@@ -12,17 +12,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type GetXMLArguments[K any] struct {
+type getXMLArguments[K any] struct {
 	Target ottl.StringGetter[K]
 	XPath  string
 }
 
+// NewGetXMLFactory returns a factory for the GetXML OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#getxml
 func NewGetXMLFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("GetXML", &GetXMLArguments[K]{}, createGetXMLFunction[K])
+	return ottl.NewFactory("GetXML", &getXMLArguments[K]{}, createGetXMLFunction[K])
 }
 
 func createGetXMLFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*GetXMLArguments[K])
+	args, ok := oArgs.(*getXMLArguments[K])
 
 	if !ok {
 		return nil, errors.New("GetXML args must be of type *GetXMLAguments[K]")

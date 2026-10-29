@@ -26,7 +26,7 @@ Once the official Go i18n features for time parsing are ready, it should be repl
 t, err := lunes.Parse("Monday Jan _2 2006 15:04:05", "lunes oct 27 1988 11:53:29", lunes.LocaleEsES)
 
 // parse in specific time zones.
-t, err := lunes.ParseInLocation("Monday Jan _2 2006 15:04:05", "lunes oct 27 1988 11:53:29", time.UTC, lunes.LocaleEsES)
+t, err := lunes.ParseInLocation("Monday Jan _2 2006 15:04:05", "lunes oct 27 1988 11:53:29", lunes.LocaleEsES, time.UTC)
 ```
 
 ```go

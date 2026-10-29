@@ -25,6 +25,8 @@ func createUUIDv7Function[K any](_ ottl.FunctionContext, _ ottl.Arguments) (ottl
 	return uuidV7[K]()
 }
 
+// NewUUIDv7Factory returns a factory for the UUIDv7 OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#uuidv7
 func NewUUIDv7Factory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("UUIDv7", nil, createUUIDv7Function[K])
 }

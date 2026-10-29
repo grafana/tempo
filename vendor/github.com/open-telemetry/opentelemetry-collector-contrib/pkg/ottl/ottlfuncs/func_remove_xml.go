@@ -15,17 +15,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type RemoveXMLArguments[K any] struct {
+type removeXMLArguments[K any] struct {
 	Target ottl.StringGetter[K]
 	XPath  string
 }
 
+// NewRemoveXMLFactory returns a factory for the RemoveXML OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#removexml
 func NewRemoveXMLFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("RemoveXML", &RemoveXMLArguments[K]{}, createRemoveXMLFunction[K])
+	return ottl.NewFactory("RemoveXML", &removeXMLArguments[K]{}, createRemoveXMLFunction[K])
 }
 
 func createRemoveXMLFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*RemoveXMLArguments[K])
+	args, ok := oArgs.(*removeXMLArguments[K])
 
 	if !ok {
 		return nil, errors.New("RemoveXML args must be of type *RemoveXMLAguments[K]")

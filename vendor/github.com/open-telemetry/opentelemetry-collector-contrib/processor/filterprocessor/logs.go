@@ -127,7 +127,7 @@ func (flp *filterLogProcessor) processSkipExpression(ctx context.Context, ld plo
 	var errs error
 	ld.ResourceLogs().RemoveIf(func(rl plog.ResourceLogs) bool {
 		if flp.skipResourceExpr != nil {
-			tCtx := ottlresource.NewTransformContextPtr(rl.Resource(), rl)
+			tCtx := ottlresource.NewTransformContext(rl.Resource(), rl)
 			skip, err := flp.skipResourceExpr.Eval(ctx, tCtx)
 			tCtx.Close()
 			if err != nil {
@@ -144,7 +144,7 @@ func (flp *filterLogProcessor) processSkipExpression(ctx context.Context, ld plo
 		rl.ScopeLogs().RemoveIf(func(sl plog.ScopeLogs) bool {
 			lrs := sl.LogRecords()
 			lrs.RemoveIf(func(lr plog.LogRecord) bool {
-				tCtx := ottllog.NewTransformContextPtr(rl, sl, lr)
+				tCtx := ottllog.NewTransformContext(rl, sl, lr)
 				skip, err := flp.skipLogRecordExpr.Eval(ctx, tCtx)
 				tCtx.Close()
 				if err != nil {

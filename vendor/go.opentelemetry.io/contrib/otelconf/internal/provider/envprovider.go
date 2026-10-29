@@ -3,7 +3,7 @@
 
 // Package provider contains various providers
 // used to replace variables in configuration files.
-package provider // import "go.opentelemetry.io/contrib/otelconf/internal/provider"
+package provider
 
 import (
 	"fmt"
@@ -120,6 +120,7 @@ func checkRawConfType(val []byte) error {
 	default:
 		return fmt.Errorf(
 			"unsupported type=%T for retrieved config,"+
-				" ensure that values are wrapped in quotes", rawConf)
+				" ensure that values are wrapped in quotes", rawConf,
+		)
 	}
 }

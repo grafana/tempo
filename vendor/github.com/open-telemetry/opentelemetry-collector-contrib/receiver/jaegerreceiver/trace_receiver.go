@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"math"
 	"mime"
 	"net/http"
 	"sync"
@@ -154,9 +155,9 @@ type agentHandler struct {
 	obsrecv      *receiverhelper.ObsReport
 }
 
-// EmitZipkinBatch is unsupported agent's
-func (*agentHandler) EmitZipkinBatch(context.Context, []*zipkincore.Span) (err error) {
-	panic("unsupported receiver")
+// EmitZipkinBatch is unsupported by the Jaeger receiver.
+func (*agentHandler) EmitZipkinBatch(context.Context, []*zipkincore.Span) error {
+	return errors.ErrUnsupported
 }
 
 // EmitBatch implements thrift-gen/agent/Agent and it forwards
@@ -290,15 +291,48 @@ func (*jReceiver) decodeThriftHTTPBody(r *http.Request) (*jaeger.Batch, *httpErr
 		}
 	}
 
-	tdes := apacheThrift.NewTDeserializer()
 	batch := &jaeger.Batch{}
-	if err = tdes.Read(r.Context(), batch, bodyBytes); err != nil {
+	if err = deserializeThriftBatch(r.Context(), bodyBytes, batch); err != nil {
 		return nil, &httpError{
 			fmt.Sprintf("Unable to process request body: %v", err),
 			http.StatusBadRequest,
 		}
 	}
 	return batch, nil
+}
+
+// deserializeThriftBatch decodes a Thrift-binary-encoded Jaeger batch from body.
+//
+// deserializeThriftBatch decodes a Thrift-binary-encoded Jaeger batch from body.
+//
+// The Thrift decoder pre-allocates _each collection_ to its _declared_ element
+// count, and rejects the collection only when count * size_of(element)
+// exceeds MaxMessageSize (100MB by default). A tiny payload can therefore
+// declare millions of elements and force a large allocation before the read
+// fails. Bounding MaxMessageSize to the body length rejects any collection that
+// declares more elements than the payload could hold, and never rejects a valid
+// message, whose elements are all present in the payload. Residual amplification
+// is analyzed in
+// https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/50628.
+func deserializeThriftBatch(ctx context.Context, body []byte, batch *jaeger.Batch) error {
+	cfg := &apacheThrift.TConfiguration{
+		MaxMessageSize: boundedThriftMessageSize(len(body)),
+	}
+	transport := apacheThrift.NewTMemoryBufferLen(len(body))
+	protocol := apacheThrift.NewTBinaryProtocolConf(transport, cfg)
+	tdes := &apacheThrift.TDeserializer{Transport: transport, Protocol: protocol}
+	return tdes.Read(ctx, batch, body)
+}
+
+// boundedThriftMessageSize clamps a payload length into the int32 range expected
+// by TConfiguration.MaxMessageSize. A non-positive length disables the bound (the
+// decoder then falls back to its default), and a length beyond math.MaxInt32 is
+// capped so the value never overflows.
+func boundedThriftMessageSize(bodyLen int) int32 {
+	if bodyLen > 0 && bodyLen < math.MaxInt32 {
+		return int32(bodyLen)
+	}
+	return math.MaxInt32
 }
 
 // HandleThriftHTTPBatch implements Jaeger HTTP Thrift handler.

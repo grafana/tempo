@@ -12,18 +12,20 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type ValuesArguments[K any] struct {
+type valuesArguments[K any] struct {
 	Target ottl.PMapGetter[K]
 }
 
+// NewValuesFactory returns a factory for the Values OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#values
 func NewValuesFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Values", &ValuesArguments[K]{}, createValuesFunction[K])
+	return ottl.NewFactory("Values", &valuesArguments[K]{}, createValuesFunction[K])
 }
 
 func createValuesFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*ValuesArguments[K])
+	args, ok := oArgs.(*valuesArguments[K])
 	if !ok {
-		return nil, errors.New("ValuesFactory args must be of type *ValuesArguments[K]")
+		return nil, errors.New("ValuesFactory args must be of type *valuesArguments[K]")
 	}
 
 	return values(args.Target), nil

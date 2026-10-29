@@ -8,13 +8,14 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottldatapoint"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlexemplar"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlmetric"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlprofile"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlresource"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlscope"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspan"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspanevent"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/xprofile/ottlprofile"
 )
 
 // NewBoolExprForSpan creates a BoolExpr[*ottlspan.TransformContext] that will return true if any of the given OTTL conditions evaluate to true.
@@ -98,6 +99,27 @@ func NewBoolExprForDataPointWithOptions(conditions []string, functions map[strin
 		return nil, err
 	}
 	c := ottldatapoint.NewConditionSequence(statements, set, ottldatapoint.WithConditionSequenceErrorMode(errorMode))
+	return &c, nil
+}
+
+// NewBoolExprForExemplar creates a BoolExpr[*ottlexemplar.TransformContext] that will return true if any of the given OTTL conditions evaluate to true.
+// The passed in functions should use the ottlexemplar.TransformContext.
+// If a function named `match` is not present in the function map it will be added automatically so that parsing works as expected
+func NewBoolExprForExemplar(conditions []string, functions map[string]ottl.Factory[*ottlexemplar.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (*ottl.ConditionSequence[*ottlexemplar.TransformContext], error) {
+	return NewBoolExprForExemplarWithOptions(conditions, functions, errorMode, set, nil)
+}
+
+// NewBoolExprForExemplarWithOptions is like NewBoolExprForExemplar, but with additional options.
+func NewBoolExprForExemplarWithOptions(conditions []string, functions map[string]ottl.Factory[*ottlexemplar.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings, parserOptions []ottl.Option[*ottlexemplar.TransformContext]) (*ottl.ConditionSequence[*ottlexemplar.TransformContext], error) {
+	parser, err := ottlexemplar.NewParser(functions, set, parserOptions...)
+	if err != nil {
+		return nil, err
+	}
+	statements, err := parser.ParseConditions(conditions)
+	if err != nil {
+		return nil, err
+	}
+	c := ottlexemplar.NewConditionSequence(statements, set, ottlexemplar.WithConditionSequenceErrorMode(errorMode))
 	return &c, nil
 }
 

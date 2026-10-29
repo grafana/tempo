@@ -14,16 +14,18 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type ParseSimplifiedXMLArguments[K any] struct {
+type parseSimplifiedXMLArguments[K any] struct {
 	Target ottl.StringGetter[K]
 }
 
+// NewParseSimplifiedXMLFactory returns a factory for the ParseSimplifiedXML OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#parsesimplifiedxml
 func NewParseSimplifiedXMLFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ParseSimplifiedXML", &ParseSimplifiedXMLArguments[K]{}, createParseSimplifiedXMLFunction[K])
+	return ottl.NewFactory("ParseSimplifiedXML", &parseSimplifiedXMLArguments[K]{}, createParseSimplifiedXMLFunction[K])
 }
 
 func createParseSimplifiedXMLFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*ParseSimplifiedXMLArguments[K])
+	args, ok := oArgs.(*parseSimplifiedXMLArguments[K])
 
 	if !ok {
 		return nil, errors.New("ParseSimplifiedXML args must be of type *ParseSimplifiedXMLAguments[K]")

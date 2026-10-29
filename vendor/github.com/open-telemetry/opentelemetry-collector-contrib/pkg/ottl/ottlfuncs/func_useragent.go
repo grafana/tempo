@@ -7,23 +7,25 @@ import (
 	"errors"
 
 	"github.com/ua-parser/uap-go/uaparser"
-	conventions "go.opentelemetry.io/otel/semconv/v1.40.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type UserAgentArguments[K any] struct {
+type userAgentArguments[K any] struct {
 	UserAgent ottl.StringGetter[K]
 }
 
+// NewUserAgentFactory returns a factory for the UserAgent OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#useragent
 func NewUserAgentFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("UserAgent", &UserAgentArguments[K]{}, createUserAgentFunction[K])
+	return ottl.NewFactory("UserAgent", &userAgentArguments[K]{}, createUserAgentFunction[K])
 }
 
 func createUserAgentFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*UserAgentArguments[K])
+	args, ok := oArgs.(*userAgentArguments[K])
 	if !ok {
-		return nil, errors.New("URLFactory args must be of type *URLArguments[K]")
+		return nil, errors.New("URLFactory args must be of type *uRLArguments[K]")
 	}
 
 	return userAgent[K](args.UserAgent), nil

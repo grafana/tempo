@@ -8,3 +8,6 @@ status:
   distributions: [core, contrib]
   codeowners:
     active: [MovieStoreGuy, andrzej-stencel, crobert-1]
+
+sending_queue:
+  support: default

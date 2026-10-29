@@ -6,13 +6,13 @@ package configoptional // import "go.opentelemetry.io/collector/config/configopt
 //go:generate mdatagen metadata.yaml
 
 import (
+	"encoding"
 	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
 type flavor int
@@ -41,7 +41,7 @@ type Optional[T any] struct {
 
 // deref a reflect.Type to its underlying type.
 func deref(t reflect.Type) reflect.Type {
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	return t
@@ -64,8 +64,7 @@ func assertNoEnabledField[T any]() error {
 	}
 
 	// Check if the struct has a field with the name "enabled".
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
+	for field := range t.Fields() {
 		mapstructureTags := strings.SplitN(field.Tag.Get("mapstructure"), ",", 2)
 		if len(mapstructureTags) > 0 && mapstructureTags[0] == "enabled" {
 			return errors.New("configoptional: underlying type cannot have a field with mapstructure tag 'enabled'")
@@ -104,7 +103,7 @@ func None[T any]() Optional[T] {
 	if err := assertNoEnabledField[T](); err != nil {
 		panic(err)
 	}
-	return Optional[T]{}
+	return Optional[T]{flavor: noneFlavor}
 }
 
 // HasValue checks if the Optional has a value.
@@ -161,12 +160,7 @@ var (
 //   - Default[T](val), equivalent to unmarshaling into a field of type T with base value val,
 //     using val without overrides from the configuration if the configuration is nil.
 //
-// (Under the `configoptional.AddEnabledField` feature gate)
-// If the configuration contains an 'enabled' field:
-//   - if enabled is true: the Optional becomes Some after unmarshaling.
-//   - if enabled is false: the Optional becomes None regardless of other configuration values.
-//
-// T must be derefenceable to a type with struct kind and not have an 'enabled' field.
+// T must be dereferenceable to a type with struct kind and not have an 'enabled' field.
 // Scalar values are not supported, and will be handled by [UnmarshalScalar] instead.
 // We do not need to check this since the hook for [ScalarUnmarshaler] will be called
 // before the hook for [Unmarshaler].
@@ -191,7 +185,7 @@ func (o *Optional[T]) Unmarshal(conf *confmap.Conf) error {
 		}
 	}
 
-	if err := conf.Unmarshal(&o.value, xconfmap.WithForceUnmarshaler()); err != nil {
+	if err := conf.Unmarshal(&o.value, confmap.WithForceUnmarshaler()); err != nil {
 		return err
 	}
 
@@ -215,8 +209,10 @@ func (o *Optional[T]) Unmarshal(conf *confmap.Conf) error {
 func (o *Optional[T]) UnmarshalScalar(scalarValue confmap.ScalarValue) error {
 	if scalarValue.GetRaw() == nil {
 		if deref(reflect.TypeOf(o.value)).Kind() == reflect.Struct {
-			// Defer to Unmarshal behavior
-			return confmap.ErrValueNotApplicable
+			if _, ok := any(&o.value).(encoding.TextUnmarshaler); !ok {
+				// Defer to Unmarshal behavior
+				return confmap.ErrValueNotApplicable
+			}
 		}
 		// For scalar types, a nil map represents `null` and clears to None.
 		var zero T
@@ -243,7 +239,7 @@ var (
 // If the Optional is None or Default, it does not marshal anything.
 // If the Optional is Some, it marshals the value into the configuration.
 //
-// T must be derefenceable to a type with struct kind.
+// T must be dereferenceable to a type with struct kind.
 // Scalar values are not supported, and will be handled by [MarshalScalar] instead.
 // We do not need to check this since the hook for [ScalarMarshaler] will be called
 // before the hook for [Marshaler].
@@ -262,8 +258,10 @@ func (o Optional[T]) Marshal(conf *confmap.Conf) error {
 
 func (o Optional[T]) MarshalScalar(scalarValue confmap.ScalarValue) error {
 	if deref(reflect.TypeOf(o.value)).Kind() == reflect.Struct {
-		// Defer to Marshal behavior
-		return confmap.ErrValueNotApplicable
+		if _, ok := any(o.value).(encoding.TextMarshaler); !ok {
+			// Defer to Marshal behavior
+			return confmap.ErrValueNotApplicable
+		}
 	}
 
 	if o.flavor == noneFlavor || o.flavor == defaultFlavor {

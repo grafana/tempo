@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package otelconf // import "go.opentelemetry.io/contrib/otelconf/v0.2.0"
+package otelconf
 
 import (
 	"context"
@@ -262,6 +262,42 @@ func lowMemory(ik sdkmetric.InstrumentKind) metricdata.Temporality {
 	}
 }
 
+// newIncludeExcludeFilter returns a Filter that includes attributes
+// in the include list and excludes attributes in the excludes list.
+// It returns an error if an attribute is in both lists
+//
+// If IncludeExclude is empty an include-all filter is returned.
+func newIncludeExcludeFilter(lists *IncludeExclude) (attribute.Filter, error) {
+	if lists == nil {
+		return func(attribute.KeyValue) bool { return true }, nil
+	}
+
+	included := make(map[attribute.Key]struct{})
+	for _, k := range lists.Included {
+		included[attribute.Key(k)] = struct{}{}
+	}
+	excluded := make(map[attribute.Key]struct{})
+	for _, k := range lists.Excluded {
+		if _, ok := included[attribute.Key(k)]; ok {
+			return nil, fmt.Errorf("attribute cannot be in both include and exclude list: %s", k)
+		}
+		excluded[attribute.Key(k)] = struct{}{}
+	}
+	return func(kv attribute.KeyValue) bool {
+		// check if a value is excluded first
+		if _, ok := excluded[kv.Key]; ok {
+			return false
+		}
+
+		if len(included) == 0 {
+			return true
+		}
+
+		_, ok := included[kv.Key]
+		return ok
+	}, nil
+}
+
 func prometheusReader(ctx context.Context, prometheusConfig *Prometheus) (sdkmetric.Reader, error) {
 	var opts []otelprom.Option
 	if prometheusConfig.Host == nil {
@@ -285,20 +321,11 @@ func prometheusReader(ctx context.Context, prometheusConfig *Prometheus) (sdkmet
 	}
 
 	if prometheusConfig.WithResourceConstantLabels != nil {
-		if prometheusConfig.WithResourceConstantLabels.Included != nil {
-			var keys []attribute.Key
-			for _, val := range prometheusConfig.WithResourceConstantLabels.Included {
-				keys = append(keys, attribute.Key(val))
-			}
-			otelprom.WithResourceAsConstantLabels(attribute.NewAllowKeysFilter(keys...))
+		f, err := newIncludeExcludeFilter(prometheusConfig.WithResourceConstantLabels)
+		if err != nil {
+			return nil, err
 		}
-		if prometheusConfig.WithResourceConstantLabels.Excluded != nil {
-			var keys []attribute.Key
-			for _, val := range prometheusConfig.WithResourceConstantLabels.Included {
-				keys = append(keys, attribute.Key(val))
-			}
-			otelprom.WithResourceAsConstantLabels(attribute.NewDenyKeysFilter(keys...))
-		}
+		opts = append(opts, otelprom.WithResourceAsConstantLabels(f))
 	}
 
 	reg := prometheus.NewRegistry()

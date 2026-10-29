@@ -14,19 +14,21 @@ import (
 
 const traceIDFuncName = "TraceID"
 
-type TraceIDArguments[K any] struct {
+type traceIDArguments[K any] struct {
 	Target ottl.ByteSliceLikeGetter[K]
 }
 
+// NewTraceIDFactory returns a factory for the TraceID OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#traceid
 func NewTraceIDFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory(traceIDFuncName, &TraceIDArguments[K]{}, createTraceIDFunction[K])
+	return ottl.NewFactory(traceIDFuncName, &traceIDArguments[K]{}, createTraceIDFunction[K])
 }
 
 func createTraceIDFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*TraceIDArguments[K])
+	args, ok := oArgs.(*traceIDArguments[K])
 
 	if !ok {
-		return nil, errors.New("TraceIDFactory args must be of type *TraceIDArguments[K]")
+		return nil, errors.New("TraceIDFactory args must be of type *traceIDArguments[K]")
 	}
 
 	return traceID[K](args.Target)

@@ -10,19 +10,21 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type IsInCIDRArguments[K any] struct {
+type isInCIDRArguments[K any] struct {
 	Target   ottl.StringGetter[K]
 	Networks []ottl.StringGetter[K]
 }
 
+// NewIsInCIDRFactory returns a factory for the IsInCIDR OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#isincidr
 func NewIsInCIDRFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("IsInCIDR", &IsInCIDRArguments[K]{}, createIsInCIDRFunction[K])
+	return ottl.NewFactory("IsInCIDR", &isInCIDRArguments[K]{}, createIsInCIDRFunction[K])
 }
 
 func createIsInCIDRFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*IsInCIDRArguments[K])
+	args, ok := oArgs.(*isInCIDRArguments[K])
 	if !ok {
-		return nil, errors.New("IsInCIDRFactory args must be of type *IsInCIDRArguments[K]")
+		return nil, errors.New("IsInCIDRFactory args must be of type *isInCIDRArguments[K]")
 	}
 
 	return isInCIDR(args.Target, args.Networks)

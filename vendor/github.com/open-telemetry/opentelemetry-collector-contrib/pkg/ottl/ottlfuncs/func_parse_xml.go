@@ -16,19 +16,21 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type ParseXMLArguments[K any] struct {
+type parseXMLArguments[K any] struct {
 	Target ottl.StringGetter[K]
 }
 
+// NewParseXMLFactory returns a factory for the ParseXML OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#parsexml
 func NewParseXMLFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ParseXML", &ParseXMLArguments[K]{}, createParseXMLFunction[K])
+	return ottl.NewFactory("ParseXML", &parseXMLArguments[K]{}, createParseXMLFunction[K])
 }
 
 func createParseXMLFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*ParseXMLArguments[K])
+	args, ok := oArgs.(*parseXMLArguments[K])
 
 	if !ok {
-		return nil, errors.New("ParseXMLFactory args must be of type *ParseXMLArguments[K]")
+		return nil, errors.New("ParseXMLFactory args must be of type *parseXMLArguments[K]")
 	}
 
 	return parseXML(args.Target), nil

@@ -20,11 +20,11 @@ type scopeConditionBuilder[R any] func([]*ottl.Condition[*ottlscope.TransformCon
 
 func withCommonParsers[R any](resourceFunctions map[string]ottl.Factory[*ottlresource.TransformContext], resourceBuilder resourceConditionBuilder[R], scopeBuilder scopeConditionBuilder[R]) ottl.ParserCollectionOption[R] {
 	return func(pc *ottl.ParserCollection[R]) error {
-		rp, err := ottlresource.NewParser(resourceFunctions, pc.Settings, ottlresource.EnablePathContextNames())
+		rp, err := ottlresource.NewParser(resourceFunctions, pc.Settings(), ottlresource.EnablePathContextNames())
 		if err != nil {
 			return err
 		}
-		sp, err := ottlscope.NewParser(filterottl.StandardScopeFuncs(), pc.Settings, ottlscope.EnablePathContextNames())
+		sp, err := ottlscope.NewParser(filterottl.StandardScopeFuncs(), pc.Settings(), ottlscope.EnablePathContextNames())
 		if err != nil {
 			return err
 		}
@@ -50,7 +50,7 @@ func resourceConditionsConverter[R any](builder resourceConditionBuilder[R]) ott
 			return *new(R), err
 		}
 		errorMode := getErrorMode(pc, contextConditions)
-		return builder(parsedConditions, pc.Settings, errorMode), nil
+		return builder(parsedConditions, pc.Settings(), errorMode), nil
 	}
 }
 
@@ -61,6 +61,6 @@ func scopeConditionsConverter[R any](builder scopeConditionBuilder[R]) ottl.Pars
 			return *new(R), err
 		}
 		errorMode := getErrorMode(pc, contextConditions)
-		return builder(parsedConditions, pc.Settings, errorMode), nil
+		return builder(parsedConditions, pc.Settings(), errorMode), nil
 	}
 }

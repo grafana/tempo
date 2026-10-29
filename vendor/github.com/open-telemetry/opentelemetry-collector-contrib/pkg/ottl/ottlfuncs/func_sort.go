@@ -21,20 +21,22 @@ const (
 	sortDesc = "desc"
 )
 
-type SortArguments[K any] struct {
+type sortArguments[K any] struct {
 	Target ottl.Getter[K]
 	Order  ottl.Optional[string]
 }
 
+// NewSortFactory returns a factory for the Sort OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#sort
 func NewSortFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Sort", &SortArguments[K]{}, createSortFunction[K])
+	return ottl.NewFactory("Sort", &sortArguments[K]{}, createSortFunction[K])
 }
 
 func createSortFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*SortArguments[K])
+	args, ok := oArgs.(*sortArguments[K])
 
 	if !ok {
-		return nil, errors.New("SortFactory args must be of type *SortArguments[K]")
+		return nil, errors.New("SortFactory args must be of type *sortArguments[K]")
 	}
 
 	order := sortAsc

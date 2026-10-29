@@ -10,18 +10,9 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspan"
 )
 
-// Deprecated: [v0.142.0] use NewIsRootSpanFactoryNew.
-func NewIsRootSpanFactory() ottl.Factory[ottlspan.TransformContext] {
-	return ottl.NewFactory("IsRootSpan", nil, createIsRootSpanFunctionLegacy)
-}
-
-func createIsRootSpanFunctionLegacy(_ ottl.FunctionContext, _ ottl.Arguments) (ottl.ExprFunc[ottlspan.TransformContext], error) {
-	return func(_ context.Context, tCtx ottlspan.TransformContext) (any, error) {
-		return tCtx.GetSpan().ParentSpanID().IsEmpty(), nil
-	}, nil
-}
-
-func NewIsRootSpanFactoryNew() ottl.Factory[*ottlspan.TransformContext] {
+// NewIsRootSpanFactory returns a factory for the IsRootSpan OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#isrootspan
+func NewIsRootSpanFactory() ottl.Factory[*ottlspan.TransformContext] {
 	return ottl.NewFactory("IsRootSpan", nil, createIsRootSpanFunction)
 }
 
