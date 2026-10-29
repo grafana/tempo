@@ -1,7 +1,6 @@
 type: ottl
 
 status:
-  disable_codecov_badge: true
   class: pkg
   stability:
     development: [ profiles ]
@@ -14,14 +13,26 @@ status:
 feature_gates:
   - id: "ottl.PanicDuplicateName"
     description: When enabled, the CreateFactoryMap panics if the name is duplicated.
-    stage: beta
+    stage: stable
     from_version: v0.141.0
+    to_version: v0.161.0
     reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/44630
-    skip_strict_validation: true
 
   - id: "ottl.contexts.enableOTelColContext"
     description: Enable the `otelcol` context for OTTL. This allows users using `otelcol.*` paths in their OTTL statements and conditions.
-    stage: beta
+    stage: stable
     from_version: v0.147.0
+    to_version: v0.161.0
     reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/46437
-    skip_strict_validation: true
+
+  - id: "ottl.functions.enableLambda"
+    description: Allow OTTL functions to take lambda arguments. When disabled, lambda arguments are rejected.
+    stage: alpha
+    from_version: v0.155.0
+    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/48227
+
+  - id: "ottl.set.allowNil"
+    description: When enabled, the set function passes nil values directly to the target.
+    stage: beta
+    from_version: v0.158.0
+    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/49741

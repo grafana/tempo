@@ -17,20 +17,22 @@ import (
 	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/service/extensions"
 	"go.opentelemetry.io/collector/service/internal/builders"
 	"go.opentelemetry.io/collector/service/internal/graph"
+	"go.opentelemetry.io/collector/service/internal/metadata"
 	"go.opentelemetry.io/collector/service/internal/metricviews"
 	"go.opentelemetry.io/collector/service/internal/moduleinfo"
 	"go.opentelemetry.io/collector/service/internal/proctelemetry"
 	"go.opentelemetry.io/collector/service/internal/status"
+	"go.opentelemetry.io/collector/service/pipelines"
 	"go.opentelemetry.io/collector/service/telemetry"
 )
 
@@ -45,8 +47,10 @@ type Settings struct {
 	// BuildInfo provides collector start information.
 	BuildInfo component.BuildInfo
 
-	// CollectorConf contains the Collector's current configuration
-	CollectorConf *confmap.Conf
+	// ConfigSnapshot contains the Collector's current configuration
+	// representations. It is passed to extensions implementing
+	// extensioncapabilities.ConfigSnapshotWatcher.
+	ConfigSnapshot extensioncapabilities.ConfigSnapshot
 
 	// Receivers configuration to its builder.
 	ReceiversConfigs   map[component.ID]component.Config
@@ -77,14 +81,6 @@ type Settings struct {
 	// AsyncErrorChannel is the channel that is used to report fatal errors.
 	AsyncErrorChannel chan error
 
-	// LoggingOptions provides a way to change behavior of zap logging.
-	//
-	// These options will be appended to any options passed to BuildZapLogger.
-	//
-	// Deprecated [v0.142.0]: use BuildZapLogger instead. This field will be
-	// removed in the future, and options must be injected through BuildZapLogger.
-	LoggingOptions []zap.Option
-
 	// BuildZapLogger holds an optional function for creating a Zap logger from
 	// a zap.Config and options. If this is unspecified, zap.Config.Build will
 	// be used.
@@ -101,10 +97,11 @@ type Service struct {
 	buildInfo          component.BuildInfo
 	telemetrySettings  component.TelemetrySettings
 	host               *graph.Host
-	collectorConf      *confmap.Conf
+	configSnapshot     extensioncapabilities.ConfigSnapshot
 	loggerShutdownFunc component.ShutdownFunc
 	meterProvider      telemetry.MeterProvider
 	tracerProvider     telemetry.TracerProvider
+	graphSettings      graph.Settings
 }
 
 // New creates a new Service, its telemetry, and Components.
@@ -122,7 +119,7 @@ func New(ctx context.Context, set Settings, cfg Config) (_ *Service, resultErr e
 			BuildInfo:         set.BuildInfo,
 			AsyncErrorChannel: set.AsyncErrorChannel,
 		},
-		collectorConf: set.CollectorConf,
+		configSnapshot: set.ConfigSnapshot,
 	}
 
 	if set.TelemetryFactory == nil {
@@ -132,24 +129,18 @@ func New(ctx context.Context, set Settings, cfg Config) (_ *Service, resultErr e
 	// Create the resource first. This ensures all telemetry providers
 	// (logger, meter, tracer) use the same resource with a consistent service.instance.id.
 	telemetrySettings := telemetry.Settings{BuildInfo: set.BuildInfo}
-	resource, err := set.TelemetryFactory.CreateResource(ctx, telemetrySettings, cfg.Telemetry)
+	resource, schemaURL, err := set.TelemetryFactory.CreateResource(ctx, telemetrySettings, cfg.Telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 	telemetrySettings.Resource = &resource
+	telemetrySettings.SchemaURL = schemaURL
 
 	// Create a function for telemetry providers to build the Zap logger.
 	// This injects any LoggingOptions specified in the Settings.
 	buildZapLogger := set.BuildZapLogger
 	if buildZapLogger == nil {
 		buildZapLogger = zap.Config.Build
-	}
-	if len(set.LoggingOptions) > 0 {
-		origBuildZapLogger := buildZapLogger
-		buildZapLogger = func(cfg zap.Config, opts ...zap.Option) (*zap.Logger, error) {
-			opts = append(opts, set.LoggingOptions...)
-			return origBuildZapLogger(cfg, opts...)
-		}
 	}
 
 	loggerSettings := telemetry.LoggerSettings{
@@ -200,10 +191,11 @@ func New(ctx context.Context, set Settings, cfg Config) (_ *Service, resultErr e
 	srv.tracerProvider = tracerProvider
 
 	srv.telemetrySettings = component.TelemetrySettings{
-		Logger:         logger,
-		MeterProvider:  meterProvider,
-		TracerProvider: tracerProvider,
-		Resource:       resource,
+		Logger:            logger,
+		MeterProvider:     meterProvider,
+		TracerProvider:    tracerProvider,
+		Resource:          resource,
+		ResourceSchemaURL: schemaURL,
 	}
 	srv.host.Reporter = status.NewReporter(srv.host.NotifyComponentStatusChange, func(err error) {
 		if errors.Is(err, status.ErrStatusNotReady) {
@@ -247,8 +239,8 @@ func (srv *Service) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start extensions: %w", err)
 	}
 
-	if srv.collectorConf != nil {
-		if err := srv.host.ServiceExtensions.NotifyConfig(ctx, srv.collectorConf); err != nil {
+	if srv.configSnapshot != nil {
+		if err := srv.host.ServiceExtensions.NotifyConfigSnapshot(ctx, srv.configSnapshot); err != nil {
 			return err
 		}
 	}
@@ -263,6 +255,30 @@ func (srv *Service) Start(ctx context.Context) error {
 
 	srv.telemetrySettings.Logger.Info("Everything is ready. Begin running and processing data.")
 	return nil
+}
+
+// ReceiverPartialReloadEnabled reports whether receiver partial reload is
+// active. It requires both the master partial reload gate
+// (service.partialReload, Alpha) and the receiver phase gate
+// (service.partialReloadReceivers, Beta) to be enabled.
+func ReceiverPartialReloadEnabled() bool {
+	return metadata.ServicePartialReloadFeatureGate.IsEnabled() &&
+		metadata.ServicePartialReloadReceiversFeatureGate.IsEnabled()
+}
+
+// UpdateReceivers performs a partial reload of receiver components.
+// Only receivers that have been added, removed, or whose configuration or
+// pipeline membership changed are restarted. All other components remain
+// running without interruption.
+func (srv *Service) UpdateReceivers(ctx context.Context,
+	changedReceivers map[component.ID]bool,
+	newReceiverConfigs map[component.ID]component.Config,
+	receiverFactories map[component.Type]receiver.Factory,
+	pipelineConfigs pipelines.Config,
+) error {
+	srv.telemetrySettings.Logger.Info("Performing partial receiver reload")
+	srv.graphSettings.PipelineConfigs = pipelineConfigs
+	return srv.host.Pipelines.UpdateReceivers(ctx, srv.graphSettings, changedReceivers, newReceiverConfigs, receiverFactories, srv.host)
 }
 
 // Shutdown the service. Shutdown will do the following steps in order:
@@ -322,8 +338,7 @@ func (srv *Service) initExtensions(ctx context.Context, cfg extensions.Config) e
 
 // Creates the pipeline graph.
 func (srv *Service) initGraph(ctx context.Context, cfg Config) error {
-	var err error
-	if srv.host.Pipelines, err = graph.Build(ctx, graph.Settings{
+	srv.graphSettings = graph.Settings{
 		Telemetry:        srv.telemetrySettings,
 		BuildInfo:        srv.buildInfo,
 		ReceiverBuilder:  srv.host.Receivers,
@@ -332,7 +347,9 @@ func (srv *Service) initGraph(ctx context.Context, cfg Config) error {
 		ConnectorBuilder: srv.host.Connectors,
 		PipelineConfigs:  cfg.Pipelines,
 		ReportStatus:     srv.host.Reporter.ReportStatus,
-	}); err != nil {
+	}
+	var err error
+	if srv.host.Pipelines, err = graph.Build(ctx, srv.graphSettings); err != nil {
 		return fmt.Errorf("failed to build pipelines: %w", err)
 	}
 	return nil

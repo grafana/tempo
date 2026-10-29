@@ -44,6 +44,6 @@ This component has the following feature gates:
 
 | Feature Gate | Stage | Description | From Version | To Version | Reference |
 | ------------ | ----- | ----------- | ------------ | ---------- | --------- |
-| `processor.filter.defaultErrorModeIgnore` | beta | Changes the default error_mode of the filter processor from propagate to ignore | v0.150.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/47232) |
+| `processor.filter.defaultErrorModeIgnore` | stable | Changes the default error_mode of the filter processor from propagate to ignore | v0.150.0 | v0.159.0 | [Link](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/47232) |
 
 For more information about feature gates, see the [Feature Gates](https://github.com/open-telemetry/opentelemetry-collector/blob/main/featuregate/README.md) documentation.

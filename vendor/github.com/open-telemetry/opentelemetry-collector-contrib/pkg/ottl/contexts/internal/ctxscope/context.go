@@ -6,7 +6,7 @@ package ctxscope // import "github.com/open-telemetry/opentelemetry-collector-co
 import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxcommon"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
 const (
@@ -17,5 +17,5 @@ const (
 
 type Context interface {
 	GetInstrumentationScope() pcommon.InstrumentationScope
-	GetScopeSchemaURLItem() ctxcommon.SchemaURLItem
+	GetScopeSchemaURLItem() ottl.SchemaURLItem
 }

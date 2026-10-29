@@ -83,7 +83,8 @@ func FetchValueFromExpression[K any, T int64 | string](ctx context.Context, tCtx
 
 func SetMap(target pcommon.Map, val any) error {
 	if val == nil {
-		return nil
+		// A map represents nil as an empty map.
+		return target.FromRaw(nil)
 	}
 	if cm, ok := val.(pcommon.Map); ok {
 		cm.CopyTo(target)
@@ -96,6 +97,10 @@ func SetMap(target pcommon.Map, val any) error {
 }
 
 func GetMap(val any) (pcommon.Map, error) {
+	if val == nil {
+		// A map represents nil as an empty map.
+		return pcommon.NewMap(), nil
+	}
 	if m, ok := val.(pcommon.Map); ok {
 		return m, nil
 	}

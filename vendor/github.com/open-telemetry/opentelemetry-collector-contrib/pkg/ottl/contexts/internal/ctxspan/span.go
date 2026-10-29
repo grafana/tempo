@@ -492,15 +492,7 @@ func accessEvents[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetSpan().Events(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			slc, err := ctxutil.ExpectType[ptrace.SpanEventSlice](val)
-			if err != nil {
-				return err
-			}
-			tCtx.GetSpan().Events().RemoveIf(func(_ ptrace.SpanEvent) bool {
-				return true
-			})
-			slc.CopyTo(tCtx.GetSpan().Events())
-			return nil
+			return ctxutil.SetPSliceValue(tCtx.GetSpan().Events(), ptrace.NewSpanEventSlice, val)
 		},
 	}
 }
@@ -527,15 +519,7 @@ func accessLinks[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetSpan().Links(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			slc, err := ctxutil.ExpectType[ptrace.SpanLinkSlice](val)
-			if err != nil {
-				return err
-			}
-			tCtx.GetSpan().Links().RemoveIf(func(_ ptrace.SpanLink) bool {
-				return true
-			})
-			slc.CopyTo(tCtx.GetSpan().Links())
-			return nil
+			return ctxutil.SetPSliceValue(tCtx.GetSpan().Links(), ptrace.NewSpanLinkSlice, val)
 		},
 	}
 }

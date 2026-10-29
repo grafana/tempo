@@ -30,7 +30,6 @@ var tcPool = sync.Pool{
 }
 
 // ContextName is the name of the context for spans.
-// Experimental: *NOTE* this constant is subject to change or removal in the future.
 const ContextName = ctxspan.Name
 
 var _ zapcore.ObjectMarshaler = (*TransformContext)(nil)
@@ -41,6 +40,7 @@ type TransformContext struct {
 	scopeSpans    ptrace.ScopeSpans
 	span          ptrace.Span
 	cache         pcommon.Map
+	externalCache *pcommon.Map
 }
 
 // MarshalLogObject serializes the TransformContext into a zapcore.ObjectEncoder for logging.
@@ -48,16 +48,27 @@ func (tCtx *TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) er
 	err := encoder.AddObject("resource", logging.Resource(tCtx.GetResource()))
 	err = errors.Join(err, encoder.AddObject("scope", logging.InstrumentationScope(tCtx.GetInstrumentationScope())))
 	err = errors.Join(err, encoder.AddObject("span", logging.Span(tCtx.span)))
-	err = errors.Join(err, encoder.AddObject("cache", logging.Map(tCtx.cache)))
+	err = errors.Join(err, encoder.AddObject("cache", logging.Map(getCache(tCtx))))
 	return err
 }
 
 // TransformContextOption represents an option for configuring a TransformContext.
 type TransformContextOption func(*TransformContext)
 
-// NewTransformContextPtr returns a new TransformContext with the provided parameters from a pool of contexts.
+// WithCache sets an external shared cache on the TransformContext.
+// When set, the cache is shared across multiple TransformContext instances.
+// Experimental: *NOTE* this option is subject to change or removal in the future.
+func WithCache(cache *pcommon.Map) TransformContextOption {
+	return func(tCtx *TransformContext) {
+		if cache != nil {
+			tCtx.externalCache = cache
+		}
+	}
+}
+
+// NewTransformContext returns a new TransformContext with the provided parameters from a pool of contexts.
 // Caller must call TransformContext.Close on the returned TransformContext.
-func NewTransformContextPtr(resourceSpans ptrace.ResourceSpans, scopeSpans ptrace.ScopeSpans, span ptrace.Span, options ...TransformContextOption) *TransformContext {
+func NewTransformContext(resourceSpans ptrace.ResourceSpans, scopeSpans ptrace.ScopeSpans, span ptrace.Span, options ...TransformContextOption) *TransformContext {
 	tCtx := tcPool.Get().(*TransformContext)
 	tCtx.resourceSpans = resourceSpans
 	tCtx.scopeSpans = scopeSpans
@@ -75,6 +86,7 @@ func (tCtx *TransformContext) Close() {
 	tCtx.scopeSpans = ptrace.ScopeSpans{}
 	tCtx.span = ptrace.Span{}
 	tCtx.cache.Clear()
+	tCtx.externalCache = nil
 	tcPool.Put(tCtx)
 }
 
@@ -94,20 +106,18 @@ func (tCtx *TransformContext) GetResource() pcommon.Resource {
 }
 
 // GetResourceSchemaURLItem returns the schema URL item for the resource from the TransformContext.
-func (tCtx *TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem {
+func (tCtx *TransformContext) GetResourceSchemaURLItem() ottl.SchemaURLItem {
 	return tCtx.resourceSpans
 }
 
 // GetScopeSchemaURLItem returns the schema URL item for the scope from the TransformContext.
-func (tCtx *TransformContext) GetScopeSchemaURLItem() ctxcommon.SchemaURLItem {
+func (tCtx *TransformContext) GetScopeSchemaURLItem() ottl.SchemaURLItem {
 	return tCtx.scopeSpans
 }
 
 // EnablePathContextNames enables the support for path's context names on statements.
 // When this option is configured, all statement's paths must have a valid context prefix,
 // otherwise an error is reported.
-//
-// Experimental: *NOTE* this option is subject to change or removal in the future.
 func EnablePathContextNames() ottl.Option[*TransformContext] {
 	return func(p *ottl.Parser[*TransformContext]) {
 		ottl.WithPathContextNames[*TransformContext]([]string{
@@ -184,6 +194,9 @@ func parseEnum(val *ottl.EnumSymbol) (*ottl.Enum, error) {
 }
 
 func getCache(tCtx *TransformContext) pcommon.Map {
+	if tCtx.externalCache != nil {
+		return *tCtx.externalCache
+	}
 	return tCtx.cache
 }
 
@@ -198,5 +211,6 @@ func pathExpressionParser(cacheGetter ctxcache.Getter[*TransformContext]) ottl.P
 			ctxscope.LegacyName: ctxscope.PathGetSetter[*TransformContext],
 			ctxspan.Name:        ctxspan.PathGetSetter[*TransformContext],
 			ctxotelcol.Name:     ctxotelcol.PathGetSetter[*TransformContext],
-		})
+		},
+	)
 }

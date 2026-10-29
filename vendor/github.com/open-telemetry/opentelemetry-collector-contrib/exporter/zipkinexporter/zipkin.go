@@ -41,7 +41,7 @@ type zipkinExporter struct {
 func createZipkinExporter(cfg *Config, settings component.TelemetrySettings) (*zipkinExporter, error) {
 	ze := &zipkinExporter{
 		defaultServiceName: cfg.DefaultServiceName,
-		url:                cfg.Endpoint,
+		url:                cfg.ClientConfig.Endpoint,
 		clientSettings:     &cfg.ClientConfig,
 		client:             nil,
 		settings:           settings,

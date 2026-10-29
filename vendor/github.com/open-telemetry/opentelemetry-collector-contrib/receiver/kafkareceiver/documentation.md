@@ -236,7 +236,6 @@ Note that this metric may slow down high-volume consuming.
 Only produced when franz-go is enabled.
 This metric is reported with an assumption that the exporter and the receiver clocks are synchronized.
 
-
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
 | s | Histogram | Double | Development |

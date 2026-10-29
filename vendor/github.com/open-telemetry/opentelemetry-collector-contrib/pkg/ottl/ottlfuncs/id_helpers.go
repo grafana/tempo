@@ -35,7 +35,7 @@ func newIDExprFunc[K any, R idByteArray](funcName string, target ottl.ByteSliceL
 	idHexLen := idLen * 2
 
 	// Check if target is a literal getter, just grab the raw bytes if so
-	if b, ok := ottl.GetLiteralValue(target); ok {
+	if b, _, isLiteral := ottl.TryGetLiteralValue(target); isLiteral {
 		result, err := bytesToID(funcName, b, idLen, idHexLen, hexDecoder)
 		if err != nil {
 			return nil, err
@@ -47,7 +47,7 @@ func newIDExprFunc[K any, R idByteArray](funcName string, target ottl.ByteSliceL
 
 	// Dynamic path: evaluate on every call
 	return func(ctx context.Context, tCtx K) (any, error) {
-		b, err := target.Get(ctx, tCtx)
+		b, _, err := target.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}

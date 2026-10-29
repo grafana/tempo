@@ -23,7 +23,7 @@ func AccessAttributes[K any](source attributeSource[K]) ottl.StandardGetSetter[K
 	return ottl.StandardGetSetter[K]{
 		Getter: func(_ context.Context, tCtx K) (any, error) {
 			dict, attributable := source(tCtx)
-			return pprofile.FromAttributeIndices(dict.AttributeTable(), attributable, dict), nil
+			return pprofile.FromAttributeIndices(dict.AttributeTable(), attributable, dict)
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
 			m, err := ctxutil.GetMap(val)
@@ -56,7 +56,11 @@ func AccessAttributesKey[K any](key []ottl.Key[K], source attributeSource[K]) ot
 	return ottl.StandardGetSetter[K]{
 		Getter: func(ctx context.Context, tCtx K) (any, error) {
 			dict, attributable := source(tCtx)
-			return ctxutil.GetMapValue[K](ctx, tCtx, pprofile.FromAttributeIndices(dict.AttributeTable(), attributable, dict), key)
+			m, err := pprofile.FromAttributeIndices(dict.AttributeTable(), attributable, dict)
+			if err != nil {
+				return nil, err
+			}
+			return ctxutil.GetMapValue[K](ctx, tCtx, m, key)
 		},
 		Setter: func(ctx context.Context, tCtx K, val any) error {
 			newKey, err := ctxutil.GetMapKeyName(ctx, tCtx, key[0])

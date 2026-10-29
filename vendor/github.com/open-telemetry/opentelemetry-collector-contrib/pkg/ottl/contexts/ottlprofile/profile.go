@@ -31,7 +31,6 @@ var tcPool = sync.Pool{
 }
 
 // ContextName is the name of the context for profiles.
-// Experimental: *NOTE* this constant is subject to change or removal in the future.
 const ContextName = ctxprofile.Name
 
 var (
@@ -48,6 +47,7 @@ type TransformContext struct {
 	instrumentationScope pcommon.InstrumentationScope
 	resource             pcommon.Resource
 	cache                pcommon.Map
+	externalCache        *pcommon.Map
 	scopeProfiles        pprofile.ScopeProfiles
 	resourceProfiles     pprofile.ResourceProfiles
 }
@@ -57,35 +57,27 @@ func (tCtx *TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) er
 	err := encoder.AddObject("resource", logging.Resource(tCtx.resource))
 	err = errors.Join(err, encoder.AddObject("scope", logging.InstrumentationScope(tCtx.instrumentationScope)))
 	err = errors.Join(err, encoder.AddObject("profile", logprofile.Profile{Profile: tCtx.profile, Dictionary: tCtx.dictionary}))
-	err = errors.Join(err, encoder.AddObject("cache", logging.Map(tCtx.cache)))
+	err = errors.Join(err, encoder.AddObject("cache", logging.Map(getCache(tCtx))))
 	return err
 }
 
 // TransformContextOption represents an option for configuring a TransformContext.
 type TransformContextOption func(*TransformContext)
 
-// NewTransformContext creates a new TransformContext with the provided parameters.
-//
-// Deprecated: [v0.145.0] Use NewTransformContextPtr.
-func NewTransformContext(profile pprofile.Profile, dictionary pprofile.ProfilesDictionary, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeProfiles pprofile.ScopeProfiles, resourceProfiles pprofile.ResourceProfiles, options ...TransformContextOption) TransformContext {
-	tc := TransformContext{
-		profile:              profile,
-		dictionary:           dictionary,
-		instrumentationScope: instrumentationScope,
-		resource:             resource,
-		cache:                pcommon.NewMap(),
-		scopeProfiles:        scopeProfiles,
-		resourceProfiles:     resourceProfiles,
+// WithCache sets an external shared cache on the TransformContext.
+// When set, the cache is shared across multiple TransformContext instances.
+// Experimental: *NOTE* this option is subject to change or removal in the future.
+func WithCache(cache *pcommon.Map) TransformContextOption {
+	return func(tCtx *TransformContext) {
+		if cache != nil {
+			tCtx.externalCache = cache
+		}
 	}
-	for _, opt := range options {
-		opt(&tc)
-	}
-	return tc
 }
 
-// NewTransformContextPtr returns a new TransformContext with the provided parameters from a pool of contexts.
+// NewTransformContext returns a new TransformContext with the provided parameters from a pool of contexts.
 // Caller must call TransformContext.Close on the returned TransformContext.
-func NewTransformContextPtr(resourceProfiles pprofile.ResourceProfiles, scopeProfiles pprofile.ScopeProfiles, profile pprofile.Profile, dictionary pprofile.ProfilesDictionary, options ...TransformContextOption) *TransformContext {
+func NewTransformContext(resourceProfiles pprofile.ResourceProfiles, scopeProfiles pprofile.ScopeProfiles, profile pprofile.Profile, dictionary pprofile.ProfilesDictionary, options ...TransformContextOption) *TransformContext {
 	tCtx := tcPool.Get().(*TransformContext)
 	tCtx.profile = profile
 	tCtx.dictionary = dictionary
@@ -107,6 +99,7 @@ func (tCtx *TransformContext) Close() {
 	tCtx.instrumentationScope = pcommon.InstrumentationScope{}
 	tCtx.resource = pcommon.Resource{}
 	tCtx.cache.Clear()
+	tCtx.externalCache = nil
 	tCtx.scopeProfiles = pprofile.ScopeProfiles{}
 	tCtx.resourceProfiles = pprofile.ResourceProfiles{}
 	tcPool.Put(tCtx)
@@ -133,12 +126,12 @@ func (tCtx *TransformContext) GetResource() pcommon.Resource {
 }
 
 // GetScopeSchemaURLItem returns the scope schema URL item from the TransformContext.
-func (tCtx *TransformContext) GetScopeSchemaURLItem() ctxcommon.SchemaURLItem {
+func (tCtx *TransformContext) GetScopeSchemaURLItem() ottl.SchemaURLItem {
 	return tCtx.scopeProfiles
 }
 
 // GetResourceSchemaURLItem returns the resource schema URL item from the TransformContext.
-func (tCtx *TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem {
+func (tCtx *TransformContext) GetResourceSchemaURLItem() ottl.SchemaURLItem {
 	return tCtx.resourceProfiles
 }
 
@@ -156,8 +149,6 @@ func NewParser(functions map[string]ottl.Factory[*TransformContext], telemetrySe
 // EnablePathContextNames enables the support for path's context names on statements.
 // When this option is configured, all statement's paths must have a valid context prefix,
 // otherwise an error is reported.
-//
-// Experimental: *NOTE* this option is subject to change or removal in the future.
 func EnablePathContextNames() ottl.Option[*TransformContext] {
 	return func(p *ottl.Parser[*TransformContext]) {
 		ottl.WithPathContextNames[*TransformContext]([]string{
@@ -216,6 +207,9 @@ func parseEnum(val *ottl.EnumSymbol) (*ottl.Enum, error) {
 }
 
 func getCache(tCtx *TransformContext) pcommon.Map {
+	if tCtx.externalCache != nil {
+		return *tCtx.externalCache
+	}
 	return tCtx.cache
 }
 
@@ -230,5 +224,6 @@ func pathExpressionParser(cacheGetter ctxcache.Getter[*TransformContext]) ottl.P
 			ctxscope.LegacyName: ctxscope.PathGetSetter[*TransformContext],
 			ctxprofile.Name:     ctxprofile.PathGetSetter[*TransformContext],
 			ctxotelcol.Name:     ctxotelcol.PathGetSetter[*TransformContext],
-		})
+		},
+	)
 }

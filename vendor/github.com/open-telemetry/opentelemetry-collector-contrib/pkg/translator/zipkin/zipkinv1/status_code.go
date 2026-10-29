@@ -106,7 +106,7 @@ func (m *statusMapper) fromAttribute(key string, attrib pcommon.Value) bool {
 		m.fromStatus.message = attrib.Str()
 		return true
 
-	case string(conventionsv125.HTTPStatusCodeKey):
+	case string(conventionsv125.HTTPStatusCodeKey), string(conventions.HTTPResponseStatusCodeKey):
 		httpCode, err := attribToStatusCode(attrib)
 		if err == nil {
 			code := statusCodeFromHTTP(httpCode)

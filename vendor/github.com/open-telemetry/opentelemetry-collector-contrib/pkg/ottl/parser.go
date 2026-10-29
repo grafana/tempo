@@ -50,10 +50,20 @@ func (s *Statement[K]) Execute(ctx context.Context, tCtx K) (any, bool, error) {
 	return result, condition, nil
 }
 
+// String returns the original statement text used to create the Statement.
+func (s *Statement[K]) String() string {
+	return s.origText
+}
+
 // Condition holds a top level Condition. A Condition is a boolean expression to match telemetry.
 type Condition[K any] struct {
 	condition boolExpr[K]
 	origText  string
+}
+
+// String returns the original condition text used to create the Condition.
+func (c *Condition[K]) String() string {
+	return c.origText
 }
 
 // Eval returns true if the condition was met for the given TransformContext and false otherwise.
@@ -152,11 +162,13 @@ func (p *Parser[K]) ParseStatement(statement string) (*Statement[K], error) {
 	if err != nil {
 		return nil, err
 	}
-	function, err := p.newFunctionCall(parsed.Editor)
+
+	pc := p.newParseContext()
+	function, err := pc.newFunctionCall(parsed.Editor)
 	if err != nil {
 		return nil, err
 	}
-	expression, err := p.newBoolExpr(parsed.WhereClause)
+	expression, err := pc.newBoolExpr(parsed.WhereClause)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +211,8 @@ func (p *Parser[K]) ParseCondition(condition string) (*Condition[K], error) {
 	if err != nil {
 		return nil, err
 	}
-	expression, err := p.newBoolExpr(parsed)
+
+	expression, err := p.newParseContext().newBoolExpr(parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +295,7 @@ var (
 func parseStatement(raw string) (*parsedStatement, error) {
 	parsed, err := parser().ParseString("", raw)
 	if err != nil {
-		return nil, fmt.Errorf("statement has invalid syntax: %w", err)
+		return nil, formatParseError("statement", raw, err)
 	}
 	err = parsed.checkForCustomError()
 	if err != nil {
@@ -295,7 +308,7 @@ func parseStatement(raw string) (*parsedStatement, error) {
 func parseCondition(raw string) (*booleanExpression, error) {
 	parsed, err := conditionParser().ParseString("", raw)
 	if err != nil {
-		return nil, fmt.Errorf("condition has invalid syntax: %w", err)
+		return nil, formatParseError("condition", raw, err)
 	}
 	err = parsed.checkForCustomError()
 	if err != nil {
@@ -308,7 +321,7 @@ func parseCondition(raw string) (*booleanExpression, error) {
 func parseValueExpression(raw string) (*value, error) {
 	parsed, err := valueExpressionParser().ParseString("", raw)
 	if err != nil {
-		return nil, fmt.Errorf("expression has invalid syntax: %w", err)
+		return nil, formatParseError("expression", raw, err)
 	}
 	err = parsed.checkForCustomError()
 	if err != nil {
@@ -316,6 +329,36 @@ func parseValueExpression(raw string) (*value, error) {
 	}
 
 	return parsed, nil
+}
+
+func formatParseError(kind, raw string, err error) error {
+	var unexpected *participle.UnexpectedTokenError
+	if !errors.As(err, &unexpected) {
+		return fmt.Errorf("%s has invalid syntax: %w", kind, err)
+	}
+	pos := unexpected.Position()
+	var expected string
+	if msg := unexpected.Message(); msg != "" {
+		if idx := strings.Index(msg, "(expected "); idx >= 0 {
+			expected = " " + msg[idx:]
+		}
+	}
+	if near := nearParseError(raw, pos.Offset); near != "" {
+		return fmt.Errorf("%s has invalid syntax at %d:%d near `%s`:%s", kind, pos.Line, pos.Column, near, expected)
+	}
+	return fmt.Errorf("%s has invalid syntax at %d:%d:%s", kind, pos.Line, pos.Column, expected)
+}
+
+// parseErrorSnippetLen is the number of source characters shown after the error position in the "near" clause.
+const parseErrorSnippetLen = 10
+
+// nearParseError returns a short, UTF-8 safe snippet of raw starting at offset for use in error messages.
+func nearParseError(raw string, offset int) string {
+	if offset < 0 || offset >= len(raw) {
+		return ""
+	}
+	end := min(offset+parseErrorSnippetLen, len(raw))
+	return strings.TrimSpace(strings.ToValidUTF8(raw[offset:end], ""))
 }
 
 func insertContextIntoPathsOffsets(context, statement string, offsets []int) (string, error) {
@@ -516,6 +559,11 @@ func (e *ValueExpression[K]) Eval(ctx context.Context, tCtx K) (any, error) {
 	return e.getter.Get(ctx, tCtx)
 }
 
+// String returns the original OTTL expression used to create the ValueExpression.
+func (e *ValueExpression[K]) String() string {
+	return e.origText
+}
+
 // ParseValueExpressions parses string expressions into a ValueExpression slice ready for execution.
 // Returns a slice of ValueExpression and a nil error on successful parsing.
 // If parsing fails, returns nil and an error containing each error per failed condition.
@@ -546,7 +594,7 @@ func (p *Parser[K]) ParseValueExpression(raw string) (*ValueExpression[K], error
 	if err != nil {
 		return nil, err
 	}
-	getter, err := p.newGetter(*parsed)
+	getter, err := p.newParseContext().newGetter(*parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -572,4 +620,17 @@ func (p *Parser[K]) ParseValueExpression(raw string) (*ValueExpression[K], error
 			},
 		},
 	}, nil
+}
+
+// parseContext represents the context used during parsing operations. It is used to store
+// the current parser reference and lexical scopes for local identifiers (e.g. in lambda bodies).
+type parseContext[K any] struct {
+	*Parser[K]
+	localScopes localScopeStack
+}
+
+func (p *Parser[K]) newParseContext() *parseContext[K] {
+	return &parseContext[K]{
+		Parser: p,
+	}
 }

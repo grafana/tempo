@@ -143,7 +143,7 @@ func (e *orExprs[K]) Eval(ctx context.Context, tCtx K) (bool, error) {
 	return false, nil
 }
 
-func (p *Parser[K]) newComparisonExpr(comparison *comparison) (boolExpr[K], error) {
+func (p *parseContext[K]) newComparisonExpr(comparison *comparison) (boolExpr[K], error) {
 	if comparison == nil {
 		return newAlwaysTrue[K](), nil
 	}
@@ -187,7 +187,7 @@ func (e *comparisonExpr[K]) Eval(ctx context.Context, tCtx K) (bool, error) {
 	return e.comparator.compare(a, b, e.op), nil
 }
 
-func (p *Parser[K]) newBoolExpr(expr *booleanExpression) (boolExpr[K], error) {
+func (p *parseContext[K]) newBoolExpr(expr *booleanExpression) (boolExpr[K], error) {
 	if expr == nil {
 		return newAlwaysTrue[K](), nil
 	}
@@ -207,7 +207,7 @@ func (p *Parser[K]) newBoolExpr(expr *booleanExpression) (boolExpr[K], error) {
 	return newOrExprs(funcs), nil
 }
 
-func (p *Parser[K]) newBooleanTermEvaluator(term *term) (boolExpr[K], error) {
+func (p *parseContext[K]) newBooleanTermEvaluator(term *term) (boolExpr[K], error) {
 	if term == nil {
 		return newAlwaysTrue[K](), nil
 	}
@@ -227,7 +227,7 @@ func (p *Parser[K]) newBooleanTermEvaluator(term *term) (boolExpr[K], error) {
 	return newAndExprs(funcs), nil
 }
 
-func (p *Parser[K]) newBooleanValueEvaluator(value *booleanValue) (boolExpr[K], error) {
+func (p *parseContext[K]) newBooleanValueEvaluator(value *booleanValue) (boolExpr[K], error) {
 	if value == nil {
 		return newAlwaysTrue[K](), nil
 	}
@@ -271,7 +271,7 @@ func (p *Parser[K]) newBooleanValueEvaluator(value *booleanValue) (boolExpr[K], 
 	return boolExpr, nil
 }
 
-func (p *Parser[K]) newConverterEvaluator(c converter) (boolExpr[K], error) {
+func (p *parseContext[K]) newConverterEvaluator(c converter) (boolExpr[K], error) {
 	getter, err := p.newGetterFromConverter(c)
 	if err != nil {
 		return nil, err

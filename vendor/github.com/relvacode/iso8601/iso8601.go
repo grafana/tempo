@@ -116,7 +116,9 @@ func ParseInLocation(inp []byte, loc *time.Location) (time.Time, error) {
 	)
 
 	var c uint
+	var n uint // digits accumulated since the last separator
 	var p = year
+	var ordinal bool // input is an ISO 8601 ordinal date (YYYY-DDD)
 
 	var i int
 
@@ -126,12 +128,17 @@ parse:
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			c = c * 10
 			c += uint(inp[i]) - charStart
+			n++
 
 			if p == millisecond {
 				nfraction++
 			}
 		case '-':
 			if p < hour {
+				if n == 0 {
+					// A dash with no preceding digits (e.g. `2020--01`).
+					return time.Time{}, newUnexpectedCharacterError(inp[i])
+				}
 				switch p {
 				case year:
 					Y = c
@@ -142,6 +149,7 @@ parse:
 				}
 				p++
 				c = 0
+				n = 0
 				continue
 			}
 			fallthrough
@@ -154,6 +162,15 @@ parse:
 			}
 
 			switch p {
+			case month:
+				// A three-digit component after the year is an ISO 8601 ordinal
+				// day-of-year (YYYY-DDD), not a month.
+				if n != 3 {
+					return time.Time{}, newUnexpectedCharacterError(inp[i])
+				}
+				M = 1
+				d = c
+				ordinal = true
 			case hour:
 				h = c
 			case minute:
@@ -166,6 +183,7 @@ parse:
 				return time.Time{}, newUnexpectedCharacterError(inp[i])
 			}
 			c = 0
+			n = 0
 			var err error
 			loc, err = ParseISOZone(inp[i:])
 			if err != nil {
@@ -173,31 +191,44 @@ parse:
 			}
 			break parse
 		case 'T', ' ':
-			if p != day {
+			switch {
+			case p == day:
+				d = c
+			case p == month && n == 3:
+				// ordinal day-of-year (YYYY-DDD) followed by a time
+				M = 1
+				d = c
+				ordinal = true
+			default:
 				return time.Time{}, newUnexpectedCharacterError(inp[i])
 			}
-			d = c
 			c = 0
-			p++
+			n = 0
+			p = hour
 		case ':':
+			if n == 0 {
+				// A colon with no preceding digits (e.g. `16::20`).
+				return time.Time{}, newUnexpectedCharacterError(inp[i])
+			}
 			switch p {
 			case hour:
 				h = c
 			case minute:
 				m = c
-			case second:
-				m = c
 			default:
+				// A colon after the seconds field (e.g. `16:20:45:`) is invalid.
 				return time.Time{}, newUnexpectedCharacterError(inp[i])
 			}
 			c = 0
+			n = 0
 			p++
 		case '.':
-			if p != second {
+			if p != second || n == 0 {
 				return time.Time{}, newUnexpectedCharacterError(inp[i])
 			}
 			s = c
 			c = 0
+			n = 0
 			p++
 		default:
 			return time.Time{}, newUnexpectedCharacterError(inp[i])
@@ -206,7 +237,13 @@ parse:
 
 	// Capture remaining data
 	// Sometimes a date can end without a non-integer character
-	if c > 0 {
+	if p == month && n == 3 {
+		// ISO 8601 ordinal date (YYYY-DDD): the three digits are the day of the
+		// year, not a month.
+		M = 1
+		d = c
+		ordinal = true
+	} else if c > 0 {
 		switch p {
 		case year:
 			Y = c
@@ -238,7 +275,7 @@ parse:
 	}
 
 	switch {
-	case M < 1 || M > 12: // Month 1-12
+	case !ordinal && (M < 1 || M > 12): // Month 1-12
 		return time.Time{}, &RangeError{
 			Value:   string(inp),
 			Element: "month",
@@ -246,7 +283,15 @@ parse:
 			Min:     1,
 			Max:     12,
 		}
-	case d < 1 || int(d) > daysIn(time.Month(M), int(Y)): // Day 1-daysIn(month, year)
+	case ordinal && (d < 1 || int(d) > daysInYear(int(Y))): // Ordinal day 1-365/366
+		return time.Time{}, &RangeError{
+			Value:   string(inp),
+			Element: "day",
+			Given:   int(d),
+			Min:     1,
+			Max:     daysInYear(int(Y)),
+		}
+	case !ordinal && (d < 1 || int(d) > daysIn(time.Month(M), int(Y))): // Day 1-daysIn(month, year)
 		return time.Time{}, &RangeError{
 			Value:   string(inp),
 			Element: "day",

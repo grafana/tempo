@@ -182,7 +182,7 @@ func (fmp *filterMetricProcessor) processSkipExpression(ctx context.Context, md 
 	var errs error
 	md.ResourceMetrics().RemoveIf(func(rm pmetric.ResourceMetrics) bool {
 		if fmp.skipResourceExpr != nil {
-			tCtx := ottlresource.NewTransformContextPtr(rm.Resource(), rm)
+			tCtx := ottlresource.NewTransformContext(rm.Resource(), rm)
 			skip, err := fmp.skipResourceExpr.Eval(ctx, tCtx)
 			tCtx.Close()
 			if err != nil {
@@ -199,7 +199,7 @@ func (fmp *filterMetricProcessor) processSkipExpression(ctx context.Context, md 
 		rm.ScopeMetrics().RemoveIf(func(smetrics pmetric.ScopeMetrics) bool {
 			smetrics.Metrics().RemoveIf(func(metric pmetric.Metric) bool {
 				if fmp.skipMetricExpr != nil {
-					tCtx := ottlmetric.NewTransformContextPtr(rm, smetrics, metric)
+					tCtx := ottlmetric.NewTransformContext(rm, smetrics, metric)
 					skip, err := fmp.skipMetricExpr.Eval(ctx, tCtx)
 					tCtx.Close()
 					if err != nil {
@@ -315,7 +315,7 @@ func newResExpr(mp *filterconfig.MetricMatchProperties) (expr.BoolExpr[*ottlreso
 func (fmp *filterMetricProcessor) handleNumberDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.NumberDataPointSlice) error {
 	var errs error
 	dps.RemoveIf(func(dp pmetric.NumberDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, dp)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, dp)
 		defer tCtx.Close()
 		skip, err := fmp.skipDataPointExpr.Eval(ctx, tCtx)
 		if err != nil {
@@ -330,7 +330,7 @@ func (fmp *filterMetricProcessor) handleNumberDataPoints(ctx context.Context, rm
 func (fmp *filterMetricProcessor) handleHistogramDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.HistogramDataPointSlice) error {
 	var errs error
 	dps.RemoveIf(func(dp pmetric.HistogramDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, dp)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, dp)
 		defer tCtx.Close()
 		skip, err := fmp.skipDataPointExpr.Eval(ctx, tCtx)
 		if err != nil {
@@ -345,7 +345,7 @@ func (fmp *filterMetricProcessor) handleHistogramDataPoints(ctx context.Context,
 func (fmp *filterMetricProcessor) handleExponentialHistogramDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.ExponentialHistogramDataPointSlice) error {
 	var errs error
 	dps.RemoveIf(func(dp pmetric.ExponentialHistogramDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, dp)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, dp)
 		defer tCtx.Close()
 		skip, err := fmp.skipDataPointExpr.Eval(ctx, tCtx)
 		if err != nil {
@@ -360,7 +360,7 @@ func (fmp *filterMetricProcessor) handleExponentialHistogramDataPoints(ctx conte
 func (fmp *filterMetricProcessor) handleSummaryDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.SummaryDataPointSlice) error {
 	var errs error
 	dps.RemoveIf(func(dp pmetric.SummaryDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, dp)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, dp)
 		defer tCtx.Close()
 		skip, err := fmp.skipDataPointExpr.Eval(ctx, tCtx)
 		if err != nil {

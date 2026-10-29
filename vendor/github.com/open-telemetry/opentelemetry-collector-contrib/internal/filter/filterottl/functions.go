@@ -11,6 +11,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottldatapoint"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlexemplar"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlmetric"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlprofile"
@@ -23,7 +24,7 @@ import (
 
 func StandardSpanFuncs() map[string]ottl.Factory[*ottlspan.TransformContext] {
 	m := ottlfuncs.StandardConverters[*ottlspan.TransformContext]()
-	isRootSpanFactory := ottlfuncs.NewIsRootSpanFactoryNew()
+	isRootSpanFactory := ottlfuncs.NewIsRootSpanFactory()
 	m[isRootSpanFactory.Name()] = isRootSpanFactory
 	return m
 }
@@ -43,6 +44,10 @@ func StandardMetricFuncs() map[string]ottl.Factory[*ottlmetric.TransformContext]
 
 func StandardDataPointFuncs() map[string]ottl.Factory[*ottldatapoint.TransformContext] {
 	return ottlfuncs.StandardConverters[*ottldatapoint.TransformContext]()
+}
+
+func StandardExemplarFuncs() map[string]ottl.Factory[*ottlexemplar.TransformContext] {
+	return ottlfuncs.StandardConverters[*ottlexemplar.TransformContext]()
 }
 
 func StandardScopeFuncs() map[string]ottl.Factory[*ottlscope.TransformContext] {
