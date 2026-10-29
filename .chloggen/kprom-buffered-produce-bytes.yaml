@@ -2,10 +2,10 @@ change_type: breaking
 
 component: distributor
 
-note: "`tempo_distributor_buffered_produce_bytes` is now a gauge exported by the Kafka client, instead of a summary with 60s quantiles."
+note: "The distributor summary `tempo_distributor_buffered_produce_bytes` is renamed to `tempo_distributor_buffered_produce_bytes_distribution`. The name `tempo_distributor_buffered_produce_bytes` is now a gauge exported by the Kafka client."
 
 issues: [7384]
 
-subtext: Queries using the `quantile` label or the `_sum` and `_count` series must switch to the gauge value, for example `max_over_time(tempo_distributor_buffered_produce_bytes[1m])`.
+subtext: Queries and alerts that use the `quantile` label or the `_sum` and `_count` series of `tempo_distributor_buffered_produce_bytes` must switch to `tempo_distributor_buffered_produce_bytes_distribution`.
 
 user: mdisibio

@@ -104,10 +104,11 @@ func TestProducerBufferedProduceBytesMetrics(t *testing.T) {
 		counts[mf.GetName()]++
 	}
 	require.Equal(t, 1, counts["tempo_distributor_buffered_produce_bytes"])
+	require.Equal(t, 1, counts["tempo_distributor_buffered_produce_bytes_distribution"])
 	require.Equal(t, 1, counts["tempo_distributor_buffered_produce_bytes_limit"])
 }
 
-// TestProducerBufferedProduceBytesValues checks that the exported gauge tracks the bytes buffered in the Kafka
+// TestProducerBufferedProduceBytesValues checks that the exported gauge and distribution summary track the bytes buffered in the Kafka
 // client: it rises while a produce request is held by the broker and falls back to zero once it completes.
 func TestProducerBufferedProduceBytesValues(t *testing.T) {
 	const (
@@ -149,6 +150,24 @@ func TestProducerBufferedProduceBytesValues(t *testing.T) {
 		return 0
 	}
 
+	// peak returns the max (quantile 1) of the distribution summary.
+	peak := func() float64 {
+		mfs, err := reg.Gather()
+		require.NoError(t, err)
+		for _, mf := range mfs {
+			if mf.GetName() != "tempo_distributor_buffered_produce_bytes_distribution" {
+				continue
+			}
+			for _, q := range mf.GetMetric()[0].GetSummary().GetQuantile() {
+				if q.GetQuantile() == 1 {
+					return q.GetValue()
+				}
+			}
+		}
+		require.Fail(t, "distribution summary not found")
+		return 0
+	}
+
 	require.Equal(t, 0.0, gauge("tempo_distributor_buffered_produce_bytes"))
 	require.Equal(t, float64(maxBufferedBytes), gauge("tempo_distributor_buffered_produce_bytes_limit"))
 
@@ -162,6 +181,10 @@ func TestProducerBufferedProduceBytesValues(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 	require.Less(t, gauge("tempo_distributor_buffered_produce_bytes"), float64(valueSize+1024))
 
+	// The summary samples every 250ms, so its max should catch the same buffered value.
+	require.Eventually(t, func() bool { return peak() >= valueSize }, 5*time.Second, 10*time.Millisecond)
+	require.Less(t, peak(), float64(valueSize+1024))
+
 	releaseOnce()
 	res := <-done
 	require.NoError(t, res.FirstErr())
@@ -169,4 +192,7 @@ func TestProducerBufferedProduceBytesValues(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return gauge("tempo_distributor_buffered_produce_bytes") == 0
 	}, 5*time.Second, 10*time.Millisecond)
+
+	// The peak is retained over the 60s window even after the buffer drains.
+	require.GreaterOrEqual(t, peak(), float64(valueSize))
 }

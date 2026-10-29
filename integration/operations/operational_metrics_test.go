@@ -45,8 +45,9 @@ func TestWriteMetrics(t *testing.T) {
 		assertMetricInDelta(t, distributor, "tempo_distributor_bytes_received_total", float64(countBytes), .1*float64(countBytes), nil)
 		assertMetricInDelta(t, distributor, "tempo_distributor_ingress_bytes_total", float64(countBytes), .1*float64(countBytes), nil)
 
-		// kafka producer buffer metrics. The gauge is exported by kprom; it must exist alongside the limit.
+		// kafka producer buffer metrics. The gauge is exported by kprom and the distribution summary by the Producer.
 		assertMetricInDelta(t, distributor, "tempo_distributor_buffered_produce_bytes", 0, float64(countBytes), nil)
+		assertMetricGreater(t, distributor, "tempo_distributor_buffered_produce_bytes_distribution_count", 0, nil)
 		assertMetricGreater(t, distributor, "tempo_distributor_buffered_produce_bytes_limit", 0, nil)
 
 		// livestore
