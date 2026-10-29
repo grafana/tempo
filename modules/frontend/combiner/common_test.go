@@ -106,6 +106,23 @@ func TestInitHttpCombiner(t *testing.T) {
 	require.Equal(t, api.MarshallingFormatJSON, combiner.httpMarshalingFormat)
 }
 
+func TestGenericCombinerUsesCustomJSONMarshaler(t *testing.T) {
+	called := false
+	combiner := &genericCombiner[*tempopb.ServiceStats]{
+		httpMarshalingFormat: api.MarshallingFormatJSON,
+		marshalJSON: func(*tempopb.ServiceStats) ([]byte, error) {
+			called = true
+			return []byte(`{"custom":true}`), nil
+		},
+	}
+
+	body, contentType, err := combiner.internalMarshalAs(context.Background(), &tempopb.ServiceStats{})
+	require.NoError(t, err)
+	require.True(t, called)
+	require.Equal(t, string(api.MarshallingFormatJSON), contentType)
+	require.JSONEq(t, `{"custom":true}`, string(body))
+}
+
 func TestGenericCombiner(t *testing.T) {
 	combiner := newTestCombiner()
 
