@@ -8,7 +8,7 @@ change_type: change
 component: deps
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Update OpenTelemetry Collector to v1.70.0/v0.164.0 and Contrib to v0.164.1.
+note: Update OpenTelemetry Collector to v1.67.0/v0.161.0 and Contrib to v0.161.0.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
@@ -16,7 +16,7 @@ issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
 subtext: |
-  Includes OTTL v1.3.1. Forwarder filters using `Base64Decode(value)` must use
+  Includes OTTL v0.161.0. Forwarder filters using `Base64Decode(value)` must use
   `Decode(value, "base64")` instead.
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".

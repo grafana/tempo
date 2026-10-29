@@ -8,7 +8,8 @@ import (
 	"hash"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/xpdata/xhash"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil"
 )
 
 type scope = Scope
@@ -42,6 +43,6 @@ func OfScope(res Resource, scope pcommon.InstrumentationScope) Scope {
 		resource: res,
 		name:     scope.Name(),
 		version:  scope.Version(),
-		attrs:    xhash.MapHash(scope.Attributes()),
+		attrs:    pdatautil.MapHash(scope.Attributes()),
 	}
 }

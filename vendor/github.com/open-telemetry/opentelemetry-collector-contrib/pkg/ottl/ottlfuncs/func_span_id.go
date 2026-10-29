@@ -14,21 +14,19 @@ import (
 
 const spanIDFuncName = "SpanID"
 
-type spanIDArguments[K any] struct {
+type SpanIDArguments[K any] struct {
 	Target ottl.ByteSliceLikeGetter[K]
 }
 
-// NewSpanIDFactory returns a factory for the SpanID OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#spanid
 func NewSpanIDFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory(spanIDFuncName, &spanIDArguments[K]{}, createSpanIDFunction[K])
+	return ottl.NewFactory(spanIDFuncName, &SpanIDArguments[K]{}, createSpanIDFunction[K])
 }
 
 func createSpanIDFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*spanIDArguments[K])
+	args, ok := oArgs.(*SpanIDArguments[K])
 
 	if !ok {
-		return nil, errors.New("SpanIDFactory args must be of type *spanIDArguments[K]")
+		return nil, errors.New("SpanIDFactory args must be of type *SpanIDArguments[K]")
 	}
 
 	return spanID[K](args.Target)

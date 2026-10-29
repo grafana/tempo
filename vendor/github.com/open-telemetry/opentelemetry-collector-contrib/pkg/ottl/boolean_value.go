@@ -6,8 +6,6 @@ package ottl // import "github.com/open-telemetry/opentelemetry-collector-contri
 import (
 	"context"
 	"fmt"
-
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlerror"
 )
 
 // boolExpr represents a condition in OTTL
@@ -256,7 +254,7 @@ func (p *parseContext[K]) newBooleanValueEvaluator(value *booleanValue) (boolExp
 				return nil, err
 			}
 		default:
-			return nil, ottlerror.Errorf(value.Pos, "unhandled boolean operation %v", value)
+			return nil, fmt.Errorf("unhandled boolean operation %v", value)
 		}
 	case value.SubExpr != nil:
 		boolExpr, err = p.newBoolExpr(value.SubExpr)
@@ -264,7 +262,7 @@ func (p *parseContext[K]) newBooleanValueEvaluator(value *booleanValue) (boolExp
 			return nil, err
 		}
 	default:
-		return nil, ottlerror.Errorf(value.Pos, "unhandled boolean operation %v", value)
+		return nil, fmt.Errorf("unhandled boolean operation %v", value)
 	}
 
 	if value.Negation != nil {
@@ -279,14 +277,14 @@ func (p *parseContext[K]) newConverterEvaluator(c converter) (boolExpr[K], error
 		return nil, err
 	}
 
-	return newConverterExpr(c, getter)
+	return newConverterExpr(getter)
 }
 
-func newConverterExpr[K any](c converter, getter Getter[K]) (boolExpr[K], error) {
+func newConverterExpr[K any](getter Getter[K]) (boolExpr[K], error) {
 	if val, ok := GetLiteralValue(getter); ok {
 		boolResult, okResult := val.(bool)
 		if !okResult {
-			return nil, ottlerror.Errorf(c.Pos, "value returned from Converter in constant expression must be bool but got %T", val)
+			return nil, fmt.Errorf("value returned from Converter in constant expression must be bool but got %T", val)
 		}
 		return newLiteralExpr[K](boolResult), nil
 	}

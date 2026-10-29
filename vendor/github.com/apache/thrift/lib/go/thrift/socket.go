@@ -234,7 +234,8 @@ func (p *TSocket) Interrupt() error {
 }
 
 func (p *TSocket) RemainingBytes() (num_bytes uint64) {
-	return UnknownRemainingBytes
+	const maxSize = ^uint64(0)
+	return maxSize // the truth is, we just don't know unless framed is used
 }
 
 var _ TConfigurationSetter = (*TSocket)(nil)

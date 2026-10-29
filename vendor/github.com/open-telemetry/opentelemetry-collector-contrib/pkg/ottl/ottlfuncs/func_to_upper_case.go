@@ -11,21 +11,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type toUpperCaseArguments[K any] struct {
+type ToUpperCaseArguments[K any] struct {
 	Target ottl.StringGetter[K]
 }
 
-// NewToUpperCaseFactory returns a factory for the ToUpperCase OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#touppercase
 func NewToUpperCaseFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ToUpperCase", &toUpperCaseArguments[K]{}, createToUpperCaseFunction[K])
+	return ottl.NewFactory("ToUpperCase", &ToUpperCaseArguments[K]{}, createToUpperCaseFunction[K])
 }
 
 func createToUpperCaseFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*toUpperCaseArguments[K])
+	args, ok := oArgs.(*ToUpperCaseArguments[K])
 
 	if !ok {
-		return nil, errors.New("ToUpperCaseFactory args must be of type *toUpperCaseArguments[K]")
+		return nil, errors.New("ToUpperCaseFactory args must be of type *ToUpperCaseArguments[K]")
 	}
 
 	return toUpperCase(args.Target), nil

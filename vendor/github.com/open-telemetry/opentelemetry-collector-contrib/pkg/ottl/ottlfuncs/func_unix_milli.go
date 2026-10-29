@@ -10,32 +10,30 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type unixMilliArguments[K any] struct {
+type UnixMilliArguments[K any] struct {
 	Time ottl.TimeGetter[K]
 }
 
-// NewUnixMilliFactory returns a factory for the UnixMilli OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#unixmilli
 func NewUnixMilliFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("UnixMilli", &unixMilliArguments[K]{}, createUnixMilliFunction[K])
+	return ottl.NewFactory("UnixMilli", &UnixMilliArguments[K]{}, createUnixMilliFunction[K])
 }
 
 func createUnixMilliFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*unixMilliArguments[K])
+	args, ok := oArgs.(*UnixMilliArguments[K])
 
 	if !ok {
-		return nil, errors.New("UnixMilliFactory args must be of type *unixMilliArguments[K]")
+		return nil, errors.New("UnixMilliFactory args must be of type *UnixMilliArguments[K]")
 	}
 
-	return unixMilli(args.Time), nil
+	return UnixMilli(args.Time)
 }
 
-func unixMilli[K any](inputTime ottl.TimeGetter[K]) ottl.ExprFunc[K] {
+func UnixMilli[K any](inputTime ottl.TimeGetter[K]) (ottl.ExprFunc[K], error) {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		t, err := inputTime.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
 		return t.UnixMilli(), nil
-	}
+	}, nil
 }

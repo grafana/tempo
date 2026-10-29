@@ -25,8 +25,6 @@ import (
 )
 
 type timeoutable interface {
-	error
-
 	Timeout() bool
 }
 
@@ -125,7 +123,8 @@ func prependTTransportException(prepend string, e TTransportException) TTranspor
 //
 // Note that this also includes TTransportException wrapped timeout errors.
 func isTimeoutError(err error) bool {
-	if t, ok := errors.AsType[timeoutable](err); ok {
+	var t timeoutable
+	if errors.As(err, &t) {
 		return t.Timeout()
 	}
 	return false

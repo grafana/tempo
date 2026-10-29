@@ -13,22 +13,20 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type deleteIndexArguments[K any] struct {
+type DeleteIndexArguments[K any] struct {
 	Target     ottl.PSliceGetSetter[K]
 	StartIndex ottl.IntGetter[K]
 	EndIndex   ottl.Optional[ottl.IntGetter[K]]
 }
 
-// NewDeleteIndexFactory returns a factory for the delete_index OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#delete_index
 func NewDeleteIndexFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("delete_index", &deleteIndexArguments[K]{}, createDeleteIndexFunction[K])
+	return ottl.NewFactory("delete_index", &DeleteIndexArguments[K]{}, createDeleteIndexFunction[K])
 }
 
 func createDeleteIndexFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*deleteIndexArguments[K])
+	args, ok := oArgs.(*DeleteIndexArguments[K])
 	if !ok {
-		return nil, errors.New("DeleteIndexFactory args must be of type *deleteIndexArguments[K]")
+		return nil, errors.New("DeleteIndexFactory args must be of type *DeleteIndexArguments[K]")
 	}
 
 	return deleteIndexFrom(args.Target, args.StartIndex, args.EndIndex), nil

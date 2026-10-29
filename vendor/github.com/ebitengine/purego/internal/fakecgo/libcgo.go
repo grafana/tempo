@@ -5,8 +5,6 @@
 
 package fakecgo
 
-import "structs"
-
 type (
 	size_t uintptr
 	// Sources:
@@ -30,13 +28,11 @@ const (
 )
 
 type G struct {
-	_       structs.HostLayout
 	stacklo uintptr
 	stackhi uintptr
 }
 
 type ThreadStart struct {
-	_   structs.HostLayout
 	g   *G
 	tls *uintptr
 	fn  uintptr

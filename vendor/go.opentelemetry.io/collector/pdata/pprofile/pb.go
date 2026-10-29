@@ -22,9 +22,7 @@ func (e *ProtoMarshaler) MarshalProfiles(pd Profiles) ([]byte, error) {
 	}
 
 	// Convert strings to references for efficient transmission
-	if err := convertProfilesToReferences(pdToUse); err != nil {
-		return nil, err
-	}
+	convertProfilesToReferences(pdToUse)
 
 	size := pdToUse.getOrig().SizeProto()
 	buf := make([]byte, size)
@@ -60,9 +58,7 @@ func (d *ProtoUnmarshaler) UnmarshalProfiles(buf []byte) (Profiles, error) {
 
 	// Resolve all string_value_ref and key_ref to their actual strings
 	// so the pdata API works transparently
-	if err := resolveProfilesReferences(pd); err != nil {
-		return Profiles{}, err
-	}
+	resolveProfilesReferences(pd)
 
 	return pd, nil
 }

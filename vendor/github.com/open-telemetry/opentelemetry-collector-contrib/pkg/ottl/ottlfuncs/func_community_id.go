@@ -25,7 +25,7 @@ var communityIDProtocols = map[string]uint8{
 	"SCTP":  132,
 }
 
-type communityIDArguments[K any] struct {
+type CommunityIDArguments[K any] struct {
 	SourceIP        ottl.StringGetter[K]
 	SourcePort      ottl.IntGetter[K]
 	DestinationIP   ottl.StringGetter[K]
@@ -34,17 +34,15 @@ type communityIDArguments[K any] struct {
 	Seed            ottl.Optional[ottl.IntGetter[K]]
 }
 
-// NewCommunityIDFactory returns a factory for the CommunityID OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#communityid
 func NewCommunityIDFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("CommunityID", &communityIDArguments[K]{}, createCommunityIDFunction[K])
+	return ottl.NewFactory("CommunityID", &CommunityIDArguments[K]{}, createCommunityIDFunction[K])
 }
 
 func createCommunityIDFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*communityIDArguments[K])
+	args, ok := oArgs.(*CommunityIDArguments[K])
 
 	if !ok {
-		return nil, errors.New("CommunityIDFactory args must be of type *communityIDArguments[K]")
+		return nil, errors.New("CommunityIDFactory args must be of type *CommunityIDArguments[K]")
 	}
 
 	return communityID(

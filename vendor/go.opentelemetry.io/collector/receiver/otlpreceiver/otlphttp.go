@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"go.opentelemetry.io/collector/internal/statusutil"
-	"go.opentelemetry.io/collector/pdata/pprofile/pprofileotlp"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/errors"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics"
@@ -126,11 +125,6 @@ func handleProfiles(resp http.ResponseWriter, req *http.Request, profilesReceive
 		return
 	}
 
-	if err := pprofileotlp.ValidateDevelopmentVersion(req.Header.Values(pprofileotlp.DevelopmentVersionHeader)); err != nil {
-		writeError(resp, enc, err, http.StatusBadRequest)
-		return
-	}
-
 	body, ok := readAndCloseBody(resp, req, enc)
 	if !ok {
 		return
@@ -201,15 +195,19 @@ func writeError(w http.ResponseWriter, encoder encoder, err error, statusCode in
 // by the OTLP protocol.
 func errorHandler(w http.ResponseWriter, r *http.Request, errMsg string, statusCode int) {
 	s := statusutil.NewStatusFromMsgAndHTTPCode(errMsg, statusCode)
-	switch getMimeTypeFromContentType(r.Header.Get("Content-Type")) {
+	contentType := r.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = fallbackContentType
+	}
+	switch getMimeTypeFromContentType(contentType) {
 	case pbContentType:
 		writeStatusResponse(w, pbEncoder, statusCode, s)
-	default:
-		// Fall back to JSON for any Content-Type that isn't protobuf.
-		// Preserve the original status code so client errors (4xx) aren't
-		// reported as server faults.
+		return
+	case jsonContentType:
 		writeStatusResponse(w, jsEncoder, statusCode, s)
+		return
 	}
+	writeResponse(w, fallbackContentType, http.StatusInternalServerError, fallbackMsg)
 }
 
 func writeStatusResponse(w http.ResponseWriter, enc encoder, statusCode int, st *status.Status) {

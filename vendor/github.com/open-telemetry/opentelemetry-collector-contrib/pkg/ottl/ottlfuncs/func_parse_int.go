@@ -12,22 +12,20 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type parseIntArguments[K any] struct {
+type ParseIntArguments[K any] struct {
 	Target ottl.StringGetter[K]
 	Base   ottl.IntGetter[K]
 }
 
-// NewParseIntFactory returns a factory for the ParseInt OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#parseint
 func NewParseIntFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ParseInt", &parseIntArguments[K]{}, createParseIntFunction[K])
+	return ottl.NewFactory("ParseInt", &ParseIntArguments[K]{}, createParseIntFunction[K])
 }
 
 func createParseIntFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*parseIntArguments[K])
+	args, ok := oArgs.(*ParseIntArguments[K])
 
 	if !ok {
-		return nil, errors.New("ParseIntFactory args must be of type *parseIntArguments[K]")
+		return nil, errors.New("ParseIntFactory args must be of type *ParseIntArguments[K]")
 	}
 
 	return parseIntFunc(args.Target, args.Base), nil

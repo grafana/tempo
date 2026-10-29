@@ -9,8 +9,7 @@ import (
 // TimeoutConfig a timeout configuration. The timeout applies to individual attempts to send data to the backend.
 type TimeoutConfig = internal.TimeoutConfig
 
-// NewDefaultTimeoutConfig returns a new TimeoutConfig with its default values applied.
-// Prefer this over an empty struct literal so default changes stay in sync automatically.
+// NewDefaultTimeoutConfig returns a new TimeoutConfig with default values consistent with the annotations in the schema.
 func NewDefaultTimeoutConfig() TimeoutConfig {
 	return internal.NewDefaultTimeoutConfig()
 }

@@ -11,22 +11,20 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type keepMatchingKeysArguments[K any] struct {
+type KeepMatchingKeysArguments[K any] struct {
 	Target  ottl.PMapGetSetter[K]
 	Pattern ottl.StringGetter[K]
 }
 
-// NewKeepMatchingKeysFactory returns a factory for the keep_matching_keys OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#keep_matching_keys
 func NewKeepMatchingKeysFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("keep_matching_keys", &keepMatchingKeysArguments[K]{}, createKeepMatchingKeysFunction[K])
+	return ottl.NewFactory("keep_matching_keys", &KeepMatchingKeysArguments[K]{}, createKeepMatchingKeysFunction[K])
 }
 
 func createKeepMatchingKeysFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*keepMatchingKeysArguments[K])
+	args, ok := oArgs.(*KeepMatchingKeysArguments[K])
 
 	if !ok {
-		return nil, errors.New("KeepMatchingKeysFactory args must be of type *keepMatchingKeysArguments[K")
+		return nil, errors.New("KeepMatchingKeysFactory args must be of type *KeepMatchingKeysArguments[K")
 	}
 
 	return keepMatchingKeys(args.Target, args.Pattern)

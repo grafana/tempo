@@ -4,8 +4,8 @@
 package queuebatch // import "go.opentelemetry.io/collector/exporter/exporterhelper/internal/queuebatch"
 
 import (
+	"bytes"
 	"context"
-	"encoding/binary"
 
 	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/exporter/exporterhelper/internal/request"
@@ -30,19 +30,24 @@ func (p *metadataKeysPartitioner) GetKey(
 	ctx context.Context,
 	_ request.Request,
 ) string {
-	kb := make([]byte, 0, 64)
+	var kb bytes.Buffer
 	meta := client.FromContext(ctx).Metadata
 
-	// Key positions are fixed; counts and lengths disambiguate all value boundaries.
+	var afterFirst bool
 	for _, k := range p.keys {
-		values := meta.Get(k)
-		kb = binary.AppendUvarint(kb, uint64(len(values)))
-		for _, val := range values {
-			kb = binary.AppendUvarint(kb, uint64(len(val)))
-			kb = append(kb, val...)
+		if values := meta.Get(k); len(values) != 0 {
+			if afterFirst {
+				kb.WriteByte(0)
+			}
+			kb.WriteString(k)
+			afterFirst = true
+			for _, val := range values {
+				kb.WriteByte(0)
+				kb.WriteString(val)
+			}
 		}
 	}
-	return string(kb)
+	return kb.String()
 }
 
 // NewMetadataKeysMergeCtx creates a merge function for contexts that merges

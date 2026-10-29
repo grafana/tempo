@@ -7,20 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"sort"
 	"strings"
 	"sync"
 
 	"github.com/alecthomas/participle/v2"
-	"github.com/alecthomas/participle/v2/lexer"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.uber.org/zap"
-
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/metadata"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlerror"
 )
 
 // Statement holds a top level Statement for processing telemetry data. A Statement is a combination of a function
@@ -144,14 +138,12 @@ func (p *Parser[K]) ParseStatements(statements []string) ([]*Statement[K], error
 	parsedStatements := make([]*Statement[K], 0, len(statements))
 	var parseErrs []error
 
-	experimentalFuncs := map[string]struct{}{}
 	for _, statement := range statements {
-		ps, experimental, err := p.buildStatement(statement)
+		ps, err := p.ParseStatement(statement)
 		if err != nil {
 			parseErrs = append(parseErrs, fmt.Errorf("unable to parse OTTL statement %q: %w", statement, err))
 			continue
 		}
-		maps.Copy(experimentalFuncs, experimental)
 		parsedStatements = append(parsedStatements, ps)
 	}
 
@@ -159,7 +151,6 @@ func (p *Parser[K]) ParseStatements(statements []string) ([]*Statement[K], error
 		return nil, errors.Join(parseErrs...)
 	}
 
-	p.warnExperimentalFuncs(experimentalFuncs)
 	return parsedStatements, nil
 }
 
@@ -167,37 +158,26 @@ func (p *Parser[K]) ParseStatements(statements []string) ([]*Statement[K], error
 // Returns a Statement and a nil error on successful parsing.
 // If parsing fails, returns nil and an error.
 func (p *Parser[K]) ParseStatement(statement string) (*Statement[K], error) {
-	stmt, experimentalFuncs, err := p.buildStatement(statement)
-	if err != nil {
-		return nil, err
-	}
-	p.warnExperimentalFuncs(experimentalFuncs)
-	return stmt, nil
-}
-
-// buildStatement parses a single statement and returns the Statement along with the set of
-// experimental function names it uses.
-func (p *Parser[K]) buildStatement(statement string) (*Statement[K], map[string]struct{}, error) {
 	parsed, err := parseStatement(statement)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	pc := p.newParseContext()
 	function, err := pc.newFunctionCall(parsed.Editor)
 	if err != nil {
-		return nil, nil, formatParseError("statement", statement, err)
+		return nil, err
 	}
 	expression, err := pc.newBoolExpr(parsed.WhereClause)
 	if err != nil {
-		return nil, nil, formatParseError("statement", statement, err)
+		return nil, err
 	}
 	return &Statement[K]{
 		function:          function,
 		condition:         expression,
 		origText:          statement,
 		telemetrySettings: p.telemetrySettings,
-	}, pc.experimentalFuncs, nil
+	}, nil
 }
 
 // ParseConditions parses string conditions into a Condition slice ready for execution.
@@ -207,14 +187,12 @@ func (p *Parser[K]) ParseConditions(conditions []string) ([]*Condition[K], error
 	parsedConditions := make([]*Condition[K], 0, len(conditions))
 	var parseErrs []error
 
-	experimentalFuncs := map[string]struct{}{}
 	for _, condition := range conditions {
-		ps, experimental, err := p.buildCondition(condition)
+		ps, err := p.ParseCondition(condition)
 		if err != nil {
 			parseErrs = append(parseErrs, fmt.Errorf("unable to parse OTTL condition %q: %w", condition, err))
 			continue
 		}
-		maps.Copy(experimentalFuncs, experimental)
 		parsedConditions = append(parsedConditions, ps)
 	}
 
@@ -222,7 +200,6 @@ func (p *Parser[K]) ParseConditions(conditions []string) ([]*Condition[K], error
 		return nil, errors.Join(parseErrs...)
 	}
 
-	p.warnExperimentalFuncs(experimentalFuncs)
 	return parsedConditions, nil
 }
 
@@ -230,31 +207,19 @@ func (p *Parser[K]) ParseConditions(conditions []string) ([]*Condition[K], error
 // Returns an Condition and a nil error on successful parsing.
 // If parsing fails, returns nil and an error.
 func (p *Parser[K]) ParseCondition(condition string) (*Condition[K], error) {
-	cond, experimentalFuncs, err := p.buildCondition(condition)
+	parsed, err := parseCondition(condition)
 	if err != nil {
 		return nil, err
 	}
-	p.warnExperimentalFuncs(experimentalFuncs)
-	return cond, nil
-}
 
-// buildCondition parses a single condition and returns the Condition along with the set of
-// experimental function names it uses.
-func (p *Parser[K]) buildCondition(condition string) (*Condition[K], map[string]struct{}, error) {
-	parsed, err := parseCondition(condition)
+	expression, err := p.newParseContext().newBoolExpr(parsed)
 	if err != nil {
-		return nil, nil, err
-	}
-
-	pc := p.newParseContext()
-	expression, err := pc.newBoolExpr(parsed)
-	if err != nil {
-		return nil, nil, formatParseError("condition", condition, err)
+		return nil, err
 	}
 	return &Condition[K]{
 		condition: expression,
 		origText:  condition,
-	}, pc.experimentalFuncs, nil
+	}, nil
 }
 
 func (p *Parser[K]) prependContextToPaths(context, ottl string, ottlPathsGetter func(ottl string) ([]path, error)) (string, error) {
@@ -334,7 +299,7 @@ func parseStatement(raw string) (*parsedStatement, error) {
 	}
 	err = parsed.checkForCustomError()
 	if err != nil {
-		return nil, formatParseError("statement", raw, err)
+		return nil, err
 	}
 
 	return parsed, nil
@@ -347,7 +312,7 @@ func parseCondition(raw string) (*booleanExpression, error) {
 	}
 	err = parsed.checkForCustomError()
 	if err != nil {
-		return nil, formatParseError("condition", raw, err)
+		return nil, err
 	}
 
 	return parsed, nil
@@ -360,66 +325,28 @@ func parseValueExpression(raw string) (*value, error) {
 	}
 	err = parsed.checkForCustomError()
 	if err != nil {
-		return nil, formatParseError("expression", raw, err)
+		return nil, err
 	}
 
 	return parsed, nil
 }
 
-func formatSyntaxError(kind, ottl string, err *participle.UnexpectedTokenError) string {
+func formatParseError(kind, raw string, err error) error {
+	var unexpected *participle.UnexpectedTokenError
+	if !errors.As(err, &unexpected) {
+		return fmt.Errorf("%s has invalid syntax: %w", kind, err)
+	}
+	pos := unexpected.Position()
 	var expected string
-	if msg := err.Message(); msg != "" {
+	if msg := unexpected.Message(); msg != "" {
 		if idx := strings.Index(msg, "(expected "); idx >= 0 {
 			expected = " " + msg[idx:]
 		}
 	}
-	pos := err.Position()
-	if near := nearParseError(ottl, pos.Offset); near != "" {
-		return fmt.Sprintf("%s has invalid syntax near `%s`:%s", kind, near, expected)
+	if near := nearParseError(raw, pos.Offset); near != "" {
+		return fmt.Errorf("%s has invalid syntax at %d:%d near `%s`:%s", kind, pos.Line, pos.Column, near, expected)
 	}
-	return fmt.Sprintf("%s has invalid syntax:%s", kind, expected)
-}
-
-func formatErrorWithPosition(kind, ottl string, err error, pos lexer.Position) string {
-	var msg string
-	if e, ok := err.(interface{ Message() string }); ok {
-		msg = e.Message()
-	} else {
-		msg = err.Error()
-	}
-	if near := nearParseError(ottl, pos.Offset); near != "" {
-		return fmt.Sprintf("%s failed to parse near `%s`: %s", kind, near, msg)
-	}
-	return fmt.Sprintf("%s failed to parse: %s", kind, msg)
-}
-
-// errorPosition extracts a lexer.Position from any error kind that carries one.
-func errorPosition(err error) (lexer.Position, bool) {
-	if pe, ok := errors.AsType[ottlerror.Error](err); ok {
-		return ottlerror.AsLexerPosition(pe.Position()), true
-	}
-	if v, ok := errors.AsType[participle.Error](err); ok {
-		return v.Position(), true
-	}
-	return lexer.Position{}, false
-}
-
-func formatParseError(kind, ottl string, err error) error {
-	if v, ok := errors.AsType[*grammarCustomError](err); ok {
-		if len(v.errs) == 1 {
-			if pos, ok := errorPosition(v.errs[0]); ok {
-				return ottlerror.Wrap(pos, v.errs[0], formatErrorWithPosition(kind, ottl, v.errs[0], pos))
-			}
-		}
-		return ottlerror.Wrap(lexer.Position{}, v, fmt.Sprintf("%s failed to parse: %s", kind, v.Error()))
-	}
-	if v, ok := errors.AsType[*participle.UnexpectedTokenError](err); ok {
-		return ottlerror.Wrap(v.Position(), err, formatSyntaxError(kind, ottl, v))
-	}
-	if pos, ok := errorPosition(err); ok {
-		return ottlerror.Wrap(pos, err, formatErrorWithPosition(kind, ottl, err, pos))
-	}
-	return ottlerror.Wrapf(lexer.Position{}, err, "%s is invalid", kind)
+	return fmt.Errorf("%s has invalid syntax at %d:%d:%s", kind, pos.Line, pos.Column, expected)
 }
 
 // parseErrorSnippetLen is the number of source characters shown after the error position in the "near" clause.
@@ -644,14 +571,12 @@ func (p *Parser[K]) ParseValueExpressions(expressions []string) ([]*ValueExpress
 	parsedValueExpressions := make([]*ValueExpression[K], 0, len(expressions))
 	var parseErrs []error
 
-	experimentalFuncs := map[string]struct{}{}
 	for _, expression := range expressions {
-		ps, experimental, err := p.buildValueExpression(expression)
+		ps, err := p.ParseValueExpression(expression)
 		if err != nil {
 			parseErrs = append(parseErrs, fmt.Errorf("unable to parse OTTL value expression %q: %w", expression, err))
 			continue
 		}
-		maps.Copy(experimentalFuncs, experimental)
 		parsedValueExpressions = append(parsedValueExpressions, ps)
 	}
 
@@ -659,32 +584,19 @@ func (p *Parser[K]) ParseValueExpressions(expressions []string) ([]*ValueExpress
 		return nil, errors.Join(parseErrs...)
 	}
 
-	p.warnExperimentalFuncs(experimentalFuncs)
 	return parsedValueExpressions, nil
 }
 
 // ParseValueExpression parses an expression string into a ValueExpression. The ValueExpression's Eval
 // method can then be used to extract the value from the context of the incoming signal.
 func (p *Parser[K]) ParseValueExpression(raw string) (*ValueExpression[K], error) {
-	valueExpression, experimentalFuncs, err := p.buildValueExpression(raw)
+	parsed, err := parseValueExpression(raw)
 	if err != nil {
 		return nil, err
 	}
-	p.warnExperimentalFuncs(experimentalFuncs)
-	return valueExpression, nil
-}
-
-// buildValueExpression parses a single value expression and returns the ValueExpression along with
-// the set of experimental function names it uses.
-func (p *Parser[K]) buildValueExpression(raw string) (*ValueExpression[K], map[string]struct{}, error) {
-	parsed, err := parseValueExpression(raw)
+	getter, err := p.newParseContext().newGetter(*parsed)
 	if err != nil {
-		return nil, nil, err
-	}
-	pc := p.newParseContext()
-	getter, err := pc.newGetter(*parsed)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	return &ValueExpression[K]{
@@ -707,69 +619,18 @@ func (p *Parser[K]) buildValueExpression(raw string) (*ValueExpression[K], map[s
 				}
 			},
 		},
-	}, pc.experimentalFuncs, nil
-}
-
-// warnExperimentalFuncs emits a single warning listing the experimental functions used by a parsed
-// configuration. It does nothing when no experimental functions were used.
-func (p *Parser[K]) warnExperimentalFuncs(funcs map[string]struct{}) {
-	if len(funcs) == 0 {
-		return
-	}
-	names := make([]string, 0, len(funcs))
-	for name := range funcs {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	p.telemetrySettings.Logger.Warn(
-		"OTTL configuration uses experimental functions that are not covered by stability guarantees; their names, arguments, and behavior may change or be removed",
-		zap.Strings("functions", names),
-	)
+	}, nil
 }
 
 // parseContext represents the context used during parsing operations. It is used to store
 // the current parser reference and lexical scopes for local identifiers (e.g. in lambda bodies).
 type parseContext[K any] struct {
 	*Parser[K]
-	localScopes       localScopeStack
-	experimentalFuncs map[string]struct{}
+	localScopes localScopeStack
 }
 
 func (p *Parser[K]) newParseContext() *parseContext[K] {
 	return &parseContext[K]{
-		Parser:            p,
-		experimentalFuncs: make(map[string]struct{}),
+		Parser: p,
 	}
-}
-
-// legacyExperimentalFuncGates maps experimental functions that predate the experimental functions
-// feature gate to the feature gate they require instead. A nil gate means the function is ungated.
-var legacyExperimentalFuncGates = map[string]*featuregate.Gate{
-	"All":       metadata.OttlFunctionsEnableLambdaFeatureGate,
-	"Any":       metadata.OttlFunctionsEnableLambdaFeatureGate,
-	"Filter":    metadata.OttlFunctionsEnableLambdaFeatureGate,
-	"Find":      metadata.OttlFunctionsEnableLambdaFeatureGate,
-	"MapEach":   metadata.OttlFunctionsEnableLambdaFeatureGate,
-	"MapKeys":   metadata.OttlFunctionsEnableLambdaFeatureGate,
-	"Reduce":    metadata.OttlFunctionsEnableLambdaFeatureGate,
-	"When":      metadata.OttlFunctionsEnableLambdaFeatureGate,
-	"ProfileID": nil,
-}
-
-// recordExperimentalFunc records the given Factory's function name when it is experimental so a
-// warning can be emitted after parsing completes. Experimental functions are rejected unless their
-// feature gate is enabled.
-func (p *parseContext[K]) recordExperimentalFunc(f Factory[K]) error {
-	if !f.Experimental() {
-		return nil
-	}
-	gate, ok := legacyExperimentalFuncGates[f.Name()]
-	if !ok {
-		gate = metadata.PkgOttlFunctionsEnableExperimentalFeatureGate
-	}
-	if gate != nil && !gate.IsEnabled() {
-		return fmt.Errorf("function %q is experimental and requires the `%s` feature gate to be enabled", f.Name(), gate.ID())
-	}
-	p.experimentalFuncs[f.Name()] = struct{}{}
-	return nil
 }

@@ -1,4 +1,4 @@
-//go:build (!amd64 && !arm64) || !gc || noasm
+//go:build (!amd64 && !arm64) || appengine || !gc || noasm
 
 package s2
 

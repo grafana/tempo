@@ -14,21 +14,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type clearArguments[K any] struct {
+type ClearArguments[K any] struct {
 	Target ottl.GetSetter[K]
 }
 
-// NewClearFactory returns a factory for the clear OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#clear
 func NewClearFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("clear", &clearArguments[K]{}, createClearFunction[K])
+	return ottl.NewFactory("clear", &ClearArguments[K]{}, createClearFunction[K])
 }
 
 func createClearFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*clearArguments[K])
+	args, ok := oArgs.(*ClearArguments[K])
 
 	if !ok {
-		return nil, errors.New("ClearFactory args must be of type *clearArguments[K]")
+		return nil, errors.New("ClearFactory args must be of type *ClearArguments[K]")
 	}
 
 	return clearFunc(args.Target), nil

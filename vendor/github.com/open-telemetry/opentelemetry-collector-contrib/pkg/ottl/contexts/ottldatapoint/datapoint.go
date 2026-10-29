@@ -64,11 +64,7 @@ type TransformContextOption func(*TransformContext)
 
 // WithCache sets an external shared cache on the TransformContext.
 // When set, the cache is shared across multiple TransformContext instances.
-// The caller owns the cache: TransformContext.Close does not clear it, so the caller
-// is responsible for clearing or discarding it when it is no longer needed.
-// pcommon.Map is not safe for concurrent use, so a shared cache must not be used by
-// multiple goroutines at the same time.
-// If cache is nil, the option has no effect and the TransformContext uses its own cache.
+// Experimental: *NOTE* this option is subject to change or removal in the future.
 func WithCache(cache *pcommon.Map) TransformContextOption {
 	return func(tCtx *TransformContext) {
 		if cache != nil {
@@ -79,8 +75,6 @@ func WithCache(cache *pcommon.Map) TransformContextOption {
 
 // NewTransformContext returns a new TransformContext with the provided parameters from a pool of contexts.
 // Caller must call TransformContext.Close on the returned TransformContext.
-// dataPoint must be one of pmetric.NumberDataPoint, pmetric.HistogramDataPoint,
-// pmetric.ExponentialHistogramDataPoint, or pmetric.SummaryDataPoint.
 func NewTransformContext(resourceMetrics pmetric.ResourceMetrics, scopeMetrics pmetric.ScopeMetrics, metric pmetric.Metric, dataPoint any, options ...TransformContextOption) *TransformContext {
 	tCtx := tcPool.Get().(*TransformContext)
 	tCtx.resourceMetrics = resourceMetrics
@@ -106,8 +100,6 @@ func (tCtx *TransformContext) Close() {
 }
 
 // GetDataPoint returns the datapoint from the TransformContext.
-// The returned value is one of pmetric.NumberDataPoint, pmetric.HistogramDataPoint,
-// pmetric.ExponentialHistogramDataPoint, or pmetric.SummaryDataPoint.
 func (tCtx *TransformContext) GetDataPoint() any {
 	return tCtx.dataPoint
 }

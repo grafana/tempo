@@ -3,9 +3,6 @@ type: otlp_grpc
 deprecated_type: otlp
 github_project: open-telemetry/opentelemetry-collector
 
-sending_queue:
-  support: default
-
 status:
   disable_codecov_badge: true
   class: exporter

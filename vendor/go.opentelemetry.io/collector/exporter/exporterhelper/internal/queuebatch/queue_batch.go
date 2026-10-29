@@ -45,9 +45,6 @@ func NewQueueBatch(
 		mergeCtx:    set.MergeCtx,
 		next:        next,
 		maxWorkers:  cfg.NumConsumers,
-		id:          set.ID,
-		signal:      set.Signal,
-		telemetry:   set.Telemetry,
 		logger:      set.Telemetry.Logger,
 	})
 	if err != nil {

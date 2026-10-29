@@ -1,4 +1,4 @@
-//go:build (!amd64 && !arm64) || !gc || noasm
+//go:build (!amd64 && !arm64) || appengine || !gc || noasm
 
 package zstd
 
@@ -7,8 +7,8 @@ import (
 	"fmt"
 )
 
-// fillDtable fills the decoding table; see buildDtable.
-func (s *fseDecoder) fillDtable(ext *symbolExt) error {
+// buildDtable will build the decoding table.
+func (s *fseDecoder) buildDtable() error {
 	tableSize := uint32(1 << s.actualTableLog)
 	highThreshold := tableSize - 1
 	symbolNext := s.stateTable[:256]
@@ -56,6 +56,7 @@ func (s *fseDecoder) fillDtable(ext *symbolExt) error {
 			nextState := symbolNext[symbol]
 			symbolNext[symbol] = nextState + 1
 			nBits := s.actualTableLog - byte(highBits(uint32(nextState)))
+			s.dt[u&maxTableMask].setNBits(nBits)
 			newState := (nextState << nBits) - tableSize
 			if newState > tableSize {
 				return fmt.Errorf("newState (%d) outside table size (%d)", newState, tableSize)
@@ -64,7 +65,7 @@ func (s *fseDecoder) fillDtable(ext *symbolExt) error {
 				// Seems weird that this is possible with nbits > 0.
 				return fmt.Errorf("newState (%d) == oldState (%d) and no bits", newState, u)
 			}
-			s.dt[u&maxTableMask] = ext[symbol] | decSymbol(nBits) | decSymbol(newState)<<16
+			s.dt[u&maxTableMask].setNewState(newState)
 		}
 	}
 	return nil

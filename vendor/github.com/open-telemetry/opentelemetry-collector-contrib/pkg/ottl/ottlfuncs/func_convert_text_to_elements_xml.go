@@ -13,20 +13,18 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type convertTextToElementsXMLArguments[K any] struct {
+type ConvertTextToElementsXMLArguments[K any] struct {
 	Target      ottl.StringGetter[K]
 	XPath       ottl.Optional[string]
 	ElementName ottl.Optional[string]
 }
 
-// NewConvertTextToElementsXMLFactory returns a factory for the ConvertTextToElementsXML OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#converttexttoelementsxml
 func NewConvertTextToElementsXMLFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ConvertTextToElementsXML", &convertTextToElementsXMLArguments[K]{}, createConvertTextToElementsXMLFunction[K])
+	return ottl.NewFactory("ConvertTextToElementsXML", &ConvertTextToElementsXMLArguments[K]{}, createConvertTextToElementsXMLFunction[K])
 }
 
 func createConvertTextToElementsXMLFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*convertTextToElementsXMLArguments[K])
+	args, ok := oArgs.(*ConvertTextToElementsXMLArguments[K])
 
 	if !ok {
 		return nil, errors.New("ConvertTextToElementsXML args must be of type *ConvertTextToElementsXMLAguments[K]")

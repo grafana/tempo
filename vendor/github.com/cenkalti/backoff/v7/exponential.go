@@ -1,7 +1,6 @@
 package backoff
 
 import (
-	"math"
 	"math/rand/v2"
 	"time"
 )
@@ -115,10 +114,5 @@ func getRandomValueFromInterval(randomizationFactor, random float64, currentInte
 	// Get a random value from the range [minInterval, maxInterval].
 	// The formula used below has a +1 because if the minInterval is 1 and the maxInterval is 3 then
 	// we want a 33% chance for selecting either 1, 2 or 3.
-	value := minInterval + (random * (maxInterval - minInterval + 1))
-	// float64(math.MaxInt64) rounds up to 2^63, which does not fit in a Duration.
-	if value >= float64(math.MaxInt64) {
-		return math.MaxInt64
-	}
-	return time.Duration(value)
+	return time.Duration(minInterval + (random * (maxInterval - minInterval + 1)))
 }

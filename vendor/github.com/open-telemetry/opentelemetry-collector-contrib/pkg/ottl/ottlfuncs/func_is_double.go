@@ -10,21 +10,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type isDoubleArguments[K any] struct {
+type IsDoubleArguments[K any] struct {
 	Target ottl.FloatGetter[K]
 }
 
-// NewIsDoubleFactory returns a factory for the IsDouble OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#isdouble
 func NewIsDoubleFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("IsDouble", &isDoubleArguments[K]{}, createIsDoubleFunction[K])
+	return ottl.NewFactory("IsDouble", &IsDoubleArguments[K]{}, createIsDoubleFunction[K])
 }
 
 func createIsDoubleFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*isDoubleArguments[K])
+	args, ok := oArgs.(*IsDoubleArguments[K])
 
 	if !ok {
-		return nil, errors.New("IsDoubleFactory args must be of type *isDoubleArguments[K]")
+		return nil, errors.New("IsDoubleFactory args must be of type *IsDoubleArguments[K]")
 	}
 
 	return isDouble(args.Target), nil

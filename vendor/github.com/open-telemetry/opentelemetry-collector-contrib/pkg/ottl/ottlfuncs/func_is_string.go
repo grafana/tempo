@@ -10,21 +10,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type isStringArguments[K any] struct {
+type IsStringArguments[K any] struct {
 	Target ottl.StringGetter[K]
 }
 
-// NewIsStringFactory returns a factory for the IsString OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#isstring
 func NewIsStringFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("IsString", &isStringArguments[K]{}, createIsStringFunction[K])
+	return ottl.NewFactory("IsString", &IsStringArguments[K]{}, createIsStringFunction[K])
 }
 
 func createIsStringFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*isStringArguments[K])
+	args, ok := oArgs.(*IsStringArguments[K])
 
 	if !ok {
-		return nil, errors.New("IsStringFactory args must be of type *isStringArguments[K]")
+		return nil, errors.New("IsStringFactory args must be of type *IsStringArguments[K]")
 	}
 
 	return isString(args.Target), nil

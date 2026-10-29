@@ -5,6 +5,7 @@ package internal // import "go.opentelemetry.io/collector/exporter/exporterhelpe
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -27,7 +28,11 @@ import (
 // pkg.exporterhelper.queueBatchEnabled feature gate is enabled. See
 // https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/rfcs/batching-migration.md.
 func NewDefaultQueueConfig() queuebatch.Config {
-	batchCfg := queuebatch.NewDefaultBatchConfig()
+	batchCfg := queuebatch.BatchConfig{
+		FlushTimeout: 200 * time.Millisecond,
+		Sizer:        request.SizerTypeItems,
+		MinSize:      8192,
+	}
 	var batch configoptional.Optional[queuebatch.BatchConfig]
 	if metadata.PkgExporterhelperQueueBatchEnabledFeatureGate.IsEnabled() {
 		batch = configoptional.Some(batchCfg)

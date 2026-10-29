@@ -10,21 +10,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type isIntArguments[K any] struct {
+type IsIntArguments[K any] struct {
 	Target ottl.IntGetter[K]
 }
 
-// NewIsIntFactory returns a factory for the IsInt OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#isint
 func NewIsIntFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("IsInt", &isIntArguments[K]{}, createIsIntFunction[K])
+	return ottl.NewFactory("IsInt", &IsIntArguments[K]{}, createIsIntFunction[K])
 }
 
 func createIsIntFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*isIntArguments[K])
+	args, ok := oArgs.(*IsIntArguments[K])
 
 	if !ok {
-		return nil, errors.New("IsIntFactory args must be of type *isIntArguments[K]")
+		return nil, errors.New("IsIntFactory args must be of type *IsIntArguments[K]")
 	}
 
 	return isInt(args.Target), nil

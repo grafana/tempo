@@ -27,7 +27,7 @@ const (
 	parseCSVDefaultMode      = parseCSVModeStrict
 )
 
-type parseCSVArguments[K any] struct {
+type ParseCSVArguments[K any] struct {
 	Target          ottl.StringGetter[K]
 	Header          ottl.StringGetter[K]
 	Delimiter       ottl.Optional[string]
@@ -35,7 +35,7 @@ type parseCSVArguments[K any] struct {
 	Mode            ottl.Optional[string]
 }
 
-func (p parseCSVArguments[K]) validate() error {
+func (p ParseCSVArguments[K]) validate() error {
 	if !p.Delimiter.IsEmpty() {
 		if len([]rune(p.Delimiter.Get())) != 1 {
 			return errors.New("delimiter must be a single character")
@@ -51,16 +51,14 @@ func (p parseCSVArguments[K]) validate() error {
 	return nil
 }
 
-// NewParseCSVFactory returns a factory for the ParseCSV OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#parsecsv
 func NewParseCSVFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ParseCSV", &parseCSVArguments[K]{}, createParseCSVFunction[K])
+	return ottl.NewFactory("ParseCSV", &ParseCSVArguments[K]{}, createParseCSVFunction[K])
 }
 
 func createParseCSVFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*parseCSVArguments[K])
+	args, ok := oArgs.(*ParseCSVArguments[K])
 	if !ok {
-		return nil, errors.New("ParseCSVFactory args must be of type *parseCSVArguments[K]")
+		return nil, errors.New("ParseCSVFactory args must be of type *ParseCSVArguments[K]")
 	}
 
 	if err := args.validate(); err != nil {

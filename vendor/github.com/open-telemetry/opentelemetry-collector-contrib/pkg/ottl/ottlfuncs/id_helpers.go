@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/pprofile"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -20,7 +21,7 @@ var (
 )
 
 type idByteArray interface {
-	pcommon.SpanID | pcommon.TraceID
+	pcommon.SpanID | pcommon.TraceID | pprofile.ProfileID
 }
 
 // newIDExprFunc builds an expression function that accepts either a byte slice

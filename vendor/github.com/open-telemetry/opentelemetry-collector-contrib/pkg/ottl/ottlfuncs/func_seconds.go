@@ -10,32 +10,30 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type secondsArguments[K any] struct {
+type SecondsArguments[K any] struct {
 	Duration ottl.DurationGetter[K]
 }
 
-// NewSecondsFactory returns a factory for the Seconds OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#seconds
 func NewSecondsFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Seconds", &secondsArguments[K]{}, createSecondsFunction[K])
+	return ottl.NewFactory("Seconds", &SecondsArguments[K]{}, createSecondsFunction[K])
 }
 
 func createSecondsFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*secondsArguments[K])
+	args, ok := oArgs.(*SecondsArguments[K])
 
 	if !ok {
-		return nil, errors.New("SecondsFactory args must be of type *secondsArguments[K]")
+		return nil, errors.New("SecondsFactory args must be of type *SecondsArguments[K]")
 	}
 
-	return seconds(args.Duration), nil
+	return Seconds(args.Duration)
 }
 
-func seconds[K any](duration ottl.DurationGetter[K]) ottl.ExprFunc[K] {
+func Seconds[K any](duration ottl.DurationGetter[K]) (ottl.ExprFunc[K], error) {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		d, err := duration.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
 		return d.Seconds(), nil
-	}
+	}, nil
 }

@@ -31,9 +31,7 @@ func ProcessStat() ([]Process, error) {
 	plen := C.sizeof_perfstat_process_t * C.ulong(numproc)
 	proc = (*C.perfstat_process_t)(C.malloc(plen))
 	defer C.free(unsafe.Pointer(proc))
-	cstr := C.CString("")
-	C.strcpy(&first.name[0], cstr)
-	C.free(unsafe.Pointer(cstr))
+	C.strcpy(&first.name[0], C.CString(""))
 	r := C.perfstat_process(&first, proc, C.sizeof_perfstat_process_t, numproc)
 	if r < 0 {
 		return nil, fmt.Errorf("perfstat_process() error")
@@ -61,9 +59,7 @@ func ThreadStat() ([]Thread, error) {
 	thlen := C.sizeof_perfstat_thread_t * C.ulong(numthr)
 	thread = (*C.perfstat_thread_t)(C.malloc(thlen))
 	defer C.free(unsafe.Pointer(thread))
-	cstr := C.CString("")
-	C.strcpy(&first.name[0], cstr)
-	C.free(unsafe.Pointer(cstr))
+	C.strcpy(&first.name[0], C.CString(""))
 	r := C.perfstat_thread(&first, thread, C.sizeof_perfstat_thread_t, numthr)
 	if r < 0 {
 		return nil, fmt.Errorf("perfstat_thread() error")

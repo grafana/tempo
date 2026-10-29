@@ -21,8 +21,7 @@ type refTraces struct {
 	consumer consumer.Traces
 }
 
-// ConsumeTraces takes pipeline ownership of the data and releases it once the downstream consumer
-// returns. It is a no-op if the data is already owned by the pipeline.
+// ConsumeTraces measures telemetry before calling ConsumeTraces because the data may be mutated downstream
 func (c refTraces) ConsumeTraces(ctx context.Context, ld ptrace.Traces) error {
 	if pref.MarkPipelineOwnedTraces(ld) {
 		defer pref.UnrefTraces(ld)

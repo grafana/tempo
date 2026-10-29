@@ -19,7 +19,6 @@ import (
 	"golang.org/x/exp/constraints"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlcommon"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlerror"
 )
 
 // ExprFunc is a function in OTTL
@@ -382,9 +381,6 @@ func newStandardPSliceGetter[K any](getter Getter[K]) (PSliceGetter[K], error) {
 // StandardPSliceGetter is a basic implementation of PSliceGetter
 type StandardPSliceGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 // Get retrieves a pcommon.Slice value.
@@ -491,9 +487,6 @@ func newStandardStringGetter[K any](getter Getter[K]) (StringGetter[K], error) {
 // StandardStringGetter is a basic implementation of StringGetter
 type StandardStringGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 // Get retrieves a string value.
@@ -545,9 +538,6 @@ func newStandardIntGetter[K any](getter Getter[K]) (IntGetter[K], error) {
 // StandardIntGetter is a basic implementation of IntGetter
 type StandardIntGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 // Get retrieves an int64 value.
@@ -597,9 +587,6 @@ func newStandardFloatGetter[K any](getter Getter[K]) (FloatGetter[K], error) {
 // StandardFloatGetter is a basic implementation of FloatGetter
 type StandardFloatGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 // Get retrieves a float64 value.
@@ -649,9 +636,6 @@ func newStandardBoolGetter[K any](getter Getter[K]) (BoolGetter[K], error) {
 // StandardBoolGetter is a basic implementation of BoolGetter
 type StandardBoolGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 // Get retrieves a bool value.
@@ -778,9 +762,6 @@ func newStandardPMapGetter[K any](getter Getter[K]) (PMapGetter[K], error) {
 // StandardPMapGetter is a basic implementation of PMapGetter
 type StandardPMapGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 // Get retrieves a pcommon.Map value.
@@ -842,9 +823,6 @@ func newStandardStringLikeGetter[K any](getter Getter[K]) (StringLikeGetter[K], 
 // StandardStringLikeGetter is a basic implementation of StringLikeGetter
 type StandardStringLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 func (g StandardStringLikeGetter[K]) Get(ctx context.Context, tCtx K) (string, bool, error) {
@@ -911,9 +889,6 @@ func newStandardFloatLikeGetter[K any](getter Getter[K]) (FloatLikeGetter[K], er
 // StandardFloatLikeGetter is a basic implementation of FloatLikeGetter
 type StandardFloatLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 func (g StandardFloatLikeGetter[K]) Get(ctx context.Context, tCtx K) (float64, bool, error) {
@@ -993,9 +968,6 @@ func newStandardIntLikeGetter[K any](getter Getter[K]) (IntLikeGetter[K], error)
 // StandardIntLikeGetter is a basic implementation of IntLikeGetter
 type StandardIntLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 func (g StandardIntLikeGetter[K]) Get(ctx context.Context, tCtx K) (int64, bool, error) {
@@ -1075,9 +1047,6 @@ func newStandardByteSliceLikeGetter[K any](getter Getter[K]) (ByteSliceLikeGette
 // StandardByteSliceLikeGetter is a basic implementation of ByteSliceLikeGetter
 type StandardByteSliceLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 func (g StandardByteSliceLikeGetter[K]) Get(ctx context.Context, tCtx K) ([]byte, bool, error) {
@@ -1168,9 +1137,6 @@ func newStandardBoolLikeGetter[K any](getter Getter[K]) (BoolLikeGetter[K], erro
 // StandardBoolLikeGetter is a basic implementation of BoolLikeGetter
 type StandardBoolLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 func (g StandardBoolLikeGetter[K]) Get(ctx context.Context, tCtx K) (bool, bool, error) {
@@ -1236,13 +1202,17 @@ func (p *parseContext[K]) newGetter(val value) (Getter[K], error) {
 	if val.Enum != nil {
 		enum, err := p.enumParser((*EnumSymbol)(val.Enum))
 		if err != nil {
-			return nil, ottlerror.FromError(val.Pos, err)
+			return nil, err
 		}
 		return newLiteral[K, any](int64(*enum)), nil
 	}
 
 	if val.Lambda != nil {
-		return nil, ottlerror.New(val.Lambda.Pos, "lambda expressions can only be passed to function arguments that accept them")
+		lambExp, err := p.newLambdaExpression(val.Lambda)
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, any](lambExp), nil
 	}
 
 	if eL := val.Literal; eL != nil {
@@ -1269,11 +1239,7 @@ func (p *parseContext[K]) newGetter(val value) (Getter[K], error) {
 			}
 			slice[i] = getter
 		}
-		g, err := newListGetter(slice)
-		if err != nil {
-			return nil, ottlerror.FromError(val.Pos, err)
-		}
-		return g, nil
+		return newListGetter(slice)
 	}
 
 	if val.Map != nil {
@@ -1285,22 +1251,14 @@ func (p *parseContext[K]) newGetter(val value) (Getter[K], error) {
 			}
 			mapValues[*kvp.Key] = getter
 		}
-		g, err := newMapGetter(mapValues)
-		if err != nil {
-			return nil, ottlerror.FromError(val.Pos, err)
-		}
-		return g, nil
+		return newMapGetter(mapValues)
 	}
 
 	if val.MathExpression == nil {
 		// In practice, can't happen since the DSL grammar guarantees one is set
-		return nil, ottlerror.New(val.Pos, "no value field set. This is a bug in the OpenTelemetry Transformation Language")
+		return nil, errors.New("no value field set. This is a bug in the OpenTelemetry Transformation Language")
 	}
-	g, err := p.evaluateMathExpression(val.MathExpression)
-	if err != nil {
-		return nil, ottlerror.FromError(val.Pos, err)
-	}
-	return g, nil
+	return p.evaluateMathExpression(val.MathExpression)
 }
 
 func (p *parseContext[K]) newGetterFromConverter(c converter) (Getter[K], error) {
@@ -1343,9 +1301,6 @@ func newStandardTimeGetter[K any](getter Getter[K]) (TimeGetter[K], error) {
 // StandardTimeGetter is a basic implementation of TimeGetter
 type StandardTimeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 // Get retrieves a time.Time value.
@@ -1390,9 +1345,6 @@ func newStandardDurationGetter[K any](getter Getter[K]) (DurationGetter[K], erro
 // StandardDurationGetter is a basic implementation of DurationGetter
 type StandardDurationGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 // Get retrieves an time.Duration value.

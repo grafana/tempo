@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"runtime"
 	"sync"
@@ -211,7 +212,7 @@ func (r *Reader) skippable(tmp []byte, n int, allowEOF bool, id uint8) (ok bool)
 		if r.err != nil {
 			return false
 		}
-		_, r.err = io.CopyBuffer(io.Discard, rd, tmp)
+		_, r.err = io.CopyBuffer(ioutil.Discard, rd, tmp)
 		return r.err == nil
 	}
 	if rs, ok := r.r.(io.ReadSeeker); ok {

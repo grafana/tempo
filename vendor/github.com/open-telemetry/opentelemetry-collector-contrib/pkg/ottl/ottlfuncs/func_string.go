@@ -10,21 +10,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type stringArguments[K any] struct {
+type StringArguments[K any] struct {
 	Target ottl.StringLikeGetter[K]
 }
 
-// NewStringFactory returns a factory for the String OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#string
 func NewStringFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("String", &stringArguments[K]{}, createStringFunction[K])
+	return ottl.NewFactory("String", &StringArguments[K]{}, createStringFunction[K])
 }
 
 func createStringFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*stringArguments[K])
+	args, ok := oArgs.(*StringArguments[K])
 
 	if !ok {
-		return nil, errors.New("StringFactory args must be of type *stringArguments[K]")
+		return nil, errors.New("StringFactory args must be of type *StringArguments[K]")
 	}
 
 	return stringFunc(args.Target), nil

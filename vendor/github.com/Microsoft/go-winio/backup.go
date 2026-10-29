@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 package winio
 
@@ -35,7 +36,7 @@ const (
 	StreamSparseAttributes = uint32(8)
 )
 
-//nolint:revive,nolintlint // var-naming: ALL_CAPS
+//nolint:revive // var-naming: ALL_CAPS
 const (
 	WRITE_DAC              = windows.WRITE_DAC
 	WRITE_OWNER            = windows.WRITE_OWNER

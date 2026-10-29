@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configcompression"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
@@ -24,7 +25,6 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter/internal/metadata"
 	"go.opentelemetry.io/collector/exporter/xexporter"
-	"go.opentelemetry.io/collector/pdata/pprofile/pprofileotlp"
 )
 
 // NewFactory creates a factory for OTLP exporter.
@@ -50,7 +50,7 @@ func createDefaultConfig() component.Config {
 
 	return &Config{
 		RetryConfig:  configretry.NewDefaultBackOffConfig(),
-		QueueConfig:  metadata.NewDefaultSendingQueueConfig(),
+		QueueConfig:  configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
 		Encoding:     EncodingProto,
 		ClientConfig: clientConfig,
 	}
@@ -184,27 +184,13 @@ func createProfiles(
 	set exporter.Settings,
 	cfg component.Config,
 ) (xexporter.Profiles, error) {
-	// Copy the config; Headers.Set is copy-on-write, preserving the shared config.
-	oCfg := *cfg.(*Config)
-
-	// HTTP header names are case-insensitive, but Headers.Set is case-sensitive.
-	// Update every matching key so differently cased entries cannot override the version.
-	hasVersionHeader := false
-	for key := range oCfg.ClientConfig.Headers.Iter {
-		if strings.EqualFold(key, pprofileotlp.DevelopmentVersionHeader) {
-			oCfg.ClientConfig.Headers.Set(key, pprofileotlp.DevelopmentVersion)
-			hasVersionHeader = true
-		}
-	}
-	if !hasVersionHeader {
-		oCfg.ClientConfig.Headers.Set(pprofileotlp.DevelopmentVersionHeader, pprofileotlp.DevelopmentVersion)
-	}
-
-	oce, err := newExporter(&oCfg, set)
+	oce, err := newExporter(cfg, set)
 	if err != nil {
 		return nil, err
 	}
-	endpointURL, err := composeSignalURL(&oCfg, oCfg.ProfilesEndpoint, "profiles", "v1development")
+	oCfg := cfg.(*Config)
+
+	endpointURL, err := composeSignalURL(oCfg, oCfg.ProfilesEndpoint, "profiles", "v1development")
 	if err != nil {
 		return nil, err
 	}

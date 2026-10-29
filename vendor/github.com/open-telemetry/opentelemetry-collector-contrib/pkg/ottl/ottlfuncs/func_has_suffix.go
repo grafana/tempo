@@ -11,28 +11,26 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type hasSuffixArguments[K any] struct {
+type HasSuffixArguments[K any] struct {
 	Target ottl.StringGetter[K]
 	Suffix ottl.StringGetter[K]
 }
 
-// NewHasSuffixFactory returns a factory for the HasSuffix OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#hassuffix
 func NewHasSuffixFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("HasSuffix", &hasSuffixArguments[K]{}, createHasSuffixFunction[K])
+	return ottl.NewFactory("HasSuffix", &HasSuffixArguments[K]{}, createHasSuffixFunction[K])
 }
 
 func createHasSuffixFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*hasSuffixArguments[K])
+	args, ok := oArgs.(*HasSuffixArguments[K])
 
 	if !ok {
-		return nil, errors.New("HasSuffixFactory args must be of type *hasSuffixArguments[K]")
+		return nil, errors.New("HasSuffixFactory args must be of type *HasSuffixArguments[K]")
 	}
 
-	return hasSuffix(args.Target, args.Suffix), nil
+	return HasSuffix(args.Target, args.Suffix), nil
 }
 
-func hasSuffix[K any](target, suffix ottl.StringGetter[K]) ottl.ExprFunc[K] {
+func HasSuffix[K any](target, suffix ottl.StringGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		val, err := target.Get(ctx, tCtx)
 		if err != nil {

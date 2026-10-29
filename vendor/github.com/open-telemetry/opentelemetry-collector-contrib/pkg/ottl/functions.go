@@ -5,19 +5,17 @@ package ottl // import "github.com/open-telemetry/opentelemetry-collector-contri
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/alecthomas/participle/v2/lexer"
 	"github.com/iancoleman/strcase"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/lambda"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/metadata"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlerror"
 )
 
 // PathExpressionParser is how a context provides OTTL access to all its Paths.
@@ -82,7 +80,7 @@ func buildOriginalKeysText(keys []key) string {
 
 func (p *parseContext[K]) newPath(path *path) (*basePath[K], error) {
 	if len(path.Fields) == 0 {
-		return nil, ottlerror.New(path.Pos, "cannot make a path from zero fields")
+		return nil, errors.New("cannot make a path from zero fields")
 	}
 
 	var err error
@@ -114,7 +112,6 @@ func (p *parseContext[K]) newPath(path *path) (*basePath[K], error) {
 			nextPath:        current,
 			originalText:    originalText,
 			localIdentifier: localIdentifier,
-			pos:             fields[i].Pos,
 		}
 	}
 	current.fetched = true
@@ -133,7 +130,7 @@ func (p *parseContext[K]) parsePathContext(path *path) (string, []field, error) 
 		}
 
 		if _, ok := p.pathContextNames[path.Context]; !ok {
-			return "", path.Fields, ottlerror.Errorf(path.Pos, `context "%s" from path "%s" is not valid, it must be replaced by one of: %s`, path.Context, buildOriginalText(path), p.buildPathContextNamesText(""))
+			return "", path.Fields, fmt.Errorf(`context "%s" from path "%s" is not valid, it must be replaced by one of: %s`, path.Context, buildOriginalText(path), p.buildPathContextNamesText(""))
 		}
 
 		return path.Context, path.Fields, nil
@@ -141,7 +138,7 @@ func (p *parseContext[K]) parsePathContext(path *path) (string, []field, error) 
 
 	if hasPathContextNames {
 		originalText := buildOriginalText(path)
-		return "", nil, ottlerror.Errorf(path.Pos, `missing context name for path "%s", possibly valid options are: %s`, originalText, p.buildPathContextNamesText(originalText))
+		return "", nil, fmt.Errorf(`missing context name for path "%s", possibly valid options are: %s`, originalText, p.buildPathContextNamesText(originalText))
 	}
 
 	return "", path.Fields, nil
@@ -198,7 +195,6 @@ type basePath[K any] struct {
 	fetchedKeys     bool
 	originalText    string
 	localIdentifier bool
-	pos             lexer.Position
 }
 
 func (p *basePath[K]) Context() string {
@@ -231,10 +227,10 @@ func (p *basePath[K]) String() string {
 
 func (p *basePath[K]) isComplete() error {
 	if !p.fetched {
-		return ottlerror.Errorf(p.pos, "the path section %q was not used by the context - this likely means you are using extra path sections", p.name)
+		return fmt.Errorf("the path section %q was not used by the context - this likely means you are using extra path sections", p.name)
 	}
 	if p.keys != nil && !p.fetchedKeys {
-		return ottlerror.Errorf(p.pos, "the keys indexing %q were not used by the context - this likely means you are trying to index a path that does not support indexing", p.name)
+		return fmt.Errorf("the keys indexing %q were not used by the context - this likely means you are trying to index a path that does not support indexing", p.name)
 	}
 	if p.nextPath == nil {
 		return nil
@@ -245,7 +241,7 @@ func (p *basePath[K]) isComplete() error {
 func (p *basePath[K]) validate(pc *parseContext[K]) error {
 	if p.localIdentifier {
 		if p.nextPath != nil {
-			return ottlerror.Errorf(p.pos, `local identifier %q cannot use "." to access nested fields`, p.originalText)
+			return fmt.Errorf(`local identifier %q cannot use "." to access nested fields`, p.originalText)
 		}
 		if pc.telemetrySettings.Logger.Core().Enabled(zapcore.DebugLevel) {
 			if _, ok := pc.pathContextNames[p.name]; ok {
@@ -286,7 +282,7 @@ func (p *parseContext[K]) newKeys(keys []key) ([]Key[K], error) {
 		if keys[i].MathExpression != nil {
 			g, err := p.evaluateMathExpression(keys[i].MathExpression)
 			if err != nil {
-				return nil, ottlerror.FromError(keys[i].Pos, err)
+				return nil, err
 			}
 			getter = g
 		}
@@ -347,7 +343,7 @@ func (p *parseContext[K]) parsePath(ip *basePath[K]) (GetSetter[K], error) {
 
 	g, err := p.pathParser(ip)
 	if err != nil {
-		return nil, ottlerror.FromError(ip.pos, err)
+		return nil, err
 	}
 	err = ip.isComplete()
 	if err != nil {
@@ -359,10 +355,7 @@ func (p *parseContext[K]) parsePath(ip *basePath[K]) (GetSetter[K], error) {
 func (p *parseContext[K]) newFunctionCall(ed editor) (Expr[K], error) {
 	f, ok := p.functions[ed.Function]
 	if !ok {
-		return Expr[K]{}, ottlerror.Errorf(ed.Pos, "undefined function %q", ed.Function)
-	}
-	if err := p.recordExperimentalFunc(f); err != nil {
-		return Expr[K]{}, ottlerror.FromError(ed.Pos, err)
+		return Expr[K]{}, fmt.Errorf("undefined function %q", ed.Function)
 	}
 	defaultArgs := f.CreateDefaultArguments()
 	var args Arguments
@@ -373,27 +366,26 @@ func (p *parseContext[K]) newFunctionCall(ed editor) (Expr[K], error) {
 		// settability requirements. Non-pointer values are not
 		// modifiable through reflection.
 		if reflect.TypeOf(defaultArgs).Kind() != reflect.Pointer {
-			return Expr[K]{}, ottlerror.Errorf(ed.Pos, "factory for %q must return a pointer to an Arguments value in its CreateDefaultArguments method", ed.Function)
+			return Expr[K]{}, fmt.Errorf("factory for %q must return a pointer to an Arguments value in its CreateDefaultArguments method", ed.Function)
 		}
 
 		args = reflect.New(reflect.ValueOf(defaultArgs).Elem().Type()).Interface()
 
-		allowDynamicSlices := f.Experimental() || metadata.PkgOttlFunctionsEnableDynamicSliceArgumentsFeatureGate.IsEnabled()
-		err := p.buildArgs(ed, reflect.ValueOf(args).Elem(), allowDynamicSlices)
+		err := p.buildArgs(ed, reflect.ValueOf(args).Elem())
 		if err != nil {
-			return Expr[K]{}, ottlerror.Wrapf(ed.Pos, err, "error while parsing arguments for call to %q", ed.Function)
+			return Expr[K]{}, fmt.Errorf("error while parsing arguments for call to %q: %w", ed.Function, err)
 		}
 	}
 
 	fn, err := f.CreateFunction(FunctionContext{Set: p.telemetrySettings}, args)
 	if err != nil {
-		return Expr[K]{}, ottlerror.Wrapf(ed.Pos, err, "couldn't create function")
+		return Expr[K]{}, fmt.Errorf("couldn't create function: %w", err)
 	}
 
 	return Expr[K]{exprFunc: fn}, err
 }
 
-func (p *parseContext[K]) buildArgs(ed editor, argsVal reflect.Value, allowDynamicSlices bool) error {
+func (p *parseContext[K]) buildArgs(ed editor, argsVal reflect.Value) error {
 	requiredArgs := 0
 	seenNamed := false
 
@@ -401,7 +393,7 @@ func (p *parseContext[K]) buildArgs(ed editor, argsVal reflect.Value, allowDynam
 		if !seenNamed && ed.Arguments[i].Name != "" {
 			seenNamed = true
 		} else if seenNamed && ed.Arguments[i].Name == "" {
-			return ottlerror.New(ed.Arguments[i].Pos, "unnamed argument used after named argument")
+			return errors.New("unnamed argument used after named argument")
 		}
 	}
 
@@ -412,11 +404,10 @@ func (p *parseContext[K]) buildArgs(ed editor, argsVal reflect.Value, allowDynam
 	}
 
 	if len(ed.Arguments) < requiredArgs || len(ed.Arguments) > argsVal.NumField() {
-		return ottlerror.Errorf(ed.Pos, "incorrect number of arguments. Expected: %d Received: %d", argsVal.NumField(), len(ed.Arguments))
+		return fmt.Errorf("incorrect number of arguments. Expected: %d Received: %d", argsVal.NumField(), len(ed.Arguments))
 	}
 
-	for i := range ed.Arguments {
-		edArg := ed.Arguments[i]
+	for i, edArg := range ed.Arguments {
 		var field reflect.Value
 		var fieldType reflect.Type
 		var isOptional bool
@@ -430,7 +421,7 @@ func (p *parseContext[K]) buildArgs(ed editor, argsVal reflect.Value, allowDynam
 		} else {
 			field = argsVal.FieldByName(strcase.ToCamel(edArg.Name))
 			if !field.IsValid() {
-				return ottlerror.Errorf(edArg.Pos, "no such parameter: %s", edArg.Name)
+				return fmt.Errorf("no such parameter: %s", edArg.Name)
 			}
 			fieldType = field.Type()
 			isOptional = strings.HasPrefix(fieldType.Name(), "Optional")
@@ -445,7 +436,7 @@ func (p *parseContext[K]) buildArgs(ed editor, argsVal reflect.Value, allowDynam
 			optionalArg, ok = reflect.TypeAssert[reflectTypedArg](field.Addr())
 
 			if !ok {
-				return ottlerror.New(edArg.Pos, "optional type is not manageable by the OTTL parser. This is an error in the OTTL")
+				return errors.New("optional type is not manageable by the OTTL parser. This is an error in the OTTL")
 			}
 
 			fieldType = optionalArg.reflectTypeParam()
@@ -460,26 +451,42 @@ func (p *parseContext[K]) buildArgs(ed editor, argsVal reflect.Value, allowDynam
 			case arg.FunctionName != nil:
 				name = *arg.FunctionName
 			default:
-				return ottlerror.New(edArg.Pos, "invalid function name given")
+				return errors.New("invalid function name given")
 			}
 			var f Factory[K]
 			f, ok = p.functions[name]
 			if !ok {
-				return ottlerror.Errorf(edArg.Pos, "undefined function %s", name)
-			}
-			err = p.recordExperimentalFunc(f)
-			if err != nil {
-				return err
+				return fmt.Errorf("undefined function %s", name)
 			}
 			val = StandardFunctionGetter[K]{FCtx: FunctionContext{Set: p.telemetrySettings}, Fact: f}
 		case strings.HasPrefix(fieldType.Name(), "SliceGetter"):
-			var fieldAddr any
+			var fieldAddr reflectTypedArg
 			if isOptional {
-				fieldAddr = optionalArg.addrReflectValue()
+				fieldAddr, ok = optionalArg.addrReflectValue().(reflectTypedArg)
 			} else {
-				fieldAddr = field.Addr().Interface()
+				fieldAddr, ok = reflect.TypeAssert[reflectTypedArg](field.Addr())
 			}
-			val, err = p.buildSliceGetterArg(fieldAddr, arg, allowDynamicSlices)
+			if !ok {
+				return errors.New("slice getter type is not manageable by the OTTL parser. This is a bug in OTTL")
+			}
+
+			var gv any
+			gv, err = buildSliceGetterValue[K](
+				arg.Value,
+				fieldAddr.reflectTypeParam(),
+				p.buildSliceArg,
+				p.buildStandardGetSetter,
+				p.newGetter,
+			)
+			if err != nil {
+				return err
+			}
+
+			err = fieldAddr.setReflectValue(reflect.ValueOf(gv))
+			if err != nil {
+				return err
+			}
+			val = reflect.ValueOf(fieldAddr).Elem().Interface()
 		case fieldType.Kind() == reflect.Slice:
 			val, err = p.buildSliceArg(arg.Value, fieldType)
 		case fieldType.Kind() == reflect.Pointer:
@@ -488,12 +495,12 @@ func (p *parseContext[K]) buildArgs(ed editor, argsVal reflect.Value, allowDynam
 			val, err = p.buildArg(arg.Value, fieldType)
 		}
 		if err != nil {
-			return ottlerror.Wrapf(edArg.Pos, err, "invalid argument at position %v", i)
+			return fmt.Errorf("invalid argument at position %v: %w", i, err)
 		}
 		if isOptional {
 			err = optionalArg.setReflectValue(reflect.ValueOf(val))
 			if err != nil {
-				return ottlerror.FromError(edArg.Pos, err)
+				return err
 			}
 		} else {
 			field.Set(reflect.ValueOf(val))
@@ -508,7 +515,7 @@ func (p *parseContext[K]) buildSliceArg(argVal value, argType reflect.Type) (any
 	switch {
 	case name == reflect.Uint8.String():
 		if argVal.Bytes == nil {
-			return nil, ottlerror.New(argVal.Pos, "slice parameter must be a byte slice literal")
+			return nil, errors.New("slice parameter must be a byte slice literal")
 		}
 		return []byte(*argVal.Bytes), nil
 	case name == reflect.String.String():
@@ -596,7 +603,7 @@ func (p *parseContext[K]) buildSliceArg(argVal value, argType reflect.Type) (any
 		}
 		return arg, nil
 	default:
-		return nil, ottlerror.Errorf(argVal.Pos, "unsupported slice type %q for function", argType.Elem().Name())
+		return nil, fmt.Errorf("unsupported slice type %q for function", argType.Elem().Name())
 	}
 }
 
@@ -671,32 +678,32 @@ func (p *parseContext[K]) buildArg(argVal value, argType reflect.Type) (any, err
 	case name == "Enum":
 		arg, err := p.enumParser((*EnumSymbol)(argVal.Enum))
 		if err != nil {
-			return nil, ottlerror.Wrap(argVal.Pos, err, "must be an Enum")
+			return nil, errors.New("must be an Enum")
 		}
 		return *arg, nil
 	case name == reflect.String.String():
 		if argVal.String == nil {
-			return nil, ottlerror.New(argVal.Pos, "must be a string")
+			return nil, errors.New("must be a string")
 		}
 		return *argVal.String, nil
 	case name == reflect.Float64.String():
 		if argVal.Literal == nil || argVal.Literal.Float == nil {
-			return nil, ottlerror.New(argVal.Pos, "must be a float")
+			return nil, errors.New("must be a float")
 		}
 		return *argVal.Literal.Float, nil
 	case name == reflect.Int64.String():
 		if argVal.Literal == nil || argVal.Literal.Int == nil {
-			return nil, ottlerror.New(argVal.Pos, "must be an int")
+			return nil, errors.New("must be an int")
 		}
 		return *argVal.Literal.Int, nil
 	case name == reflect.Bool.String():
 		if argVal.Bool == nil {
-			return nil, ottlerror.New(argVal.Pos, "must be a bool")
+			return nil, errors.New("must be a bool")
 		}
 		return bool(*argVal.Bool), nil
 	case strings.HasPrefix(name, "LambdaExpression"):
 		if argVal.Lambda == nil {
-			return nil, ottlerror.New(argVal.Pos, "must be a lambda expression")
+			return nil, errors.New("must be a lambda expression")
 		}
 		lambExpr, err := p.newLambdaExpression(argVal.Lambda)
 		if err != nil {
@@ -705,7 +712,7 @@ func (p *parseContext[K]) buildArg(argVal value, argType reflect.Type) (any, err
 		return lambExpr, nil
 	case strings.HasSuffix(stripGenericArgs(name), "Setter"):
 		if argVal.Literal == nil || argVal.Literal.Path == nil {
-			return nil, ottlerror.New(argVal.Pos, "must be a path")
+			return nil, errors.New("must be a path")
 		}
 		getter, err := p.buildGetSetterFromPath(argVal.Literal.Path)
 		if err != nil {
@@ -730,7 +737,7 @@ type buildArgFunc func(value, reflect.Type) (any, error)
 
 func buildSlice[T any](argVal value, argType reflect.Type, buildArg buildArgFunc, name string) ([]T, error) {
 	if argVal.List == nil {
-		return nil, ottlerror.Errorf(argVal.Pos, "must be a list of type %v", name)
+		return nil, fmt.Errorf("must be a list of type %v", name)
 	}
 
 	vals := make([]T, 0, len(argVal.List.Values))
@@ -738,12 +745,12 @@ func buildSlice[T any](argVal value, argType reflect.Type, buildArg buildArgFunc
 	for i := range values {
 		untypedVal, err := buildArg(values[i], argType.Elem())
 		if err != nil {
-			return nil, ottlerror.Wrapf(values[i].Pos, err, "error while parsing list argument at index %v", i)
+			return nil, fmt.Errorf("error while parsing list argument at index %v: %w", i, err)
 		}
 
 		val, ok := untypedVal.(T)
 		if !ok {
-			return nil, ottlerror.Errorf(values[i].Pos, "invalid element type at list index %v, must be of type %v", i, name)
+			return nil, fmt.Errorf("invalid element type at list index %v, must be of type %v", i, name)
 		}
 
 		vals = append(vals, val)
@@ -757,29 +764,29 @@ var errLambdaExpressionDisable = fmt.Errorf(
 	metadata.OttlFunctionsEnableLambdaFeatureGate.ID(),
 )
 
-func (p *parseContext[K]) newLambdaExpression(l *lambdaExpr) (*lambda.LambdaExpression[K], error) {
+func (p *parseContext[K]) newLambdaExpression(l *lambdaExpr) (*LambdaExpression[K], error) {
 	if !metadata.OttlFunctionsEnableLambdaFeatureGate.IsEnabled() {
-		return nil, ottlerror.FromError(l.Pos, errLambdaExpressionDisable)
+		return nil, errLambdaExpressionDisable
 	}
 
-	formals := make([]string, len(l.Params))
+	formals := make([]LocalIdentifierDecl, len(l.Params))
 	validFormals := make(localScopeFrame, len(l.Params))
 	for i, param := range l.Params {
 		name := param.Name()
 		if !param.IsBlank() {
 			if _, exists := validFormals[name]; exists {
-				return nil, ottlerror.Errorf(param.Pos, "duplicate local identifier %q", name)
+				return nil, fmt.Errorf("duplicate local identifier %q", name)
 			}
 			validFormals[name] = struct{}{}
 		}
-		formals[i] = name
+		formals[i] = &param
 	}
 
-	var result *lambda.LambdaExpression[K]
+	var result *LambdaExpression[K]
 	err := p.withLocalScope(validFormals, func() error {
 		switch {
 		case l.Body.Expr != nil && l.Body.Value != nil:
-			return ottlerror.New(l.Body.Pos, "lambda cannot have both an expression and a value body, this is a programming error in OTTL")
+			return errors.New("lambda cannot have both an expression and a value body, this is a programming error in OTTL")
 		case l.Body.Expr != nil:
 			bodyExpr, err := p.newBoolExpr(l.Body.Expr)
 			if err != nil {
@@ -795,33 +802,13 @@ func (p *parseContext[K]) newLambdaExpression(l *lambdaExpr) (*lambda.LambdaExpr
 			result = newLambdaExpression[K](formals, body, nil)
 			return nil
 		default:
-			return ottlerror.New(l.Body.Pos, "lambda requires a valid body after =>")
+			return errors.New("lambda requires a valid body after =>")
 		}
 	})
 	if err != nil {
 		return nil, err
 	}
 	return result, nil
-}
-
-// newLambdaExpression creates a new LambdaExpression. It must either have a body or a bodyExpr, but not both.
-func newLambdaExpression[K any](formals []string, body Getter[K], bodyExpr boolExpr[K]) *lambda.LambdaExpression[K] {
-	switch {
-	case body != nil:
-		if literal, ok := GetLiteralValue(body); ok {
-			return lambda.NewLiteral[K](formals, literal)
-		}
-		return lambda.New(formals, body.Get)
-	case bodyExpr != nil:
-		if literal, ok := bodyExpr.(*literalBoolExpr[K]); ok {
-			return lambda.NewLiteral[K](formals, literal.getValue())
-		}
-		return lambda.New(formals, func(ctx context.Context, tCtx K) (any, error) {
-			return bodyExpr.Eval(ctx, tCtx)
-		})
-	default:
-		return lambda.New[K](formals, nil)
-	}
 }
 
 // reflectTypedArg is implemented by generic OTTL function argument types that expose
@@ -890,12 +877,12 @@ func NewTestingOptional[T any](val T) Optional[T] {
 	}
 }
 
-// TypedGetter is like Getter, but with typed return values.
-type TypedGetter[K, V any] interface {
+// typedGetter is like Getter, but with typed return values.
+type typedGetter[K, V any] interface {
 	Get(ctx context.Context, tCtx K) (V, error)
 }
 
-// mockLiteralGetter is a mock implementation of TypedGetter that can be used for testing.
+// mockLiteralGetter is a mock implementation of LiteralGetter that can be used for testing.
 type mockLiteralGetter[K, V any] struct {
 	valueGetter func(context.Context, K) (V, error)
 }
@@ -906,7 +893,10 @@ func (m mockLiteralGetter[K, V]) Get(_ context.Context, _ K) (V, error) {
 
 // NewTestingLiteralGetter creates a mock literal getter for testing OTTL functions.
 // Pass `literal` as true if the getter should be treated as a literal.
-func NewTestingLiteralGetter[K, V any](literal bool, getter TypedGetter[K, V]) (TypedGetter[K, V], error) {
+func NewTestingLiteralGetter[K, V any](literal bool, getter typedGetter[K, V]) (interface {
+	typedGetter[K, V]
+}, error,
+) {
 	if literal {
 		val, err := getter.Get(context.Background(), *new(K))
 		if err != nil {
@@ -917,13 +907,13 @@ func NewTestingLiteralGetter[K, V any](literal bool, getter TypedGetter[K, V]) (
 	return mockLiteralGetter[K, V]{valueGetter: getter.Get}, nil
 }
 
-// OptionalGetter is like TypedGetter, but for getters whose Get also returns a found bool,
+// optionalGetter is like typedGetter, but for getters whose Get also returns a found bool,
 // such as the "Like" getters.
-type OptionalGetter[K, V any] interface {
+type optionalGetter[K, V any] interface {
 	Get(ctx context.Context, tCtx K) (V, bool, error)
 }
 
-// mockOptionalLiteralGetter is a mock implementation of an OptionalGetter literal for testing.
+// mockOptionalLiteralGetter is a mock implementation of an optionalGetter literal for testing.
 type mockOptionalLiteralGetter[K, V any] struct {
 	valueGetter func(context.Context, K) (V, bool, error)
 }
@@ -935,7 +925,7 @@ func (m mockOptionalLiteralGetter[K, V]) Get(_ context.Context, _ K) (V, bool, e
 // NewTestingOptionalLiteralGetter creates a mock literal getter for testing OTTL functions that
 // take a getter whose Get returns a found bool, such as the "Like" getters. Pass `literal` as
 // true if the getter should be treated as a literal.
-func NewTestingOptionalLiteralGetter[K, V any](literal bool, getter OptionalGetter[K, V]) (OptionalGetter[K, V], error) {
+func NewTestingOptionalLiteralGetter[K, V any](literal bool, getter optionalGetter[K, V]) (optionalGetter[K, V], error) {
 	if literal {
 		val, found, err := getter.Get(context.Background(), *new(K))
 		if err != nil {

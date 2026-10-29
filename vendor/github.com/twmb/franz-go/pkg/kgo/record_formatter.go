@@ -27,24 +27,23 @@ import (
 // RecordFormatter formats records.
 type RecordFormatter struct {
 	calls atomic.Int64
-	fns   []func([]byte, *FetchPartition, *Record, int64) []byte
+	fns   []func([]byte, *FetchPartition, *Record) []byte
 }
 
 // AppendRecord appends a record to b given the parsed format and returns the
 // updated slice.
 func (f *RecordFormatter) AppendRecord(b []byte, r *Record) []byte {
-	return f.appendRecord(b, nil, r, f.calls.Add(1))
+	for _, fn := range f.fns {
+		b = fn(b, nil, r)
+	}
+	return b
 }
 
 // AppendPartitionRecord appends a record and partition to b given the parsed
 // format and returns the updated slice.
 func (f *RecordFormatter) AppendPartitionRecord(b []byte, p *FetchPartition, r *Record) []byte {
-	return f.appendRecord(b, p, r, f.calls.Add(1))
-}
-
-func (f *RecordFormatter) appendRecord(b []byte, p *FetchPartition, r *Record, call int64) []byte {
 	for _, fn := range f.fns {
-		b = fn(b, p, r, call)
+		b = fn(b, p, r)
 	}
 	return b
 }
@@ -155,7 +154,7 @@ func (f *RecordFormatter) appendRecord(b []byte, p *FetchPartition, r *Record, c
 // # Timestamps
 //
 // Timestamps can be specified in three formats: plain number formatting,
-// native Go timestamp formatting, or strftime formatting. Number formatting
+// native Go timestamp formatting, or strftime formatting. Number formatting is
 // follows the rules above using the millisecond timestamp value. Go and
 // strftime have further internal format options:
 //
@@ -272,7 +271,7 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 		}
 
 		var (
-			isOpenBrace  = len(layout) > 1 && layout[1] == '{'
+			isOpenBrace  = len(layout) > 2 && layout[1] == '{'
 			handledBrace bool
 			escaped      = layout[0]
 		)
@@ -283,7 +282,7 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 		if len(literal) > 0 {
 			l := literal
 			literal = nil
-			f.fns = append(f.fns, func(b []byte, _ *FetchPartition, _ *Record, _ int64) []byte { return append(b, l...) })
+			f.fns = append(f.fns, func(b []byte, _ *FetchPartition, _ *Record) []byte { return append(b, l...) })
 		}
 
 		if isOpenBrace { // opening a brace: layout continues after
@@ -311,59 +310,59 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 			}
 			switch escaped {
 			case 'T':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, int64(len(r.Topic))) })
 				})
 			case 'K':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, int64(len(r.Key))) })
 				})
 			case 'V':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, int64(len(r.Value))) })
 				})
 			case 'H':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, int64(len(r.Headers))) })
 				})
 			case 'p':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, int64(r.Partition)) })
 				})
 			case 'o':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, r.Offset) })
 				})
 			case 'e':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, int64(r.LeaderEpoch)) })
 				})
 			case 'i':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, _ *Record, call int64) []byte {
-					return numfn(b, call)
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, _ *Record) []byte {
+					return numfn(b, f.calls.Add(1))
 				})
 			case 'x':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, r.ProducerID) })
 				})
 			case 'y':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, int64(r.ProducerEpoch)) })
 				})
 			case 'D':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, int64(r.DeliveryCount())) })
 				})
 			case '[':
-				f.fns = append(f.fns, func(b []byte, p *FetchPartition, _ *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, p *FetchPartition, _ *Record) []byte {
 					return writeP(b, p, func(b []byte, p *FetchPartition) []byte { return numfn(b, p.LogStartOffset) })
 				})
 			case '|':
-				f.fns = append(f.fns, func(b []byte, p *FetchPartition, _ *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, p *FetchPartition, _ *Record) []byte {
 					return writeP(b, p, func(b []byte, p *FetchPartition) []byte { return numfn(b, p.LastStableOffset) })
 				})
 			case ']':
-				f.fns = append(f.fns, func(b []byte, p *FetchPartition, _ *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, p *FetchPartition, _ *Record) []byte {
 					return writeP(b, p, func(b []byte, p *FetchPartition) []byte { return numfn(b, p.HighWatermark) })
 				})
 			}
@@ -406,15 +405,15 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 			}
 			switch escaped {
 			case 't':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return appendFn(b, []byte(r.Topic)) })
 				})
 			case 'k':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return appendFn(b, r.Key) })
 				})
 			case 'v':
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return appendFn(b, r.Value) })
 				})
 			}
@@ -432,7 +431,7 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 					return err
 				}
 				layout = layout[n:]
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, rfn(r)) })
 				})
 				return nil
@@ -447,7 +446,7 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 			switch {
 			case strings.HasPrefix(layout, "compression}"):
 				layout = layout[len("compression}"):]
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte {
 						switch CompressionCodecType(r.Attrs.CompressionType()) {
 						case CodecNone:
@@ -472,7 +471,7 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 
 			case strings.HasPrefix(layout, "timestamp-type}"):
 				layout = layout[len("timestamp-type}"):]
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte {
 						return strconv.AppendInt(b, int64(r.Attrs.TimestampType()), 10)
 					})
@@ -484,7 +483,7 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 
 			case strings.HasPrefix(layout, "transactional-bit}"):
 				layout = layout[len("transactional-bit}"):]
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte {
 						if r.Attrs.IsTransactional() {
 							return append(b, '1')
@@ -499,7 +498,7 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 
 			case strings.HasPrefix(layout, "control-bit}"):
 				layout = layout[len("control-bit}"):]
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte {
 						if r.Attrs.IsControl() {
 							return append(b, '1')
@@ -521,26 +520,42 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 				return nil, errors.New("missing open brace sequence on %h signifying how headers are written")
 			}
 			handledBrace = true
-			spec, rem, err := nomHeaderSpec(layout)
-			if err != nil {
-				return nil, err
+			// Headers can have their own internal braces, so we
+			// must look for a matching end brace.
+			braces := 1
+			at := 0
+			for braces != 0 && len(layout[at:]) > 0 {
+				switch layout[at] {
+				case '{':
+					if at > 0 && layout[at-1] != '%' {
+						braces++
+					}
+				case '}':
+					if at > 0 && layout[at-1] != '%' {
+						braces--
+					}
+				}
+				at++
 			}
-			layout = rem
+			if braces > 0 {
+				return nil, fmt.Errorf("invalid header specification: missing closing brace in %q", layout)
+			}
+
+			spec := layout[:at-1]
+			layout = layout[at:]
 			inf, err := NewRecordFormatter(spec)
 			if err != nil {
 				return nil, fmt.Errorf("invalid header specification %q: %v", spec, err)
 			}
 
-			f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, call int64) []byte {
-				return writeR(b, r, func(b []byte, r *Record) []byte {
-					reuse := new(Record)
-					for _, header := range r.Headers {
-						reuse.Key = []byte(header.Key)
-						reuse.Value = header.Value
-						b = inf.appendRecord(b, nil, reuse, call)
-					}
-					return b
-				})
+			f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
+				reuse := new(Record)
+				for _, header := range r.Headers {
+					reuse.Key = []byte(header.Key)
+					reuse.Value = header.Value
+					b = inf.AppendRecord(b, reuse)
+				}
+				return b
 			})
 
 		case 'd', 'A':
@@ -568,8 +583,8 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 
 			handledBrace = isOpenBrace
 			if !handledBrace {
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
-					return writeR(b, r, func(b []byte, r *Record) []byte { return strconv.AppendInt(b, getTime(r).UnixMilli(), 10) })
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
+					return writeR(b, r, func(b []byte, r *Record) []byte { return strconv.AppendInt(b, getTime(r).UnixNano()/1e6, 10) })
 				})
 				continue
 			}
@@ -585,7 +600,7 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 					return nil, fmt.Errorf("%%%s{strftime missing closing } in %q", escChar, layout)
 				}
 				layout = rem[1:]
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return strftimeAppendFormat(b, tfmt, getTime(r).UTC()) })
 				})
 
@@ -598,7 +613,7 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 					return nil, fmt.Errorf("%%%s{go missing closing } in %q", escChar, layout)
 				}
 				layout = rem[1:]
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
 					return writeR(b, r, func(b []byte, r *Record) []byte { return getTime(r).UTC().AppendFormat(b, tfmt) })
 				})
 
@@ -609,8 +624,8 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 				}
 				layout = layout[n:]
 
-				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record, _ int64) []byte {
-					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, getTime(r).UnixMilli()) })
+				f.fns = append(f.fns, func(b []byte, _ *FetchPartition, r *Record) []byte {
+					return writeR(b, r, func(b []byte, r *Record) []byte { return numfn(b, getTime(r).UnixNano()/1e6) })
 				})
 			}
 		}
@@ -623,7 +638,7 @@ func NewRecordFormatter(layout string) (*RecordFormatter, error) {
 
 	// Ensure we print any trailing text.
 	if len(literal) > 0 {
-		f.fns = append(f.fns, func(b []byte, _ *FetchPartition, _ *Record, _ int64) []byte { return append(b, literal...) })
+		f.fns = append(f.fns, func(b []byte, _ *FetchPartition, _ *Record) []byte { return append(b, literal...) })
 	}
 
 	return &f, nil
@@ -769,8 +784,8 @@ func parseUnpack(layout string) (func([]byte, []byte) []byte, error) {
 			case 1:
 				ul = uint64(src[0])
 				ub = ul
-				il = int64(int8(ul))
-				ib = int64(int8(ub))
+				il = int64(byte(ul))
+				ib = int64(byte(ub))
 			case 2:
 				ul = uint64(binary.LittleEndian.Uint16(src))
 				ub = uint64(binary.BigEndian.Uint16(src))
@@ -974,31 +989,12 @@ func writeNumBool(b []byte, n int64) []byte {
 
 // RecordReader reads records from an io.Reader.
 type RecordReader struct {
-	r *countReader
+	r *bufio.Reader
 
 	buf []byte
 	fns []readParse
 
 	done bool
-}
-
-// countReader counts the bytes consumed from the reader, so that
-// ReadRecordInto can tell when a record consumed nothing.
-type countReader struct {
-	*bufio.Reader
-	n int64
-}
-
-func (c *countReader) Read(p []byte) (int, error) {
-	n, err := c.Reader.Read(p)
-	c.n += int64(n)
-	return n, err
-}
-
-func (c *countReader) Discard(n int) (int, error) {
-	n, err := c.Reader.Discard(n)
-	c.n += int64(n)
-	return n, err
 }
 
 // NewRecordReader returns a record reader for the given layout, or an error if
@@ -1055,8 +1051,6 @@ func (c *countReader) Discard(n int) (int, error) {
 //	%v{ascii}       parse numeric digits until a non-numeric
 //	%v{number}      alias for ascii
 //
-// Ascii numbers for %p, %o, %e, %d, %x, and %y can begin with '-'.
-//
 //	%v{hex64}       read 16 hex characters for the number
 //	%v{hex32}       read 8 hex characters for the number
 //	%v{hex16}       read 4 hex characters for the number
@@ -1097,7 +1091,7 @@ func (c *countReader) Discard(n int) (int, error) {
 //
 //	%k{re[\d*]}%v{re[\s+]}
 func NewRecordReader(reader io.Reader, layout string) (*RecordReader, error) {
-	r := &RecordReader{r: &countReader{Reader: bufio.NewReader(reader)}}
+	r := &RecordReader{r: bufio.NewReader(reader)}
 	if err := r.parseReadLayout(layout); err != nil {
 		return nil, err
 	}
@@ -1127,21 +1121,12 @@ func (r *RecordReader) ReadRecordInto(rec *Record) error {
 	if r.done {
 		return io.EOF
 	}
-	n := r.r.n
-	if err := r.next(rec); err != nil {
-		return err
-	}
-	// A record that consumes no input, such as a regexp that matches the
-	// empty string on every field, would otherwise be returned forever.
-	if r.r.n == n {
-		return errors.New("layout consumed no input")
-	}
-	return nil
+	return r.next(rec)
 }
 
 // SetReader replaces the underlying reader with the given reader.
 func (r *RecordReader) SetReader(reader io.Reader) {
-	r.r = &countReader{Reader: bufio.NewReader(reader)}
+	r.r = bufio.NewReader(reader)
 	r.done = false
 }
 
@@ -1226,7 +1211,7 @@ func (r *RecordReader) parseReadLayout(layout string) error {
 		}
 
 		var (
-			isOpenBrace  = len(layout) > 1 && layout[1] == '{'
+			isOpenBrace  = len(layout) > 2 && layout[1] == '{'
 			handledBrace bool
 			escaped      = layout[0]
 		)
@@ -1265,9 +1250,9 @@ func (r *RecordReader) parseReadLayout(layout string) error {
 				return fmt.Errorf("size specification %%%s cannot come after value specification %%%s", string(escaped), strings.ToLower(string(escaped)))
 			}
 			bits.set(bit)
-			fn, n, err := r.parseReadSize("ascii", dst, false, false)
+			fn, n, err := r.parseReadSize("ascii", dst, false)
 			if handledBrace = isOpenBrace; handledBrace {
-				fn, n, err = r.parseReadSize(layout, dst, true, false)
+				fn, n, err = r.parseReadSize(layout, dst, true)
 			}
 			if err != nil {
 				return fmt.Errorf("unable to parse %%%s: %s", string(escaped), err)
@@ -1277,9 +1262,9 @@ func (r *RecordReader) parseReadLayout(layout string) error {
 
 		case 'p', 'o', 'e', 'd', 'x', 'y':
 			dst := new(uint64)
-			fn, n, err := r.parseReadSize("ascii", dst, false, true)
+			fn, n, err := r.parseReadSize("ascii", dst, false)
 			if handledBrace = isOpenBrace; handledBrace {
-				fn, n, err = r.parseReadSize(layout, dst, true, true)
+				fn, n, err = r.parseReadSize(layout, dst, true)
 			}
 			if err != nil {
 				return fmt.Errorf("unable to parse %%%s: %s", string(escaped), err)
@@ -1316,7 +1301,7 @@ func (r *RecordReader) parseReadLayout(layout string) error {
 					if err := numParse(b, nil); err != nil {
 						return err
 					}
-					rec.Timestamp = time.UnixMilli(int64(*dst))
+					rec.Timestamp = time.Unix(0, int64(*dst)*1e6)
 					return nil
 				}
 			case 'x':
@@ -1420,7 +1405,7 @@ func (r *RecordReader) parseReadLayout(layout string) error {
 			} else if re != nil {
 				fn.read = readKind{re: re}
 			} else if isJson {
-				fn.read = readKind{condition: func() func(byte) int8 { return new(jsonReader).read }}
+				fn.read = readKind{condition: new(jsonReader).read}
 			}
 			r.fns = append(r.fns, fn)
 
@@ -1433,17 +1418,35 @@ func (r *RecordReader) parseReadLayout(layout string) error {
 				return errors.New("missing open brace sequence on %h signifying how headers are encoded")
 			}
 			handledBrace = true
-			spec, rem, err := nomHeaderSpec(layout)
-			if err != nil {
-				return err
+			// Similar to above, headers can have their own
+			// internal braces, so we look for a matching end.
+			braces := 1
+			at := 0
+			for braces != 0 && len(layout[at:]) > 0 {
+				switch layout[at] {
+				case '{':
+					if at > 0 && layout[at-1] != '%' {
+						braces++
+					}
+				case '}':
+					if at > 0 && layout[at-1] != '%' {
+						braces--
+					}
+				}
+				at++
 			}
-			layout = rem
+			if braces > 0 {
+				return fmt.Errorf("invalid header specification: missing closing brace in %q", layout)
+			}
 
-			// We parse the header specification recursively.
+			// We parse the header specification recursively, but
+			// we require that it is sized and contains only keys
+			// and values. Checking the delimiter checks sizing.
 			var inr RecordReader
-			if err := inr.parseReadLayout(spec); err != nil {
+			if err := inr.parseReadLayout(layout[:at-1]); err != nil {
 				return fmt.Errorf("invalid header specification: %v", err)
 			}
+			layout = layout[at:]
 
 			// To parse headers, we save the inner reader's parsing
 			// function stash the current record's key/value before
@@ -1452,17 +1455,10 @@ func (r *RecordReader) parseReadLayout(layout string) error {
 				k, v := rec.Key, rec.Value
 				defer func() { rec.Key, rec.Value = k, v }()
 				inr.r = r.r
-				rec.Headers = nil
 				for i := uint64(0); i < *headersNum; i++ {
 					rec.Key, rec.Value = nil, nil
-					n := r.r.n
 					if err := inr.next(rec); err != nil {
 						return err
-					}
-					// Without this, a huge header count with a header
-					// layout that can match nothing would loop forever.
-					if r.r.n == n {
-						return errors.New("header layout consumed no input")
 					}
 					rec.Headers = append(rec.Headers, RecordHeader{Key: string(rec.Key), Value: rec.Value})
 				}
@@ -1505,9 +1501,8 @@ func (r *RecordReader) parseReadLayout(layout string) error {
 //
 // If needBrace is true, the user is specifying how to read the number,
 // otherwise we default to ascii. Reading ascii requires us to peek at bytes
-// until we get to a non-number byte. If signed is true, ascii numbers can
-// begin with '-'.
-func (*RecordReader) parseReadSize(layout string, dst *uint64, needBrace, signed bool) (readParse, int, error) {
+// until we get to a non-number byte.
+func (*RecordReader) parseReadSize(layout string, dst *uint64, needBrace bool) (readParse, int, error) {
 	var end int
 	if needBrace {
 		braceEnd := strings.IndexByte(layout, '}')
@@ -1534,27 +1529,13 @@ func (*RecordReader) parseReadSize(layout string, dst *uint64, needBrace, signed
 
 	case "ascii", "number":
 		return readParse{
-			readKind{condition: func() func(byte) int8 {
-				first := true
-				return func(b byte) int8 {
-					if first && signed && b == '-' {
-						first = false
-						return 1
-					}
-					first = false
-					if b < '0' || b > '9' {
-						return -1
-					}
-					return 2 // ignore EOF if we hit it after this
+			readKind{condition: func(b byte) int8 {
+				if b < '0' || b > '9' {
+					return -1
 				}
+				return 2 // ignore EOF if we hit it after this
 			}},
 			func(b []byte, _ *Record) (err error) {
-				if len(b) > 0 && b[0] == '-' {
-					var n int64
-					n, err = strconv.ParseInt(kbin.UnsafeString(b), 10, 64)
-					*dst = uint64(n)
-					return err
-				}
 				*dst, err = strconv.ParseUint(kbin.UnsafeString(b), 10, 64)
 				return err
 			},
@@ -1645,43 +1626,48 @@ func (*RecordReader) parseReadSize(layout string, dst *uint64, needBrace, signed
 			stateTrue
 			stateFalse
 		)
+		var state uint8
+		var last byte
 		return readParse{
-			readKind{condition: func() func(byte) int8 {
-				state := stateUnknown
-				var last byte
-				return func(b byte) int8 {
-					switch state {
-					default: // stateUnknown
-						switch b {
-						case 't':
-							state = stateTrue
-							last = b
-							return 1
-						case 'f':
-							state = stateFalse
-							last = b
-							return 1
-						}
-						return -1
-
-					case stateTrue:
-						if last == 't' && b == 'r' || last == 'r' && b == 'u' {
-							last = b
-							return 1
-						} else if last == 'u' && b == 'e' {
-							return 0
-						}
-						return -1
-
-					case stateFalse:
-						if last == 'f' && b == 'a' || last == 'a' && b == 'l' || last == 'l' && b == 's' {
-							last = b
-							return 1
-						} else if last == 's' && b == 'e' {
-							return 0
-						}
-						return -1
+			readKind{condition: func(b byte) (done int8) {
+				defer func() {
+					if done <= 0 {
+						state = stateUnknown
+						last = 0
 					}
+				}()
+
+				switch state {
+				default: // stateUnknown
+					switch b {
+					case 't':
+						state = stateTrue
+						last = b
+						return 1
+					case 'f':
+						state = stateFalse
+						last = b
+						return 1
+					}
+					return -1
+
+				case stateTrue:
+					if last == 't' && b == 'r' || last == 'r' && b == 'u' {
+						last = b
+						return 1
+					} else if last == 'u' && b == 'e' {
+						return 0
+					}
+					return -1
+
+				case stateFalse:
+					if last == 'f' && b == 'a' || last == 'a' && b == 'l' || last == 'l' && b == 's' {
+						last = b
+						return 1
+					} else if last == 's' && b == 'e' {
+						return 0
+					}
+					return -1
 				}
 			}},
 			func(b []byte, _ *Record) error {
@@ -1712,7 +1698,7 @@ func decodeHex(b []byte) ([]byte, error) {
 type readKind struct {
 	noread    bool
 	exact     []byte
-	condition func() func(byte) int8 // returns a new func per read; -2: error, -1: stop, do not consume input; 0: stop, consume input; 1: keep going, consume input, 2: keep going, consume input, can EOF
+	condition func(byte) int8 // -2: error, -1: stop, do not consume input; 0: stop, consume input; 1: keep going, consume input, 2: keep going, consume input, can EOF
 	size      int
 	sizefn    func() int
 	handoff   func(*RecordReader, *Record) error
@@ -1756,7 +1742,7 @@ func (r *RecordReader) next(rec *Record) error {
 		case fn.read.exact != nil:
 			err = r.readExact(fn.read.exact)
 		case fn.read.condition != nil:
-			err = r.readCondition(fn.read.condition())
+			err = r.readCondition(fn.read.condition)
 		case fn.read.size > 0:
 			err = r.readSize(fn.read.size)
 		case fn.read.sizefn != nil:
@@ -1786,24 +1772,22 @@ func (r *RecordReader) next(rec *Record) error {
 			}
 		}
 
-		// The last fn can EOF with nothing read after earlier fns read
-		// part of the record. A fixed size or exact read that is short
-		// here is a truncated record, not the end of one.
-		var want int
-		switch {
-		case fn.read.exact != nil:
-			want = len(fn.read.exact)
-		case fn.read.size > 0:
-			want = fn.read.size
-		case fn.read.sizefn != nil:
-			want = fn.read.sizefn()
-		}
-		if len(r.buf) < want {
-			return io.ErrUnexpectedEOF
-		}
-
 		if fn.parse == nil {
 			continue
+		}
+
+		// If the input EOF'd before a fixed-size read accumulated its full
+		// byte count, r.buf is short. This happens on the fall-through
+		// above: a zero-byte read surfaces as plain io.EOF (readSize only
+		// reports io.EOF when it read nothing; a partial read is already
+		// io.ErrUnexpectedEOF), and if that read is the last fn after an
+		// earlier real read it is not the clean record boundary, so it
+		// reaches here with an empty buffer. The fixed-width number parsers
+		// index r.buf at constant offsets (binary.*.Uint64 etc.) and panic
+		// on a short slice, so surface the truncation as the unexpected EOF
+		// that ReadRecord's doc already promises for a mid-record EOF.
+		if fn.read.size > 0 && len(r.buf) < fn.read.size {
+			return io.ErrUnexpectedEOF
 		}
 
 		if err := fn.parse(r.buf, rec); err != nil {
@@ -1846,31 +1830,22 @@ func (r *RecordReader) readCondition(fn func(byte) int8) error {
 type reReader struct {
 	r    *RecordReader
 	peek []byte
-	pos  int
 	err  error
 }
 
 func (re *reReader) ReadRune() (r rune, size int, err error) {
-	for re.err == nil && !utf8.FullRune(re.peek[re.pos:]) {
-		re.peek, re.err = re.r.r.Peek(len(re.peek) + 1)
-	}
-	if re.pos == len(re.peek) || re.err == bufio.ErrBufferFull {
+	re.peek, re.err = re.r.r.Peek(len(re.peek) + 1)
+	if re.err != nil {
 		return 0, 0, re.err
 	}
-	// Keep the byte position separate from the peek length: an incomplete
-	// rune at EOF can leave multiple bytes to decode as individual RuneErrors.
-	r, size = utf8.DecodeRune(re.peek[re.pos:])
-	re.pos += size
-	return r, size, nil
+	return rune(re.peek[len(re.peek)-1]), 1, nil
 }
 
 func (r *RecordReader) readRe(re *regexp.Regexp) error {
 	reader := reReader{r: r}
 	loc := re.FindReaderIndex(&reader)
 	if loc == nil {
-		// An anchored regexp can reject the input before the reader
-		// encounters an error, so a nil reader error is still a mismatch.
-		if reader.err == nil || reader.err == io.EOF && len(reader.peek) > 0 {
+		if reader.err == io.EOF && len(reader.peek) > 0 {
 			return fmt.Errorf("regexp text mismatch, saw %q", reader.peek)
 		}
 		return reader.err
@@ -2220,7 +2195,6 @@ start:
 	case jrstDotOrE:
 		if r.isE(c) {
 			r.state = jrstE
-			r.n = 0
 			return 1 // beginning of exponent, need more
 		}
 		if c == '.' {
@@ -2317,29 +2291,6 @@ func (r *jsonReader) oneOrTwo() int8 {
 ////////////
 // COMMON //
 ////////////
-
-// nomHeaderSpec returns the header specification inside %h{...} and the
-// layout after its closing brace. The spec can contain its own braces, so we
-// look for the matching end, skipping %-escapes such as %{ and %}.
-func nomHeaderSpec(layout string) (spec, remaining string, err error) {
-	braces := 1
-	at := 0
-	for braces != 0 && at < len(layout) {
-		switch layout[at] {
-		case '%':
-			at++
-		case '{':
-			braces++
-		case '}':
-			braces--
-		}
-		at++
-	}
-	if braces != 0 {
-		return "", "", fmt.Errorf("invalid header specification: missing closing brace in %q", layout)
-	}
-	return layout[:at-1], layout[at:], nil
-}
 
 func parseLayoutSlash(layout string) (byte, int, error) {
 	if len(layout) == 0 {

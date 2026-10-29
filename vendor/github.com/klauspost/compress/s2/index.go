@@ -545,9 +545,7 @@ func (i *Index) JSON() []byte {
 // Returns nil if headers contains errors.
 // The returned slice references the provided slice.
 func RemoveIndexHeaders(b []byte) []byte {
-	// Chunk content that is trimmed off below.
-	const minChunkLen = len(S2IndexHeader) + len(S2IndexTrailer) + 4
-	const save = skippableFrameHeader + minChunkLen
+	const save = 4 + len(S2IndexHeader) + len(S2IndexTrailer) + 4
 	if len(b) <= save {
 		return nil
 	}
@@ -557,9 +555,8 @@ func RemoveIndexHeaders(b []byte) []byte {
 	chunkLen := int(b[1]) | int(b[2])<<8 | int(b[3])<<16
 	b = b[4:]
 
-	// Validate we have enough, and that the chunk itself is long enough
-	// to hold what is trimmed off below.
-	if len(b) < chunkLen || chunkLen < minChunkLen {
+	// Validate we have enough...
+	if len(b) < chunkLen {
 		return nil
 	}
 	b = b[:chunkLen]

@@ -546,7 +546,7 @@ func (d *Decoder) nextBlockSync() (ok bool) {
 		if d.current.err != nil {
 			return false
 		}
-		d.frame.history.ensureBlockRing()
+		d.frame.history.ensureBlock()
 		if debugDecoder {
 			println("History trimmed:", len(d.frame.history.b), "decoded already:", d.syncStream.decodedFrame)
 		}
@@ -751,8 +751,7 @@ func (d *Decoder) startStreamDecoder(ctx context.Context, r io.Reader, output ch
 	wg.Add(1)
 
 	// Async 3: Execute sequences...
-	// Reuse the history ring across streams.
-	frameRing := d.frame.history.ring
+	frameHistCache := d.frame.history.b
 	go func() {
 		var hist history
 		var decodedFrame uint64
@@ -771,12 +770,20 @@ func (d *Decoder) startStreamDecoder(ctx context.Context, r io.Reader, output ch
 				}
 				hist.reset()
 				hist.windowSize = block.async.newHist.windowSize
+				hist.allocFrameBuffer = block.async.newHist.allocFrameBuffer
 				if block.async.newHist.dict != nil {
 					hist.setDict(block.async.newHist.dict)
 				}
-				if hist.ring == nil {
-					hist.ring = frameRing
+
+				if cap(hist.b) < hist.allocFrameBuffer {
+					if cap(frameHistCache) >= hist.allocFrameBuffer {
+						hist.b = frameHistCache
+					} else {
+						hist.b = make([]byte, 0, hist.allocFrameBuffer)
+						println("Alloc history sized", hist.allocFrameBuffer)
+					}
 				}
+				hist.b = hist.b[:0]
 				fcs = block.async.fcs
 				decodedFrame = 0
 			}
@@ -799,15 +806,13 @@ func (d *Decoder) startStreamDecoder(ctx context.Context, r io.Reader, output ch
 				for i := range block.dst {
 					block.dst[i] = v
 				}
-				hist.ensureBlockRing()
-				hist.appendKeep(block.dst)
+				hist.append(block.dst)
 				do.b = block.dst
 			case blockTypeRaw:
 				if debugDecoder {
 					println("add raw block length:", len(block.data))
 				}
-				hist.ensureBlockRing()
-				hist.appendKeep(block.data)
+				hist.append(block.data)
 				do.b = block.data
 			case blockTypeCompressed:
 				if debugDecoder {
@@ -840,7 +845,7 @@ func (d *Decoder) startStreamDecoder(ctx context.Context, r io.Reader, output ch
 			output <- do
 		}
 		close(output)
-		frameRing = hist.ring
+		frameHistCache = hist.b
 		wg.Done()
 		if debugDecoder {
 			println("decoder goroutines finished")
@@ -919,6 +924,9 @@ decodeStream:
 			err := frame.next(dec)
 			if !historySent {
 				h := frame.history
+				if debugDecoder {
+					println("Alloc History:", h.allocFrameBuffer)
+				}
 				hist.reset()
 				if h.dict != nil {
 					hist.setDict(h.dict)
@@ -965,7 +973,7 @@ decodeStream:
 	close(seqDecode)
 	wg.Wait()
 	hist.reset()
-	d.frame.history.ring = frameRing
+	d.frame.history.b = frameHistCache
 }
 
 func (d *Decoder) setDict(frame *frameDec) (err error) {

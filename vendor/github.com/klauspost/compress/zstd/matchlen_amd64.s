@@ -1,6 +1,6 @@
 // Copied from S2 implementation.
 
-//go:build !noasm && gc
+//go:build !appengine && !noasm && gc && !noasm
 
 #include "textflag.h"
 

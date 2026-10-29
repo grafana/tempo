@@ -32,22 +32,20 @@ const (
 	equalsKey = "equals"
 )
 
-type parseSeverityArguments[K any] struct {
+type ParseSeverityArguments[K any] struct {
 	Target  ottl.Getter[K]
 	Mapping ottl.PMapGetter[K]
 }
 
-// NewParseSeverityFactory returns a factory for the ParseSeverity OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#parseseverity
 func NewParseSeverityFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ParseSeverity", &parseSeverityArguments[K]{}, createParseSeverityFunction[K])
+	return ottl.NewFactory("ParseSeverity", &ParseSeverityArguments[K]{}, createParseSeverityFunction[K])
 }
 
 func createParseSeverityFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*parseSeverityArguments[K])
+	args, ok := oArgs.(*ParseSeverityArguments[K])
 
 	if !ok {
-		return nil, errors.New("ParseSeverityFactory args must be of type *parseSeverityArguments[K")
+		return nil, errors.New("ParseSeverityFactory args must be of type *ParseSeverityArguments[K")
 	}
 
 	return parseSeverity[K](args.Target, args.Mapping), nil

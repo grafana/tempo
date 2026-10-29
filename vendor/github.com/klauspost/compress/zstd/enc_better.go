@@ -26,16 +26,6 @@ const (
 	betterShortTableShardSize = betterShortTableSize / betterShortTableShardCnt // Size of an individual shard
 )
 
-// betterHashL is hashLen(u, betterLongTableBits, betterLongLen) with prime = prime8bytes.
-func betterHashL(u, prime uint64) uint32 {
-	return uint32((u * prime) >> (64 - betterLongTableBits))
-}
-
-// betterHashS is hashLen(u, betterShortTableBits, betterShortLen) with prime = prime5bytes.
-func betterHashS(u, prime uint64) uint32 {
-	return uint32(((u << (64 - 40)) * prime) >> (64 - betterShortTableBits))
-}
-
 type prevEntry struct {
 	offset int32
 	prev   int32
@@ -136,7 +126,6 @@ func (e *betterFastEncoder) Encode(blk *blockEnc, src []byte) {
 	// Override src
 	src = e.hist
 	sLimit := int32(len(src)) - inputMargin
-	primeL, primeS := hashPrimes8and5()
 	// stepSize is the number of bytes to skip on every main loop iteration.
 	// It should be >= 1.
 	const stepSize = 1
@@ -174,8 +163,8 @@ encodeLoop:
 				panic("offset0 was 0")
 			}
 
-			nextHashL := betterHashL(cv, primeL)
-			nextHashS := betterHashS(cv, primeS)
+			nextHashL := hashLen(cv, betterLongTableBits, betterLongLen)
+			nextHashS := hashLen(cv, betterShortTableBits, betterShortLen)
 			candidateL := e.longTable[nextHashL]
 			candidateS := e.table[nextHashS]
 
@@ -229,13 +218,14 @@ encodeLoop:
 						break encodeLoop
 					}
 					// Index skipped...
-					for end := s - 1; index0 < end; index0 += 2 {
+					for index0 < s-1 {
 						cv0 := load6432(src, index0)
 						cv1 := cv0 >> 8
-						h0 := betterHashL(cv0, primeL)
+						h0 := hashLen(cv0, betterLongTableBits, betterLongLen)
 						off := index0 + e.cur
-						e.table[betterHashS(cv1, primeS)] = tableEntry{offset: off + 1, val: uint32(cv1)}
 						e.longTable[h0] = prevEntry{offset: off, prev: e.longTable[h0].offset}
+						e.table[hashLen(cv1, betterShortTableBits, betterShortLen)] = tableEntry{offset: off + 1, val: uint32(cv1)}
+						index0 += 2
 					}
 					cv = load6432(src, s)
 					continue
@@ -285,13 +275,14 @@ encodeLoop:
 					}
 
 					// Index skipped...
-					for end := s - 1; index0 < end; index0 += 2 {
+					for index0 < s-1 {
 						cv0 := load6432(src, index0)
 						cv1 := cv0 >> 8
-						h0 := betterHashL(cv0, primeL)
+						h0 := hashLen(cv0, betterLongTableBits, betterLongLen)
 						off := index0 + e.cur
-						e.table[betterHashS(cv1, primeS)] = tableEntry{offset: off + 1, val: uint32(cv1)}
 						e.longTable[h0] = prevEntry{offset: off, prev: e.longTable[h0].offset}
+						e.table[hashLen(cv1, betterShortTableBits, betterShortLen)] = tableEntry{offset: off + 1, val: uint32(cv1)}
+						index0 += 2
 					}
 					cv = load6432(src, s)
 					// Swap offsets
@@ -365,7 +356,7 @@ encodeLoop:
 				// See if we can find a long match at s+1
 				const checkAt = 1
 				cv := load6432(src, s+checkAt)
-				nextHashL = betterHashL(cv, primeL)
+				nextHashL = hashLen(cv, betterLongTableBits, betterLongLen)
 				candidateL = e.longTable[nextHashL]
 				coffsetL = candidateL.offset - e.cur
 
@@ -432,7 +423,7 @@ encodeLoop:
 			// and still picked up as part of the match if they do.
 			const skipBeginning = 3
 
-			nextHashL := betterHashL(load6432(src, s+matched), primeL)
+			nextHashL := hashLen(load6432(src, s+matched), betterLongTableBits, betterLongLen)
 			s2 := s + skipBeginning
 			cv := load3232(src, s2)
 			candidateL := e.longTable[nextHashL]
@@ -510,12 +501,13 @@ encodeLoop:
 
 		// Index match start+1 (long) -> s - 1
 		off := index0 + e.cur
-		for end := s - 1; index0 < end; index0 += 2 {
+		for index0 < s-1 {
 			cv0 := load6432(src, index0)
 			cv1 := cv0 >> 8
-			e.table[betterHashS(cv1, primeS)] = tableEntry{offset: off + 1, val: uint32(cv1)}
-			h0 := betterHashL(cv0, primeL)
+			h0 := hashLen(cv0, betterLongTableBits, betterLongLen)
 			e.longTable[h0] = prevEntry{offset: off, prev: e.longTable[h0].offset}
+			e.table[hashLen(cv1, betterShortTableBits, betterShortLen)] = tableEntry{offset: off + 1, val: uint32(cv1)}
+			index0 += 2
 			off += 2
 		}
 
@@ -533,8 +525,8 @@ encodeLoop:
 			}
 
 			// Store this, since we have it.
-			nextHashL := betterHashL(cv, primeL)
-			nextHashS := betterHashS(cv, primeS)
+			nextHashL := hashLen(cv, betterLongTableBits, betterLongLen)
+			nextHashS := hashLen(cv, betterShortTableBits, betterShortLen)
 
 			// We have at least 4 byte match.
 			// No need to check backwards. We come straight from a match
@@ -652,7 +644,6 @@ func (e *betterFastEncoderDict) Encode(blk *blockEnc, src []byte) {
 	// Override src
 	src = e.hist
 	sLimit := int32(len(src)) - inputMargin
-	primeL, primeS := hashPrimes8and5()
 	// stepSize is the number of bytes to skip on every main loop iteration.
 	// It should be >= 1.
 	const stepSize = 1
@@ -690,8 +681,8 @@ encodeLoop:
 				panic("offset0 was 0")
 			}
 
-			nextHashL := betterHashL(cv, primeL)
-			nextHashS := betterHashS(cv, primeS)
+			nextHashL := hashLen(cv, betterLongTableBits, betterLongLen)
+			nextHashS := hashLen(cv, betterShortTableBits, betterShortLen)
 			candidateL := e.longTable[nextHashL]
 			candidateS := e.table[nextHashS]
 
@@ -746,16 +737,17 @@ encodeLoop:
 						break encodeLoop
 					}
 					// Index skipped...
-					for end := s - 1; index0 < end; index0 += 2 {
+					for index0 < s-1 {
 						cv0 := load6432(src, index0)
 						cv1 := cv0 >> 8
-						h0 := betterHashL(cv0, primeL)
+						h0 := hashLen(cv0, betterLongTableBits, betterLongLen)
 						off := index0 + e.cur
-						h1 := betterHashS(cv1, primeS)
-						e.table[h1] = tableEntry{offset: off + 1, val: uint32(cv1)}
-						e.markShortShardDirty(h1)
 						e.longTable[h0] = prevEntry{offset: off, prev: e.longTable[h0].offset}
 						e.markLongShardDirty(h0)
+						h1 := hashLen(cv1, betterShortTableBits, betterShortLen)
+						e.table[h1] = tableEntry{offset: off + 1, val: uint32(cv1)}
+						e.markShortShardDirty(h1)
+						index0 += 2
 					}
 					cv = load6432(src, s)
 					continue
@@ -805,16 +797,17 @@ encodeLoop:
 					}
 
 					// Index skipped...
-					for end := s - 1; index0 < end; index0 += 2 {
+					for index0 < s-1 {
 						cv0 := load6432(src, index0)
 						cv1 := cv0 >> 8
-						h0 := betterHashL(cv0, primeL)
+						h0 := hashLen(cv0, betterLongTableBits, betterLongLen)
 						off := index0 + e.cur
-						h1 := betterHashS(cv1, primeS)
-						e.table[h1] = tableEntry{offset: off + 1, val: uint32(cv1)}
-						e.markShortShardDirty(h1)
 						e.longTable[h0] = prevEntry{offset: off, prev: e.longTable[h0].offset}
 						e.markLongShardDirty(h0)
+						h1 := hashLen(cv1, betterShortTableBits, betterShortLen)
+						e.table[h1] = tableEntry{offset: off + 1, val: uint32(cv1)}
+						e.markShortShardDirty(h1)
+						index0 += 2
 					}
 					cv = load6432(src, s)
 					// Swap offsets
@@ -888,7 +881,7 @@ encodeLoop:
 				// See if we can find a long match at s+1
 				const checkAt = 1
 				cv := load6432(src, s+checkAt)
-				nextHashL = betterHashL(cv, primeL)
+				nextHashL = hashLen(cv, betterLongTableBits, betterLongLen)
 				candidateL = e.longTable[nextHashL]
 				coffsetL = candidateL.offset - e.cur
 
@@ -949,7 +942,7 @@ encodeLoop:
 		}
 		// Try to find a better match by searching for a long match at the end of the current best match
 		if s+matched < sLimit {
-			nextHashL := betterHashL(load6432(src, s+matched), primeL)
+			nextHashL := hashLen(load6432(src, s+matched), betterLongTableBits, betterLongLen)
 			cv := load3232(src, s)
 			candidateL := e.longTable[nextHashL]
 			coffsetL := candidateL.offset - e.cur - matched
@@ -1024,15 +1017,16 @@ encodeLoop:
 
 		// Index match start+1 (long) -> s - 1
 		off := index0 + e.cur
-		for end := s - 1; index0 < end; index0 += 2 {
+		for index0 < s-1 {
 			cv0 := load6432(src, index0)
 			cv1 := cv0 >> 8
-			h1 := betterHashS(cv1, primeS)
-			e.table[h1] = tableEntry{offset: off + 1, val: uint32(cv1)}
-			e.markShortShardDirty(h1)
-			h0 := betterHashL(cv0, primeL)
+			h0 := hashLen(cv0, betterLongTableBits, betterLongLen)
 			e.longTable[h0] = prevEntry{offset: off, prev: e.longTable[h0].offset}
 			e.markLongShardDirty(h0)
+			h1 := hashLen(cv1, betterShortTableBits, betterShortLen)
+			e.table[h1] = tableEntry{offset: off + 1, val: uint32(cv1)}
+			e.markShortShardDirty(h1)
+			index0 += 2
 			off += 2
 		}
 
@@ -1050,8 +1044,8 @@ encodeLoop:
 			}
 
 			// Store this, since we have it.
-			nextHashL := betterHashL(cv, primeL)
-			nextHashS := betterHashS(cv, primeS)
+			nextHashL := hashLen(cv, betterLongTableBits, betterLongLen)
+			nextHashS := hashLen(cv, betterShortTableBits, betterShortLen)
 
 			// We have at least 4 byte match.
 			// No need to check backwards. We come straight from a match

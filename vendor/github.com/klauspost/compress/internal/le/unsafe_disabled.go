@@ -1,4 +1,4 @@
-//go:build !(amd64 || arm64 || ppc64le || riscv64) || nounsafe || purego
+//go:build !(amd64 || arm64 || ppc64le || riscv64) || nounsafe || purego || appengine
 
 package le
 

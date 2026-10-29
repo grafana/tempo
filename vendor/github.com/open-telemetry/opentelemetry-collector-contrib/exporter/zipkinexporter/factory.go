@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter/internal/metadata"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/coredistro"
 )
 
 const (
@@ -53,7 +52,6 @@ func createTracesExporter(
 	set exporter.Settings,
 	cfg component.Config,
 ) (exporter.Traces, error) {
-	coredistro.WarnRemoval(set.TelemetrySettings, set.BuildInfo, "v0.167.0", coredistro.JaegerZipkinCoda)
 	zc := cfg.(*Config)
 
 	ze, err := createZipkinExporter(zc, set.TelemetrySettings)

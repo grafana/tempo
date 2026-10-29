@@ -15,21 +15,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type isListArguments[K any] struct {
+type IsListArguments[K any] struct {
 	Target ottl.Getter[K]
 }
 
-// NewIsListFactory returns a factory for the IsList OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#islist
 func NewIsListFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("IsList", &isListArguments[K]{}, createIsListFunction[K])
+	return ottl.NewFactory("IsList", &IsListArguments[K]{}, createIsListFunction[K])
 }
 
 func createIsListFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*isListArguments[K])
+	args, ok := oArgs.(*IsListArguments[K])
 
 	if !ok {
-		return nil, errors.New("IsListFactory args must be of type *isListArguments[K]")
+		return nil, errors.New("IsListFactory args must be of type *IsListArguments[K]")
 	}
 
 	return isList(args.Target), nil

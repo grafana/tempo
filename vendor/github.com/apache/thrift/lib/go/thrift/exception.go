@@ -35,7 +35,8 @@ type TException interface {
 func PrependError(prepend string, err error) error {
 	msg := prepend + err.Error()
 
-	if te, ok := errors.AsType[TException](err); ok {
+	var te TException
+	if errors.As(err, &te) {
 		switch te.TExceptionType() {
 		case TExceptionTypeTransport:
 			if t, ok := err.(TTransportException); ok {
@@ -46,7 +47,8 @@ func PrependError(prepend string, err error) error {
 				return prependTProtocolException(prepend, t)
 			}
 		case TExceptionTypeApplication:
-			if t, ok := errors.AsType[TApplicationException](err); ok {
+			var t TApplicationException
+			if errors.As(err, &t) {
 				return NewTApplicationException(t.TypeId(), msg)
 			}
 		}

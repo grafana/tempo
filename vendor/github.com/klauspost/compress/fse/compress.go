@@ -659,8 +659,7 @@ func (s *Scratch) validateNorm() (err error) {
 		if v >= 0 {
 			total += int(v)
 		} else {
-			// -1 takes one cell. Adding -v would let a wrapped -32768 pass.
-			total++
+			total -= int(v)
 		}
 	}
 	defer func() {

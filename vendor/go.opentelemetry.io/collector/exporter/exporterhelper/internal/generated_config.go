@@ -17,7 +17,6 @@ type TimeoutConfig struct {
 }
 
 // Validate validates the TimeoutConfig fields according to schema annotations.
-// Called by confmap on config resolution. Don't call it explicitly to avoid duplicate errors.
 func (c *TimeoutConfig) Validate() error {
 	var err error
 
@@ -28,8 +27,7 @@ func (c *TimeoutConfig) Validate() error {
 	return err
 }
 
-// NewDefaultTimeoutConfig returns a new TimeoutConfig with its default values applied.
-// Prefer this over an empty struct literal so default changes stay in sync automatically.
+// NewDefaultTimeoutConfig returns a new TimeoutConfig with default values consistent with the annotations in the schema.
 func NewDefaultTimeoutConfig() TimeoutConfig {
 	return TimeoutConfig{
 		Timeout: 5 * time.Second,

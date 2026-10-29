@@ -8,14 +8,7 @@ import (
 	"unsafe"
 )
 
-// structReturnInMemory reports whether a struct return value is returned through
-// a caller-allocated hidden pointer passed as the first integer argument.
-// Aggregates larger than two eightbytes are returned in memory.
-func structReturnInMemory(outType reflect.Type) bool {
-	return outType.Size() > maxRegAllocStructSize
-}
-
-func getStruct(outType reflect.Type, syscall syscallArgs) reflect.Value {
+func getStruct(outType reflect.Type, syscall syscall15Args) reflect.Value {
 	outSize := outType.Size()
 
 	switch {
@@ -34,10 +27,10 @@ func getStruct(outType reflect.Type, syscall syscallArgs) reflect.Value {
 
 		// Homogeneous float aggregates override integer regs
 		if isAllFloats, numFields := isAllSameFloat(outType); isAllFloats {
-			if abiField(outType, 0).Type.Kind() == reflect.Float32 {
+			if outType.Field(0).Type.Kind() == reflect.Float32 {
 				// float32 values in FP regs
 				f := []uintptr{syscall.f1, syscall.f2, syscall.f3, syscall.f4}
-				for i := range numFields {
+				for i := 0; i < numFields; i++ {
 					*(*uint32)(unsafe.Pointer(&buf[i*4])) = uint32(f[i])
 				}
 			} else {
@@ -146,13 +139,5 @@ func collectStackArgs(
 }
 
 func bundleStackArgs(stackArgs []reflect.Value, addStack func(uintptr)) {
-	panic("purego: bundleStackArgs should not be called on s390x")
-}
-
-func getCallbackStruct(inType reflect.Type, frame unsafe.Pointer, floatsN *int, intsN *int, stackSlot *int, stackByteOffset *uintptr) reflect.Value {
-	panic("purego: struct callback arguments are not supported on s390x")
-}
-
-func setStruct(a *callbackArgs, ret reflect.Value) {
-	panic("purego: struct returns are not supported on s390x")
+	panic("bundleStackArgs not supported on S390X")
 }

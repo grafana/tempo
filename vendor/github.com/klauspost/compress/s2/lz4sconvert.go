@@ -21,7 +21,6 @@ import (
 // For Min Match of 4 bytes, Copy length value 1-15 means length 4-18 with 18 bytes adding an extra byte.
 // ONLY "Min match of 4 bytes" is supported.
 type LZ4sConverter struct {
-	noAsm bool
 }
 
 // ConvertBlock will convert an LZ4s block and append it as an S2
@@ -38,7 +37,7 @@ func (l *LZ4sConverter) ConvertBlock(dst, src []byte) ([]byte, int, error) {
 
 	s, d := 0, len(dst)
 	dst = dst[:cap(dst)]
-	if !debug && hasAsm && !l.noAsm {
+	if !debug && hasAsm {
 		res, sz := cvtLZ4sBlockAsm(dst[d:], src)
 		if res < 0 {
 			const (
@@ -102,8 +101,7 @@ func (l *LZ4sConverter) ConvertBlock(dst, src []byte) ([]byte, int, error) {
 		}
 		s++
 		if ll > 0 {
-			// Leave room for a 5-byte literal header and an 8-byte copy.
-			if d+ll > len(dst)-13 {
+			if d+ll > dLimit {
 				return nil, 0, ErrDstTooSmall
 			}
 			if debug {
@@ -220,13 +218,11 @@ func (l *LZ4sConverter) ConvertBlock(dst, src []byte) ([]byte, int, error) {
 					dst[2] = uint8(length >> 0)
 					dst[1] = 0
 					dst[0] = 7<<2 | tagCopy1
-					d += 5
 					if left > 0 {
-						// The loop condition checks room for the next chunk.
-						dst = dst[5:]
-						length = left
-						continue
+						d += 5 + emitRepeat16(dst[5:], offset, left)
+						break
 					}
+					d += 5
 					break
 				}
 			}
@@ -301,7 +297,7 @@ func (l *LZ4sConverter) ConvertBlockSnappy(dst, src []byte) ([]byte, int, error)
 	s, d := 0, len(dst)
 	dst = dst[:cap(dst)]
 	// Use assembly when possible
-	if !debug && hasAsm && !l.noAsm {
+	if !debug && hasAsm {
 		res, sz := cvtLZ4sBlockSnappyAsm(dst[d:], src)
 		if res < 0 {
 			const (

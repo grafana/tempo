@@ -182,8 +182,8 @@ func (r *otlpReceiver) startHTTPServer(ctx context.Context, host component.Host)
 	return nil
 }
 
-// Start runs the OTLP receiver's gRPC and HTTP servers, serving
-// traces, metrics, logs (and profiles when enabled).
+// Start runs the trace receiver on the gRPC server. Currently
+// it also enables the metrics receiver too.
 func (r *otlpReceiver) Start(ctx context.Context, host component.Host) error {
 	if err := r.startGRPCServer(ctx, host); err != nil {
 		return err

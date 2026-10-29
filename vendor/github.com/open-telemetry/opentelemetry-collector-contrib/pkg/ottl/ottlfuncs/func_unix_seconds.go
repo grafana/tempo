@@ -10,32 +10,30 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type unixSecondsArguments[K any] struct {
+type UnixSecondsArguments[K any] struct {
 	Time ottl.TimeGetter[K]
 }
 
-// NewUnixSecondsFactory returns a factory for the UnixSeconds OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#unixseconds
 func NewUnixSecondsFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("UnixSeconds", &unixSecondsArguments[K]{}, createUnixSecondsFunction[K])
+	return ottl.NewFactory("UnixSeconds", &UnixSecondsArguments[K]{}, createUnixSecondsFunction[K])
 }
 
 func createUnixSecondsFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*unixSecondsArguments[K])
+	args, ok := oArgs.(*UnixSecondsArguments[K])
 
 	if !ok {
-		return nil, errors.New("UnixSecondsFactory args must be of type *unixSecondsArguments[K]")
+		return nil, errors.New("UnixSecondsFactory args must be of type *UnixSecondsArguments[K]")
 	}
 
-	return unixSeconds(args.Time), nil
+	return UnixSeconds(args.Time)
 }
 
-func unixSeconds[K any](inputTime ottl.TimeGetter[K]) ottl.ExprFunc[K] {
+func UnixSeconds[K any](inputTime ottl.TimeGetter[K]) (ottl.ExprFunc[K], error) {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		t, err := inputTime.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
 		return t.Unix(), nil
-	}
+	}, nil
 }

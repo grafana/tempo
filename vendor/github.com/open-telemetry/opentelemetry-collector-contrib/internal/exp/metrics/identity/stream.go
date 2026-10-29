@@ -8,7 +8,8 @@ import (
 	"hash"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/xpdata/xhash"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil"
 )
 
 type Stream struct {
@@ -31,7 +32,7 @@ func (s Stream) String() string {
 }
 
 func OfStream[DataPoint attrPoint](m Metric, dp DataPoint) Stream {
-	return Stream{metric: m, attrs: xhash.MapHash(dp.Attributes())}
+	return Stream{metric: m, attrs: pdatautil.MapHash(dp.Attributes())}
 }
 
 type attrPoint interface {

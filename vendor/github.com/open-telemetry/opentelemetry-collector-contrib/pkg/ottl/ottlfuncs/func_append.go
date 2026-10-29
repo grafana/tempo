@@ -13,20 +13,18 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type appendArguments[K any] struct {
+type AppendArguments[K any] struct {
 	Target ottl.GetSetter[K]
 	Value  ottl.Optional[ottl.Getter[K]]
 	Values ottl.Optional[[]ottl.Getter[K]]
 }
 
-// NewAppendFactory returns a factory for the append OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#append
 func NewAppendFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("append", &appendArguments[K]{}, createAppendFunction[K])
+	return ottl.NewFactory("append", &AppendArguments[K]{}, createAppendFunction[K])
 }
 
 func createAppendFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*appendArguments[K])
+	args, ok := oArgs.(*AppendArguments[K])
 	if !ok {
 		return nil, errors.New("AppendFactory args must be of type *Appendrguments[K]")
 	}

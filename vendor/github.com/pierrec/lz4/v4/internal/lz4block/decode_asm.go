@@ -1,4 +1,8 @@
-//go:build (amd64 || arm || arm64) && gc && !noasm
+//go:build (amd64 || arm || arm64) && !appengine && gc && !noasm
+// +build amd64 arm arm64
+// +build !appengine
+// +build gc
+// +build !noasm
 
 package lz4block
 

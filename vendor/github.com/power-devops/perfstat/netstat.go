@@ -42,9 +42,7 @@ func NetBufferStat() ([]NetBuffer, error) {
 	nblen := C.sizeof_perfstat_netbuffer_t * C.ulong(numbuf)
 	nbuf = (*C.perfstat_netbuffer_t)(C.malloc(nblen))
 	defer C.free(unsafe.Pointer(nbuf))
-	cstr := C.CString(C.FIRST_NETBUFFER)
-	C.strcpy(&first.name[0], cstr)
-	C.free(unsafe.Pointer(cstr))
+	C.strcpy(&first.name[0], C.CString(C.FIRST_NETBUFFER))
 	r := C.perfstat_netbuffer(&first, nbuf, C.sizeof_perfstat_netbuffer_t, numbuf)
 	if r < 0 {
 		return nil, fmt.Errorf("perfstat_netbuffer() error")
@@ -74,9 +72,7 @@ func NetIfaceStat() ([]NetIface, error) {
 	iflen := C.sizeof_perfstat_netinterface_t * C.ulong(numif)
 	nif = (*C.perfstat_netinterface_t)(C.malloc(iflen))
 	defer C.free(unsafe.Pointer(nif))
-	cstr := C.CString(C.FIRST_NETINTERFACE)
-	C.strcpy(&first.name[0], cstr)
-	C.free(unsafe.Pointer(cstr))
+	C.strcpy(&first.name[0], C.CString(C.FIRST_NETINTERFACE))
 	r := C.perfstat_netinterface(&first, nif, C.sizeof_perfstat_netinterface_t, numif)
 	if r < 0 {
 		return nil, fmt.Errorf("perfstat_netinterface() error")
@@ -106,9 +102,7 @@ func NetAdapterStat() ([]NetAdapter, error) {
 	adplen := C.sizeof_perfstat_netadapter_t * C.ulong(numad)
 	adapters = (*C.perfstat_netadapter_t)(C.malloc(adplen))
 	defer C.free(unsafe.Pointer(adapters))
-	cstr := C.CString(C.FIRST_NETINTERFACE)
-	C.strcpy(&first.name[0], cstr)
-	C.free(unsafe.Pointer(cstr))
+	C.strcpy(&first.name[0], C.CString(C.FIRST_NETINTERFACE))
 	r := C.perfstat_netadapter(&first, adapters, C.sizeof_perfstat_netadapter_t, numad)
 	if r < 0 {
 		return nil, fmt.Errorf("perfstat_netadapter() error")

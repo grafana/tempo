@@ -21,8 +21,7 @@ type refMetrics struct {
 	consumer consumer.Metrics
 }
 
-// ConsumeMetrics takes pipeline ownership of the data and releases it once the downstream consumer
-// returns. It is a no-op if the data is already owned by the pipeline.
+// ConsumeMetrics measures telemetry before calling ConsumeMetrics because the data may be mutated downstream
 func (c refMetrics) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
 	if pref.MarkPipelineOwnedMetrics(ld) {
 		defer pref.UnrefMetrics(ld)

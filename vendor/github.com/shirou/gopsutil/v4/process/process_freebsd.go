@@ -348,10 +348,6 @@ func (*Process) NumFDsWithContext(_ context.Context) (int32, error) {
 	return 0, common.ErrNotImplementedError
 }
 
-func (*Process) EnvironWithContext(_ context.Context) ([]string, error) {
-	return nil, common.ErrNotImplementedError
-}
-
 func (p *Process) getKProc() (*KinfoProc, error) {
 	mib := []int32{CTLKern, KernProc, KernProcPID, p.Pid}
 

@@ -1,11 +1,11 @@
 //go:build windows
+// +build windows
 
 package winio
 
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf16"
@@ -15,9 +15,6 @@ import (
 const (
 	reparseTagMountPoint = 0xA0000003
 	reparseTagSymlink    = 0xA000000C
-	reparseTagLxSymlink  = 0xA000001D // WSL/MSYS2 native symlinks
-
-	lxSymlinkVersion = 2 // LX symlink format version
 )
 
 type reparseDataBuffer struct {
@@ -34,7 +31,6 @@ type reparseDataBuffer struct {
 type ReparsePoint struct {
 	Target       string
 	IsMountPoint bool
-	IsLxSymlink  bool // True if this is an LX symlink (WSL/MSYS2 native)
 }
 
 // UnsupportedReparsePointError is returned when trying to decode a non-symlink or
@@ -55,19 +51,14 @@ func DecodeReparsePoint(b []byte) (*ReparsePoint, error) {
 }
 
 func DecodeReparsePointData(tag uint32, b []byte) (*ReparsePoint, error) {
+	isMountPoint := false
 	switch tag {
 	case reparseTagMountPoint:
-		return decodeWindowsReparsePointData(b, true)
+		isMountPoint = true
 	case reparseTagSymlink:
-		return decodeWindowsReparsePointData(b, false)
-	case reparseTagLxSymlink:
-		return decodeLxReparsePointData(b)
 	default:
 		return nil, &UnsupportedReparsePointError{tag}
 	}
-}
-
-func decodeWindowsReparsePointData(b []byte, isMountPoint bool) (*ReparsePoint, error) {
 	nameOffset := 8 + binary.LittleEndian.Uint16(b[4:6])
 	if !isMountPoint {
 		nameOffset += 4
@@ -78,56 +69,16 @@ func decodeWindowsReparsePointData(b []byte, isMountPoint bool) (*ReparsePoint, 
 	if err != nil {
 		return nil, err
 	}
-	return &ReparsePoint{Target: string(utf16.Decode(name)), IsMountPoint: isMountPoint, IsLxSymlink: false}, nil
-}
-
-func decodeLxReparsePointData(b []byte) (*ReparsePoint, error) {
-	// LX symlinks store the target as UTF-8 after a 4-byte version field
-	if len(b) < 4 {
-		return nil, errors.New("LX symlink buffer too short")
-	}
-	targetBytes := b[4:]
-	for i, c := range targetBytes {
-		if c == 0 {
-			targetBytes = targetBytes[:i]
-			break
-		}
-	}
-	target := string(targetBytes)
-	return &ReparsePoint{Target: target, IsMountPoint: false, IsLxSymlink: true}, nil
+	return &ReparsePoint{string(utf16.Decode(name)), isMountPoint}, nil
 }
 
 func isDriveLetter(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
-// EncodeReparsePoint encodes a Win32 REPARSE_DATA_BUFFER structure describing a symlink,
-// mount point, or LX symlink.
+// EncodeReparsePoint encodes a Win32 REPARSE_DATA_BUFFER structure describing a symlink or
+// mount point.
 func EncodeReparsePoint(rp *ReparsePoint) []byte {
-	if rp == nil {
-		return nil
-	}
-	if rp.IsLxSymlink {
-		return encodeLxReparsePoint(rp)
-	}
-	return encodeWindowsReparsePoint(rp)
-}
-
-func encodeLxReparsePoint(rp *ReparsePoint) []byte {
-	// LX symlink: 4-byte version + UTF-8 target
-	targetBytes := []byte(rp.Target)
-	dataLength := 4 + len(targetBytes)
-
-	var b bytes.Buffer
-	_ = binary.Write(&b, binary.LittleEndian, uint32(reparseTagLxSymlink))
-	_ = binary.Write(&b, binary.LittleEndian, uint16(dataLength))
-	_ = binary.Write(&b, binary.LittleEndian, uint16(0))
-	_ = binary.Write(&b, binary.LittleEndian, uint32(lxSymlinkVersion))
-	_, _ = b.Write(targetBytes)
-	return b.Bytes()
-}
-
-func encodeWindowsReparsePoint(rp *ReparsePoint) []byte {
 	// Generate an NT path and determine if this is a relative path.
 	var ntTarget string
 	relative := false

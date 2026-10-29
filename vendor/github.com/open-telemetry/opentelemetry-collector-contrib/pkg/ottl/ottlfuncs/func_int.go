@@ -10,21 +10,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type intArguments[K any] struct {
+type IntArguments[K any] struct {
 	Target ottl.IntLikeGetter[K]
 }
 
-// NewIntFactory returns a factory for the Int OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#int
 func NewIntFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Int", &intArguments[K]{}, createIntFunction[K])
+	return ottl.NewFactory("Int", &IntArguments[K]{}, createIntFunction[K])
 }
 
 func createIntFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*intArguments[K])
+	args, ok := oArgs.(*IntArguments[K])
 
 	if !ok {
-		return nil, errors.New("IntFactory args must be of type *intArguments[K]")
+		return nil, errors.New("IntFactory args must be of type *IntArguments[K]")
 	}
 
 	return intFunc(args.Target), nil

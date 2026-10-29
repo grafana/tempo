@@ -14,30 +14,28 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type truncateAllArguments[K any] struct {
+type TruncateAllArguments[K any] struct {
 	Target           ottl.PMapGetSetter[K]
 	Limit            int64
 	Utf8Safe         ottl.Optional[bool]
 	TruncationMarker ottl.Optional[string]
 }
 
-// NewTruncateAllFactory returns a factory for the truncate_all OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#truncate_all
 func NewTruncateAllFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("truncate_all", &truncateAllArguments[K]{}, createTruncateAllFunction[K])
+	return ottl.NewFactory("truncate_all", &TruncateAllArguments[K]{}, createTruncateAllFunction[K])
 }
 
 func createTruncateAllFunction[K any](fCtx ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*truncateAllArguments[K])
+	args, ok := oArgs.(*TruncateAllArguments[K])
 
 	if !ok {
-		return nil, errors.New("TruncateAllFactory args must be of type *truncateAllArguments[K]")
+		return nil, errors.New("TruncateAllFactory args must be of type *TruncateAllArguments[K]")
 	}
 
-	return truncateAll(args.Target, args.Limit, args.Utf8Safe, args.TruncationMarker, fCtx.Set.Logger)
+	return TruncateAll(args.Target, args.Limit, args.Utf8Safe, args.TruncationMarker, fCtx.Set.Logger)
 }
 
-func truncateAll[K any](target ottl.PMapGetSetter[K], limit int64, utf8Safe ottl.Optional[bool], truncationMarker ottl.Optional[string], logger *zap.Logger) (ottl.ExprFunc[K], error) {
+func TruncateAll[K any](target ottl.PMapGetSetter[K], limit int64, utf8Safe ottl.Optional[bool], truncationMarker ottl.Optional[string], logger *zap.Logger) (ottl.ExprFunc[K], error) {
 	if limit < 0 {
 		return nil, fmt.Errorf("invalid limit for truncate_all function, %d cannot be negative", limit)
 	}

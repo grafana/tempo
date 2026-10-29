@@ -12,20 +12,18 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type stringifyAllArguments[K any] struct {
+type StringifyAllArguments[K any] struct {
 	Target ottl.PMapGetSetter[K]
 }
 
-// NewStringifyAllFactory returns a factory for the stringify_all OTTL function.
-// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#stringify_all
 func NewStringifyAllFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("stringify_all", &stringifyAllArguments[K]{}, createStringifyAllFunction[K])
+	return ottl.NewFactory("stringify_all", &StringifyAllArguments[K]{}, createStringifyAllFunction[K])
 }
 
 func createStringifyAllFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*stringifyAllArguments[K])
+	args, ok := oArgs.(*StringifyAllArguments[K])
 	if !ok {
-		return nil, errors.New("StringifyAllFactory args must be of type *stringifyAllArguments[K]")
+		return nil, errors.New("StringifyAllFactory args must be of type *StringifyAllArguments[K]")
 	}
 
 	return stringifyAll(args.Target), nil
