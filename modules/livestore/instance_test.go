@@ -75,7 +75,11 @@ func TestInstanceCreatesHeadBlockLazily(t *testing.T) {
 		drained, err := inst.cutIdleTraces(t.Context(), false)
 		require.NoError(t, err)
 		require.True(t, drained)
-		require.Nil(t, inst.blocks.Load().headBlock)
+		require.NotNil(t, inst.blocks.Load().headBlock)
+		require.Zero(t, inst.blocks.Load().headBlock.DataLength())
+		require.Equal(t, uint64(1), inst.liveTraces.Len())
+		require.Nil(t, inst.toFlush)
+		requireTraceInLiveStore(t, ls, id, trace)
 
 		drained, err = inst.cutIdleTraces(t.Context(), true)
 		require.NoError(t, err)

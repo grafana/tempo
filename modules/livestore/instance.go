@@ -352,10 +352,16 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 	span.AddEvent("acquired liveTracesMtx")
 
 	// Set metrics before cutting (similar to ingester)
-	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
+	liveTraceCount := i.liveTraces.Len()
+	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(liveTraceCount))
 	metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
-	now := time.Now()
-	if i.blocks.Load().headBlock == nil && (len(i.toFlush) > 0 || i.liveTraces.HasIdle(now, immediate)) {
+	i.liveTracesMtx.Unlock()
+	span.AddEvent("released liveTracesMtx")
+
+	if liveTraceCount == 0 && len(i.toFlush) == 0 {
+		return true, nil
+	}
+	if i.blocks.Load().headBlock == nil {
 		// Create the writer before CutIdle detaches traces or toFlush advances,
 		// so a failed allocation leaves all unwritten traces retryable.
 		i.blocksMtx.Lock()
@@ -365,18 +371,18 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 		}
 		i.blocksMtx.Unlock()
 		if err != nil {
-			i.liveTracesMtx.Unlock()
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return false, err
 		}
 	}
 	if len(i.toFlush) == 0 {
-		i.toFlush = i.liveTraces.CutIdle(now, immediate)
+		i.liveTracesMtx.Lock()
+		span.AddEvent("acquired liveTracesMtx")
+		i.toFlush = i.liveTraces.CutIdle(time.Now(), immediate)
+		i.liveTracesMtx.Unlock()
+		span.AddEvent("released liveTracesMtx")
 	}
-
-	i.liveTracesMtx.Unlock()
-	span.AddEvent("released liveTracesMtx")
 
 	var tracesCut int
 	defer func() { span.SetAttributes(attribute.Int("traces_cut", tracesCut)) }()
