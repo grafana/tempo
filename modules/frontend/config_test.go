@@ -20,7 +20,7 @@ func TestQueryTrackerConfig(t *testing.T) {
 	cfg.RegisterFlagsAndApplyDefaults("query-frontend", fs)
 
 	assert.False(t, cfg.QueryTracker.Enabled)
-	assert.Equal(t, 20, cfg.QueryTracker.MaxQueriesPerTenant)
+	assert.Equal(t, 100, cfg.QueryTracker.MaxQueriesPerTenant)
 	assert.Equal(t, 4096, cfg.QueryTracker.MaxQueryTextBytes)
 	assert.NoError(t, fs.Parse([]string{"-query-frontend.query-tracker.enabled=true", "-query-frontend.query-tracker.max-queries-per-tenant=3"}))
 	assert.True(t, cfg.QueryTracker.Enabled)
