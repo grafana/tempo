@@ -11,9 +11,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/tempo/v3/pkg/util"
+	tempo_log "github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 type trackedQuery struct {
@@ -44,6 +49,8 @@ type queryTracker struct {
 	tenants             sync.Map
 	maxQueriesPerTenant int
 	maxQueryTextBytes   int
+	droppedQueries      *prometheus.CounterVec
+	droppedLogger       *tempo_log.RateLimitedLogger
 }
 
 type tenantQueryRegistry struct {
@@ -52,13 +59,18 @@ type tenantQueryRegistry struct {
 	dropped atomic.Uint64
 }
 
-func newQueryTracker(cfg QueryTrackerConfig) tracker {
+func newQueryTracker(cfg QueryTrackerConfig, logger log.Logger, registerer prometheus.Registerer) tracker {
 	if !cfg.Enabled {
 		return noOpQueryTracker{}
 	}
 	return &queryTracker{
 		maxQueriesPerTenant: cfg.MaxQueriesPerTenant,
 		maxQueryTextBytes:   cfg.MaxQueryTextBytes,
+		droppedQueries: promauto.With(registerer).NewCounterVec(prometheus.CounterOpts{
+			Name: "tempo_query_frontend_query_tracker_dropped_total",
+			Help: "Total number of query tracking entries dropped because the per-tenant limit was reached. The queries still execute.",
+		}, []string{metricLabelTenant}),
+		droppedLogger: tempo_log.NewRateLimitedLogger(1, level.Warn(logger)),
 	}
 }
 
@@ -79,6 +91,8 @@ func (t *queryTracker) track(ctx context.Context, method, path, query string) fu
 		registry := value.(*tenantQueryRegistry)
 		if !registry.reserve(t.maxQueriesPerTenant) {
 			registry.dropped.Add(1)
+			t.droppedQueries.WithLabelValues(tenantID).Inc()
+			t.droppedLogger.Log("msg", "query tracker capacity reached; query continues without tracking", "tenant", tenantID, "max_queries_per_tenant", t.maxQueriesPerTenant)
 			continue
 		}
 
@@ -181,11 +195,11 @@ func (t *queryTracker) tenantsHandler() http.HandlerFunc {
 
 func (t *queryTracker) tenantHandler() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tenantId := mux.Vars(r)["tenant"]
-		if tenantId == "" {
+		tenantID := mux.Vars(r)["tenant"]
+		if tenantID == "" {
 			http.Error(w, "tenant ID can't be empty", http.StatusBadRequest)
 			return
 		}
-		util.RenderHTTPResponse(w, queryTrackerPage{Now: time.Now(), Tenant: tenantId, Queries: t.trackedQueries(tenantId), MaxQueriesPerTenant: t.maxQueriesPerTenant, MaxQueryTextBytes: t.maxQueryTextBytes}, queryTrackerTemplate, r)
+		util.RenderHTTPResponse(w, queryTrackerPage{Now: time.Now(), Tenant: tenantID, Queries: t.trackedQueries(tenantID), MaxQueriesPerTenant: t.maxQueriesPerTenant, MaxQueryTextBytes: t.maxQueryTextBytes}, queryTrackerTemplate, r)
 	})
 }

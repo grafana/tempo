@@ -250,7 +250,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, o, logger, dataAccessController) // Reuses the same pipeline
 	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, o, logger, dataAccessController)
 
-	queryTrackerInstance := newQueryTracker(cfg.QueryTracker)
+	queryTrackerInstance := newQueryTracker(cfg.QueryTracker, logger, registerer)
 	trackedHandler := func(rt http.RoundTripper) http.Handler {
 		return newHandlerWithTracker(cfg.Config.LogQueryRequestHeaders, rt, logger, queryTrackerInstance)
 	}

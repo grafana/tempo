@@ -209,7 +209,7 @@ func TestDisabledQueryTrackerDoesNotTrackFrontendRequests(t *testing.T) {
 }
 
 func TestQueryTrackerShowsActiveStreamingQuery(t *testing.T) {
-	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true, MaxQueriesPerTenant: 2, MaxQueryTextBytes: 4096}).(*queryTracker)
+	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true, MaxQueriesPerTenant: 2, MaxQueryTextBytes: 4096}, log.NewNopLogger(), nil).(*queryTracker)
 	entered, release := make(chan struct{}), make(chan struct{})
 	ctx, cancel := context.WithTimeout(user.InjectOrgID(context.Background(), "tenant-a"), 5*time.Second)
 	defer cancel()
@@ -265,7 +265,7 @@ func TestQueryTrackerShowsActiveStreamingQuery(t *testing.T) {
 }
 
 func TestQueryTrackerCapDoesNotBlockQueries(t *testing.T) {
-	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true, MaxQueriesPerTenant: 1, MaxQueryTextBytes: 3}).(*queryTracker)
+	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true, MaxQueriesPerTenant: 1, MaxQueryTextBytes: 3}, log.NewNopLogger(), nil).(*queryTracker)
 	ctx := user.InjectOrgID(context.Background(), "tenant-a")
 	stop := tracker.track(ctx, "GET", "/api/search", "abé")
 	defer stop()

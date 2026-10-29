@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,13 +10,72 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 )
+
+func TestQueryTrackerDroppedObservability(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var logs bytes.Buffer
+		reg := prometheus.NewPedanticRegistry()
+		tracker := newQueryTracker(QueryTrackerConfig{
+			Enabled: true, MaxQueriesPerTenant: 1,
+		}, log.NewLogfmtLogger(&logs), reg).(*queryTracker)
+		ctxA := user.InjectOrgID(context.Background(), "tenant-a")
+		ctxB := user.InjectOrgID(context.Background(), "tenant-b")
+		stopA := tracker.track(ctxA, http.MethodGet, "/api/search", "{}")
+		defer stopA()
+		stopB := tracker.track(ctxB, http.MethodGet, "/api/search", "{}")
+		defer stopB()
+		families, err := reg.Gather()
+		require.NoError(t, err)
+		require.Empty(t, families)
+
+		for range 3 {
+			tracker.track(ctxA, http.MethodGet, "/api/search", "not logged")()
+		}
+		for range 2 {
+			tracker.track(ctxB, http.MethodGet, "/api/search", "not logged")()
+		}
+		require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(`
+# HELP tempo_query_frontend_query_tracker_dropped_total Total number of query tracking entries dropped because the per-tenant limit was reached. The queries still execute.
+# TYPE tempo_query_frontend_query_tracker_dropped_total counter
+tempo_query_frontend_query_tracker_dropped_total{tenant="tenant-a"} 3
+tempo_query_frontend_query_tracker_dropped_total{tenant="tenant-b"} 2
+`), "tempo_query_frontend_query_tracker_dropped_total"))
+		require.Equal(t, "level=warn msg=\"query tracker capacity reached; query continues without tracking\" tenant=tenant-a max_queries_per_tenant=1\n", logs.String())
+		require.Len(t, tracker.trackedQueries("tenant-a"), 1)
+		require.Len(t, tracker.trackedQueries("tenant-b"), 1)
+
+		time.Sleep(time.Second)
+		tracker.track(ctxB, http.MethodGet, "/api/search", "{}")()
+		require.Equal(t, float64(3), testutil.ToFloat64(tracker.droppedQueries.WithLabelValues("tenant-b")))
+		require.Equal(t, 2, strings.Count(logs.String(), "\n"))
+		require.Contains(t, logs.String(), "tenant=tenant-b max_queries_per_tenant=1\n")
+
+		stopA()
+		tracker.track(ctxA, http.MethodGet, "/api/search", "{}")()
+		require.Equal(t, float64(3), testutil.ToFloat64(tracker.droppedQueries.WithLabelValues("tenant-a")))
+	})
+}
+
+func TestDisabledQueryTrackerDoesNotRegisterDropMetrics(t *testing.T) {
+	var logs bytes.Buffer
+	reg := prometheus.NewPedanticRegistry()
+	tracker := newQueryTracker(QueryTrackerConfig{}, log.NewLogfmtLogger(&logs), reg)
+	tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", "{}")()
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	require.Empty(t, families)
+	require.Empty(t, logs.String())
+}
 
 type recordingQueryTracker struct {
 	pushes, pops                int
@@ -36,7 +96,7 @@ func (t *recordingQueryTracker) track(ctx context.Context, method, path, query s
 }
 
 func TestQueryTracker(t *testing.T) {
-	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true, MaxQueriesPerTenant: 1, MaxQueryTextBytes: 8}).(*queryTracker)
+	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true, MaxQueriesPerTenant: 1, MaxQueryTextBytes: 8}, log.NewNopLogger(), nil).(*queryTracker)
 	stop := tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", "{ .foo = \"é\" }")
 	defer stop()
 	tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), "GRPC", "/tempopb.StreamingQuerier/Search", "{ .bar }")()
@@ -89,7 +149,7 @@ func TestQueryTracker(t *testing.T) {
 	})
 
 	t.Run("disabled tracker is a no-op", func(t *testing.T) {
-		tracker := newQueryTracker(QueryTrackerConfig{})
+		tracker := newQueryTracker(QueryTrackerConfig{}, log.NewNopLogger(), nil)
 		tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", "query")()
 		_, ok := tracker.(noOpQueryTracker)
 		require.True(t, ok)
@@ -143,7 +203,7 @@ func TestHandlerTracksDecodedQueryText(t *testing.T) {
 }
 
 func TestQueryTrackerConcurrentTenants(t *testing.T) {
-	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true}).(*queryTracker)
+	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true}, log.NewNopLogger(), nil).(*queryTracker)
 	var wg sync.WaitGroup
 
 	for tenant := 0; tenant < 8; tenant++ {
@@ -162,7 +222,7 @@ func TestQueryTrackerConcurrentTenants(t *testing.T) {
 }
 
 func TestQueryTrackerTracksMultiTenantQueryForEachTenant(t *testing.T) {
-	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true}).(*queryTracker)
+	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true}, log.NewNopLogger(), nil).(*queryTracker)
 	stop := tracker.track(user.InjectOrgID(context.Background(), "tenant-a|tenant-b"), "GRPC", "/tempopb.StreamingQuerier/Search", "{}")
 	defer stop()
 
