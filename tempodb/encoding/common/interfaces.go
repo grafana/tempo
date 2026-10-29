@@ -55,9 +55,10 @@ type SearchOptions struct {
 // tempodb.SearchConfig{}.ApplyToOptions(&searchOpts). we should consolidate these.
 func DefaultSearchOptions() SearchOptions {
 	return SearchOptions{
-		ReadBufferCount: 32,
-		ReadBufferSize:  2 * 1024 * 1024,
-		ChunkSizeBytes:  4 * 1024 * 1024,
+		ReadBufferCount:         32,
+		ReadBufferSize:          2 * 1024 * 1024,
+		TraceByIDReadBufferSize: 512 * 1024,
+		ChunkSizeBytes:          4 * 1024 * 1024,
 	}
 }
 
