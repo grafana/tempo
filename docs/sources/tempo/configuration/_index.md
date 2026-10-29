@@ -2338,6 +2338,10 @@ multi:
 # is the total amount of bytes used for buffering when performing search on a parquet block.
 [read_buffer_size_bytes: <int> | default = 2097152]
 
+# Size of read buffers used when looking up a trace by ID in a vparquet5 block. A trace-by-ID lookup opens a
+# buffer per column read, so memory per lookup scales with this value.
+[trace_by_id_read_buffer_size_bytes: <int> | default = 524288]
+
 # Granular cache control settings for parquet metadata objects
 # Deprecated. See [Cache](#cache) section.
 cache_control:

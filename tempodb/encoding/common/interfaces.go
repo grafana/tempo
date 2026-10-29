@@ -43,6 +43,9 @@ type SearchOptions struct {
 	PrefetchTraceCount int    // How many traces to prefetch async.
 	ReadBufferCount    int
 	ReadBufferSize     int
+
+	// TraceByIDReadBufferSize overrides ReadBufferSize for trace-by-ID lookups. <= 0 keeps ReadBufferSize.
+	TraceByIDReadBufferSize int
 }
 
 // DefaultSearchOptions is used in a lot of places such as local ingester searches. It is important

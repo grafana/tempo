@@ -663,6 +663,7 @@ storage:
             prefetch_trace_count: 1000
             read_buffer_count: 32
             read_buffer_size_bytes: 2097152
+            trace_by_id_read_buffer_size_bytes: 524288
             cache_control:
                 footer: false
                 column_index: false
