@@ -77,6 +77,20 @@ func TestDisabledQueryTrackerDoesNotRegisterDropMetrics(t *testing.T) {
 	require.Empty(t, logs.String())
 }
 
+func TestQueryTrackerZeroMaxQueryTextBytesKeepsFullText(t *testing.T) {
+	tracker := newQueryTracker(QueryTrackerConfig{
+		Enabled: true, MaxQueryTextBytes: 0,
+	}, log.NewNopLogger(), nil).(*queryTracker)
+	query := "{ .message = \"" + strings.Repeat("é", 4096) + "\" }"
+	ctx := user.InjectOrgID(context.Background(), "tenant-a")
+	stop := tracker.track(ctx, http.MethodGet, "/api/search", query)
+	defer stop()
+
+	queries := tracker.trackedQueries("tenant-a")
+	require.Len(t, queries, 1)
+	require.Equal(t, query, queries[0].Query)
+}
+
 type recordingQueryTracker struct {
 	pushes, pops                int
 	method, path, query, tenant string
@@ -236,4 +250,44 @@ func TestQueryTrackerTracksMultiTenantQueryForEachTenant(t *testing.T) {
 	require.Len(t, tenantStatus, 2)
 	require.Equal(t, "tenant-a", tenantStatus[0].Name)
 	require.Equal(t, "tenant-b", tenantStatus[1].Name)
+}
+
+func TestQueryTrackerTracksMultiTenantQueryWhenOneTenantIsAtCap(t *testing.T) {
+	tracker := newQueryTracker(QueryTrackerConfig{
+		Enabled: true, MaxQueriesPerTenant: 1,
+	}, log.NewNopLogger(), nil).(*queryTracker)
+
+	stopA := tracker.track(user.InjectOrgID(context.Background(), "a"), http.MethodGet, "/api/search", "{ .existing = true }")
+	defer stopA()
+	existingQueries := tracker.trackedQueries("a")
+	require.Len(t, existingQueries, 1)
+
+	const query = "{ .status = \"error\" }"
+	stopMultiTenant := tracker.track(user.InjectOrgID(context.Background(), "a|b"), "GRPC", "/tempopb.StreamingQuerier/Search", query)
+	defer stopMultiTenant()
+
+	require.Equal(t, existingQueries, tracker.trackedQueries("a"))
+	queriesB := tracker.trackedQueries("b")
+	require.Len(t, queriesB, 1)
+	require.Equal(t, "b", queriesB[0].Tenant)
+	require.Equal(t, query, queriesB[0].Query)
+	require.Equal(t, []queryTrackerTenant{
+		{Name: "a", Active: 1, Dropped: 1},
+		{Name: "b", Active: 1, Dropped: 0},
+	}, tracker.trackedTenants())
+	require.Equal(t, float64(1), testutil.ToFloat64(tracker.droppedQueries.WithLabelValues("a")))
+	require.Equal(t, float64(0), testutil.ToFloat64(tracker.droppedQueries.WithLabelValues("b")))
+
+	stopMultiTenant()
+	require.Empty(t, tracker.trackedQueries("b"))
+	require.Equal(t, existingQueries, tracker.trackedQueries("a"))
+	require.Equal(t, []queryTrackerTenant{
+		{Name: "a", Active: 1, Dropped: 1},
+	}, tracker.trackedTenants())
+
+	stopA()
+	require.Empty(t, tracker.trackedQueries("a"))
+	require.Equal(t, []queryTrackerTenant{
+		{Name: "a", Active: 0, Dropped: 1},
+	}, tracker.trackedTenants())
 }

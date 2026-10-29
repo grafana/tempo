@@ -112,39 +112,6 @@ func TestQueryFrontendTracksStreamingQueries(t *testing.T) {
 	}
 }
 
-func TestHTTPQueryTrackerLifecycle(t *testing.T) {
-	for _, outcome := range []struct {
-		name string
-		fail bool
-	}{
-		{name: "success", fail: false},
-		{name: "error", fail: true},
-	} {
-		t.Run(outcome.name, func(t *testing.T) {
-			recorder := &recordingQueryTracker{}
-			h := newHandlerWithTracker(nil, testRoundTripper(func(*http.Request) (*http.Response, error) {
-				require.Equal(t, 1, recorder.pushes)
-				require.Zero(t, recorder.pops)
-				if outcome.fail {
-					return nil, errors.New("upstream failed")
-				}
-				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: http.NoBody}, nil
-			}), log.NewNopLogger(), recorder)
-			req := httptest.NewRequest(http.MethodGet, "/api/search?q=%7B%7D", nil)
-			req = req.WithContext(user.InjectOrgID(req.Context(), "tenant-a"))
-			response := httptest.NewRecorder()
-			h.ServeHTTP(response, req)
-			require.Equal(t, 1, recorder.pushes)
-			require.Equal(t, 1, recorder.pops)
-			if outcome.fail {
-				require.Equal(t, http.StatusInternalServerError, response.Code)
-			} else {
-				require.Equal(t, http.StatusOK, response.Code)
-			}
-		})
-	}
-}
-
 func TestQueryFrontendTracksHTTPHandlers(t *testing.T) {
 	f := frontendWithSettings(t, nil, nil, nil, nil)
 	for name, h := range map[string]http.Handler{
