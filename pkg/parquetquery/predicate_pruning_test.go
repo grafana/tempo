@@ -269,8 +269,23 @@ func (c *countingChunk) ColumnIndex() (parquet.ColumnIndex, error) {
 	return c.ColumnChunk.ColumnIndex()
 }
 
-// TestKeepColumnChunkReadsIndexOnlyWhenNeeded: a predicate whose chunk decision
-// the index cannot help must not pay for reading it.
+// Bounds and NullCount pass the footer stats through, as a file chunk has them.
+func (c *countingChunk) Bounds() (parquet.Value, parquet.Value, bool) {
+	if s, ok := c.ColumnChunk.(footerStats); ok {
+		return s.Bounds()
+	}
+	return parquet.Value{}, parquet.Value{}, false
+}
+
+func (c *countingChunk) NullCount() int64 {
+	if s, ok := c.ColumnChunk.(footerStats); ok {
+		return s.NullCount()
+	}
+	return 0
+}
+
+// TestKeepColumnChunkReadsIndexOnlyWhenNeeded: the footer stats decide the chunk, so
+// the index is only read for a chunk without them.
 func TestKeepColumnChunkReadsIndexOnlyWhenNeeded(t *testing.T) {
 	pf := createTestFile(t, 100) // plain int column A = 0..99
 
@@ -280,14 +295,14 @@ func TestKeepColumnChunkReadsIndexOnlyWhenNeeded(t *testing.T) {
 		keep       bool
 		indexReads int
 	}{
-		{"range predicate in range", NewIntBetweenPredicate(10, 20), true, 1},
-		{"range predicate out of range", NewIntBetweenPredicate(500, 600), false, 1},
-		{"nil predicate needs null counts", NewNilValuePredicate(), false, 1},
+		{"range predicate in range", NewIntBetweenPredicate(10, 20), true, 0},
+		{"range predicate out of range", NewIntBetweenPredicate(500, 600), false, 0},
+		{"nil predicate needs null counts", NewNilValuePredicate(), false, 0},
 		{"skip nils", NewSkipNilsPredicate(), true, 0},
 		{"callback keeps", NewCallbackPredicate(func() bool { return true }), true, 0},
 		{"callback prunes", NewCallbackPredicate(func() bool { return false }), false, 0},
 		{"or of rangeless branches", NewOrPredicate(NewSkipNilsPredicate(), NewCallbackPredicate(func() bool { return false })), true, 0},
-		{"or with a range branch", NewOrPredicate(NewCallbackPredicate(func() bool { return false }), NewIntBetweenPredicate(500, 600)), false, 1},
+		{"or with a range branch", NewOrPredicate(NewCallbackPredicate(func() bool { return false }), NewIntBetweenPredicate(500, 600)), false, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -299,7 +314,10 @@ func TestKeepColumnChunkReadsIndexOnlyWhenNeeded(t *testing.T) {
 	}
 }
 
-// noIndexChunk is a chunk written without a column index.
+// noStatsChunk is a chunk whose footer has no statistics.
+type noStatsChunk struct{ parquet.ColumnChunk }
+
+// noIndexChunk is a chunk written without a column index or footer statistics.
 type noIndexChunk struct{ parquet.ColumnChunk }
 
 func (noIndexChunk) ColumnIndex() (parquet.ColumnIndex, error) {
@@ -345,6 +363,7 @@ func TestKeepColumnChunkDecisions(t *testing.T) {
 	plainWithNulls := chunkOf(t, []testOptInt{{n(5)}, {nil}})
 	plainNoNulls := chunkOf(t, []testOptInt{{n(5)}, {n(6)}})
 	nullPageFirst := chunkOf(t, []testOptInt{{nil}, {n(5)}}, parquet.PageBufferSize(1))
+	allNulls := chunkOf(t, []testOptInt{{nil}, {nil}})
 	// Keeps nulls without supporting column index pruning.
 	keepsNulls := NewIncludeNilStringEqualPredicate(nil)
 
@@ -358,16 +377,25 @@ func TestKeepColumnChunkDecisions(t *testing.T) {
 		{"no filter", dictWithNulls, nil, true, 0},
 		{"a dictionary entry matches", dictWithNulls, NewStringInPredicate([]string{"abc"}), true, 0},
 		{"no entry matches and the filter rejects nulls", dictWithNulls, NewStringInPredicate([]string{"x"}), false, 0},
-		{"no entry matches, the filter keeps nulls and the chunk has some", dictWithNulls, NewNilValuePredicate(), true, 1},
-		{"no entry matches, the filter keeps nulls but the chunk has none", dictNoNulls, NewNilValuePredicate(), false, 1},
-		{"the null check runs for a filter without index pruning", dictWithNulls, keepsNulls, true, 1},
-		{"and prunes when there are no nulls", dictNoNulls, keepsNulls, false, 1},
+		{"footer nulls the filter keeps", dictWithNulls, NewNilValuePredicate(), true, 0},
+		{"footer has no nulls the filter keeps", dictNoNulls, NewNilValuePredicate(), false, 0},
+		{"the null check runs for a filter without index pruning", dictWithNulls, keepsNulls, true, 0},
+		{"and prunes when there are no nulls", dictNoNulls, keepsNulls, false, 0},
+		{"footer bounds pass the range", plainNoNulls, NewIntBetweenPredicate(0, 10), true, 0},
+		{"footer bounds fail the range", plainNoNulls, NewIntBetweenPredicate(50, 60), false, 0},
+		{"footer bounds rule out a dict chunk", dictNoNulls, NewStringInPredicate([]string{"zzz"}), false, 0},
+		{"footer bounds skip null pages", nullPageFirst, NewIntBetweenPredicate(0, 3), false, 0},
+		// Without footer stats the index decides.
+		{"no entry matches, the filter keeps nulls and the chunk has some", noStatsChunk{dictWithNulls}, NewNilValuePredicate(), true, 1},
+		{"no entry matches, the filter keeps nulls but the chunk has none", noStatsChunk{dictNoNulls}, NewNilValuePredicate(), false, 1},
 		{"no column index assumes nulls", noIndexChunk{dictNoNulls}, NewNilValuePredicate(), true, 1},
-		{"a page with nulls the filter keeps", plainWithNulls, NewNilValuePredicate(), true, 1},
-		{"page bounds pass the range", plainNoNulls, NewIntBetweenPredicate(0, 10), true, 1},
-		{"page bounds fail the range", plainNoNulls, NewIntBetweenPredicate(50, 60), false, 1},
+		{"a page with nulls the filter keeps", noStatsChunk{plainWithNulls}, NewNilValuePredicate(), true, 1},
+		{"page bounds pass the range", noStatsChunk{plainNoNulls}, NewIntBetweenPredicate(0, 10), true, 1},
+		{"page bounds fail the range", noStatsChunk{plainNoNulls}, NewIntBetweenPredicate(50, 60), false, 1},
 		// Its empty bounds read as 0, which would wrongly pass [0,3].
-		{"a null page is skipped for the range test", nullPageFirst, NewIntBetweenPredicate(0, 3), false, 1},
+		{"a null page is skipped for the range test", noStatsChunk{nullPageFirst}, NewIntBetweenPredicate(0, 3), false, 1},
+		{"an all-null chunk keeps nulls from the footer", allNulls, NewNilValuePredicate(), true, 0},
+		{"an all-null chunk fails a range from the footer", allNulls, NewIntBetweenPredicate(0, 10), false, 0},
 		{"no column index keeps the chunk", noIndexChunk{plainNoNulls}, NewIntBetweenPredicate(50, 60), true, 1},
 	}
 	for _, tt := range tests {

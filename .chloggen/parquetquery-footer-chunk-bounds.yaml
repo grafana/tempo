@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: storage
+
+note: Decide whether to read a parquet column chunk from its footer statistics, so a predicate no longer costs a column index request per chunk
+
+issues: []
+
+subtext:
+
+user: zhxiaogg
