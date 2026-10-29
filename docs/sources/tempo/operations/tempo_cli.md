@@ -1247,6 +1247,8 @@ You must provide exactly one of `--trace-id` or `--query`. Providing both, or ne
 
 `attr != nil` is rewritten to an existence check, so it selects spans that **have** the attribute, not the ones missing it. Likewise, a span missing the attribute never matches `!=` or `!~`: `span.foo != "bar"` selects spans whose `foo` is set to another value. None of these conditions can be used without a positive filter.
 
+On an array attribute, every operator matches if **any** element satisfies it, including `!=` and `!~`: `span.foo != "bar"` selects a span whose `foo` is `["bar", "baz"]`. Only an array whose every element is excluded, such as `["bar", "bar"]`, is kept. Run a dry run first when the attribute can hold arrays.
+
 A tenant can have only one redaction in progress at a time, dry runs included.
 A submission made while an earlier one is still running, or still in its quiescence period, is rejected.
 A trace-ID list larger than the cap therefore has to be redacted as successive batches rather than several at once, which is another reason to prefer `--query`.

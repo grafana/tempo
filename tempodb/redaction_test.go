@@ -279,10 +279,30 @@ func traceForService(id []byte, service string, spanAttrs ...*v1_common.KeyValue
 	}}}
 }
 
+// hexTraceIDs returns the sorted hex form of trace IDs, as survivingTraceIDs reports them.
+func hexTraceIDs(ids ...[]byte) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, util.TraceIDToHexString(id))
+	}
+	sort.Strings(out)
+	return out
+}
+
+// fullCommandColumnLayouts stores span.full_command in the generic, a dedicated and a dedicated array
+// column; each takes a different predicate path in the fetch layer.
+var fullCommandColumnLayouts = []struct {
+	name string
+	dc   backend.DedicatedColumns
+}{
+	{"generic column", nil},
+	{"dedicated column", backend.DedicatedColumns{{Scope: "span", Name: "full_command", Type: "string"}}},
+	{"dedicated array column", backend.DedicatedColumns{{Scope: "span", Name: "full_command", Type: "string", Options: backend.DedicatedColumnOptions{backend.DedicatedColumnOptionArray}}}},
+}
+
 // TestRedactBlockQueryNarrowingConditions pins which traces !=, =~ and !~ select under a positive
 // filter. A span missing the attribute matches none of them, and regexes are fully anchored. Each case
-// runs with the attribute in the generic, a dedicated and a dedicated array column, since each takes a
-// different predicate path in the fetch layer.
+// runs against every fullCommandColumnLayouts layout.
 func TestRedactBlockQueryNarrowingConditions(t *testing.T) {
 	idLs := test.ValidTraceID(nil)
 	idLsla := test.ValidTraceID(nil)
@@ -299,23 +319,9 @@ func TestRedactBlockQueryNarrowingConditions(t *testing.T) {
 		{idOtherService, traceForService(idOtherService, "keep", test.MakeAttribute("full_command", "ls")), now, now},
 	}
 
-	hex := func(ids ...[]byte) []string {
-		out := make([]string, 0, len(ids))
-		for _, id := range ids {
-			out = append(out, util.TraceIDToHexString(id))
-		}
-		sort.Strings(out)
-		return out
-	}
+	hex := hexTraceIDs
 
-	for _, layout := range []struct {
-		name string
-		dc   backend.DedicatedColumns
-	}{
-		{"generic column", nil},
-		{"dedicated column", backend.DedicatedColumns{{Scope: "span", Name: "full_command", Type: "string"}}},
-		{"dedicated array column", backend.DedicatedColumns{{Scope: "span", Name: "full_command", Type: "string", Options: backend.DedicatedColumnOptions{backend.DedicatedColumnOptionArray}}}},
-	} {
+	for _, layout := range fullCommandColumnLayouts {
 		t.Run(layout.name, func(t *testing.T) {
 			r, w, c, _ := testConfig(t, 0)
 			ctx := context.Background()
@@ -359,6 +365,58 @@ func TestRedactBlockQueryNarrowingConditions(t *testing.T) {
 				require.ElementsMatch(t, layout.dc, newMeta.DedicatedColumns)
 				require.Equal(t, hex(idEmpty, idMissing, idOtherService), survivingTraceIDs(t, r, newMeta, `{resource.service.name != nil}`))
 			})
+		})
+	}
+}
+
+// TestRedactBlockQueryArrayAttributes pins which array-valued spans each operator selects. = and =~
+// match if any element does. != and !~ also match if any element does: the fetch layer keeps only the
+// elements that satisfy the predicate, so [ls, pwd] != "ls" matches, unlike the none-of semantics the
+// TraceQL docs describe. An array whose every element is excluded is kept.
+func TestRedactBlockQueryArrayAttributes(t *testing.T) {
+	idMixed := test.ValidTraceID(nil)
+	idAllLs := test.ValidTraceID(nil)
+	idNoLs := test.ValidTraceID(nil)
+	now := uint32(time.Now().Unix())
+
+	array := func(vals ...string) *v1_common.KeyValue {
+		values := make([]*v1_common.AnyValue, 0, len(vals))
+		for _, v := range vals {
+			values = append(values, &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: v}})
+		}
+		return &v1_common.KeyValue{Key: "full_command", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_ArrayValue{ArrayValue: &v1_common.ArrayValue{Values: values}}}}
+	}
+	data := []testData{
+		{idMixed, traceForService(idMixed, "claude-code-cli", array("ls", "pwd")), now, now},
+		{idAllLs, traceForService(idAllLs, "claude-code-cli", array("ls", "ls")), now, now},
+		{idNoLs, traceForService(idNoLs, "claude-code-cli", array("pwd", "cd")), now, now},
+	}
+
+	for _, layout := range fullCommandColumnLayouts {
+		t.Run(layout.name, func(t *testing.T) {
+			r, w, c, _ := testConfig(t, 0)
+			ctx := context.Background()
+
+			blk := cutTestBlockWithDedicatedColumns(t, w, layout.dc, data)
+			require.Equal(t, int64(3), blk.BlockMeta().TotalObjects)
+
+			for _, tc := range []struct {
+				name  string
+				query string
+				want  []string
+			}{
+				{"equal", `{resource.service.name = "claude-code-cli" && span.full_command = "ls"}`, hexTraceIDs(idMixed, idAllLs)},
+				{"not equal", `{resource.service.name = "claude-code-cli" && span.full_command != "ls"}`, hexTraceIDs(idMixed, idNoLs)},
+				{"regex", `{resource.service.name = "claude-code-cli" && span.full_command =~ "l.*"}`, hexTraceIDs(idMixed, idAllLs)},
+				{"not-regex", `{resource.service.name = "claude-code-cli" && span.full_command !~ "l.*"}`, hexTraceIDs(idMixed, idNoLs)},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					_, found, _, err := c.RedactBlock(ctx, blk.BlockMeta(), testTenantID, nil, tc.query, tempopb.RedactionMode_REDACTION_MODE_DRY_RUN, RedactionWindow{})
+					require.NoError(t, err)
+					require.Equal(t, len(tc.want), found)
+					require.Equal(t, tc.want, survivingTraceIDs(t, r, blk.BlockMeta(), tc.query))
+				})
+			}
 		})
 	}
 }
