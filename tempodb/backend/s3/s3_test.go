@@ -8,6 +8,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -300,6 +302,101 @@ func TestHedge(t *testing.T) {
 			atomic.StoreInt32(&count, 0)
 		})
 	}
+}
+
+func TestIdleConnectionLimits(t *testing.T) {
+	const burst = 50
+
+	tests := []struct {
+		name      string
+		maxIdle   int
+		minRedial int32
+		maxRedial int32
+	}{
+		{
+			name:      "limit below burst closes and redials connections",
+			maxIdle:   10,
+			minRedial: burst - 10 - 5, // allow a few reads to overlap less than the full burst
+			maxRedial: burst,
+		},
+		{
+			name:      "limit at or above burst keeps every connection",
+			maxIdle:   burst * 2,
+			minRedial: 0,
+			maxRedial: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			newConns := int32(0)
+			server := rangeServer(t, 100*time.Millisecond, &newConns)
+
+			r, _, _, err := New(&Config{
+				Region:              "blerg",
+				AccessKey:           "test",
+				SecretKey:           flagext.SecretWithValue("test"),
+				Bucket:              "blerg",
+				Insecure:            true,
+				Endpoint:            server.URL[7:], // [7:] -> strip http://
+				MaxIdleConns:        tc.maxIdle,
+				MaxIdleConnsPerHost: tc.maxIdle,
+			})
+			require.NoError(t, err)
+
+			readBurst := func() {
+				var wg sync.WaitGroup
+				for range burst {
+					wg.Go(func() {
+						buf := make([]byte, 10)
+						assert.NoError(t, r.ReadRange(context.Background(), "object", backend.KeyPath{"test"}, 0, buf, nil))
+					})
+				}
+				wg.Wait()
+			}
+
+			readBurst()
+			before := atomic.LoadInt32(&newConns)
+			readBurst()
+			redialed := atomic.LoadInt32(&newConns) - before
+			t.Logf("first burst dialed %d connections, second burst %d", before, redialed)
+
+			assert.GreaterOrEqual(t, redialed, tc.minRedial)
+			assert.LessOrEqual(t, redialed, tc.maxRedial)
+		})
+	}
+}
+
+// rangeServer answers range reads with an 11 byte object range (range reads ask for
+// len(buffer)+1 bytes), everything else with an empty listing, and counts the connections
+// it accepts.
+func rangeServer(t *testing.T, returnIn time.Duration, newConns *int32) *httptest.Server {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Range") == "" {
+			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+		<ListBucketResult>
+		</ListBucketResult>`))
+			return
+		}
+
+		time.Sleep(returnIn)
+
+		w.Header().Set("Content-Length", "11")
+		w.Header().Set("Content-Range", "bytes 0-10/100")
+		w.Header().Set("ETag", `"etag"`)
+		w.Header().Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write([]byte("abcdefghijk"))
+	}))
+	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			atomic.AddInt32(newConns, 1)
+		}
+	}
+	server.Start()
+	t.Cleanup(server.Close)
+
+	return server
 }
 
 func TestRetryConfiguration(t *testing.T) {
@@ -772,6 +869,70 @@ func TestObjectStorageClass(t *testing.T) {
 			ctx := context.Background()
 			_ = w.Write(ctx, "object", backend.KeyPath{"test"}, bytes.NewReader([]byte{}), 0, nil)
 			require.Equal(t, tc.StorageClass, httpHeader.Get(storageClassHeader))
+		})
+	}
+}
+
+func TestReadRangeRequestsExactBytes(t *testing.T) {
+	tests := []struct {
+		name          string
+		offset        uint64
+		length        int
+		expectedRange string
+	}{
+		{
+			name:          "from start",
+			offset:        0,
+			length:        10,
+			expectedRange: "bytes=0-9",
+		},
+		{
+			name:          "with offset",
+			offset:        10,
+			length:        5,
+			expectedRange: "bytes=10-14",
+		},
+		{
+			name:          "single byte",
+			offset:        0,
+			length:        1,
+			expectedRange: "bytes=0-0",
+		},
+		{
+			name:          "empty buffer",
+			offset:        10,
+			length:        0,
+			expectedRange: "bytes=10-10",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var capturedRange string
+			server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/object") {
+					capturedRange = r.Header.Get("Range")
+					w.Header().Set("Last-Modified", "Fri, 01 Mar 2024 00:00:00 GMT")
+					w.WriteHeader(http.StatusPartialContent)
+					_, _ = w.Write(make([]byte, tc.length))
+					return
+				}
+				_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><ListBucketResult></ListBucketResult>`))
+			})
+
+			r, _, _, err := New(&Config{
+				Region:    "blerg",
+				AccessKey: "test",
+				SecretKey: flagext.SecretWithValue("test"),
+				Bucket:    "blerg",
+				Insecure:  true,
+				Endpoint:  server.URL[7:], // [7:] -> strip http://
+			})
+			require.NoError(t, err)
+
+			err = r.ReadRange(context.Background(), "object", backend.KeyPath{"test"}, tc.offset, make([]byte, tc.length), nil)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedRange, capturedRange)
 		})
 	}
 }

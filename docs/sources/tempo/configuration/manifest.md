@@ -715,6 +715,8 @@ storage:
             retry_max_attempts: 10
             retry_backoff_initial: 200ms
             retry_backoff_max: 1s
+            max_idle_connections: 100
+            max_idle_connections_per_host: 100
             signature_v2: false
             forcepathstyle: false
             enable_dual_stack: false
@@ -814,6 +816,8 @@ overrides:
                 retry_max_attempts: 10
                 retry_backoff_initial: 200ms
                 retry_backoff_max: 1s
+                max_idle_connections: 100
+                max_idle_connections_per_host: 100
                 signature_v2: false
                 forcepathstyle: false
                 enable_dual_stack: false
