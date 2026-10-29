@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: query-frontend
+
+note: Add optional `start` and `end` arguments to the MCP `get-trace` tool to limit the blocks searched.
+
+issues: []
+
+subtext:
+
+user: zhxiaogg

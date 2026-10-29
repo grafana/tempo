@@ -356,6 +356,36 @@ func TestHandleGetTrace(t *testing.T) {
 			},
 		},
 		{
+			name: "valid trace ID with time range",
+			request: callToolRequest(map[string]any{
+				"trace_id": "12345678abcdef90",
+				"start":    "2022-01-01T00:00:00Z",
+				"end":      "2022-01-02T00:00:00Z",
+			}),
+			expected: expectedResult{
+				path: "/api/v2/traces/12345678abcdef90",
+				params: map[string]string{
+					"start": "1640995200",
+					"end":   "1641081600",
+				},
+				meta: map[string]any{
+					"type":     "trace",
+					"encoding": "json",
+					"version":  "2",
+				},
+			},
+		},
+		{
+			name: "start without end",
+			request: callToolRequest(map[string]any{
+				"trace_id": "12345678abcdef90",
+				"start":    "2022-01-01T00:00:00Z",
+			}),
+			expected: expectedResult{
+				err: `arguments "start" and "end" must be provided together`,
+			},
+		},
+		{
 			name:    "no trace ID",
 			request: callToolRequest(map[string]any{}),
 			expected: expectedResult{
