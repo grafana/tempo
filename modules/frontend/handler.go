@@ -56,12 +56,13 @@ func newHandler(logQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTrip
 
 // ServeHTTP implements http.Handler
 func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	params := r.URL.Query()
-	query := params.Get("q")
-	if query == "" {
-		query = params.Get("query")
-	}
-	defer f.queryTracker.track(r.Context(), r.Method, r.URL.Path, query)()
+	defer f.queryTracker.track(r.Context(), r.Method, r.URL.Path, func() string {
+		params := r.URL.Query()
+		if query := params.Get("q"); query != "" {
+			return query
+		}
+		return params.Get("query")
+	})()
 	defer func() {
 		_ = r.Body.Close()
 	}()

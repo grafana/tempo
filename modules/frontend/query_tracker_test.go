@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,19 +31,19 @@ func TestQueryTrackerDroppedObservability(t *testing.T) {
 		}, log.NewLogfmtLogger(&logs), reg).(*queryTracker)
 		ctxA := user.InjectOrgID(context.Background(), "tenant-a")
 		ctxB := user.InjectOrgID(context.Background(), "tenant-b")
-		stopA := tracker.track(ctxA, http.MethodGet, "/api/search", "{}")
+		stopA := tracker.track(ctxA, http.MethodGet, "/api/search", func() string { return "{}" })
 		defer stopA()
-		stopB := tracker.track(ctxB, http.MethodGet, "/api/search", "{}")
+		stopB := tracker.track(ctxB, http.MethodGet, "/api/search", func() string { return "{}" })
 		defer stopB()
 		families, err := reg.Gather()
 		require.NoError(t, err)
 		require.Empty(t, families)
 
 		for range 3 {
-			tracker.track(ctxA, http.MethodGet, "/api/search", "not logged")()
+			tracker.track(ctxA, http.MethodGet, "/api/search", func() string { return "not logged" })()
 		}
 		for range 2 {
-			tracker.track(ctxB, http.MethodGet, "/api/search", "not logged")()
+			tracker.track(ctxB, http.MethodGet, "/api/search", func() string { return "not logged" })()
 		}
 		require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(`
 # HELP tempo_query_frontend_query_tracker_dropped_total Total number of query tracking entries dropped because the per-tenant limit was reached. The queries still execute.
@@ -55,13 +56,13 @@ tempo_query_frontend_query_tracker_dropped_total{tenant="tenant-b"} 2
 		require.Len(t, tracker.trackedQueries("tenant-b"), 1)
 
 		time.Sleep(time.Second)
-		tracker.track(ctxB, http.MethodGet, "/api/search", "{}")()
+		tracker.track(ctxB, http.MethodGet, "/api/search", func() string { return "{}" })()
 		require.Equal(t, float64(3), testutil.ToFloat64(tracker.droppedQueries.WithLabelValues("tenant-b")))
 		require.Equal(t, 2, strings.Count(logs.String(), "\n"))
 		require.Contains(t, logs.String(), "tenant=tenant-b max_queries_per_tenant=1\n")
 
 		stopA()
-		tracker.track(ctxA, http.MethodGet, "/api/search", "{}")()
+		tracker.track(ctxA, http.MethodGet, "/api/search", func() string { return "{}" })()
 		require.Equal(t, float64(3), testutil.ToFloat64(tracker.droppedQueries.WithLabelValues("tenant-a")))
 	})
 }
@@ -70,7 +71,7 @@ func TestDisabledQueryTrackerDoesNotRegisterDropMetrics(t *testing.T) {
 	var logs bytes.Buffer
 	reg := prometheus.NewPedanticRegistry()
 	tracker := newQueryTracker(QueryTrackerConfig{}, log.NewLogfmtLogger(&logs), reg)
-	tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", "{}")()
+	tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", func() string { return "{}" })()
 	families, err := reg.Gather()
 	require.NoError(t, err)
 	require.Empty(t, families)
@@ -83,7 +84,7 @@ func TestQueryTrackerZeroMaxQueryTextBytesKeepsFullText(t *testing.T) {
 	}, log.NewNopLogger(), nil).(*queryTracker)
 	query := "{ .message = \"" + strings.Repeat("é", 4096) + "\" }"
 	ctx := user.InjectOrgID(context.Background(), "tenant-a")
-	stop := tracker.track(ctx, http.MethodGet, "/api/search", query)
+	stop := tracker.track(ctx, http.MethodGet, "/api/search", func() string { return query })
 	defer stop()
 
 	queries := tracker.trackedQueries("tenant-a")
@@ -100,20 +101,52 @@ type testRoundTripper func(*http.Request) (*http.Response, error)
 
 func (f testRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
-func (t *recordingQueryTracker) track(ctx context.Context, method, path, query string) func() {
+func (t *recordingQueryTracker) track(ctx context.Context, method, path string, queryText func() string) func() {
 	t.pushes++
 	t.method = method
 	t.path = path
-	t.query = query
+	t.query = queryText()
 	t.tenant, _ = user.ExtractOrgID(ctx)
 	return func() { t.pops++ }
 }
 
+func TestQueryTrackerBuildsQueryTextOnlyWhenEnabled(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		enabled   bool
+		wantCalls int
+	}{
+		{name: "disabled", enabled: false, wantCalls: 0},
+		{name: "enabled", enabled: true, wantCalls: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tracker := newQueryTracker(QueryTrackerConfig{Enabled: tc.enabled}, log.NewNopLogger(), nil)
+			calls := 0
+			const query = "{ .status = \"error\" }"
+			stop := tracker.track(user.InjectOrgID(context.Background(), "a|b"), http.MethodGet, "/api/search", func() string {
+				calls++
+				return query
+			})
+			defer stop()
+			require.Equal(t, tc.wantCalls, calls)
+			if tc.enabled {
+				for _, tenant := range []string{"a", "b"} {
+					queries := tracker.(*queryTracker).trackedQueries(tenant)
+					require.Len(t, queries, 1)
+					require.Equal(t, query, queries[0].Query)
+				}
+			}
+			stop()
+			require.Equal(t, tc.wantCalls, calls)
+		})
+	}
+}
+
 func TestQueryTracker(t *testing.T) {
 	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true, MaxQueriesPerTenant: 1, MaxQueryTextBytes: 8}, log.NewNopLogger(), nil).(*queryTracker)
-	stop := tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", "{ .foo = \"é\" }")
+	stop := tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", func() string { return "{ .foo = \"é\" }" })
 	defer stop()
-	tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), "GRPC", "/tempopb.StreamingQuerier/Search", "{ .bar }")()
+	tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), "GRPC", "/tempopb.StreamingQuerier/Search", func() string { return "{ .bar }" })()
 
 	queries := tracker.trackedQueries("tenant-a")
 	require.Len(t, queries, 1)
@@ -127,6 +160,7 @@ func TestQueryTracker(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.Contains(t, rec.Header().Get("Content-Type"), "text/html")
 		require.Contains(t, rec.Body.String(), "tenant-a")
+		require.Regexp(t, `<p>Current time: [^<]* \+0000 UTC</p>`, html.UnescapeString(rec.Body.String()))
 	})
 
 	t.Run("tenants page renders JSON", func(t *testing.T) {
@@ -138,6 +172,7 @@ func TestQueryTracker(t *testing.T) {
 		var page queryTrackerPage
 		require.NoError(t, json.NewDecoder(rec.Body).Decode(&page))
 		require.Len(t, page.Tenants, 1)
+		require.Equal(t, time.UTC, page.Now.Location())
 	})
 
 	t.Run("tenant page renders JSON", func(t *testing.T) {
@@ -152,6 +187,8 @@ func TestQueryTracker(t *testing.T) {
 		require.NoError(t, json.NewDecoder(rec.Body).Decode(&page))
 		require.Equal(t, "tenant-a", page.Tenant)
 		require.Len(t, page.Queries, 1)
+		require.Equal(t, time.UTC, page.Now.Location())
+		require.Equal(t, time.UTC, page.Queries[0].StartedAt.Location())
 	})
 
 	t.Run("tenant page renders HTML", func(t *testing.T) {
@@ -160,11 +197,12 @@ func TestQueryTracker(t *testing.T) {
 		tracker.tenantHandler().ServeHTTP(rec, req)
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.Contains(t, rec.Body.String(), "{ .foo =")
+		require.Regexp(t, `<p>Current time: [^<]* \+0000 UTC</p>`, html.UnescapeString(rec.Body.String()))
 	})
 
 	t.Run("disabled tracker is a no-op", func(t *testing.T) {
 		tracker := newQueryTracker(QueryTrackerConfig{}, log.NewNopLogger(), nil)
-		tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", "query")()
+		tracker.track(user.InjectOrgID(context.Background(), "tenant-a"), http.MethodGet, "/api/search", func() string { return "query" })()
 		_, ok := tracker.(noOpQueryTracker)
 		require.True(t, ok)
 	})
@@ -226,7 +264,7 @@ func TestQueryTrackerConcurrentTenants(t *testing.T) {
 			defer wg.Done()
 			ctx := user.InjectOrgID(context.Background(), tenant)
 			for query := 0; query < 100; query++ {
-				tracker.track(ctx, "GRPC", "/tempopb.StreamingQuerier/Search", "{}")()
+				tracker.track(ctx, "GRPC", "/tempopb.StreamingQuerier/Search", func() string { return "{}" })()
 			}
 		}(fmt.Sprintf("tenant-%d", tenant))
 	}
@@ -237,7 +275,7 @@ func TestQueryTrackerConcurrentTenants(t *testing.T) {
 
 func TestQueryTrackerTracksMultiTenantQueryForEachTenant(t *testing.T) {
 	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true}, log.NewNopLogger(), nil).(*queryTracker)
-	stop := tracker.track(user.InjectOrgID(context.Background(), "tenant-a|tenant-b"), "GRPC", "/tempopb.StreamingQuerier/Search", "{}")
+	stop := tracker.track(user.InjectOrgID(context.Background(), "tenant-a|tenant-b"), "GRPC", "/tempopb.StreamingQuerier/Search", func() string { return "{}" })
 	defer stop()
 
 	for _, tenant := range []string{"tenant-a", "tenant-b"} {
@@ -257,13 +295,13 @@ func TestQueryTrackerTracksMultiTenantQueryWhenOneTenantIsAtCap(t *testing.T) {
 		Enabled: true, MaxQueriesPerTenant: 1,
 	}, log.NewNopLogger(), nil).(*queryTracker)
 
-	stopA := tracker.track(user.InjectOrgID(context.Background(), "a"), http.MethodGet, "/api/search", "{ .existing = true }")
+	stopA := tracker.track(user.InjectOrgID(context.Background(), "a"), http.MethodGet, "/api/search", func() string { return "{ .existing = true }" })
 	defer stopA()
 	existingQueries := tracker.trackedQueries("a")
 	require.Len(t, existingQueries, 1)
 
 	const query = "{ .status = \"error\" }"
-	stopMultiTenant := tracker.track(user.InjectOrgID(context.Background(), "a|b"), "GRPC", "/tempopb.StreamingQuerier/Search", query)
+	stopMultiTenant := tracker.track(user.InjectOrgID(context.Background(), "a|b"), "GRPC", "/tempopb.StreamingQuerier/Search", func() string { return query })
 	defer stopMultiTenant()
 
 	require.Equal(t, existingQueries, tracker.trackedQueries("a"))

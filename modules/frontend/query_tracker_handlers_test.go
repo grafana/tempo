@@ -19,6 +19,122 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNewQueryFrontendTracksEnabledRequests(t *testing.T) {
+	cfg := &Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("test", flag.ContinueOnError))
+	cfg.QueryTracker.Enabled = true
+	f := frontendWithSettings(t, nil, nil, cfg, nil)
+	require.NotNil(t, f.QueryTrackerHandler)
+	require.NotNil(t, f.QueryTrackerTenantHandler)
+	const tenantID = "tenant-a"
+	const query = "{ .service.name = \"api\" }"
+
+	trackedQueries := func(t *testing.T) []trackedQuery {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/status/active-queries/"+tenantID, nil)
+		req.Header.Set("Accept", "application/json")
+		req = mux.SetURLVars(req, map[string]string{"tenant": tenantID})
+		response := httptest.NewRecorder()
+		f.QueryTrackerTenantHandler.ServeHTTP(response, req)
+		require.Equal(t, http.StatusOK, response.Code)
+		var page queryTrackerPage
+		require.NoError(t, json.NewDecoder(response.Body).Decode(&page))
+		return page.Queries
+	}
+	assertTracked := func(t *testing.T, method, path string) {
+		t.Helper()
+		queries := trackedQueries(t)
+		require.Len(t, queries, 1)
+		require.Equal(t, tenantID, queries[0].Tenant)
+		require.Equal(t, method, queries[0].Method)
+		require.Equal(t, path, queries[0].Path)
+		require.Equal(t, query, queries[0].Query)
+	}
+
+	t.Run("HTTP", func(t *testing.T) {
+		for _, tc := range []struct {
+			name    string
+			path    string
+			handler http.Handler
+		}{
+			{name: "trace", path: "/api/traces/1234", handler: f.TraceByIDHandler},
+			{name: "trace v2", path: "/api/v2/traces/1234", handler: f.TraceByIDHandlerV2},
+			{name: "trace diff", path: "/api/v2/traces/diff", handler: f.TraceDiffHandler},
+			{name: "search", path: "/api/search", handler: f.SearchHandler},
+			{name: "tags", path: "/api/search/tags", handler: f.SearchTagsHandler},
+			{name: "tags v2", path: "/api/v2/search/tags", handler: f.SearchTagsV2Handler},
+			{name: "tag values", path: "/api/search/tag/service.name/values", handler: f.SearchTagsValuesHandler},
+			{name: "tag values v2", path: "/api/v2/search/tag/service.name/values", handler: f.SearchTagsValuesV2Handler},
+			{name: "metrics instant", path: "/api/metrics/query", handler: f.MetricsQueryInstantHandler},
+			{name: "metrics range", path: "/api/metrics/query_range", handler: f.MetricsQueryRangeHandler},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				// Replace the downstream work, preserving the tracker wired by New.
+				tc.handler.(*handler).roundTripper = testRoundTripper(func(*http.Request) (*http.Response, error) {
+					assertTracked(t, http.MethodGet, tc.path)
+					return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: http.NoBody}, nil
+				})
+				req := httptest.NewRequest(http.MethodGet, tc.path+"?q="+url.QueryEscape(query), nil)
+				req = req.WithContext(user.InjectOrgID(req.Context(), tenantID))
+				response := httptest.NewRecorder()
+				tc.handler.ServeHTTP(response, req)
+				require.Equal(t, http.StatusOK, response.Code)
+				require.Empty(t, trackedQueries(t))
+			})
+		}
+	})
+
+	t.Run("gRPC", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			invoke func(func() error) error
+		}{
+			{name: "Search", invoke: func(run func() error) error {
+				f.streamingSearch = func(*tempopb.SearchRequest, tempopb.StreamingQuerier_SearchServer) error { return run() }
+				return f.Search(&tempopb.SearchRequest{Query: query}, newMockStreamingServer[*tempopb.SearchResponse](tenantID, nil))
+			}},
+			{name: "SearchTags", invoke: func(run func() error) error {
+				f.streamingTags = func(*tempopb.SearchTagsRequest, tempopb.StreamingQuerier_SearchTagsServer) error { return run() }
+				return f.SearchTags(&tempopb.SearchTagsRequest{Query: query}, newMockStreamingServer[*tempopb.SearchTagsResponse](tenantID, nil))
+			}},
+			{name: "SearchTagsV2", invoke: func(run func() error) error {
+				f.streamingTagsV2 = func(*tempopb.SearchTagsRequest, tempopb.StreamingQuerier_SearchTagsV2Server) error { return run() }
+				return f.SearchTagsV2(&tempopb.SearchTagsRequest{Query: query}, newMockStreamingServer[*tempopb.SearchTagsV2Response](tenantID, nil))
+			}},
+			{name: "SearchTagValues", invoke: func(run func() error) error {
+				f.streamingTagValues = func(*tempopb.SearchTagValuesRequest, tempopb.StreamingQuerier_SearchTagValuesServer) error {
+					return run()
+				}
+				return f.SearchTagValues(&tempopb.SearchTagValuesRequest{Query: query}, newMockStreamingServer[*tempopb.SearchTagValuesResponse](tenantID, nil))
+			}},
+			{name: "SearchTagValuesV2", invoke: func(run func() error) error {
+				f.streamingTagValuesV2 = func(*tempopb.SearchTagValuesRequest, tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
+					return run()
+				}
+				return f.SearchTagValuesV2(&tempopb.SearchTagValuesRequest{Query: query}, newMockStreamingServer[*tempopb.SearchTagValuesV2Response](tenantID, nil))
+			}},
+			{name: "MetricsQueryRange", invoke: func(run func() error) error {
+				f.streamingQueryRange = func(*tempopb.QueryRangeRequest, tempopb.StreamingQuerier_MetricsQueryRangeServer) error { return run() }
+				return f.MetricsQueryRange(&tempopb.QueryRangeRequest{Query: query}, newMockStreamingServer[*tempopb.QueryRangeResponse](tenantID, nil))
+			}},
+			{name: "MetricsQueryInstant", invoke: func(run func() error) error {
+				f.streamingQueryInstant = func(*tempopb.QueryInstantRequest, tempopb.StreamingQuerier_MetricsQueryInstantServer) error {
+					return run()
+				}
+				return f.MetricsQueryInstant(&tempopb.QueryInstantRequest{Query: query}, newMockStreamingServer[*tempopb.QueryInstantResponse](tenantID, nil))
+			}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				require.NoError(t, tc.invoke(func() error {
+					assertTracked(t, "GRPC", "/tempopb.StreamingQuerier/"+tc.name)
+					return nil
+				}))
+				require.Empty(t, trackedQueries(t))
+			})
+		}
+	})
+}
+
 func TestQueryFrontendTracksStreamingQueries(t *testing.T) {
 	const query = "{ .status = \"error\" }"
 	for _, outcome := range []struct {
@@ -220,7 +336,7 @@ func TestQueryTrackerShowsActiveStreamingQuery(t *testing.T) {
 func TestQueryTrackerCapDoesNotBlockQueries(t *testing.T) {
 	tracker := newQueryTracker(QueryTrackerConfig{Enabled: true, MaxQueriesPerTenant: 1, MaxQueryTextBytes: 3}, log.NewNopLogger(), nil).(*queryTracker)
 	ctx := user.InjectOrgID(context.Background(), "tenant-a")
-	stop := tracker.track(ctx, "GET", "/api/search", "abé")
+	stop := tracker.track(ctx, "GET", "/api/search", func() string { return "abé" })
 	defer stop()
 	require.Equal(t, "ab", tracker.trackedQueries("tenant-a")[0].Query)
 	require.True(t, utf8.ValidString(tracker.trackedQueries("tenant-a")[0].Query))

@@ -37,12 +37,14 @@ type queryTrackerTenant struct {
 }
 
 type tracker interface {
-	track(context.Context, string, string, string) func()
+	track(context.Context, string, string, func() string) func()
 }
 
 type noOpQueryTracker struct{}
 
-func (noOpQueryTracker) track(context.Context, string, string, string) func() { return func() {} }
+func (noOpQueryTracker) track(context.Context, string, string, func() string) func() {
+	return func() {}
+}
 
 type queryTracker struct {
 	nextID              atomic.Uint64
@@ -74,11 +76,12 @@ func newQueryTracker(cfg QueryTrackerConfig, logger log.Logger, registerer prome
 	}
 }
 
-func (t *queryTracker) track(ctx context.Context, method, path, query string) func() {
+func (t *queryTracker) track(ctx context.Context, method, path string, queryText func() string) func() {
 	tenantIDs, err := tenant.TenantIDs(ctx)
 	if err != nil {
 		return func() {}
 	}
+	query := truncateQuery(queryText(), t.maxQueryTextBytes)
 
 	type trackedQueryEntry struct {
 		registry *tenantQueryRegistry
@@ -102,7 +105,7 @@ func (t *queryTracker) track(ctx context.Context, method, path, query string) fu
 			Tenant:    tenantID,
 			Method:    method,
 			Path:      path,
-			Query:     truncateQuery(query, t.maxQueryTextBytes),
+			Query:     query,
 			StartedAt: time.Now().UTC(),
 		})
 		entries = append(entries, trackedQueryEntry{registry: registry, id: id})
@@ -200,6 +203,6 @@ func (t *queryTracker) tenantHandler() http.HandlerFunc {
 			http.Error(w, "tenant ID can't be empty", http.StatusBadRequest)
 			return
 		}
-		util.RenderHTTPResponse(w, queryTrackerPage{Now: time.Now(), Tenant: tenantID, Queries: t.trackedQueries(tenantID), MaxQueriesPerTenant: t.maxQueriesPerTenant, MaxQueryTextBytes: t.maxQueryTextBytes}, queryTrackerTemplate, r)
+		util.RenderHTTPResponse(w, queryTrackerPage{Now: time.Now().UTC(), Tenant: tenantID, Queries: t.trackedQueries(tenantID), MaxQueriesPerTenant: t.maxQueriesPerTenant, MaxQueryTextBytes: t.maxQueryTextBytes}, queryTrackerTemplate, r)
 	})
 }
