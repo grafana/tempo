@@ -121,8 +121,9 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 
 			return resp, nil
 		},
-		new:     func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
-		current: &tempopb.TraceByIDResponse{},
+		new:         func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
+		current:     &tempopb.TraceByIDResponse{},
+		marshalJSON: tempopb.MarshalTraceByIDResponseToJSON,
 	}
 	initHTTPCombiner(gc, marshalingFormat)
 	return gc
