@@ -11,11 +11,13 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/grafana/tempo/v3/cmd/tempo/app"
+	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/backend/azure"
 	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3express"
 )
 
 type globalOptions struct {
@@ -28,13 +30,48 @@ type outputOptions struct {
 }
 
 type backendOptions struct {
-	Backend string `help:"backend to connect to (s3/gcs/local/azure), optional, overrides backend in config file" enum:",s3,gcs,local,azure" default:""`
+	Backend string `help:"backend to connect to (s3/s3express/gcs/local/azure), optional, overrides backend in config file" enum:",s3,s3express,gcs,local,azure" default:""`
 	Bucket  string `help:"bucket (or path on local backend) to scan, optional, overrides bucket in config file"`
 
-	S3Endpoint         string `name:"s3-endpoint" help:"s3 endpoint (s3.dualstack.us-east-2.amazonaws.com), optional, overrides endpoint in config file"`
-	S3User             string `name:"s3-user" help:"s3 username, optional, overrides username in config file"`
-	S3Pass             string `name:"s3-pass" help:"s3 password, optional, overrides password in config file"`
-	InsecureSkipVerify bool   `name:"insecure-skip-verify" help:"skip TLS verification, only applies to S3 and GCS" default:"false"`
+	S3Endpoint         string `name:"s3-endpoint" help:"s3 or s3express endpoint (s3.dualstack.us-east-2.amazonaws.com), optional, overrides endpoint in config file"`
+	S3User             string `name:"s3-user" help:"s3 or s3express username, optional, overrides username in config file"`
+	S3Pass             string `name:"s3-pass" help:"s3 or s3express password, optional, overrides password in config file"`
+	InsecureSkipVerify bool   `name:"insecure-skip-verify" help:"skip TLS verification, only applies to S3, S3 Express and GCS" default:"false"`
+}
+
+// apply overrides the trace storage config with the options that are set.
+func (b *backendOptions) apply(trace *tempodb.Config) {
+	if b.Backend != "" {
+		trace.Backend = b.Backend
+	}
+
+	if b.Bucket != "" {
+		trace.Local.Path = b.Bucket
+		trace.GCS.BucketName = b.Bucket
+		trace.Azure.ContainerName = b.Bucket
+	}
+	trace.GCS.Insecure = b.InsecureSkipVerify
+
+	// s3express takes the options of s3
+	for _, cfg := range []*s3.Config{trace.S3, &trace.S3Express.Config} {
+		if b.Bucket != "" {
+			cfg.Bucket = b.Bucket
+		}
+
+		cfg.InsecureSkipVerify = b.InsecureSkipVerify
+
+		if b.S3User != "" {
+			cfg.AccessKey = b.S3User
+		}
+
+		if b.S3Pass != "" {
+			cfg.SecretKey = flagext.SecretWithValue(b.S3Pass)
+		}
+
+		if b.S3Endpoint != "" {
+			cfg.Endpoint = b.S3Endpoint
+		}
+	}
 }
 
 var cli struct {
@@ -138,31 +175,7 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 	}
 
 	// cli overrides
-	if b.Backend != "" {
-		cfg.StorageConfig.Trace.Backend = b.Backend
-	}
-
-	if b.Bucket != "" {
-		cfg.StorageConfig.Trace.Local.Path = b.Bucket
-		cfg.StorageConfig.Trace.GCS.BucketName = b.Bucket
-		cfg.StorageConfig.Trace.S3.Bucket = b.Bucket
-		cfg.StorageConfig.Trace.Azure.ContainerName = b.Bucket
-	}
-
-	cfg.StorageConfig.Trace.S3.InsecureSkipVerify = b.InsecureSkipVerify
-	cfg.StorageConfig.Trace.GCS.Insecure = b.InsecureSkipVerify
-
-	if b.S3User != "" {
-		cfg.StorageConfig.Trace.S3.AccessKey = b.S3User
-	}
-
-	if b.S3Pass != "" {
-		cfg.StorageConfig.Trace.S3.SecretKey = flagext.SecretWithValue(b.S3Pass)
-	}
-
-	if b.S3Endpoint != "" {
-		cfg.StorageConfig.Trace.S3.Endpoint = b.S3Endpoint
-	}
+	b.apply(&cfg.StorageConfig.Trace)
 
 	var err error
 	var r backend.RawReader
@@ -176,6 +189,8 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 		r, w, c, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 	case backend.S3:
 		r, w, c, err = s3.New(cfg.StorageConfig.Trace.S3)
+	case backend.S3Express:
+		r, w, c, err = s3express.New(cfg.StorageConfig.Trace.S3Express)
 	case backend.Azure:
 		r, w, c, err = azure.New(cfg.StorageConfig.Trace.Azure)
 	default:

@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3express"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/grafana/tempo/v3/tempodb/pool"
@@ -29,7 +30,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Trace.BlocklistPollTolerateConsecutiveErrors = tempodb.DefaultTolerateConsecutiveErrors
 	cfg.Trace.BlocklistPollTolerateTenantFailures = tempodb.DefaultTolerateTenantFailures
 
-	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, azure, gcs, local)")
+	f.StringVar(&cfg.Trace.Backend, util.PrefixConfig(prefix, "trace.backend"), "", "Trace backend (s3, s3express, azure, gcs, local)")
 	f.DurationVar(&cfg.Trace.BlocklistPoll, util.PrefixConfig(prefix, "trace.blocklist_poll"), tempodb.DefaultBlocklistPoll, "Period at which to run the maintenance cycle.")
 
 	cfg.Trace.WAL = &wal.Config{}
@@ -48,6 +49,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Trace.S3 = &s3.Config{}
 	cfg.Trace.S3.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "trace"), f)
+
+	cfg.Trace.S3Express = &s3express.Config{}
+	cfg.Trace.S3Express.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "trace"), f)
 
 	cfg.Trace.GCS = &gcs.Config{}
 	cfg.Trace.GCS.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "trace"), f)

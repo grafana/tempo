@@ -48,6 +48,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3express"
 )
 
 // The various modules that make up tempo.
@@ -609,6 +610,8 @@ func (t *App) initUsageReport() (services.Service, error) {
 		reader, writer, _, err = gcs.New(t.cfg.StorageConfig.Trace.GCS)
 	case backend.S3:
 		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
+	case backend.S3Express:
+		reader, writer, _, err = s3express.New(t.cfg.StorageConfig.Trace.S3Express)
 	case backend.Azure:
 		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
 	default:
@@ -656,6 +659,8 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 		reader, writer, _, err = gcs.New(t.cfg.StorageConfig.Trace.GCS)
 	case backend.S3:
 		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
+	case backend.S3Express:
+		reader, writer, _, err = s3express.New(t.cfg.StorageConfig.Trace.S3Express)
 	case backend.Azure:
 		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
 	default:

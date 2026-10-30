@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3express"
 )
 
 const defaultGRPCCompression = "snappy"
@@ -225,6 +226,26 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnNativeAWSAuthEnabled)
 	}
 
+	if c.StorageConfig.Trace.Backend == backend.S3 && s3express.IsDirectoryBucket(c.StorageConfig.Trace.S3.Bucket) {
+		warnings = append(warnings, warnS3DirectoryBucket)
+	}
+
+	if c.StorageConfig.Trace.Backend == backend.S3Express {
+		s3eWarnings, s3eErr := c.StorageConfig.Trace.S3Express.Validate()
+		if s3eErr != nil {
+			warnings = append(warnings, ConfigWarning{
+				Message: s3eErr.Error(),
+				Explain: "Tempo will not start with an invalid storage.trace.s3express configuration",
+			})
+		}
+		for _, warning := range s3eWarnings {
+			warnings = append(warnings, ConfigWarning{
+				Message: warning.Error(),
+				Explain: "storage.trace.s3express contains an option that doesn't apply to S3 directory buckets and will be ignored",
+			})
+		}
+	}
+
 	if c.StorageConfig.Trace.Cache != "" {
 		warnings = append(warnings, warnConfiguredLegacyCache)
 	}
@@ -306,6 +327,11 @@ var (
 		Explain: "This setting is no longer necessary and will be ignored.",
 	}
 
+	warnS3DirectoryBucket = ConfigWarning{
+		Message: "storage.trace.s3.bucket is named like an S3 directory bucket, which the s3 backend doesn't support.",
+		Explain: "Use the s3express backend for S3 directory buckets, whose names end in --x-s3.",
+	}
+
 	warnConfiguredLegacyCache = ConfigWarning{
 		Message: "c.StorageConfig.Trace.Cache is deprecated and will be removed in a future release.",
 		Explain: "Please migrate to the top level cache settings config.",
@@ -347,6 +373,8 @@ func (c *Config) tracesAndOverridesStorageConflict() bool {
 		return traceStorage.GCS.PathMatches(overridesStorage.GCS)
 	case backend.S3:
 		return traceStorage.S3.PathMatches(overridesStorage.S3)
+	case backend.S3Express:
+		return traceStorage.S3Express.PathMatches(overridesStorage.S3Express)
 	case backend.Azure:
 		return traceStorage.Azure.PathMatches(overridesStorage.Azure)
 	}
