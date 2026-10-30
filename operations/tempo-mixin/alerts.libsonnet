@@ -62,6 +62,21 @@
             },
           },
           {
+            alert: 'TempoRetentionFailing',
+            'for': '1h',
+            expr: |||
+              sum by (%s) (increase(tempodb_retention_errors_total{}[1h])) > %s and
+              sum by (%s) (increase(tempodb_retention_errors_total{}[5m])) > 0
+            ||| % [$._config.group_by_cluster, $._config.alerts.retentions_per_hour_failed, $._config.group_by_cluster],
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'Greater than %s retentions have failed in the past hour.' % $._config.alerts.retentions_per_hour_failed,
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRetentionFailing',
+            },
+          },
+          {
             alert: 'TempoPollsFailing',
             expr: |||
               sum by (%s) (increase(tempodb_blocklist_poll_errors_total{}[1h])) > %s and
