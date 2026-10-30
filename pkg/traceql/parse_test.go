@@ -1091,6 +1091,7 @@ func TestBinaryAndUnaryOperationsRewrites(t *testing.T) {
 	}{
 		// collapse to statics
 		{in: "{ duration > 1 + 2}", expected: newBinaryOperation(OpGreater, NewIntrinsic(IntrinsicDuration), NewStaticInt(3))},
+		{in: "{ duration > 2 ^ 10 }", expected: newBinaryOperation(OpGreater, NewIntrinsic(IntrinsicDuration), NewStaticInt(1024))},
 		{in: "{ -1 }", expected: NewStaticInt(-1)},
 		{in: "{ 1 + 1 > 1 }", expected: NewStaticBool(true)},
 		{in: "{ `foo` = `bar` }", expected: NewStaticBool(false)},
