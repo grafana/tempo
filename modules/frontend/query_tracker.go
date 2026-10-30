@@ -163,7 +163,7 @@ func (t *queryTracker) trackedTenants() []queryTrackerTenant {
 		registry := value.(*tenantQueryRegistry)
 		active := registry.active.Load()
 		dropped := registry.dropped.Load()
-		if active > 0 || dropped > 0 {
+		if active > 0 {
 			result = append(result, queryTrackerTenant{
 				Name:    key.(string),
 				Active:  int(active),
