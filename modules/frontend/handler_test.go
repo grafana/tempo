@@ -23,7 +23,7 @@ func TestFormatRequestHeaders(t *testing.T) {
 	h.Add("X-Header-To-Log", "i should be logged!")
 	h.Add("X-Header-To-Not-Log", "i shouldn't be logged!")
 
-	fields := formatRequestHeaders(&h, safeHeadersToLog([]string{"X-Header-To-Log", "X-Header-Not-Present"}))
+	fields := formatRequestHeaders(&h, logHeaders([]string{"X-Header-To-Log", "X-Header-Not-Present"}))
 
 	expected := []interface{}{
 		"header_x_header_to_log",
@@ -37,7 +37,7 @@ func TestFormatRequestHeadersDropsUnsafeChars(t *testing.T) {
 	h := http.Header{}
 	h["User-Agent"] = []string{"  Grafana/12.0.0\n level=error msg=injected\x1b[31m  "}
 
-	fields := formatRequestHeaders(&h, safeHeadersToLog([]string{"User-Agent"}))
+	fields := formatRequestHeaders(&h, logHeaders([]string{"User-Agent"}))
 
 	require.Equal(t, []interface{}{"header_user_agent", "Grafana/12.0.0 level=error msg=injected[31m"}, fields)
 }
@@ -51,7 +51,7 @@ func TestFormatRequestHeadersTruncatesLongValues(t *testing.T) {
 	h.Set("X-At-Limit", atLimit)
 	h.Set("X-Over-Limit", overLimit)
 
-	fields := formatRequestHeaders(&h, safeHeadersToLog([]string{"X-At-Limit", "X-Over-Limit"}))
+	fields := formatRequestHeaders(&h, logHeaders([]string{"X-At-Limit", "X-Over-Limit"}))
 
 	require.Equal(t, []interface{}{
 		"header_x_at_limit", atLimit,
@@ -59,36 +59,13 @@ func TestFormatRequestHeadersTruncatesLongValues(t *testing.T) {
 	}, fields)
 }
 
-func TestSafeHeadersToLogDropsSensitiveHeaders(t *testing.T) {
-	headers := safeHeadersToLog([]string{"User-Agent", "Authorization", "cookie", "X-API-Key", " Proxy-Authorization ", "x-plugin-id"})
+func TestLogHeaders(t *testing.T) {
+	headers := logHeaders([]string{"User-Agent", " x-plugin-id "})
 
-	require.Equal(t, []safeHeader{
+	require.Equal(t, []logHeader{
 		{name: "User-Agent", logKey: "header_user_agent"},
 		{name: "X-Plugin-Id", logKey: "header_x_plugin_id"},
 	}, headers)
-}
-
-func TestValidateLogQueryRequestHeaders(t *testing.T) {
-	require.NoError(t, validateLogQueryRequestHeaders(nil))
-	require.NoError(t, validateLogQueryRequestHeaders([]string{"User-Agent", "x-plugin-id"}))
-
-	err := validateLogQueryRequestHeaders([]string{"User-Agent", "Authorization", "Cookie"})
-	require.EqualError(t, err, "log_query_request_headers: rejected headers: Authorization, Cookie")
-}
-
-func TestHandlerDoesNotLogSensitiveHeaders(t *testing.T) {
-	logger := &recordingLogger{}
-	h := newHandler([]string{"Authorization", "User-Agent"}, handlerRoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		recordResult(level.Info(logger), r.Context(), nil, "msg", "search response")
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("test"))}, nil
-	}), log.NewNopLogger())
-
-	req := httptest.NewRequest(http.MethodGet, "/api/search", nil)
-	req.Header.Set("Authorization", "Bearer secret")
-	req.Header.Set("User-Agent", "Grafana/12.0.0")
-	h.ServeHTTP(httptest.NewRecorder(), req)
-
-	require.Equal(t, "level info msg search response header_user_agent Grafana/12.0.0\n", logger.String())
 }
 
 func TestHandlerPassesRequestHeaderFieldsToResponseLogs(t *testing.T) {

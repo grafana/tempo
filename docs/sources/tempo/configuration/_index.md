@@ -1056,9 +1056,9 @@ query_frontend:
 
     # Comma-separated list of request header names to include in query logs. Applies
     # to both the query stats log line and the per-query response log lines for
-    # search, metrics, trace by ID and tag queries. Header values longer than 1 KiB
-    # are truncated. Headers that carry credentials or session material, such as
-    # Authorization and Cookie, are rejected at startup.
+    # search, metrics, trace by ID and tag queries. Each header value is truncated to
+    # 1 KiB. Do not include headers that carry credentials or session material, such
+    # as Authorization or Cookie, because their values are written to the logs.
     [log_query_request_headers: <string> | default = ""]
 
     # Set a maximum timeout for all api queries at which point the frontend will cancel queued jobs
