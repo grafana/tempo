@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3express"
 )
 
 type globalOptions struct {
@@ -176,6 +177,8 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 		r, w, c, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 	case backend.S3:
 		r, w, c, err = s3.New(cfg.StorageConfig.Trace.S3)
+	case backend.S3Express:
+		r, w, c, err = s3express.New(cfg.StorageConfig.Trace.S3Express)
 	case backend.Azure:
 		r, w, c, err = azure.New(cfg.StorageConfig.Trace.Azure)
 	default:

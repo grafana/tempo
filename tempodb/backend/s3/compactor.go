@@ -67,31 +67,17 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	path := backend.RootPath(blockID, tenantID, rw.cfg.Prefix) + "/"
 	level.Debug(rw.logger).Log("msg", "deleting block", "block path", path)
 
-	// list every object before deleting any, so the deletes can't affect the pagination
-	var keys []string
-	marker := ""
-	for {
-		// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
-		res, err := listObjects(rw.core, rw.cfg.Bucket, path, marker, "/", 0)
-		if err != nil {
-			return fmt.Errorf("error listing objects in bucket %s: %w", rw.cfg.Bucket, err)
-		}
-		for _, obj := range res.Contents {
-			keys = append(keys, obj.Key)
-		}
-
-		// some S3-compatible stores don't return NextMarker, those only have their first page cleared
-		if !res.IsTruncated || res.NextMarker == "" {
-			break
-		}
-		marker = res.NextMarker
+	// ListObjects(bucket, prefix, marker, delimiter string, maxKeys int)
+	res, err := rw.core.ListObjects(rw.cfg.Bucket, path, "", "/", 0)
+	if err != nil {
+		return fmt.Errorf("error listing objects in bucket %s: %w", rw.cfg.Bucket, err)
 	}
 
-	level.Debug(rw.logger).Log("msg", "listing objects", "found", len(keys))
-	for _, key := range keys {
-		err := rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, key, minio.RemoveObjectOptions{})
+	level.Debug(rw.logger).Log("msg", "listing objects", "found", len(res.Contents))
+	for _, obj := range res.Contents {
+		err = rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, obj.Key, minio.RemoveObjectOptions{})
 		if err != nil {
-			return fmt.Errorf("error deleting obj from s3: %s: %w", key, err)
+			return fmt.Errorf("error deleting obj from s3: %s: %w", obj.Key, err)
 		}
 	}
 

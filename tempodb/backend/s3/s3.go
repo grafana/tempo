@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -99,23 +98,47 @@ func (s *overrideSignatureVersion) IsExpired() bool {
 
 // NewNoConfirm gets the S3 backend without testing it
 func NewNoConfirm(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
-	rw, err := internalNew(cfg, false)
+	rw, err := internalNew(cfg, false, nil)
 	return rw, rw, rw, err
 }
 
 // New gets the S3 backend
 func New(cfg *Config) (backend.RawReader, backend.RawWriter, backend.Compactor, error) {
-	rw, err := internalNew(cfg, true)
+	rw, err := internalNew(cfg, true, nil)
 	return rw, rw, rw, err
 }
 
 // NewVersionedReaderWriter creates a client to perform versioned requests. Note that write requests are
 // best-effort since the S3 API does not support precondition headers.
 func NewVersionedReaderWriter(cfg *Config) (backend.VersionedReaderWriter, error) {
-	return internalNew(cfg, true)
+	return internalNew(cfg, true, nil)
 }
 
-func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
+// Backend is the S3 backend, for backends that build on it.
+type Backend struct {
+	*readerWriter
+}
+
+// TransportWrapper wraps next, the transport a client of the S3 backend sends its requests with.
+// creds are the credentials the client signs its requests with.
+type TransportWrapper func(next http.RoundTripper, creds *credentials.Credentials) http.RoundTripper
+
+// NewWithTransport gets the S3 backend without testing it, like NewNoConfirm, with its clients
+// sending their requests through the transports wrap returns.
+func NewWithTransport(cfg *Config, wrap TransportWrapper) (*Backend, error) {
+	rw, err := internalNew(cfg, false, wrap)
+	if err != nil {
+		return nil, err
+	}
+	return &Backend{readerWriter: rw}, nil
+}
+
+// Core returns the client the backend sends its requests with, other than hedged reads.
+func (b *Backend) Core() *minio.Core {
+	return b.core
+}
+
+func internalNew(cfg *Config, confirm bool, wrap TransportWrapper) (*readerWriter, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -135,23 +158,19 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 		minio.DefaultRetryCap = cfg.RetryBackoffMax
 	}
 
-	core, err := createCore(cfg, false)
+	core, err := createCore(cfg, false, wrap)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error creating core: %w", err)
 	}
 
-	hedgedCore, err := createCore(cfg, true)
+	hedgedCore, err := createCore(cfg, true, wrap)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error creating hedgedCore: %w", err)
 	}
 
 	// try listing objects
 	if confirm {
-		prefix := cfg.Prefix
-		if isDirectoryBucket(cfg.Bucket) {
-			prefix = listPrefix(backend.KeyPathWithPrefix(nil, cfg.Prefix))
-		}
-		_, err = listObjects(core, cfg.Bucket, prefix, "", "/", 1)
+		_, err = core.ListObjects(cfg.Bucket, cfg.Prefix, "", "/", 1)
 		if err != nil {
 			return nil, fmt.Errorf("unexpected error from ListObjects on %s: %w", cfg.Bucket, err)
 		}
@@ -369,14 +388,18 @@ func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend
 // List implements backend.Reader
 func (rw *readerWriter) List(_ context.Context, keypath backend.KeyPath) ([]string, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	prefix := listPrefix(keypath)
+	prefix := path.Join(keypath...)
 	var objects []string
+
+	if len(prefix) > 0 {
+		prefix += "/"
+	}
 
 	nextMarker := ""
 	isTruncated := true
 	for isTruncated {
 		// ListObjects(bucket, prefix, nextMarker, delimiter string, maxKeys int)
-		res, err := listObjects(rw.core, rw.cfg.Bucket, prefix, nextMarker, "/", 0)
+		res, err := rw.core.ListObjects(rw.cfg.Bucket, prefix, nextMarker, "/", 0)
 		if err != nil {
 			return nil, fmt.Errorf("error listing blocks in s3 bucket, bucket: %s: %w", rw.cfg.Bucket, err)
 		}
@@ -401,20 +424,10 @@ func (rw *readerWriter) ListBlocks(
 	ctx, span := tracer.Start(ctx, "readerWriter.ListBlocks")
 	defer span.End()
 
-	// Directory buckets don't support start-after and don't list keys in lexicographical order,
-	// so their block IDs can't be split into ranges that are listed concurrently. They are listed
-	// with a single shard instead, which covers all block IDs and so never trips the shard bounds
-	// checks below.
-	directoryBucket := isDirectoryBucket(rw.cfg.Bucket)
-	shards := rw.cfg.ListBlocksConcurrency
-	if directoryBucket {
-		shards = 1
-	}
-
 	var (
 		wg                = sync.WaitGroup{}
 		mtx               = sync.Mutex{}
-		bb                = blockboundary.CreateBlockBoundaries(shards)
+		bb                = blockboundary.CreateBlockBoundaries(rw.cfg.ListBlocksConcurrency)
 		errChan           = make(chan error, len(bb))
 		keypath           = backend.KeyPathWithPrefix(backend.KeyPath{tenant}, rw.cfg.Prefix)
 		minID             uuid.UUID
@@ -424,7 +437,10 @@ func (rw *readerWriter) ListBlocks(
 		noCompactBlockIDs = make([]uuid.UUID, 0)
 	)
 
-	prefix := listPrefix(keypath)
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix += "/"
+	}
 
 	for i := 0; i < len(bb)-1; i++ {
 		minID = uuid.UUID(bb[i])
@@ -437,11 +453,8 @@ func (rw *readerWriter) ListBlocks(
 			var (
 				err        error
 				res        minio.ListBucketV2Result
-				startAfter string
-			)
-			if !directoryBucket {
 				startAfter = prefix + minUUID.String()
-			}
+			)
 
 			for res.IsTruncated = true; res.IsTruncated; {
 				if ctx.Err() != nil {
@@ -519,7 +532,11 @@ func (rw *readerWriter) ListBlocks(
 // Find implements backend.Reader
 func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (err error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	prefix := listPrefix(keypath)
+	prefix := path.Join(keypath...)
+
+	if len(prefix) > 0 {
+		prefix += "/"
+	}
 
 	nextToken := ""
 	isTruncated := true
@@ -740,7 +757,7 @@ func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
 	return creds, nil
 }
 
-func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
+func createCore(cfg *Config, hedge bool, wrap TransportWrapper) (*minio.Core, error) {
 	creds, err := fetchCreds(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch credentials: %w", err)
@@ -766,25 +783,9 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		customTransport.TLSClientConfig = tlsConfig
 	}
 
-	return newCore(cfg, creds, customTransport, hedge)
-}
-
-// newCore returns a client for the bucket of cfg that sends its requests with base.
-func newCore(cfg *Config, creds *credentials.Credentials, base http.RoundTripper, hedge bool) (*minio.Core, error) {
-	var err error
-	endpoint := cfg.Endpoint
-	lookup := minio.BucketLookupType(cfg.BucketLookupType)
-	if cfg.ForcePathStyle {
-		lookup = minio.BucketLookupPath
-	}
-
-	if isDirectoryBucket(cfg.Bucket) {
-		var bucketURL *url.URL
-		endpoint, lookup, bucketURL, err = directoryBucketEndpoint(cfg, lookup)
-		if err != nil {
-			return nil, err
-		}
-		base = newS3ExpressTransport(base, creds, cfg.Region, bucketURL)
+	var base http.RoundTripper = customTransport
+	if wrap != nil {
+		base = wrap(customTransport, creds)
 	}
 
 	// add instrumentation
@@ -799,14 +800,19 @@ func newCore(cfg *Config, creds *credentials.Credentials, base http.RoundTripper
 	}
 
 	opts := &minio.Options{
-		Region:       cfg.Region,
-		Secure:       !cfg.Insecure,
-		Creds:        creds,
-		Transport:    transport,
-		BucketLookup: lookup,
+		Region:    cfg.Region,
+		Secure:    !cfg.Insecure,
+		Creds:     creds,
+		Transport: transport,
 	}
 
-	core, err := minio.NewCore(endpoint, opts)
+	if cfg.ForcePathStyle {
+		opts.BucketLookup = minio.BucketLookupPath
+	} else {
+		opts.BucketLookup = minio.BucketLookupType(cfg.BucketLookupType)
+	}
+
+	core, err := minio.NewCore(cfg.Endpoint, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create minio client: %w", err)
 	}
@@ -820,33 +826,6 @@ func valueOrDefault(v, def int) int {
 		return v
 	}
 	return def
-}
-
-// listPrefix returns the prefix to list the objects under keypath with. Directory buckets only
-// accept list prefixes that end in a delimiter, so a non-empty prefix always ends in "/".
-func listPrefix(keypath backend.KeyPath) string {
-	prefix := path.Join(keypath...)
-	if len(prefix) > 0 {
-		prefix += "/"
-	}
-	return prefix
-}
-
-// listObjects lists a page of the objects under prefix with ListObjects (V1). Directory buckets
-// only support ListObjectsV2, so they are listed with it instead, and marker and NextMarker hold
-// its continuation tokens.
-func listObjects(core *minio.Core, bucket, prefix, marker, delimiter string, maxKeys int) (minio.ListBucketResult, error) {
-	if !isDirectoryBucket(bucket) {
-		return core.ListObjects(bucket, prefix, marker, delimiter, maxKeys)
-	}
-
-	res, err := core.ListObjectsV2(bucket, prefix, "", marker, delimiter, maxKeys)
-	return minio.ListBucketResult{
-		CommonPrefixes: res.CommonPrefixes,
-		Contents:       res.Contents,
-		IsTruncated:    res.IsTruncated,
-		NextMarker:     res.NextContinuationToken,
-	}, err
 }
 
 func readError(err error) error {

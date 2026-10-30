@@ -1560,7 +1560,7 @@ storage:
     trace:
 
         # The storage backend to use
-        # Should be one of "gcs", "s3", "azure" or "local" (only supported in the monolithic mode)
+        # Should be one of "gcs", "s3", "s3express", "azure" or "local" (only supported in the monolithic mode)
         # CLI flag -storage.trace.backend
         [backend: <string>]
 
@@ -1651,7 +1651,6 @@ storage:
 
             # The number of list calls to make in parallel to the backend per instance.
             # Adjustments here will impact the polling time, as well as the number of Go routines.
-            # Ignored for S3 directory buckets (bucket names ending in `--x-s3`), which don't support parallel listing.
             # Default is 3
             [list_blocks_concurrency: <int>]
 
@@ -1812,6 +1811,22 @@ storage:
               # SSE-C Encryption Key used for object encryption with customer provided keys.
               # It expects a 32 byte long string.
               encryption_key:
+
+        # S3 directory bucket configuration. Will be used only if value of backend is "s3express".
+        # Takes the options of s3, except insecure, which isn't supported, and list_blocks_concurrency, which is ignored.
+        # Check the S3 doc within this folder for information on directory bucket specific permissions.
+        s3express:
+
+            # Name of the directory bucket, which ends in --x-s3.
+            # Example: "bucket: tempo--euc1-ist1-az1--x-s3"
+            [bucket: <string>]
+
+            # The Region of the bucket's Availability Zone or Local Zone. Required.
+            # Example: "region: eu-central-1"
+            [region: <string>]
+
+            # Optional. Defaults to the bucket's Zonal endpoint, s3express-<zone-id>.<region>.amazonaws.com.
+            [endpoint: <string>]
 
         # Azure configuration. Will be used only if value of backend is "azure".
         azure:
@@ -2775,7 +2790,7 @@ overrides:
 
     client:
       # The storage backend to use
-      # Should be one of "gcs", "s3", "azure" or "local"
+      # Should be one of "gcs", "s3", "s3express", "azure" or "local"
       [backend: <string>]
 
       # Backend-specific configuration, support the same configuration options as the
@@ -2783,6 +2798,7 @@ overrides:
       local:
       gcs:
       s3:
+      s3express:
       azure:
 
       # Check whether the backend supports versioning at startup. If enabled Tempo will not start if

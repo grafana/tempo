@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -41,55 +40,6 @@ func TestCompactedBlockMeta_NotFound(t *testing.T) {
 	_, err = c.CompactedBlockMeta(uuid.New(), "tenant1")
 	require.Error(t, err)
 	require.True(t, errors.Is(err, backend.ErrDoesNotExist))
-}
-
-func TestClearBlock(t *testing.T) {
-	var (
-		blockID      = uuid.MustParse("11111111-1111-1111-1111-111111111111")
-		otherBlockID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
-		keys         []string
-		otherKeys    = []string{
-			"tempo/tenant/" + otherBlockID.String() + "/meta.json",
-			"tempo/tenant/" + otherBlockID.String() + "/data.parquet",
-		}
-	)
-	// more objects than fit in one page of the fake bucket
-	for _, name := range []string{"meta.json", "data.parquet", "bloom-0", "bloom-1", "bloom-2", "index"} {
-		keys = append(keys, "tempo/tenant/"+blockID.String()+"/"+name)
-	}
-
-	tests := []struct {
-		name           string
-		bucket         string
-		omitNextMarker bool
-		expectedLeft   int
-	}{
-		{name: "general purpose bucket", bucket: "blerg"},
-		{name: "directory bucket", bucket: directoryBucketName},
-		{
-			// without a NextMarker to continue from, only the first page is cleared
-			name:           "general purpose bucket without NextMarker",
-			bucket:         "blerg",
-			omitNextMarker: true,
-			expectedLeft:   len(keys) - 2,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			bucket, endpoint := newFakeBucket(t, isDirectoryBucket(tc.bucket), slices.Concat(keys, otherKeys)...)
-			bucket.omitNextMarker = tc.omitNextMarker
-			cfg := fakeConfig(tc.bucket, endpoint)
-			cfg.Prefix = "tempo"
-			_, _, c, err := NewNoConfirm(cfg)
-			require.NoError(t, err)
-
-			require.NoError(t, c.ClearBlock(blockID, "tenant"))
-			remaining := bucket.remainingKeys()
-			assert.Subset(t, remaining, otherKeys)
-			assert.Len(t, remaining, len(otherKeys)+tc.expectedLeft)
-		})
-	}
 }
 
 func TestMarkBlockCompacted(t *testing.T) {

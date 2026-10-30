@@ -177,6 +177,74 @@ func TestConfig_CheckConfig(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "s3 backend with a directory bucket",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.S3
+				cfg.StorageConfig.Trace.S3.Bucket = "tempo--euc1-ist1-az1--x-s3"
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnS3DirectoryBucket},
+		},
+		{
+			name: "s3express backend",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.S3Express
+				cfg.StorageConfig.Trace.S3Express.Bucket = "tempo--euc1-ist1-az1--x-s3"
+				cfg.StorageConfig.Trace.S3Express.Region = "eu-central-1"
+				return cfg
+			}(),
+			expect: nil,
+		},
+		{
+			name: "s3express backend with an invalid config",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.S3Express
+				cfg.StorageConfig.Trace.S3Express.Bucket = "tempo--euc1-ist1-az1--x-s3"
+				cfg.StorageConfig.Trace.S3Express.Region = "eu-central-1"
+				cfg.StorageConfig.Trace.S3Express.Insecure = true
+				return cfg
+			}(),
+			expect: []ConfigWarning{
+				{
+					Message: "insecure isn't supported: Tempo can only sign uploads to S3 directory buckets over https",
+					Explain: "Tempo will not start with an invalid storage.trace.s3express configuration",
+				},
+			},
+		},
+		{
+			name: "s3express backend with an ignored option",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.S3Express
+				cfg.StorageConfig.Trace.S3Express.Bucket = "tempo--euc1-ist1-az1--x-s3"
+				cfg.StorageConfig.Trace.S3Express.Region = "eu-central-1"
+				cfg.StorageConfig.Trace.S3Express.ListBlocksConcurrency = 3
+				return cfg
+			}(),
+			expect: []ConfigWarning{
+				{
+					Message: "list_blocks_concurrency is 3, but S3 directory buckets don't list keys in order, so their blocks are listed with a single listing",
+					Explain: "storage.trace.s3express contains an option that doesn't apply to S3 directory buckets and will be ignored",
+				},
+			},
+		},
+		{
+			name: "trace storage conflicts with overrides storage - s3express",
+			config: func() *Config {
+				cfg := NewDefaultConfig()
+				cfg.StorageConfig.Trace.Backend = backend.S3Express
+				cfg.StorageConfig.Trace.S3Express.Bucket = "tempo--euc1-ist1-az1--x-s3"
+				cfg.StorageConfig.Trace.S3Express.Region = "eu-central-1"
+				cfg.Overrides.UserConfigurableOverridesConfig.Client.Backend = backend.S3Express
+				cfg.Overrides.UserConfigurableOverridesConfig.Client.S3Express.Bucket = "tempo--euc1-ist1-az1--x-s3"
+				return cfg
+			}(),
+			expect: []ConfigWarning{warnTracesAndUserConfigurableOverridesStorageConflict},
+		},
 	}
 
 	for _, tc := range tt {
