@@ -145,7 +145,7 @@ func TestDictPushdownMatchesPerRow(t *testing.T) {
 	}
 }
 
-// TestDictPushdownEngages: a filtered dictionary chunk is served by the index reader.
+// TestDictPushdownEngages: a filtered dictionary chunk is pushed down.
 func TestDictPushdownEngages(t *testing.T) {
 	f := dictTestFile(t)
 	it := NewSyncIterator(context.TODO(), f.RowGroups(), 0, SyncIteratorOptSelectAs("v"), SyncIteratorOptPredicate(NewStringInPredicate([]string{"shop"})))
@@ -154,14 +154,14 @@ func TestDictPushdownEngages(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, "shop", string(res.Entries[0].Value.ByteArray()))
-	require.NotNil(t, it.dictPageReader.matches)
-	require.True(t, it.dictPageReader.active)
+	require.NotNil(t, it.pageReader.matches)
+	require.True(t, it.pageReader.pushdown)
 
 	unfiltered := NewSyncIterator(context.TODO(), f.RowGroups(), 0, SyncIteratorOptSelectAs("v"))
 	defer unfiltered.Close()
 	_, err = unfiltered.Next()
 	require.NoError(t, err)
-	require.False(t, unfiltered.dictPageReader.active, "no filter, nothing to push down")
+	require.False(t, unfiltered.pageReader.pushdown, "no filter, nothing to push down")
 }
 
 // TestDictPushdownCountsRows: the stats count every row the fast path inspects and keeps,
@@ -226,28 +226,28 @@ func TestDictPushdownFileSchemaMismatch(t *testing.T) {
 	require.Equal(t, oracleHits(t, f, column, maxDef, pred, 0), collectHits(t, it, 0))
 }
 
-// TestDictPushdownNeedsFileColumn: a row group that isn't read from a file has no
-// file column to take definition levels from, so it isn't pushed down, and still
-// returns every matching row.
-func TestDictPushdownNeedsFileColumn(t *testing.T) {
+// TestNotFileColumnChunk: a row group that isn't read from a file has no file column
+// to take the max definition level from, so reading it fails.
+func TestNotFileColumnChunk(t *testing.T) {
 	buf := parquet.NewGenericBuffer[dictRow]()
 	_, err := buf.Write([]dictRow{{S: strPtr("shop")}, {}, {S: strPtr("api")}, {S: strPtr("shop")}})
 	require.NoError(t, err)
 
-	pred := NewStringInPredicate([]string{"shop"})
 	it := NewSyncIterator(context.TODO(), []parquet.RowGroup{buf}, 0, SyncIteratorOptSelectAs("v"),
-		SyncIteratorOptMaxDefinitionLevel(1), SyncIteratorOptPredicate(pred))
+		SyncIteratorOptMaxDefinitionLevel(1))
 	defer it.Close()
-	hits := collectHits(t, it, 0)
-	require.False(t, it.dictPageReader.active)
-	require.Equal(t, []dictHit{
-		{rn: RowNumber{0, 0, -1, -1, -1, -1, -1, -1}, value: "shop"},
-		{rn: RowNumber{3, 0, -1, -1, -1, -1, -1, -1}, value: "shop"},
-	}, hits)
+	_, err = it.Next()
+	require.ErrorIs(t, err, errNotFileColumnChunk)
+
+	nilIt := NewNilSyncIterator(context.TODO(), []parquet.RowGroup{buf}, 0, SyncIteratorOptSelectAs("v"),
+		SyncIteratorOptMaxDefinitionLevel(1))
+	defer nilIt.Close()
+	_, err = nilIt.SeekTo(EmptyRowNumber(), 0)
+	require.ErrorIs(t, err, errNotFileColumnChunk)
 }
 
-// TestDictPushdownLongSeek: a seek past more than 1000 values (seekWithinPage's
-// magicThreshold) reslices the page and points the reader at the slice.
+// TestDictPushdownLongSeek: a seek within a pushed-down page walks the page's levels to
+// the target row.
 func TestDictPushdownLongSeek(t *testing.T) {
 	var rows []dictRow
 	for i := range 20_000 {
