@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"net"
 	"os"
 	"strconv"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/sony/gobreaker"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -48,6 +50,7 @@ type Memcached struct {
 	name            string
 	maxItemSize     int
 	requestDuration *instr.HistogramCollector
+	requestErrors   *prometheus.CounterVec
 	logger          log.Logger
 }
 
@@ -72,6 +75,12 @@ func NewMemcached(cfg MemcachedConfig, client MemcachedClient, name string, maxI
 				ConstLabels:                     prometheus.Labels{"name": name},
 			}, []string{"method", "status_code"}),
 		),
+		requestErrors: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Namespace:   "tempo",
+			Name:        "memcache_request_errors_total",
+			Help:        "Memcache requests that failed with an error other than a miss, by reason.",
+			ConstLabels: prometheus.Labels{"name": name},
+		}, []string{"method", "reason"}),
 	}
 	return c
 }
@@ -88,6 +97,28 @@ func memcacheStatusCode(err error) string {
 		return "500"
 	}
 	return "200"
+}
+
+// memcacheErrorReason classifies an error from the memcached client. Misses are not errors.
+func memcacheErrorReason(err error) string {
+	var netErr net.Error
+	var connectTimeout *memcache.ConnectTimeoutError
+	switch {
+	case errors.Is(err, gobreaker.ErrOpenState), errors.Is(err, gobreaker.ErrTooManyRequests):
+		return "circuit_breaker_open"
+	case errors.Is(err, os.ErrDeadlineExceeded), errors.As(err, &connectTimeout),
+		errors.As(err, &netErr) && netErr.Timeout():
+		return "timeout"
+	default:
+		return "other"
+	}
+}
+
+func (c *Memcached) countError(method string, err error) {
+	if err == nil || errors.Is(err, memcache.ErrCacheMiss) || errors.Is(err, memcache.ErrMalformedKey) {
+		return
+	}
+	c.requestErrors.WithLabelValues(method, memcacheErrorReason(err)).Inc()
 }
 
 // Fetch gets keys from the cache. The keys that are found must be in the order of the keys requested.
@@ -110,6 +141,7 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 		}
 		return err
 	})
+	c.countError(method, err)
 	if err != nil {
 		return found, bufs, keys
 	}
@@ -147,6 +179,7 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) ([]byte, bool) {
 		}
 		return err
 	})
+	c.countError(method, err)
 	if err != nil {
 		return nil, false
 	}
@@ -170,6 +203,7 @@ func (c *Memcached) Store(ctx context.Context, keys []string, bufs [][]byte) {
 			}
 			return c.memcache.Set(&item)
 		})
+		c.countError("Memcache.Put", err)
 		if err != nil {
 			level.Error(c.logger).Log("msg", "failed to put to memcached", "name", c.name, "err", err)
 		}
@@ -185,9 +219,10 @@ func (c *Memcached) Remove(ctx context.Context, keys []string) {
 			return
 		default:
 		}
-		_ = measureRequest(ctx, "Memcache.Delete", c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
+		err := measureRequest(ctx, "Memcache.Delete", c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 			return c.memcache.Delete(key)
 		})
+		c.countError("Memcache.Delete", err)
 	}
 	sp.AddEvent(eventKeysRemoved, trace.WithAttributes(attribute.Int("keys", len(keys))))
 }
