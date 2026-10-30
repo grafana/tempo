@@ -40,7 +40,7 @@ func (c *NilSyncIterator) String() string {
 }
 
 func (c *NilSyncIterator) Next() (*IteratorResult, error) {
-	rn, _, err := c.next()
+	rn, err := c.next()
 	if err != nil {
 		return nil, err
 	}
@@ -49,9 +49,7 @@ func (c *NilSyncIterator) Next() (*IteratorResult, error) {
 		return nil, nil
 	}
 
-	nilValue := pq.ValueOf(nil)
-	v := &nilValue
-	return c.makeResult(rn, v), nil
+	return c.makeNilResult(rn), nil
 }
 
 func (c *NilSyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
@@ -76,7 +74,7 @@ func (c *NilSyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorRe
 	// The row group and page have been selected to where this value is possibly
 	// located. Now scan through the page and look for it.
 	for {
-		rn, v, err := c.next()
+		rn, err := c.next()
 		if err != nil {
 			return nil, err
 		}
@@ -85,17 +83,29 @@ func (c *NilSyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorRe
 		}
 
 		if CompareRowNumbers(definitionLevel, rn, to) >= 0 {
-			return c.makeResult(rn, v), nil
+			return c.makeNilResult(rn), nil
 		}
 	}
 }
 
-func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
+// makeNilResult is makeResult for this iterator. Every value it emits is null, so there
+// is nothing to clone or intern and the zero value is written directly. This avoids a
+// heap-allocated pq.Value per result.
+func (c *NilSyncIterator) makeNilResult(rn RowNumber) *IteratorResult {
+	c.at.RowNumber = rn
+	if len(c.at.Entries) > 0 {
+		c.at.Entries[0].Value = pq.Value{}
+	}
+	return &c.at
+}
+
+// next returns the row number of the next scope without a matching value. The value
+// for such a scope is always null, so only the row number is returned.
+func (c *NilSyncIterator) next() (RowNumber, error) {
 	var (
 		scopeRow       = EmptyRowNumber()
 		scopeHasValues bool
 		valueFound     bool
-		emptyNilValue  pq.Value
 	)
 
 	// This is called right before we exit a scope of repeated values.
@@ -130,9 +140,9 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			if rg == nil {
 				// No more rows, maybe return the last one if it matches criteria.
 				if rn, ok := tryEmitNilOnScopeExit(); ok {
-					return rn, &emptyNilValue, nil
+					return rn, nil
 				}
-				return EmptyRowNumber(), nil, nil
+				return EmptyRowNumber(), nil
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
@@ -142,7 +152,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 		if c.currPage == nil {
 			pg, err := c.currChunk.NextPage()
 			if err != nil && !errors.Is(err, io.EOF) {
-				return EmptyRowNumber(), nil, err
+				return EmptyRowNumber(), err
 			}
 			if pg == nil || errors.Is(err, io.EOF) {
 				// This row group is exhausted
@@ -161,7 +171,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.currBuf = c.currBuf[:cap(c.currBuf)]
 			n, err := c.currValues.ReadValues(c.currBuf)
 			if err != nil && !errors.Is(err, io.EOF) {
-				return EmptyRowNumber(), nil, err
+				return EmptyRowNumber(), err
 			}
 			c.currBuf = c.currBuf[:n]
 			c.currBufN = 0
@@ -185,7 +195,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 				// This means we are moving on to the next row.
 				// Before doing so, see if we need to emit a response for the row we are exiting.
 				if rn, ok := tryEmitNilOnScopeExit(); ok {
-					return rn, &emptyNilValue, nil
+					return rn, nil
 				}
 
 				// new level reset
@@ -201,7 +211,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 					// In this case we emit a nil immediately upon entering the scope
 					// because this is the only row for it.
 					c.lastRowNumberReturned = c.curr
-					return c.curr, &emptyNilValue, nil
+					return c.curr, nil
 				}
 
 				// Neither of the above cases matched,

@@ -1225,11 +1225,15 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		}
 
 		// Setup second pass callback.  It might be optimized away
+		// The input slice is reused across calls. Storage consumes the result, which may
+		// alias it, before calling again, and the pipeline is not safe for concurrent use.
+		secondPassInput := make([]*Spanset, 1)
 		storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 			if s == nil || len(s.Spans) == 0 {
 				return nil, nil
 			}
-			return pipeline.evaluate([]*Spanset{s})
+			secondPassInput[0] = s
+			return pipeline.evaluate(secondPassInput)
 		}
 
 		optimize(&storageReq)

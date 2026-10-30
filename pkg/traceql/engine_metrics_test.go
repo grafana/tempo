@@ -5079,3 +5079,58 @@ func TestMergeExemplars(t *testing.T) {
 		})
 	}
 }
+
+func TestMetricsSecondPassSequentialCalls(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{Query: `{span.foo="bar" && span.baz="qux"} | rate()`, Start: 1, End: uint64(time.Hour), Step: uint64(time.Minute)}
+	eval, err := NewEngine().CompileMetricsQueryRange(req)
+	require.NoError(t, err)
+	me, err := singleBatchMetricsEvaluator(eval)
+	require.NoError(t, err)
+	secondPass := me.storageReq.SecondPass
+	require.NotNil(t, secondPass)
+
+	newSpanset := func(foo string) *Spanset {
+		return &Spanset{Spans: []Span{newMockSpan(nil).WithSpanString("foo", foo).WithSpanString("baz", "qux")}}
+	}
+
+	// Each call must only see the spanset it was given.
+	for i := range 3 {
+		match := newSpanset("bar")
+		out, err := secondPass(match)
+		require.NoError(t, err, "i=%d", i)
+		require.Equal(t, []*Spanset{match}, out, "i=%d", i)
+
+		out, err = secondPass(newSpanset("nope"))
+		require.NoError(t, err, "i=%d", i)
+		require.Empty(t, out, "i=%d", i)
+	}
+}
+
+func BenchmarkMetricsSecondPass(b *testing.B) {
+	for _, q := range []string{`{span.foo="bar" && span.baz="qux"} | rate()`, `{span.foo="bar"} | rate()`} {
+		b.Run(q, func(b *testing.B) {
+			req := &tempopb.QueryRangeRequest{Query: q, Start: 1, End: uint64(time.Hour), Step: uint64(time.Minute)}
+			eval, err := NewEngine().CompileMetricsQueryRange(req)
+			require.NoError(b, err)
+			me, err := singleBatchMetricsEvaluator(eval)
+			require.NoError(b, err)
+			secondPass := me.storageReq.SecondPass
+			require.NotNil(b, secondPass)
+
+			// Alternate a matching and a non-matching spanset.
+			spansets := []*Spanset{
+				{Spans: []Span{newMockSpan(nil).WithSpanString("foo", "bar").WithSpanString("baz", "qux")}},
+				{Spans: []Span{newMockSpan(nil).WithSpanString("foo", "nope").WithSpanString("baz", "qux")}},
+			}
+
+			b.ReportAllocs()
+			i := 0
+			for b.Loop() {
+				if _, err := secondPass(spansets[i&1]); err != nil {
+					b.Fatal(err)
+				}
+				i++
+			}
+		})
+	}
+}
