@@ -1884,18 +1884,18 @@ storage:
         # How often to repoll the backend for new blocks. Default is 5m
         [blocklist_poll: <duration>]
 
-        # Number of blocks to process in parallel during polling. Default is 50.
+        # Number of unknown blocks to process in parallel per tenant during a full poll. Default is 50.
         [blocklist_poll_concurrency: <int>]
 
         # By default components will pull the blocklist from the tenant index. If that fails the component can
         # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
         [blocklist_poll_fallback: <bool>]
 
-        # Maximum number of workers that should build the tenant index. All other components will download
-        # the index. Default 2.
+        # Maximum number of workers selected to build each tenant's index when the worker ring is enabled.
+        # Other pollers download the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
-        # Number of tenants to poll concurrently. Default is 1.
+        # Number of tenants to poll concurrently in each process. Default is 1.
         [blocklist_poll_tenant_concurrency: <int>]
 
         # The oldest allowable tenant index. If an index is pulled that is older than this duration,
@@ -1905,9 +1905,8 @@ storage:
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
 
-        # Offsets the concurrent blocklist polling by a random amount. The maximum amount of offset
-        # is the provided value in milliseconds. This configuration value can be used if the polling
-        # cycle is overwhelming your backend with concurrent requests.
+        # Delays each unknown block metadata read by a random amount, up to the provided value in milliseconds.
+        # Does not delay tenant-index reads or enforce a cluster-wide request rate limit.
         # Default 0 (disabled)
         [blocklist_poll_jitter_ms: <int>]
 
