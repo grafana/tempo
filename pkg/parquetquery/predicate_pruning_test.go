@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"math"
 	"testing"
 
 	"github.com/parquet-go/parquet-go"
@@ -364,6 +365,11 @@ func TestKeepColumnChunkDecisions(t *testing.T) {
 	plainNoNulls := chunkOf(t, []testOptInt{{n(5)}, {n(6)}})
 	nullPageFirst := chunkOf(t, []testOptInt{{nil}, {n(5)}}, parquet.PageBufferSize(1))
 	allNulls := chunkOf(t, []testOptInt{{nil}, {nil}})
+	type testFloat struct {
+		F float64 `parquet:"f"`
+	}
+	nan := math.NaN()
+	nanPageFirst := chunkOf(t, []testFloat{{nan}, {nan}, {5}}, parquet.PageBufferSize(1))
 	// Keeps nulls without supporting column index pruning.
 	keepsNulls := NewIncludeNilStringEqualPredicate(nil)
 
@@ -397,6 +403,8 @@ func TestKeepColumnChunkDecisions(t *testing.T) {
 		{"an all-null chunk keeps nulls from the footer", allNulls, NewNilValuePredicate(), true, 0},
 		{"an all-null chunk fails a range from the footer", allNulls, NewIntBetweenPredicate(0, 10), false, 0},
 		{"no column index keeps the chunk", noIndexChunk{plainNoNulls}, NewIntBetweenPredicate(50, 60), true, 1},
+		// An all-NaN first page leaves the footer bounds NaN, so the index decides.
+		{"NaN footer bounds fall back to the index", nanPageFirst, NewFloatGreaterPredicate(3), true, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

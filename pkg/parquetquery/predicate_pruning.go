@@ -58,8 +58,20 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 	indexPrunes := c.filter.SupportsColumnIndexPruning()
 	minV, maxV, nulls, hasFooterStats := cc.FooterStats()
 	allNull := hasFooterStats && minV.IsNull()
-	footerKeeps := hasFooterStats && ((keepNull && nulls > 0) || (!allNull && c.filter.KeepRange(minV, maxV)))
-	if indexPrunes && hasFooterStats && !footerKeeps {
+
+	mayMatch := false // whether the footer stats allow a match
+	if hasFooterStats {
+		if keepNull && nulls > 0 {
+			// The filter keeps nulls, and the chunk has some.
+			mayMatch = true
+		} else if !allNull {
+			// The chunk has present values, so its bounds may contain a match. This is
+			// skipped for an all-null chunk, which has no real bounds.
+			mayMatch = c.filter.KeepRange(minV, maxV)
+		}
+	}
+
+	if indexPrunes && hasFooterStats && !mayMatch {
 		return false // ruled out before even the dictionary page is read
 	}
 
@@ -74,13 +86,13 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 		// them even if the filter doesn't otherwise use bounds: one small read at most
 		// decides whether the whole chunk is read, and a filter rejecting nulls never
 		// gets this far.
-		var hasNulls bool
-		if hasFooterStats {
-			hasNulls = nulls > 0
-		} else {
-			hasNulls = keepNull && chunkHasNulls(cc)
+		if !keepNull {
+			return false
 		}
-		return keepNull && hasNulls
+		if hasFooterStats {
+			return nulls > 0
+		}
+		return chunkHasNulls(cc)
 	}
 
 	if !indexPrunes {

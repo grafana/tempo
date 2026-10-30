@@ -1,6 +1,10 @@
 package parquetquery
 
-import "github.com/parquet-go/parquet-go"
+import (
+	"math"
+
+	"github.com/parquet-go/parquet-go"
+)
 
 type ColumnChunkHelper struct {
 	parquet.ColumnChunk
@@ -39,7 +43,8 @@ type footerStats interface {
 
 // FooterStats returns the chunk's min, max and null count from the file footer. minV and
 // maxV are null for an all-null chunk, which has no bounds. ok is false when the chunk
-// doesn't carry them, as for one not read from a file.
+// doesn't carry them, as for one not read from a file, or when a bound is NaN: parquet-go
+// keeps an all-NaN first page's NaN bounds for the whole chunk, hiding later pages' bounds.
 func (h *ColumnChunkHelper) FooterStats() (minV, maxV parquet.Value, nulls int64, ok bool) {
 	s, isFile := h.ColumnChunk.(footerStats)
 	if !isFile {
@@ -47,12 +52,26 @@ func (h *ColumnChunkHelper) FooterStats() (minV, maxV parquet.Value, nulls int64
 	}
 	nulls = s.NullCount()
 	if minV, maxV, ok = s.Bounds(); ok {
+		if isNaN(minV) || isNaN(maxV) {
+			return parquet.Value{}, parquet.Value{}, 0, false
+		}
 		return minV, maxV, nulls, true
 	}
 	if nulls == h.NumValues() {
 		return parquet.Value{}, parquet.Value{}, nulls, true
 	}
 	return parquet.Value{}, parquet.Value{}, 0, false
+}
+
+func isNaN(v parquet.Value) bool {
+	switch v.Kind() {
+	case parquet.Float:
+		return math.IsNaN(float64(v.Float()))
+	case parquet.Double:
+		return math.IsNaN(v.Double())
+	default:
+		return false
+	}
 }
 
 // NextPage wraps pages.ReadPage and helps reuse already open buffers.
