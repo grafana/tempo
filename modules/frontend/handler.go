@@ -3,14 +3,15 @@ package frontend
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"time"
 
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/grpcutil"
+	dskitlog "github.com/grafana/dskit/log"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
@@ -28,6 +29,8 @@ import (
 const (
 	// nil response in ServeHTTP
 	NilResponseError = "nil resp in ServeHTTP"
+
+	maxLoggedHeaderValueLength = 1024
 )
 
 var (
@@ -39,17 +42,17 @@ var (
 // handler exists to wrap a roundtripper with an HTTP handler. It wraps all
 // frontend endpoints and should only contain functionality that is common to all.
 type handler struct {
-	roundTripper           http.RoundTripper
-	logger                 log.Logger
-	logQueryRequestHeaders flagext.StringSliceCSV
+	roundTripper http.RoundTripper
+	logger       log.Logger
+	headersToLog []logHeader
 }
 
 // newHandler creates a handler
 func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
 	return &handler{
-		logQueryRequestHeaders: LogQueryRequestHeaders,
-		roundTripper:           rt,
-		logger:                 logger,
+		headersToLog: logHeaders(LogQueryRequestHeaders),
+		roundTripper: rt,
+		logger:       logger,
 	}
 }
 
@@ -61,9 +64,17 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Install a query-shape cell so the async-weight middleware can stamp it
 	// for the per-query response log lines further down the call chain.
-	r = r.WithContext(pipeline.WithQueryShapeCell(r.Context()))
-	ctx := r.Context()
+	ctx := pipeline.WithQueryShapeCell(r.Context())
 	start := time.Now()
+
+	var headerFields []interface{}
+	if len(f.headersToLog) != 0 {
+		headerFields = formatRequestHeaders(&r.Header, f.headersToLog)
+		// Pass the header fields down so the per-query response log lines can include them too.
+		ctx = withRequestHeaderFields(ctx, headerFields)
+	}
+	r = r.WithContext(ctx)
+
 	orgID, _ := user.ExtractOrgID(ctx)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
@@ -84,9 +95,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"url", r.URL.RequestURI(),
 		"duration", elapsed.String(),
 	}
-	if len(f.logQueryRequestHeaders) != 0 {
-		logMessage = append(logMessage, formatRequestHeaders(&r.Header, f.logQueryRequestHeaders)...)
-	}
+	logMessage = append(logMessage, headerFields...)
 
 	if err != nil {
 		statusCode := http.StatusInternalServerError
@@ -148,11 +157,45 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	level.Info(f.logger).Log(logMessage...)
 }
 
-func formatRequestHeaders(h *http.Header, headersToLog []string) (fields []interface{}) {
+// this struct saves the result of header canonicalization, avoiding duplicate work per request
+type logHeader struct {
+	name   string // canonical header name, for example User-Agent
+	logKey string // log field name, for example header_user_agent
+}
+
+func logHeaders(names []string) (headers []logHeader) {
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		headers = append(headers, logHeader{
+			name:   textproto.CanonicalMIMEHeaderKey(name),
+			logKey: "header_" + strings.ReplaceAll(strings.ToLower(name), "-", "_"),
+		})
+	}
+	return headers
+}
+
+// size-cap + input sanitization
+func formatRequestHeaders(h *http.Header, headersToLog []logHeader) (fields []interface{}) {
 	for _, s := range headersToLog {
-		if v := h.Get(s); v != "" {
-			fields = append(fields, fmt.Sprintf("header_%s", strings.ReplaceAll(strings.ToLower(s), "-", "_")), v)
+		// s.name is canonical already, so read the map directly instead of h.Get.
+		vv := (*h)[s.name]
+		if len(vv) == 0 {
+			continue
 		}
+		v := strings.TrimSpace(vv[0])
+		if v == "" {
+			continue
+		}
+		truncated := len(v) > maxLoggedHeaderValueLength
+		if truncated {
+			// Truncate before sanitizing: the sanitizer drops a rune cut in half.
+			v = v[:maxLoggedHeaderValueLength]
+		}
+		v = dskitlog.DropUnsafeChars(v).String()
+		if truncated {
+			v += "..."
+		}
+		fields = append(fields, s.logKey, v)
 	}
 	return fields
 }

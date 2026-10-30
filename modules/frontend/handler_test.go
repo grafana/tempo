@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,7 +23,7 @@ func TestFormatRequestHeaders(t *testing.T) {
 	h.Add("X-Header-To-Log", "i should be logged!")
 	h.Add("X-Header-To-Not-Log", "i shouldn't be logged!")
 
-	fields := formatRequestHeaders(&h, []string{"X-Header-To-Log", "X-Header-Not-Present"})
+	fields := formatRequestHeaders(&h, logHeaders([]string{"X-Header-To-Log", "X-Header-Not-Present"}))
 
 	expected := []interface{}{
 		"header_x_header_to_log",
@@ -30,6 +31,57 @@ func TestFormatRequestHeaders(t *testing.T) {
 	}
 
 	require.Equal(t, expected, fields)
+}
+
+func TestFormatRequestHeadersDropsUnsafeChars(t *testing.T) {
+	h := http.Header{}
+	h["User-Agent"] = []string{"  Grafana/12.0.0\n level=error msg=injected\x1b[31m  "}
+
+	fields := formatRequestHeaders(&h, logHeaders([]string{"User-Agent"}))
+
+	require.Equal(t, []interface{}{"header_user_agent", "Grafana/12.0.0 level=error msg=injected[31m"}, fields)
+}
+
+func TestFormatRequestHeadersTruncatesLongValues(t *testing.T) {
+	atLimit := strings.Repeat("a", maxLoggedHeaderValueLength)
+	// The two-byte é starts at the last byte inside the limit, so truncation cuts it in half.
+	overLimit := strings.Repeat("a", maxLoggedHeaderValueLength-1) + "é" + strings.Repeat("b", 100)
+
+	h := http.Header{}
+	h.Set("X-At-Limit", atLimit)
+	h.Set("X-Over-Limit", overLimit)
+
+	fields := formatRequestHeaders(&h, logHeaders([]string{"X-At-Limit", "X-Over-Limit"}))
+
+	require.Equal(t, []interface{}{
+		"header_x_at_limit", atLimit,
+		"header_x_over_limit", strings.Repeat("a", maxLoggedHeaderValueLength-1) + "...",
+	}, fields)
+}
+
+func TestLogHeaders(t *testing.T) {
+	headers := logHeaders([]string{"User-Agent", " x-plugin-id "})
+
+	require.Equal(t, []logHeader{
+		{name: "User-Agent", logKey: "header_user_agent"},
+		{name: "X-Plugin-Id", logKey: "header_x_plugin_id"},
+	}, headers)
+}
+
+func TestHandlerPassesRequestHeaderFieldsToResponseLogs(t *testing.T) {
+	logger := &recordingLogger{}
+	h := newHandler([]string{"User-Agent"}, handlerRoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		// The per-query handlers log their response lines with the request context.
+		recordResult(level.Info(logger), r.Context(), nil, "msg", "search response")
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("test"))}, nil
+	}), log.NewNopLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/search", nil)
+	req.Header.Set("User-Agent", "Grafana/12.0.0")
+	req.Header.Set("X-Not-Configured", "ignored")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	require.Equal(t, "level info msg search response header_user_agent Grafana/12.0.0\n", logger.String())
 }
 
 type handlerRoundTripperFunc func(*http.Request) (*http.Response, error)
