@@ -1,0 +1,6 @@
+change_type: enhancement
+component: backend-scheduler
+note: "Allow `!=`, `=~` and `!~` conditions in a redaction query alongside a positive `=` filter."
+issues: []
+subtext:
+user: zhxiaogg

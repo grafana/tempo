@@ -323,6 +323,16 @@ func (s *MCPServer) setupTools() {
 			mcp.Required(),
 			mcp.Description("Trace ID to retrieve"),
 		),
+		mcp.WithString(
+			"start",
+			mcp.Description("Optional start of the trace search range in RFC3339 format. Must be provided with end. Narrowing the range makes the lookup much cheaper."),
+			mcp.MinLength(1),
+		),
+		mcp.WithString(
+			"end",
+			mcp.Description("Optional end of the trace search range in RFC3339 format. Must be provided with start."),
+			mcp.MinLength(1),
+		),
 		mcp.WithDestructiveHintAnnotation(false),
 	)
 	s.mcpServer.AddTool(traceTool, s.handleGetTrace)

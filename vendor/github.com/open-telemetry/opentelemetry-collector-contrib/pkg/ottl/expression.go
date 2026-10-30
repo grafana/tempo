@@ -69,7 +69,7 @@ func (path StandardGetSetter[K]) Set(ctx context.Context, tCtx K, val any) error
 
 type exprGetter[K any] struct {
 	expr Expr[K]
-	keys []key
+	keys []Key[K]
 }
 
 func (g *exprGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
@@ -77,82 +77,163 @@ func (g *exprGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	return getIndexedValue[K](ctx, tCtx, result, g.keys)
+}
 
-	if len(g.keys) == 0 {
-		return result, nil
+func getIndexedValue[K any](ctx context.Context, tCtx K, val any, keys []Key[K]) (any, error) {
+	if len(keys) == 0 {
+		return val, nil
 	}
 
-	for _, k := range g.keys {
-		switch {
-		case k.String != nil:
+	result := val
+	for _, k := range keys {
+		rawKeyVal, err := resolveIndexKey[K](ctx, tCtx, k)
+		if err != nil {
+			return nil, err
+		}
+
+		switch keyVal := rawKeyVal.(type) {
+		case string:
 			switch r := result.(type) {
 			case pcommon.Map:
-				val, ok := r.Get(*k.String)
+				val, ok := r.Get(keyVal)
 				if !ok {
 					return nil, errors.New("key not found in map")
 				}
 				result = ottlcommon.GetValue(val)
 			case map[string]any:
-				val, ok := r[*k.String]
+				val, ok := r[keyVal]
 				if !ok {
 					return nil, errors.New("key not found in map")
 				}
 				result = val
 			default:
-				return nil, fmt.Errorf("type, %T, does not support string indexing", result)
+				return nil, fmt.Errorf("type %T does not support string indexing", result)
 			}
-		case k.Int != nil:
+		case int64:
 			switch r := result.(type) {
 			case pcommon.Slice:
-				if int(*k.Int) >= r.Len() || int(*k.Int) < 0 {
-					return nil, fmt.Errorf("index %v out of bounds", *k.Int)
+				if int(keyVal) >= r.Len() || int(keyVal) < 0 {
+					return nil, fmt.Errorf("index %v out of bounds", keyVal)
 				}
-				result = ottlcommon.GetValue(r.At(int(*k.Int)))
+				result = ottlcommon.GetValue(r.At(int(keyVal)))
 			case []any:
-				result, err = getElementByIndex(r, k.Int)
+				result, err = getElementByIndex(r, keyVal)
 				if err != nil {
 					return nil, err
 				}
 			case []string:
-				result, err = getElementByIndex(r, k.Int)
+				result, err = getElementByIndex(r, keyVal)
 				if err != nil {
 					return nil, err
 				}
 			case []bool:
-				result, err = getElementByIndex(r, k.Int)
+				result, err = getElementByIndex(r, keyVal)
 				if err != nil {
 					return nil, err
 				}
 			case []float64:
-				result, err = getElementByIndex(r, k.Int)
+				result, err = getElementByIndex(r, keyVal)
 				if err != nil {
 					return nil, err
 				}
 			case []int64:
-				result, err = getElementByIndex(r, k.Int)
+				result, err = getElementByIndex(r, keyVal)
 				if err != nil {
 					return nil, err
 				}
 			case []byte:
-				result, err = getElementByIndex(r, k.Int)
+				result, err = getElementByIndex(r, keyVal)
 				if err != nil {
 					return nil, err
 				}
 			default:
-				return nil, fmt.Errorf("type, %T, does not support int indexing", result)
+				return nil, fmt.Errorf("type %T does not support int indexing", result)
 			}
 		default:
-			return nil, errors.New("neither map nor slice index were set; this is an error in OTTL")
+			return nil, fmt.Errorf("invalid key: expected string or int index, got %T", rawKeyVal)
 		}
 	}
 	return result, nil
 }
 
-func getElementByIndex[T any](r []T, idx *int64) (any, error) {
-	if int(*idx) >= len(r) || int(*idx) < 0 {
-		return nil, fmt.Errorf("index %v out of bounds", *idx)
+func getElementByIndex[T any](r []T, idx int64) (any, error) {
+	if int(idx) >= len(r) || int(idx) < 0 {
+		return nil, fmt.Errorf("index %v out of bounds", idx)
 	}
-	return r[*idx], nil
+	return r[idx], nil
+}
+
+func resolveIndexKey[K any](ctx context.Context, tCtx K, key Key[K]) (any, error) {
+	if strKey, err := key.String(ctx, tCtx); err != nil {
+		return nil, err
+	} else if strKey != nil {
+		return *strKey, nil
+	}
+
+	if intKey, err := key.Int(ctx, tCtx); err != nil {
+		return nil, err
+	} else if intKey != nil {
+		return *intKey, nil
+	}
+
+	return resolveExpressionIndexKey(ctx, tCtx, key)
+}
+
+var errNilKeyExpressionResult = errors.New("key expression returned nil, expected an int or string")
+
+func resolveExpressionIndexKey[K any](ctx context.Context, tCtx K, key Key[K]) (any, error) {
+	keyGetter, err := key.ExpressionGetter(ctx, tCtx)
+	if err != nil {
+		return nil, err
+	}
+	if keyGetter == nil {
+		return nil, errors.New("malformed or empty indexing key")
+	}
+
+	evalKey, err := keyGetter.Get(ctx, tCtx)
+	if err != nil {
+		return nil, err
+	}
+	if evalKey == nil {
+		return nil, errNilKeyExpressionResult
+	}
+
+	return coerceToIndexKey(evalKey)
+}
+
+func coerceToIndexKey(val any) (any, error) {
+	switch v := val.(type) {
+	case string, int64:
+		return v, nil
+	case int:
+		return int64(v), nil
+	case *string:
+		if v == nil {
+			return nil, errNilKeyExpressionResult
+		}
+		return *v, nil
+	case *int:
+		if v == nil {
+			return nil, errNilKeyExpressionResult
+		}
+		return int64(*v), nil
+	case *int64:
+		if v == nil {
+			return nil, errNilKeyExpressionResult
+		}
+		return *v, nil
+	case pcommon.Value:
+		switch v.Type() {
+		case pcommon.ValueTypeStr:
+			return v.Str(), nil
+		case pcommon.ValueTypeInt:
+			return v.Int(), nil
+		default:
+			return nil, fmt.Errorf("key expression must evaluate to string or int, got %s", v.Type().String())
+		}
+	}
+	return nil, fmt.Errorf("key expression must evaluate to string or int, got %T", val)
 }
 
 type listGetter[K any] struct {
@@ -644,6 +725,18 @@ func (path StandardPMapGetSetter[K]) Set(ctx context.Context, tCtx K, val pcommo
 	return path.Setter(ctx, tCtx, val)
 }
 
+// newStandardPMapGetSetter creates a new StandardPMapGetSetter from a GetSetter[K]
+func newStandardPMapGetSetter[K any](getSetter GetSetter[K]) (PMapGetSetter[K], error) {
+	g, err := newStandardPMapGetter(getSetter)
+	if err != nil {
+		return nil, err
+	}
+	return StandardPMapGetSetter[K]{
+		Getter: g.Get,
+		Setter: getSetter.Set,
+	}, nil
+}
+
 // PMapGetter is a Getter that must return a pcommon.Map.
 type PMapGetter[K any] interface {
 	// Get retrieves a pcommon.Map value.
@@ -704,11 +797,11 @@ func (g StandardPMapGetter[K]) Get(ctx context.Context, tCtx K) (pcommon.Map, er
 
 // StringLikeGetter is a Getter that returns a string by converting the underlying value to a string if necessary.
 type StringLikeGetter[K any] interface {
-	// Get retrieves a string value.
+	// Get retrieves a string value, and a bool that is true if a value was found
+	// and false if the value was nil. An error is returned if there are any issues
+	// during retrieval or conversion.
 	// Unlike `StringGetter`, the expectation is that the underlying value is converted to a string if possible.
-	// If the value cannot be converted to a string, nil and an error are returned.
-	// If the value is nil, nil is returned without an error.
-	Get(ctx context.Context, tCtx K) (*string, error)
+	Get(ctx context.Context, tCtx K) (string, bool, error)
 }
 
 // newStandardStringLikeGetter creates a new StandardStringLikeGetter from a Getter[K],
@@ -718,11 +811,11 @@ func newStandardStringLikeGetter[K any](getter Getter[K]) (StringLikeGetter[K], 
 		Getter: getter.Get,
 	}
 	if isLiteralGetter(getter) {
-		val, err := g.Get(context.Background(), *new(K))
+		val, ok, err := g.Get(context.Background(), *new(K))
 		if err != nil {
 			return nil, err
 		}
-		return newLiteral[K, *string](val), nil
+		return newOptionalLiteral[K, string](val, ok), nil
 	}
 	return g, nil
 }
@@ -732,13 +825,13 @@ type StandardStringLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
 }
 
-func (g StandardStringLikeGetter[K]) Get(ctx context.Context, tCtx K) (*string, error) {
+func (g StandardStringLikeGetter[K]) Get(ctx context.Context, tCtx K) (string, bool, error) {
 	val, err := g.Getter(ctx, tCtx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting value in %T: %w", g, err)
+		return "", false, fmt.Errorf("error getting value in %T: %w", g, err)
 	}
 	if val == nil {
-		return nil, nil
+		return "", false, nil
 	}
 	var result string
 	switch v := val.(type) {
@@ -749,13 +842,13 @@ func (g StandardStringLikeGetter[K]) Get(ctx context.Context, tCtx K) (*string, 
 	case pcommon.Map:
 		resultBytes, err := json.Marshal(v.AsRaw())
 		if err != nil {
-			return nil, err
+			return "", false, err
 		}
 		result = string(resultBytes)
 	case pcommon.Slice:
 		resultBytes, err := json.Marshal(v.AsRaw())
 		if err != nil {
-			return nil, err
+			return "", false, err
 		}
 		result = string(resultBytes)
 	case pcommon.Value:
@@ -763,20 +856,20 @@ func (g StandardStringLikeGetter[K]) Get(ctx context.Context, tCtx K) (*string, 
 	default:
 		resultBytes, err := json.Marshal(v)
 		if err != nil {
-			return nil, TypeError(fmt.Sprintf("unsupported type: %T", v))
+			return "", false, TypeError(fmt.Sprintf("unsupported type: %T", v))
 		}
 		result = string(resultBytes)
 	}
-	return &result, nil
+	return result, true, nil
 }
 
 // FloatLikeGetter is a Getter that returns a float64 by converting the underlying value to a float64 if necessary.
 type FloatLikeGetter[K any] interface {
-	// Get retrieves a float64 value.
+	// Get retrieves a float64 value, and a bool that is true if a value was found
+	// and false if the value was nil. An error is returned if there are any issues
+	// during retrieval or conversion.
 	// Unlike `FloatGetter`, the expectation is that the underlying value is converted to a float64 if possible.
-	// If the value cannot be converted to a float64, nil and an error are returned.
-	// If the value is nil, nil is returned without an error.
-	Get(ctx context.Context, tCtx K) (*float64, error)
+	Get(ctx context.Context, tCtx K) (float64, bool, error)
 }
 
 func newStandardFloatLikeGetter[K any](getter Getter[K]) (FloatLikeGetter[K], error) {
@@ -784,11 +877,11 @@ func newStandardFloatLikeGetter[K any](getter Getter[K]) (FloatLikeGetter[K], er
 		Getter: getter.Get,
 	}
 	if isLiteralGetter(getter) {
-		val, err := g.Get(context.Background(), *new(K))
+		val, ok, err := g.Get(context.Background(), *new(K))
 		if err != nil {
 			return nil, err
 		}
-		return newLiteral[K, *float64](val), nil
+		return newOptionalLiteral[K, float64](val, ok), nil
 	}
 	return g, nil
 }
@@ -798,13 +891,13 @@ type StandardFloatLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
 }
 
-func (g StandardFloatLikeGetter[K]) Get(ctx context.Context, tCtx K) (*float64, error) {
+func (g StandardFloatLikeGetter[K]) Get(ctx context.Context, tCtx K) (float64, bool, error) {
 	val, err := g.Getter(ctx, tCtx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting value in %T: %w", g, err)
+		return 0, false, fmt.Errorf("error getting value in %T: %w", g, err)
 	}
 	if val == nil {
-		return nil, nil
+		return 0, false, nil
 	}
 	var result float64
 	switch v := val.(type) {
@@ -815,7 +908,7 @@ func (g StandardFloatLikeGetter[K]) Get(ctx context.Context, tCtx K) (*float64, 
 	case string:
 		result, err = strconv.ParseFloat(v, 64)
 		if err != nil {
-			return nil, err
+			return 0, false, err
 		}
 	case bool:
 		if v {
@@ -832,7 +925,7 @@ func (g StandardFloatLikeGetter[K]) Get(ctx context.Context, tCtx K) (*float64, 
 		case pcommon.ValueTypeStr:
 			result, err = strconv.ParseFloat(v.Str(), 64)
 			if err != nil {
-				return nil, err
+				return 0, false, err
 			}
 		case pcommon.ValueTypeBool:
 			if v.Bool() {
@@ -841,21 +934,21 @@ func (g StandardFloatLikeGetter[K]) Get(ctx context.Context, tCtx K) (*float64, 
 				result = float64(0)
 			}
 		default:
-			return nil, TypeError(fmt.Sprintf("unsupported value type: %v", v.Type()))
+			return 0, false, TypeError(fmt.Sprintf("unsupported value type: %v", v.Type()))
 		}
 	default:
-		return nil, TypeError(fmt.Sprintf("unsupported type: %T", v))
+		return 0, false, TypeError(fmt.Sprintf("unsupported type: %T", v))
 	}
-	return &result, nil
+	return result, true, nil
 }
 
 // IntLikeGetter is a Getter that returns an int by converting the underlying value to an int if necessary
 type IntLikeGetter[K any] interface {
-	// Get retrieves an int value.
+	// Get retrieves an int64 value, and a bool that is true if a value was found
+	// and false if the value was nil. An error is returned if there are any issues
+	// during retrieval or conversion.
 	// Unlike `IntGetter`, the expectation is that the underlying value is converted to an int if possible.
-	// If the value cannot be converted to an int, nil and an error are returned.
-	// If the value is nil, nil is returned without an error.
-	Get(ctx context.Context, tCtx K) (*int64, error)
+	Get(ctx context.Context, tCtx K) (int64, bool, error)
 }
 
 func newStandardIntLikeGetter[K any](getter Getter[K]) (IntLikeGetter[K], error) {
@@ -863,11 +956,11 @@ func newStandardIntLikeGetter[K any](getter Getter[K]) (IntLikeGetter[K], error)
 		Getter: getter.Get,
 	}
 	if isLiteralGetter(getter) {
-		val, err := g.Get(context.Background(), *new(K))
+		val, ok, err := g.Get(context.Background(), *new(K))
 		if err != nil {
 			return nil, err
 		}
-		return newLiteral[K, *int64](val), nil
+		return newOptionalLiteral[K, int64](val, ok), nil
 	}
 	return g, nil
 }
@@ -877,13 +970,13 @@ type StandardIntLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
 }
 
-func (g StandardIntLikeGetter[K]) Get(ctx context.Context, tCtx K) (*int64, error) {
+func (g StandardIntLikeGetter[K]) Get(ctx context.Context, tCtx K) (int64, bool, error) {
 	val, err := g.Getter(ctx, tCtx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting value in %T: %w", g, err)
+		return 0, false, fmt.Errorf("error getting value in %T: %w", g, err)
 	}
 	if val == nil {
-		return nil, nil
+		return 0, false, nil
 	}
 	var result int64
 	switch v := val.(type) {
@@ -892,7 +985,7 @@ func (g StandardIntLikeGetter[K]) Get(ctx context.Context, tCtx K) (*int64, erro
 	case string:
 		result, err = strconv.ParseInt(v, 10, 64)
 		if err != nil {
-			return nil, nil
+			return 0, false, err
 		}
 	case float64:
 		result = int64(v)
@@ -911,7 +1004,7 @@ func (g StandardIntLikeGetter[K]) Get(ctx context.Context, tCtx K) (*int64, erro
 		case pcommon.ValueTypeStr:
 			result, err = strconv.ParseInt(v.Str(), 10, 64)
 			if err != nil {
-				return nil, nil
+				return 0, false, err
 			}
 		case pcommon.ValueTypeBool:
 			if v.Bool() {
@@ -920,21 +1013,21 @@ func (g StandardIntLikeGetter[K]) Get(ctx context.Context, tCtx K) (*int64, erro
 				result = int64(0)
 			}
 		default:
-			return nil, TypeError(fmt.Sprintf("unsupported value type: %v", v.Type()))
+			return 0, false, TypeError(fmt.Sprintf("unsupported value type: %v", v.Type()))
 		}
 	default:
-		return nil, TypeError(fmt.Sprintf("unsupported type: %T", v))
+		return 0, false, TypeError(fmt.Sprintf("unsupported type: %T", v))
 	}
-	return &result, nil
+	return result, true, nil
 }
 
 // ByteSliceLikeGetter is a Getter that returns []byte by converting the underlying value to an []byte if necessary
 type ByteSliceLikeGetter[K any] interface {
-	// Get retrieves []byte value.
+	// Get retrieves a []byte value, and a bool that is true if a value was found
+	// and false if the value was nil. An error is returned if there are any issues
+	// during retrieval or conversion.
 	// The expectation is that the underlying value is converted to []byte if possible.
-	// If the value cannot be converted to []byte, nil and an error are returned.
-	// If the value is nil, nil is returned without an error.
-	Get(ctx context.Context, tCtx K) ([]byte, error)
+	Get(ctx context.Context, tCtx K) ([]byte, bool, error)
 }
 
 func newStandardByteSliceLikeGetter[K any](getter Getter[K]) (ByteSliceLikeGetter[K], error) {
@@ -942,11 +1035,11 @@ func newStandardByteSliceLikeGetter[K any](getter Getter[K]) (ByteSliceLikeGette
 		Getter: getter.Get,
 	}
 	if isLiteralGetter(getter) {
-		val, err := g.Get(context.Background(), *new(K))
+		val, ok, err := g.Get(context.Background(), *new(K))
 		if err != nil {
 			return nil, err
 		}
-		return newLiteral[K, []byte](val), nil
+		return newOptionalLiteral[K, []byte](val, ok), nil
 	}
 	return g, nil
 }
@@ -956,13 +1049,13 @@ type StandardByteSliceLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
 }
 
-func (g StandardByteSliceLikeGetter[K]) Get(ctx context.Context, tCtx K) ([]byte, error) {
+func (g StandardByteSliceLikeGetter[K]) Get(ctx context.Context, tCtx K) ([]byte, bool, error) {
 	val, err := g.Getter(ctx, tCtx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting value in %T: %w", g, err)
+		return nil, false, fmt.Errorf("error getting value in %T: %w", g, err)
 	}
 	if val == nil {
-		return nil, nil
+		return nil, false, nil
 	}
 	var result []byte
 	switch v := val.(type) {
@@ -973,7 +1066,7 @@ func (g StandardByteSliceLikeGetter[K]) Get(ctx context.Context, tCtx K) ([]byte
 	case float64, int64, bool:
 		result, err = valueToBytes(v)
 		if err != nil {
-			return nil, fmt.Errorf("error converting value %f of %T: %w", v, g, err)
+			return nil, false, fmt.Errorf("error converting value %f of %T: %w", v, g, err)
 		}
 	case pcommon.Value:
 		switch v.Type() {
@@ -982,27 +1075,27 @@ func (g StandardByteSliceLikeGetter[K]) Get(ctx context.Context, tCtx K) ([]byte
 		case pcommon.ValueTypeInt:
 			result, err = valueToBytes(v.Int())
 			if err != nil {
-				return nil, fmt.Errorf("error converting value %d of int64: %w", v.Int(), err)
+				return nil, false, fmt.Errorf("error converting value %d of int64: %w", v.Int(), err)
 			}
 		case pcommon.ValueTypeDouble:
 			result, err = valueToBytes(v.Double())
 			if err != nil {
-				return nil, fmt.Errorf("error converting value %f of float64: %w", v.Double(), err)
+				return nil, false, fmt.Errorf("error converting value %f of float64: %w", v.Double(), err)
 			}
 		case pcommon.ValueTypeStr:
 			result = []byte(v.Str())
 		case pcommon.ValueTypeBool:
 			result, err = valueToBytes(v.Bool())
 			if err != nil {
-				return nil, fmt.Errorf("error converting value %s of bool: %w", v.Str(), err)
+				return nil, false, fmt.Errorf("error converting value %s of bool: %w", v.Str(), err)
 			}
 		default:
-			return nil, TypeError(fmt.Sprintf("unsupported value type: %v", v.Type()))
+			return nil, false, TypeError(fmt.Sprintf("unsupported value type: %v", v.Type()))
 		}
 	default:
-		return nil, TypeError(fmt.Sprintf("unsupported type: %T", v))
+		return nil, false, TypeError(fmt.Sprintf("unsupported type: %T", v))
 	}
-	return result, nil
+	return result, true, nil
 }
 
 // valueToBytes converts a value to a byte slice of length 8.
@@ -1020,11 +1113,11 @@ func valueToBytes(n any) ([]byte, error) {
 
 // BoolLikeGetter is a Getter that returns a bool by converting the underlying value to a bool if necessary.
 type BoolLikeGetter[K any] interface {
-	// Get retrieves a bool value.
+	// Get retrieves a bool value, and a bool that is true if a value was found
+	// and false if the value was nil. An error is returned if there are any issues
+	// during retrieval or conversion.
 	// Unlike `BoolGetter`, the expectation is that the underlying value is converted to a bool if possible.
-	// If the value cannot be converted to a bool, nil and an error are returned.
-	// If the value is nil, nil is returned without an error.
-	Get(ctx context.Context, tCtx K) (*bool, error)
+	Get(ctx context.Context, tCtx K) (bool, bool, error)
 }
 
 func newStandardBoolLikeGetter[K any](getter Getter[K]) (BoolLikeGetter[K], error) {
@@ -1032,11 +1125,11 @@ func newStandardBoolLikeGetter[K any](getter Getter[K]) (BoolLikeGetter[K], erro
 		Getter: getter.Get,
 	}
 	if isLiteralGetter(getter) {
-		val, err := g.Get(context.Background(), *new(K))
+		val, ok, err := g.Get(context.Background(), *new(K))
 		if err != nil {
 			return nil, err
 		}
-		return newLiteral[K, *bool](val), nil
+		return newOptionalLiteral[K, bool](val, ok), nil
 	}
 	return g, nil
 }
@@ -1046,13 +1139,13 @@ type StandardBoolLikeGetter[K any] struct {
 	Getter func(ctx context.Context, tCtx K) (any, error)
 }
 
-func (g StandardBoolLikeGetter[K]) Get(ctx context.Context, tCtx K) (*bool, error) {
+func (g StandardBoolLikeGetter[K]) Get(ctx context.Context, tCtx K) (bool, bool, error) {
 	val, err := g.Getter(ctx, tCtx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting value in %T: %w", g, err)
+		return false, false, fmt.Errorf("error getting value in %T: %w", g, err)
 	}
 	if val == nil {
-		return nil, nil
+		return false, false, nil
 	}
 	var result bool
 	switch v := val.(type) {
@@ -1065,7 +1158,7 @@ func (g StandardBoolLikeGetter[K]) Get(ctx context.Context, tCtx K) (*bool, erro
 	case string:
 		result, err = strconv.ParseBool(v)
 		if err != nil {
-			return nil, err
+			return false, false, err
 		}
 	case float64:
 		result = v != 0.0
@@ -1078,20 +1171,20 @@ func (g StandardBoolLikeGetter[K]) Get(ctx context.Context, tCtx K) (*bool, erro
 		case pcommon.ValueTypeStr:
 			result, err = strconv.ParseBool(v.Str())
 			if err != nil {
-				return nil, err
+				return false, false, err
 			}
 		case pcommon.ValueTypeDouble:
 			result = v.Double() != 0.0
 		default:
-			return nil, TypeError(fmt.Sprintf("unsupported value type: %v", v.Type()))
+			return false, false, TypeError(fmt.Sprintf("unsupported value type: %v", v.Type()))
 		}
 	default:
-		return nil, TypeError(fmt.Sprintf("unsupported type: %T", val))
+		return false, false, TypeError(fmt.Sprintf("unsupported type: %T", val))
 	}
-	return &result, nil
+	return result, true, nil
 }
 
-func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
+func (p *parseContext[K]) newGetter(val value) (Getter[K], error) {
 	if val.IsNil != nil && *val.IsNil {
 		return newLiteral[K, any](nil), nil
 	}
@@ -1114,6 +1207,14 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 		return newLiteral[K, any](int64(*enum)), nil
 	}
 
+	if val.Lambda != nil {
+		lambExp, err := p.newLambdaExpression(val.Lambda)
+		if err != nil {
+			return nil, err
+		}
+		return newLiteral[K, any](lambExp), nil
+	}
+
 	if eL := val.Literal; eL != nil {
 		if f := eL.Float; f != nil {
 			return newLiteral[K, any](*f), nil
@@ -1122,11 +1223,7 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 			return newLiteral[K, any](*i), nil
 		}
 		if eL.Path != nil {
-			np, err := p.newPath(eL.Path)
-			if err != nil {
-				return nil, err
-			}
-			return p.parsePath(np)
+			return p.buildGetSetterFromPath(eL.Path)
 		}
 		if eL.Converter != nil {
 			return p.newGetterFromConverter(*eL.Converter)
@@ -1164,14 +1261,20 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 	return p.evaluateMathExpression(val.MathExpression)
 }
 
-func (p *Parser[K]) newGetterFromConverter(c converter) (Getter[K], error) {
+func (p *parseContext[K]) newGetterFromConverter(c converter) (Getter[K], error) {
 	call, err := p.newFunctionCall(editor(c))
 	if err != nil {
 		return nil, err
 	}
+
+	keys, err := p.newKeys(c.Keys)
+	if err != nil {
+		return nil, err
+	}
+
 	return &exprGetter[K]{
 		expr: call,
-		keys: c.Keys,
+		keys: keys,
 	}, nil
 }
 

@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package b3 // import "go.opentelemetry.io/contrib/propagators/b3"
+package b3
 
 import (
 	"context"
@@ -89,7 +89,7 @@ func (b3 propagator) Inject(ctx context.Context, carrier propagation.TextMapCarr
 
 		if debugFromContext(ctx) {
 			header = append(header, "d")
-		} else if !(deferredFromContext(ctx)) {
+		} else if !deferredFromContext(ctx) {
 			if sc.IsSampled() {
 				header = append(header, "1")
 			} else {
@@ -109,7 +109,7 @@ func (b3 propagator) Inject(ctx context.Context, carrier propagation.TextMapCarr
 		if debugFromContext(ctx) {
 			// Since Debug implies deferred, don't also send "X-B3-Sampled".
 			carrier.Set(b3DebugFlagHeader, "1")
-		} else if !(deferredFromContext(ctx)) {
+		} else if !deferredFromContext(ctx) {
 			if sc.IsSampled() {
 				carrier.Set(b3SampledHeader, "1")
 			} else {
@@ -151,11 +151,14 @@ func (propagator) Extract(ctx context.Context, carrier propagation.TextMapCarrie
 }
 
 func (b3 propagator) Fields() []string {
+	// Mirror the encoding conditions used by Inject so Fields reports exactly
+	// the headers that may be written. In particular, B3Unspecified defaults to
+	// single-header injection (the `b3` header), not multiple headers.
 	header := []string{}
-	if b3.cfg.InjectEncoding.supports(B3SingleHeader) {
+	if b3.cfg.InjectEncoding.supports(B3SingleHeader) || b3.cfg.InjectEncoding == B3Unspecified {
 		header = append(header, b3ContextHeader)
 	}
-	if b3.cfg.InjectEncoding.supports(B3MultipleHeader) || b3.cfg.InjectEncoding == B3Unspecified {
+	if b3.cfg.InjectEncoding.supports(B3MultipleHeader) {
 		header = append(header, b3TraceIDHeader, b3SpanIDHeader, b3SampledHeader, b3DebugFlagHeader)
 	}
 	return header

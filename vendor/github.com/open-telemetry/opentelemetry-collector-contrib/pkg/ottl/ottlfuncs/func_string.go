@@ -30,13 +30,13 @@ func createStringFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 
 func stringFunc[K any](target ottl.StringLikeGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
-		value, err := target.Get(ctx, tCtx)
+		value, ok, err := target.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
-		if value == nil {
+		if !ok {
 			return nil, nil
 		}
-		return *value, nil
+		return value, nil
 	}
 }

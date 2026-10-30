@@ -6,19 +6,17 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 )
 
-// It marshal a Trace to an OTEL compatible JSON.
-// Historically, our Trace proto message used `batches` to define the array of resourses spans.
-// To be OTEL compatible we renamed it to `resourcesSpans`.
-// To be backward compatible, this function use jsonpb to marshal the Trace to an OTEL compatible JSON
-// and then replace the first occurrence of `resourceSpan` by `batches`.
+// MarshalToJSONV1 encodes a Trace to the V1 JSON format. Historically, the
+// Trace proto message named its array of resource spans `batches`; it was
+// renamed to `resourceSpans` to be OTEL compatible. For backward
+// compatibility, the V1 format keeps the legacy `batches` field name.
 func MarshalToJSONV1(t *Trace) ([]byte, error) {
-	marshaler := &jsonpb.Marshaler{}
-	jsonStr, err := marshaler.MarshalToString(t)
-	if err != nil {
-		return nil, err
+	if t == nil {
+		return nil, errMarshalNil
 	}
-	jsonStr = strings.Replace(jsonStr, `"resourceSpans":`, `"batches":`, 1)
-	return []byte(jsonStr), nil
+	e := newTraceJSONEncoder(t.Size())
+	e.trace(t, "batches")
+	return e.result()
 }
 
 // It unmarshal an OTEL compatible JSON to a Trace.

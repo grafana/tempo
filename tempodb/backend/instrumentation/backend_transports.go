@@ -1,6 +1,8 @@
 package instrumentation
 
 import (
+	"context"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -18,6 +20,29 @@ var requestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	NativeHistogramMaxBucketNumber:  100,
 	NativeHistogramMinResetDuration: 1 * time.Hour,
 }, []string{"operation", "status_code"})
+
+var connectionsDialed = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempodb",
+	Name:      "backend_connections_dialed_total",
+	Help:      "Total number of new connections dialed to the storage backend.",
+}, []string{"backend"})
+
+// CountDials counts every connection the transport dials successfully, which shows how often
+// requests can't reuse an idle connection.
+func CountDials(t *http.Transport, backend string) {
+	dial := t.DialContext
+	if dial == nil {
+		dial = (&net.Dialer{}).DialContext
+	}
+	counter := connectionsDialed.WithLabelValues(backend)
+	t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		conn, err := dial(ctx, network, addr)
+		if err == nil {
+			counter.Inc()
+		}
+		return conn, err
+	}
+}
 
 type instrumentedTransport struct {
 	observer prometheus.ObserverVec

@@ -3,7 +3,7 @@
 
 // Package kv contains function to translate name value pairs into
 // attribute.KeyValue.
-package kv // import "go.opentelemetry.io/contrib/otelconf/internal/kv"
+package kv
 
 import (
 	"fmt"

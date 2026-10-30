@@ -2,11 +2,13 @@ package combiner
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
@@ -67,7 +69,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, 200))
 	require.NoError(t, err)
 
-	resp, err := c.HTTPFinal()
+	resp, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 
 	actual := &tempopb.Trace{}
@@ -81,7 +83,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, 200))
 	require.NoError(t, err)
 
-	resp, err = c.HTTPFinal()
+	resp, err = c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 
 	actual = &tempopb.Trace{}
@@ -107,7 +109,7 @@ func TestTraceByIDRedactorHidesTrace(t *testing.T) {
 	}, 200))
 	require.NoError(t, err)
 
-	resp, err := c.HTTPFinal()
+	resp, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
@@ -128,4 +130,28 @@ func toHTTPProtoResponse(t *testing.T, pb proto.Message, statusCode int) Pipelin
 		Body:       io.NopCloser(bytes.NewReader(body)),
 		StatusCode: statusCode,
 	}}
+}
+
+// The JSON response must match jsonpb's encoding of the protobuf response.
+func TestTraceByIDHTTPFinalJSONMatchesJsonpb(t *testing.T) {
+	response := &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(3, []byte{0x01, 0x02}),
+		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100},
+	}
+	final := func(format api.MarshallingFormat) []byte {
+		c := NewTraceByID(0, format, nil)
+		require.NoError(t, c.AddResponse(toHTTPProtoResponse(t, response, 200)))
+		resp, err := c.HTTPFinal(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, string(format), resp.Header.Get(api.HeaderContentType))
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return body
+	}
+
+	trace := &tempopb.Trace{}
+	require.NoError(t, proto.Unmarshal(final(api.MarshallingFormatProtobuf), trace))
+	want, err := new(jsonpb.Marshaler).MarshalToString(trace)
+	require.NoError(t, err)
+	require.Equal(t, strings.Replace(want, `"resourceSpans":`, `"batches":`, 1), string(final(api.MarshallingFormatJSON)))
 }

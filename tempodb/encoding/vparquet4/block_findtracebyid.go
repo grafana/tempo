@@ -109,6 +109,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		))
 	defer span.End()
 
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageBloomChecked).Inc()
 	found, err := b.checkBloom(derivedCtx, traceID)
 	if err != nil {
 		return nil, err
@@ -116,6 +117,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	if !found {
 		return nil, nil
 	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageBloomPass).Inc()
 
 	ok, rowGroup, err := b.checkIndex(derivedCtx, traceID)
 	if err != nil {
@@ -124,11 +126,13 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	if !ok {
 		return nil, nil
 	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageIndexPass).Inc()
 
 	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageRead).Inc()
 
 	foundTrace, err := findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
 

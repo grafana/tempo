@@ -53,7 +53,7 @@ type SearchOptions struct {
 func DefaultSearchOptions() SearchOptions {
 	return SearchOptions{
 		ReadBufferCount: 32,
-		ReadBufferSize:  1024 * 1024,
+		ReadBufferSize:  2 * 1024 * 1024,
 		ChunkSizeBytes:  4 * 1024 * 1024,
 	}
 }

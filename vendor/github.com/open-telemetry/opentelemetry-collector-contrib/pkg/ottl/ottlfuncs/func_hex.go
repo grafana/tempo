@@ -31,7 +31,7 @@ func createHexFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ott
 
 func Hex[K any](target ottl.ByteSliceLikeGetter[K]) (ottl.ExprFunc[K], error) {
 	return func(ctx context.Context, tCtx K) (any, error) {
-		value, err := target.Get(ctx, tCtx)
+		value, _, err := target.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}

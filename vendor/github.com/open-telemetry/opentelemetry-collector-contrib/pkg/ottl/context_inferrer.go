@@ -17,6 +17,7 @@ import (
 
 var defaultContextInferPriority = []string{
 	"log",
+	"exemplar",
 	"datapoint",
 	"metric",
 	"spanevent",
@@ -320,12 +321,16 @@ func (*priorityContextInferrer) getValueExpressionsHints(exprs []string) ([]prio
 	return hints, nil
 }
 
+var _ localIdentifierScopeVisitor = (*priorityContextInferrerHints)(nil)
+
 // priorityContextInferrerHints is a grammarVisitor implementation that collects
-// all path, function names (converter.Function and editor.Function), and enumSymbol.
+// all path (except localIdentifierDecl), function names (converter.Function, editor.Function),
+// and enumSymbol.
 type priorityContextInferrerHints struct {
 	paths        []path
 	functions    map[string]struct{}
 	enumsSymbols map[enumSymbol]struct{}
+	scopes       localScopeStack
 }
 
 func newGrammarContextInferrerVisitor() priorityContextInferrerHints {
@@ -337,6 +342,7 @@ func newGrammarContextInferrerVisitor() priorityContextInferrerHints {
 }
 
 func (*priorityContextInferrerHints) visitMathExprLiteral(*mathExprLiteral) {}
+func (*priorityContextInferrerHints) visitLambdaBody(*lambdaBody)           {}
 
 func (v *priorityContextInferrerHints) visitEditor(e *editor) {
 	v.functions[e.Function] = struct{}{}
@@ -353,5 +359,15 @@ func (v *priorityContextInferrerHints) visitValue(va *value) {
 }
 
 func (v *priorityContextInferrerHints) visitPath(value *path) {
-	v.paths = append(v.paths, *value)
+	if !value.inScope(v.scopes) {
+		v.paths = append(v.paths, *value)
+	}
+}
+
+func (v *priorityContextInferrerHints) pushLocalIdentifiers(params []localIdentifierDecl) {
+	v.scopes.push(localIdentifiersDeclToFrame(params))
+}
+
+func (v *priorityContextInferrerHints) popLocalIdentifiers() {
+	v.scopes.pop()
 }

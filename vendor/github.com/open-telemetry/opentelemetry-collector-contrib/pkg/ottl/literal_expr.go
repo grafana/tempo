@@ -22,7 +22,6 @@ func (e *literalExpr[K, V]) Eval(context.Context, K) (V, error) {
 	return e.val, nil
 }
 
-//nolint:unused
 func (*literalExpr[K, V]) unexported() {}
 
 func (e *literalExpr[K, V]) getValue() V {

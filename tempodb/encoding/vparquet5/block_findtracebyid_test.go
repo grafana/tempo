@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
+	"github.com/prometheus/client_golang/prometheus"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -98,6 +100,21 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	b := newBackendBlock(newMeta, r)
 
+	stages := []string{
+		common.FindBlocksStageBloomChecked,
+		common.FindBlocksStageBloomPass,
+		common.FindBlocksStageIndexPass,
+		common.FindBlocksStageRead,
+	}
+	counters := make([]prometheus.Counter, len(stages))
+	for i, stage := range stages {
+		counters[i] = common.MetricFindBlocks.WithLabelValues(newMeta.TenantID, stage)
+	}
+	before := make([]float64, len(counters))
+	for i, c := range counters {
+		before[i] = prom_testutil.ToFloat64(c)
+	}
+
 	// Now find and verify all test traces
 	for _, tr := range traces {
 		gotProto, err := b.FindTraceByID(ctx, tr.id, common.DefaultSearchOptions())
@@ -107,6 +124,10 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		trace.SortTraceAndAttributes(gotProto.Trace)
 		trace.SortTraceAndAttributes(tr.trace)
 		require.Equal(t, tr.trace, gotProto.Trace)
+	}
+
+	for i, c := range counters {
+		require.Equal(t, float64(numTraces), prom_testutil.ToFloat64(c)-before[i])
 	}
 }
 

@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -19,8 +20,14 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/tempo/v3/pkg/api"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 )
+
+var tracer = otel.Tracer("modules/frontend/combiner")
 
 type TResponse interface {
 	proto.Message
@@ -38,12 +45,13 @@ type genericCombiner[T TResponse] struct {
 
 	current T // todo: state mgmt is mixed between the combiner and the various implementations. put it in one spot.
 
-	new      func() T
-	combine  func(partial T, final T, resp PipelineResponse) error
-	metadata func(resp PipelineResponse, final T) error
-	finalize func(T) (T, error)
-	diff     func(T) (T, error)
-	quit     func(T) bool
+	new         func() T
+	combine     func(partial T, final T, resp PipelineResponse) error
+	metadata    func(resp PipelineResponse, final T) error
+	finalize    func(context.Context, T) (T, error)
+	diff        func(T) (T, error)
+	quit        func(T) bool
+	marshalJSON func(T) ([]byte, error)
 
 	// Segment one response into smaller ones, that fit within the given max size.
 	segment func(T, int) []T
@@ -59,6 +67,17 @@ type genericCombiner[T TResponse] struct {
 func initHTTPCombiner[T TResponse](c *genericCombiner[T], marshalingFormat api.MarshallingFormat) {
 	c.httpStatusCode = 200
 	c.httpMarshalingFormat = marshalingFormat
+	if c.marshalJSON == nil {
+		c.marshalJSON = defaultJSONMarshaler[T]
+	}
+}
+
+func defaultJSONMarshaler[T TResponse](response T) ([]byte, error) {
+	body, err := new(jsonpb.Marshaler).MarshalToString(response)
+	if err != nil {
+		return nil, err
+	}
+	return unsafeStringToBytes(body), nil
 }
 
 // AddResponse is used to add a http response to the combiner.
@@ -156,7 +175,17 @@ func (c *genericCombiner[T]) AddTypedResponse(r T) error {
 // usable in grpc streaming/http response.
 // NOTE: returning error is reserved for unexpected errors, HTTP errors will be returned
 // in the response body. callers should check the http status code.
-func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
+func (c *genericCombiner[T]) HTTPFinal(ctx context.Context) (resp *http.Response, err error) {
+	ctx, span := tracer.Start(ctx, "combiner.HTTPFinal")
+	defer func() {
+		if err != nil {
+			span.SetStatus(otelcodes.Error, "response finalization failed")
+		} else if resp != nil && (resp.StatusCode == http.StatusOK || resp.Body == http.NoBody) {
+			span.SetAttributes(attribute.Int64("response_bytes", resp.ContentLength))
+		}
+		span.End()
+	}()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -165,7 +194,7 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 		return httpErr, nil
 	}
 
-	final, err := c.finalize(c.current)
+	final, err := c.finalize(ctx, c.current)
 	if err != nil {
 		if errors.Is(err, ErrTraceHidden) {
 			c.httpStatusCode = http.StatusNotFound
@@ -178,7 +207,7 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 		return nil, err
 	}
 
-	bodyBytes, contentType, err := c.internalMarshalAs(final)
+	bodyBytes, contentType, err := c.internalMarshalAs(ctx, final)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling response body as %s: %w", c.httpMarshalingFormat, err)
 	}
@@ -193,7 +222,15 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 	}, nil
 }
 
-func (c *genericCombiner[T]) GRPCFinal() (T, error) {
+func (c *genericCombiner[T]) GRPCFinal(ctx context.Context) (resp T, err error) {
+	ctx, span := tracer.Start(ctx, "combiner.GRPCFinal")
+	defer func() {
+		if err != nil {
+			span.SetStatus(otelcodes.Error, "response finalization failed")
+		}
+		span.End()
+	}()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -203,7 +240,7 @@ func (c *genericCombiner[T]) GRPCFinal() (T, error) {
 		return empty, grpcErr
 	}
 
-	final, err := c.finalize(c.current)
+	final, err := c.finalize(ctx, c.current)
 	if err != nil {
 		if errors.Is(err, ErrTraceHidden) {
 			return empty, status.Error(codes.NotFound, ErrTraceHidden.Error())
@@ -312,10 +349,31 @@ func (c *genericCombiner[R]) shouldQuit() bool {
 	return false
 }
 
-func (c *genericCombiner[T]) internalMarshalAs(final T) ([]byte, string, error) {
+func (c *genericCombiner[T]) internalMarshalAs(ctx context.Context, final T) ([]byte, string, error) {
 	var bodyBytes []byte
 	var contentType string
 	var err error
+
+	traceResponse, isTrace := any(final).(*tempopb.TraceByIDResponse)
+	if isTrace {
+		encoding := "json" // The LLM representation is also JSON encoded.
+		if c.httpMarshalingFormat == api.MarshallingFormatProtobuf {
+			encoding = "protobuf"
+		}
+		span := oteltrace.SpanFromContext(ctx)
+		span.SetAttributes(
+			attribute.String("format", encoding),
+			attribute.Int("span_count", countTraceSpans(traceResponse.Trace)),
+		)
+		span.AddEvent("trace.marshal.start")
+		defer func() {
+			if err != nil {
+				span.SetStatus(otelcodes.Error, "trace marshalling failed")
+			}
+			span.SetAttributes(attribute.Int("response_bytes", len(bodyBytes)))
+			span.AddEvent("trace.marshal.done")
+		}()
+	}
 
 	switch c.httpMarshalingFormat {
 	case api.MarshallingFormatProtobuf:
@@ -334,10 +392,8 @@ func (c *genericCombiner[T]) internalMarshalAs(final T) ([]byte, string, error) 
 	case api.MarshallingFormatJSON:
 		fallthrough
 	default:
-		var bodyString string
-		bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
 		contentType = string(api.MarshallingFormatJSON)
-		bodyBytes = unsafeStringToBytes(bodyString)
+		bodyBytes, err = c.marshalJSON(final)
 	}
 
 	return bodyBytes, contentType, err

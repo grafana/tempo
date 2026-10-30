@@ -40,7 +40,7 @@ services:
   # To switch traffic between v2 and v3, edit the ALLOY_OTLP_UPSTREAM env var
   # (in .env or inline) and `docker compose up -d alloy`.
   alloy:
-    image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
+    image: grafana/alloy:v1.21.2@sha256:89a5a320168387336b9ac3c850609c3ba7757eadd4ae5f1d819deb35e9854b18
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
     command:
@@ -54,7 +54,7 @@ services:
       - "12345:12345"
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.11
     environment:
       - ENDPOINT=alloy:4317
     restart: always
@@ -74,7 +74,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:13.1.3@sha256:ab5cb380e3ff3172d6c8bd2e7cfd31cce977d2881b260e1f5bc089bf0b759b43
+    image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
@@ -316,7 +316,7 @@ services:
   # confirming tempo_vulture_trace_error_total stays at 0.
   # Independent of the k6+alloy traffic above, which represents real app traces.
   vulture:
-    image: grafana/tempo-vulture:3.0.3@sha256:c80f272b5a842c4812ea1772faea3bba0af1f35fccd1ce6ac43b852c9c8fd1d0
+    image: grafana/tempo-vulture:3.1.1@sha256:6e92f9aa0a7256b8a14580b57217ade76aac37bb982e3b7c528d0f3174a6a150
     profiles: ["v3"]
     restart: always
     hostname: vulture

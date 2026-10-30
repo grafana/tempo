@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"context"
 	"net/http"
 )
 
@@ -14,7 +15,7 @@ type Combiner interface {
 	ShouldQuit() bool
 
 	// returns the final/complete results
-	HTTPFinal() (*http.Response, error)
+	HTTPFinal(ctx context.Context) (*http.Response, error)
 }
 
 type TypedCombiner[T TResponse] interface {
@@ -25,7 +26,7 @@ type GRPCCombiner[T TResponse] interface {
 	Combiner
 	TypedCombiner[T]
 
-	GRPCFinal() (T, error)
+	GRPCFinal(ctx context.Context) (T, error)
 	GRPCDiff() (T, error)
 	GRPCSegment(response T, maxSize int) ([]T, error)
 }

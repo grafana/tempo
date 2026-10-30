@@ -141,3 +141,38 @@ overrides:
 
 When `unsafe_query_hints` is also enabled for the tenant, the `spanonly_fetch` query hint takes precedence over the per-tenant override. 
 You can set `spanonly_fetch=false` to opt out, or `spanonly_fetch=true` to opt back in even when the override disables it for the tenant.
+
+### Extrapolation from ingest-time sampling
+
+{{< docs/experimental product="TraceQL metrics extrapolation" >}}
+
+If your traces are sampled at ingest time by an OpenTelemetry probability sampler,
+TraceQL metrics can scale each matched span by the sampling probability recorded in its W3C tracestate,
+so results reflect the un-sampled traffic.
+Extrapolation requires vParquet4 or later blocks and is off by default.
+You can turn it on using a query hint or a per-tenant override.
+
+#### Turn on with a query hint
+
+Add the `extrapolate=true` hint to your query to turn on extrapolation for that query.
+This hint doesn't require `unsafe_query_hints`.
+For supported functions, refer to [Extrapolation from ingest-time sampling](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/functions/#extrapolation-from-ingest-time-sampling-withextrapolatetrue-experimental).
+
+```
+{ resource.service.name = "frontend" } | rate() with (extrapolate=true)
+```
+
+#### Turn on with a per-tenant override
+
+Operators can turn on extrapolation by default for a tenant using the `metrics_extrapolate` override.
+When set to `true`, all metrics queries for that tenant are extrapolated.
+
+```yaml
+overrides:
+  'tenant-id':
+    read:
+      metrics_extrapolate: true
+```
+
+The `extrapolate` query hint takes precedence over the per-tenant override.
+You can set `extrapolate=false` to opt a query out, or `extrapolate=true` to opt in even when the override is off for the tenant.

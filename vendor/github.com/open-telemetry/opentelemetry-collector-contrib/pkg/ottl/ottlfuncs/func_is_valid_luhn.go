@@ -5,7 +5,6 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -32,17 +31,17 @@ func createIsValidLuhnFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argumen
 
 func isValidLuhnFunc[K any](target ottl.StringLikeGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
-		value, err := target.Get(ctx, tCtx)
+		value, ok, err := target.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
 
-		if value == nil {
-			return nil, fmt.Errorf("invalid input: %v", value)
+		if !ok {
+			return nil, errors.New("invalid input: <nil>")
 		}
 
 		// first trim all spaces
-		trimmedNumber := strings.ReplaceAll(*value, " ", "")
+		trimmedNumber := strings.ReplaceAll(value, " ", "")
 
 		// return false if the value is an empty string
 		if trimmedNumber == "" {

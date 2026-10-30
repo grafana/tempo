@@ -37,7 +37,7 @@ func (pc ProfilesConsumer) ConsumeProfiles(ctx context.Context, pd pprofile.Prof
 	var condErr error
 	pd.ResourceProfiles().RemoveIf(func(rp pprofile.ResourceProfiles) bool {
 		if pc.resourceExpr != nil {
-			rCtx := ottlresource.NewTransformContextPtr(rp.Resource(), rp)
+			rCtx := ottlresource.NewTransformContext(rp.Resource(), rp)
 			rCond, err := pc.resourceExpr.Eval(ctx, rCtx)
 			rCtx.Close()
 			if err != nil {
@@ -55,7 +55,7 @@ func (pc ProfilesConsumer) ConsumeProfiles(ctx context.Context, pd pprofile.Prof
 
 		rp.ScopeProfiles().RemoveIf(func(sp pprofile.ScopeProfiles) bool {
 			if pc.scopeExpr != nil {
-				sCtx := ottlscope.NewTransformContextPtr(sp.Scope(), rp.Resource(), sp, rp)
+				sCtx := ottlscope.NewTransformContext(sp.Scope(), rp.Resource(), sp, rp)
 				sCond, err := pc.scopeExpr.Eval(ctx, sCtx)
 				sCtx.Close()
 				if err != nil {
@@ -69,7 +69,7 @@ func (pc ProfilesConsumer) ConsumeProfiles(ctx context.Context, pd pprofile.Prof
 
 			if pc.profileExpr != nil {
 				sp.Profiles().RemoveIf(func(profile pprofile.Profile) bool {
-					tCtx := ottlprofile.NewTransformContextPtr(rp, sp, profile, pd.Dictionary())
+					tCtx := ottlprofile.NewTransformContext(rp, sp, profile, pd.Dictionary())
 					cond, err := pc.profileExpr.Eval(ctx, tCtx)
 					tCtx.Close()
 					if err != nil {

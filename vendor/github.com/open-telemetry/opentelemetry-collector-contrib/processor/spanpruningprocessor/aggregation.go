@@ -14,12 +14,18 @@ import (
 )
 
 // aggregationGroup captures the spans to aggregate along with execution
-// metadata (tree depth, preassigned summary ID).
+// metadata (tree depth, preassigned summary ID, and attribute loss info).
 type aggregationGroup struct {
-	nodes         []*spanNode    // nodes to aggregate (replaces []spanInfo for efficiency)
-	depth         int            // tree depth (0 = leaf, 1 = parent of leaf, etc.)
-	summarySpanID pcommon.SpanID // SpanID of the summary span (assigned before creation)
-	templateNode  *spanNode      // node to use as summary template (longest duration)
+	nodes                  []*spanNode            // nodes to aggregate (replaces []spanInfo for efficiency)
+	depth                  int                    // tree depth (0 = leaf, 1 = parent of leaf, etc.)
+	summarySpanID          pcommon.SpanID         // SpanID of the summary span (assigned before creation)
+	lossInfo               attributeLossSummary   // attribute loss info (diverse + missing)
+	templateNode           *spanNode              // node to use as summary template (longest duration)
+	outlierAnalysis        *outlierAnalysisResult // outlier analysis results
+	preservedOutliers      []*spanNode            // outliers to keep as individual spans
+	exemplars              []*spanNode            // randomly sampled exemplars to keep as siblings of the summary
+	exemplarPopulationSize int                    // full group size (N), denominator for exemplar threshold composition
+	exemplarSampleSize     int                    // trees drawn from the group (D), numerator for exemplar threshold composition
 }
 
 // aggregationPlan orders aggregation groups for top-down execution and
@@ -82,6 +88,7 @@ func (*spanPruningProcessor) buildAggregationPlan(groups map[string]aggregationG
 // pruned spans.
 func (p *spanPruningProcessor) executeAggregations(plan aggregationPlan, tree *traceTree) int {
 	prunedCount := 0
+	prefix := p.config.AggregationAttributePrefix
 
 	for i := range plan.groups {
 		group := &plan.groups[i]
@@ -98,6 +105,25 @@ func (p *spanPruningProcessor) executeAggregations(plan aggregationPlan, tree *t
 
 		// Create summary span with correct parent
 		p.createSummarySpanWithParent(*group, data, summaryParentID)
+
+		// Mark preserved outliers with reference to summary span.
+		for _, outlier := range group.preservedOutliers {
+			// Outliers become siblings of the summary span.
+			outlier.span.SetParentSpanID(summaryParentID)
+			outlier.span.Attributes().PutBool(prefix+"is_preserved_outlier", true)
+			outlier.span.Attributes().PutStr(prefix+"summary_span_id", group.summarySpanID.String())
+		}
+
+		// Mark randomly sampled exemplars with reference to summary span and
+		// update their CPS sampling threshold to reflect the additional
+		// sampling step (K kept of N).
+		for _, exemplar := range group.exemplars {
+			// Exemplars become siblings of the summary span.
+			exemplar.span.SetParentSpanID(summaryParentID)
+			updateExemplarThreshold(exemplar.span, group.exemplarSampleSize, group.exemplarPopulationSize)
+			exemplar.span.Attributes().PutBool(prefix+"is_exemplar", true)
+			exemplar.span.Attributes().PutStr(prefix+"summary_span_id", group.summarySpanID.String())
+		}
 
 		// Record replacement span ID on each node so child groups can find it
 		for _, node := range group.nodes {
@@ -125,7 +151,8 @@ func (p *spanPruningProcessor) executeAggregations(plan aggregationPlan, tree *t
 }
 
 // createSummarySpanWithParent builds the summary span for an aggregation
-// group, wiring it under the provided parent SpanID and attaching stats.
+// group, wiring it under the provided parent SpanID and attaching stats
+// and attribute-loss annotations.
 func (p *spanPruningProcessor) createSummarySpanWithParent(group aggregationGroup, data aggregationData, parentSpanID pcommon.SpanID) ptrace.Span {
 	// Use the template node (longest duration span) as a template
 	templateNode := group.templateNode
@@ -170,6 +197,36 @@ func (p *spanPruningProcessor) createSummarySpanWithParent(group aggregationGrou
 		newSpan.Attributes().PutInt(prefix+"duration_avg_ns", int64(data.sumDuration)/data.count)
 	}
 
+	// Add outlier analysis attributes when enabled.
+	if group.outlierAnalysis != nil {
+		newSpan.Attributes().PutInt(prefix+"duration_median_ns", int64(group.outlierAnalysis.median))
+
+		if len(group.outlierAnalysis.correlations) > 0 {
+			newSpan.Attributes().PutStr(prefix+"outlier_correlated_attributes", formatCorrelations(group.outlierAnalysis.correlations))
+		}
+
+		// Track preserved outliers.
+		if len(group.preservedOutliers) > 0 {
+			newSpan.Attributes().PutInt(prefix+"preserved_outlier_count", int64(len(group.preservedOutliers)))
+
+			// List preserved outlier span IDs.
+			outlierIDs := newSpan.Attributes().PutEmptySlice(prefix + "preserved_outlier_span_ids")
+			for _, outlier := range group.preservedOutliers {
+				outlierIDs.AppendEmpty().SetStr(outlier.span.SpanID().String())
+			}
+		}
+	}
+
+	// Track sampled exemplars.
+	if len(group.exemplars) > 0 {
+		newSpan.Attributes().PutInt(prefix+"exemplar_count", int64(len(group.exemplars)))
+
+		exemplarIDs := newSpan.Attributes().PutEmptySlice(prefix + "exemplar_span_ids")
+		for _, exemplar := range group.exemplars {
+			exemplarIDs.AppendEmpty().SetStr(exemplar.span.SpanID().String())
+		}
+	}
+
 	// Add histogram attributes if enabled.
 	if len(p.config.AggregationHistogramBuckets) > 0 {
 		// Add bucket bounds in seconds.
@@ -183,6 +240,13 @@ func (p *spanPruningProcessor) createSummarySpanWithParent(group aggregationGrou
 		for _, count := range data.bucketCounts {
 			bucketCountsSlice.AppendEmpty().SetInt(count)
 		}
+	}
+
+	if len(group.lossInfo.diverse) > 0 {
+		newSpan.Attributes().PutStr(prefix+"diverse_attributes", formatAttributeCardinality(group.lossInfo.diverse))
+	}
+	if len(group.lossInfo.missing) > 0 {
+		newSpan.Attributes().PutStr(prefix+"missing_attributes", formatAttributeCardinality(group.lossInfo.missing))
 	}
 
 	return newSpan

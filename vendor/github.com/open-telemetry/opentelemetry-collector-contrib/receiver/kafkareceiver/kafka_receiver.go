@@ -92,7 +92,7 @@ func newLogsReceiver(config *Config, set receiver.Settings, nextConsumer consume
 			)
 		}, nil
 	}
-	return newReceiver(config, set, config.Logs.Topics, config.Logs.ExcludeTopics, newConsumeMessageFunc)
+	return newFranzKafkaConsumer(config, set, config.Logs.Topics, config.Logs.ExcludeTopics, newConsumeMessageFunc)
 }
 
 func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer consumer.Metrics) (receiver.Metrics, error) {
@@ -119,7 +119,7 @@ func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer cons
 			)
 		}, nil
 	}
-	return newReceiver(config, set, config.Metrics.Topics, config.Metrics.ExcludeTopics, newConsumeMessageFunc)
+	return newFranzKafkaConsumer(config, set, config.Metrics.Topics, config.Metrics.ExcludeTopics, newConsumeMessageFunc)
 }
 
 func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consumer.Traces) (receiver.Traces, error) {
@@ -146,7 +146,7 @@ func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consu
 			)
 		}, nil
 	}
-	return newReceiver(config, set, config.Traces.Topics, config.Traces.ExcludeTopics, consumeFn)
+	return newFranzKafkaConsumer(config, set, config.Traces.Topics, config.Traces.ExcludeTopics, consumeFn)
 }
 
 func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xconsumer.Profiles) (xreceiver.Profiles, error) {
@@ -173,20 +173,7 @@ func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xco
 			)
 		}, nil
 	}
-	return newReceiver(config, set, config.Profiles.Topics, config.Profiles.ExcludeTopics, consumeFn)
-}
-
-func newReceiver(
-	config *Config,
-	set receiver.Settings,
-	topics []string,
-	excludeTopics []string,
-	consumeFn func(host component.Host,
-		obsrecv *receiverhelper.ObsReport,
-		telBldr *metadata.TelemetryBuilder,
-	) (consumeMessageFunc, error),
-) (component.Component, error) {
-	return newFranzKafkaConsumer(config, set, topics, excludeTopics, consumeFn)
+	return newFranzKafkaConsumer(config, set, config.Profiles.Topics, config.Profiles.ExcludeTopics, consumeFn)
 }
 
 type logsHandler struct {

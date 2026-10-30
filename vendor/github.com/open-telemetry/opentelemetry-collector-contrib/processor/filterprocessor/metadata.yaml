@@ -17,8 +17,9 @@ feature_gates:
   - id: processor.filter.defaultErrorModeIgnore
     description: >-
       Changes the default error_mode of the filter processor from propagate to ignore
-    stage: beta
+    stage: stable
     from_version: "v0.150.0"
+    to_version: "v0.159.0"
     reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/47232
 
 tests:
