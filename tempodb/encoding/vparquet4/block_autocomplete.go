@@ -639,20 +639,13 @@ func createDistinctSpanIterator(
 
 		// Well-known attribute?
 		if entry, ok := WellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeResource {
-			// Operands that need special handling.
-			switch cond.Op {
-			case traceql.OpNone:
-				addPredicate(entry.ColumnPath, nil) // No filtering
-				addSelectAs(cond.Attribute, entry.ColumnPath, cond.Attribute.Name)
-				continue
-			case traceql.OpExists:
-				addPredicate(entry.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				addSelectAs(cond.Attribute, entry.ColumnPath, cond.Attribute.Name)
-				continue
-			case traceql.OpNotExists:
-				pred := parquetquery.NewNilValuePredicate()
-				addPredicate(entry.ColumnPath, pred)
-				addSelectAs(cond.Attribute, entry.ColumnPath, cond.Attribute.Name)
+			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, isTagAttribute(tr, cond.Attribute), entry.ColumnPath,
+				DefinitionLevelResourceSpansILSSpan, DefinitionLevelResourceSpansILSSpanAttrs, columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
+			if err != nil {
+				return nil, fmt.Errorf("creating dedicated column iterator: %w", err)
+			}
+			if iter != nil {
+				iters = append(iters, iter)
 				continue
 			}
 
@@ -670,20 +663,13 @@ func createDistinctSpanIterator(
 
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
-			// Operands that need special handling.
-			switch cond.Op {
-			case traceql.OpNone:
-				addPredicate(c.ColumnPath, nil) // No filtering
-				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
-				continue
-			case traceql.OpExists:
-				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
-				continue
-			case traceql.OpNotExists:
-				pred := parquetquery.NewNilValuePredicate()
-				addPredicate(c.ColumnPath, pred)
-				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
+			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, isTagAttribute(tr, cond.Attribute), c.ColumnPath,
+				DefinitionLevelResourceSpansILSSpan, DefinitionLevelResourceSpansILSSpanAttrs, columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
+			if err != nil {
+				return nil, fmt.Errorf("creating dedicated column iterator: %w", err)
+			}
+			if iter != nil {
+				iters = append(iters, iter)
 				continue
 			}
 
@@ -877,6 +863,59 @@ func createDistinctAttributeIterator(
 	return nil, nil
 }
 
+// isTagAttribute reports whether a is the looked-up tag, which an unscoped tag matches in any scope.
+func isTagAttribute(tr tagRequest, a traceql.Attribute) bool {
+	return a == tr.tag || (a.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone)
+}
+
+// createDistinctDedicatedIterator also reads generic attributes for select, != nil and = nil, because values of another type than the dedicated column are written there.
+func createDistinctDedicatedIterator(makeIter, makeNilIter makeIterFn, tr tagRequest, cond traceql.Condition, isTag bool, columnPath string,
+	definitionLevel, attrDefinitionLevel int, keyPath, strPath, intPath, floatPath, boolPath string,
+) (parquetquery.Iterator, error) {
+	selectAs := ""
+	if isTag {
+		selectAs = cond.Attribute.Name
+	}
+
+	var dedicatedIter parquetquery.Iterator
+	switch cond.Op {
+	case traceql.OpNone:
+		if !isTag {
+			return makeIter(columnPath, nil, ""), nil
+		}
+		dedicatedIter = makeIter(columnPath, nil, selectAs)
+	case traceql.OpExists:
+		dedicatedIter = makeIter(columnPath, &parquetquery.SkipNilsPredicate{}, selectAs)
+	case traceql.OpNotExists:
+		return parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{
+			makeIter(columnPath, parquetquery.NewNilValuePredicate(), selectAs),
+			makeNilIter(keyPath, parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name)), ""),
+		}, nil), nil
+	default:
+		return nil, nil
+	}
+
+	// Only the looked-up tag needs generic values, other conditions only filter.
+	var genericIter parquetquery.Iterator
+	if isTag {
+		var err error
+		genericIter, err = createDistinctAttributeIterator(makeIter, tr, []traceql.Condition{cond}, attrDefinitionLevel, keyPath, strPath, intPath, floatPath, boolPath)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		genericIter = makeIter(keyPath, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), "")
+	}
+	return parquetquery.NewUnionIterator(definitionLevel, []parquetquery.Iterator{
+		dedicatedIter,
+		// Only rows with a nil dedicated column can hold the value in generic attributes, so the rest are skipped.
+		parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{
+			makeIter(columnPath, parquetquery.NewNilValuePredicate(), ""),
+			genericIter,
+		}, nil),
+	}, nil), nil
+}
+
 func keyNameIterator(makeIter makeIterFn, tr tagRequest, definitionLevel int, keyPath string, attrIters []parquetquery.Iterator) (parquetquery.Iterator, error) {
 	scope := scopeFromDefinitionLevel(definitionLevel, keyPath)
 	if len(attrIters) == 0 {
@@ -1010,20 +1049,13 @@ func createDistinctResourceIterator(
 	for _, cond := range conditions {
 		// Well-known selector?
 		if entry, ok := WellKnownColumnLookups[cond.Attribute.Name]; ok && entry.level != traceql.AttributeScopeSpan {
-			// Operands that need special handling.
-			switch cond.Op {
-			case traceql.OpNone:
-				addPredicate(entry.ColumnPath, nil) // No filtering
-				addSelectAs(cond.Attribute, entry.ColumnPath, cond.Attribute.Name)
-				continue
-			case traceql.OpExists:
-				addPredicate(entry.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				addSelectAs(cond.Attribute, entry.ColumnPath, cond.Attribute.Name)
-				continue
-			case traceql.OpNotExists:
-				pred := parquetquery.NewNilValuePredicate()
-				addPredicate(entry.ColumnPath, pred)
-				addSelectAs(cond.Attribute, entry.ColumnPath, cond.Attribute.Name)
+			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, isTagAttribute(tr, cond.Attribute), entry.ColumnPath,
+				DefinitionLevelResourceSpans, DefinitionLevelResourceAttrs, columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
+			if err != nil {
+				return nil, fmt.Errorf("creating dedicated column iterator: %w", err)
+			}
+			if iter != nil {
+				iters = append(iters, iter)
 				continue
 			}
 
@@ -1044,20 +1076,13 @@ func createDistinctResourceIterator(
 
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
-			// Operands that need special handling.
-			switch cond.Op {
-			case traceql.OpNone:
-				addPredicate(c.ColumnPath, nil) // No filtering
-				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
-				continue
-			case traceql.OpExists:
-				addPredicate(c.ColumnPath, &parquetquery.SkipNilsPredicate{})
-				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
-				continue
-			case traceql.OpNotExists:
-				pred := parquetquery.NewNilValuePredicate()
-				addPredicate(c.ColumnPath, pred)
-				addSelectAs(cond.Attribute, c.ColumnPath, cond.Attribute.Name)
+			iter, err := createDistinctDedicatedIterator(makeIter, makeNilIter, tr, cond, isTagAttribute(tr, cond.Attribute), c.ColumnPath,
+				DefinitionLevelResourceSpans, DefinitionLevelResourceAttrs, columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool)
+			if err != nil {
+				return nil, fmt.Errorf("creating dedicated column iterator: %w", err)
+			}
+			if iter != nil {
+				iters = append(iters, iter)
 				continue
 			}
 

@@ -369,6 +369,7 @@ func createResourceIterators(
 		}
 	}
 
+	existsIters := existenceIters{}
 	for _, cond := range conditions {
 
 		// Well-known selector?
@@ -390,7 +391,20 @@ func createResourceIterators(
 
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
-			if specialCase(cond, c.ColumnPath) {
+			if existsCond, ok := dedicatedExistenceCondition(conditions, cond); ok {
+				if !existsIters.add(c.ColumnPath, existsCond.Op) {
+					continue
+				}
+				existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, c.ColumnPath,
+					DefinitionLevelResourceSpans, columnPathResourceAttrKey, func() (parquetquery.Iterator, error) {
+						return detachScopedAttributes(createScopedAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceAttrs,
+							columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool,
+							false, false, traceql.AttributeScopeResource))
+					})
+				if err != nil {
+					return nil, nil, fmt.Errorf("creating resource existence iterator: %w", err)
+				}
+				optional = append(optional, existsIter)
 				continue
 			}
 
@@ -516,25 +530,7 @@ func createSpanIterators(
 		}
 	}
 
-	specialCase := func(cond traceql.Condition, columnPath string) (handled bool) {
-		// Operands that need special handling.
-		switch cond.Op {
-		case traceql.OpNone:
-			addPredicate(columnPath, nil) // No filtering
-			columnSelectAs[columnPath] = cond.Attribute.Name
-			return true
-		case traceql.OpExists:
-			addPredicate(columnPath, &parquetquery.SkipNilsPredicate{})
-			columnSelectAs[columnPath] = cond.Attribute.Name
-			return true
-		case traceql.OpNotExists:
-			optional = append(optional, makeIter(columnPath, parquetquery.NewNilValuePredicate(), cond.Attribute.Name))
-			return true
-		default:
-			return false
-		}
-	}
-
+	existsIters := existenceIters{}
 	for _, cond := range conditions {
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
@@ -691,7 +687,20 @@ func createSpanIterators(
 
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
-			if specialCase(cond, c.ColumnPath) {
+			if existsCond, ok := dedicatedExistenceCondition(conditions, cond); ok {
+				if !existsIters.add(c.ColumnPath, existsCond.Op) {
+					continue
+				}
+				existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, c.ColumnPath,
+					DefinitionLevelResourceSpansILSSpan, columnPathSpanAttrKey, func() (parquetquery.Iterator, error) {
+						return detachScopedAttributes(createScopedAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceSpansILSSpanAttrs,
+							columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool,
+							false, false, traceql.AttributeScopeSpan))
+					})
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("creating span existence iterator: %w", err)
+				}
+				optional = append(optional, existsIter)
 				continue
 			}
 
@@ -836,25 +845,7 @@ func createEventIterators(
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
-	specialCase := func(cond traceql.Condition, columnPath string) (handled bool) {
-		// Operands that need special handling.
-		switch cond.Op {
-		case traceql.OpNone:
-			addPredicate(columnPath, nil) // No filtering
-			columnSelectAs[columnPath] = cond.Attribute.Name
-			return true
-		case traceql.OpExists:
-			addPredicate(columnPath, &parquetquery.SkipNilsPredicate{})
-			columnSelectAs[columnPath] = cond.Attribute.Name
-			return true
-		case traceql.OpNotExists:
-			optional = append(optional, makeIter(columnPath, parquetquery.NewNilValuePredicate(), cond.Attribute.Name))
-			return true
-		default:
-			return false
-		}
-	}
-
+	existsIters := existenceIters{}
 	for _, cond := range conditions {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicEventName:
@@ -875,7 +866,20 @@ func createEventIterators(
 
 		// Attributes stored in dedicated columns
 		if c, ok := columnMapping.get(cond.Attribute.Name); ok {
-			if specialCase(cond, c.ColumnPath) {
+			if existsCond, ok := dedicatedExistenceCondition(conditions, cond); ok {
+				if !existsIters.add(c.ColumnPath, existsCond.Op) {
+					continue
+				}
+				existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, c.ColumnPath,
+					DefinitionLevelResourceSpansILSSpanEvent, columnPathEventAttrKey, func() (parquetquery.Iterator, error) {
+						return detachScopedAttributes(createScopedAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceSpansILSSpanEventAttrs,
+							columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool,
+							false, false, traceql.AttributeScopeEvent))
+					})
+				if err != nil {
+					return nil, nil, fmt.Errorf("creating event existence iterator: %w", err)
+				}
+				optional = append(optional, existsIter)
 				continue
 			}
 
@@ -1277,6 +1281,60 @@ func createScopedAttributeIterator(makeIter makeIterFn, conditions []traceql.Con
 		}
 	}
 	return parquetquery.NewLeftJoinIterator(definitionLevel, nil, nil, nil, opts...)
+}
+
+// detachScopedAttributes wraps a scoped attribute iterator whose results a join or union holds while reading ahead.
+func detachScopedAttributes(iter parquetquery.Iterator, err error) (parquetquery.Iterator, error) {
+	if iter == nil || err != nil {
+		return iter, err
+	}
+	return &detachedScopedAttributeIterator{Iterator: iter}, nil
+}
+
+// detachedScopedAttributeIterator copies each result, because scopedAttributeCollector reuses it for every row.
+type detachedScopedAttributeIterator struct {
+	parquetquery.Iterator
+}
+
+func (i *detachedScopedAttributeIterator) Next() (*parquetquery.IteratorResult, error) {
+	return detachScopedAttributeResult(i.Iterator.Next())
+}
+
+func (i *detachedScopedAttributeIterator) SeekTo(t parquetquery.RowNumber, definitionLevel int) (*parquetquery.IteratorResult, error) {
+	return detachScopedAttributeResult(i.Iterator.SeekTo(t, definitionLevel))
+}
+
+func detachScopedAttributeResult(res *parquetquery.IteratorResult, err error) (*parquetquery.IteratorResult, error) {
+	if res == nil || err != nil {
+		return res, err
+	}
+
+	out := &parquetquery.IteratorResult{RowNumber: res.RowNumber}
+	for _, e := range res.OtherEntries {
+		v := e.Value
+		if a, ok := v.(*attrVal); ok {
+			v = &attrVal{a: a.a, s: cloneStaticArray(a.s)}
+		}
+		out.AppendOtherValue(e.Key, v)
+	}
+	return out, nil
+}
+
+// cloneStaticArray copies int, float and bool arrays, which alias the collector's buffers.
+func cloneStaticArray(s traceql.Static) traceql.Static {
+	switch s.Type {
+	case traceql.TypeIntArray:
+		v, _ := s.IntArray()
+		return traceql.NewStaticIntArray(util.Clone(v))
+	case traceql.TypeFloatArray:
+		v, _ := s.FloatArray()
+		return traceql.NewStaticFloatArray(util.Clone(v))
+	case traceql.TypeBooleanArray:
+		v, _ := s.BooleanArray()
+		return traceql.NewStaticBooleanArray(util.Clone(v))
+	default:
+		return s
+	}
 }
 
 type spanCollector2 struct {

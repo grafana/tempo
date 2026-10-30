@@ -20,6 +20,8 @@ import (
 
 	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/pkg/util"
@@ -556,6 +558,332 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 			require.True(t, found, "search request:%v", req)
 		})
 	}
+}
+
+// TestBackendBlockSearchTraceQLDedicatedColumnOtherType covers attributes with a dedicated column
+// whose value has another type, which the writer stores in generic attributes instead.
+// attributeEntries counts the entries of a, because compare() counts every entry of a span.
+func attributeEntries(sp traceql.Span, a traceql.Attribute) int {
+	n := 0
+	sp.AllAttributesFunc(func(got traceql.Attribute, _ traceql.Static) {
+		if got == a {
+			n++
+		}
+	})
+	return n
+}
+
+func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
+	var (
+		intValue = &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}
+		strValue = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "a"}}
+		strCol   = backend.DedicatedColumnTypeString
+		intCol   = backend.DedicatedColumnTypeInt
+	)
+
+	// query uses %[1]s for the scope. A nil value means the attribute isn't written.
+	testCases := []struct {
+		name     string
+		colType  backend.DedicatedColumnType
+		value    *v1_common.AnyValue
+		onlyAttr bool
+		query    string
+		match    bool
+	}{
+		{"fits column, exists", strCol, strValue, false, `{ %[1]s.mixed != nil }`, true},
+		{"fits column, not exists", strCol, strValue, false, `{ %[1]s.mixed = nil }`, false},
+		{"fits column, exists in or", strCol, strValue, false, `{ %[1]s.mixed != nil || %[1]s.missing = "x" }`, true},
+		{"absent, exists", strCol, nil, false, `{ %[1]s.mixed != nil }`, false},
+		{"absent, not exists", strCol, nil, false, `{ %[1]s.mixed = nil }`, true},
+		{"absent, not exists in or", strCol, nil, false, `{ %[1]s.mixed = nil || %[1]s.missing = "x" }`, true},
+		{"absent, not exists and other", strCol, nil, false, `{ %[1]s.mixed = nil && %[1]s.other = "a" }`, true},
+		{"absent, exists or other", strCol, nil, false, `{ %[1]s.mixed != nil || %[1]s.other = "a" }`, true},
+		{"absent without other attrs, exists", strCol, nil, true, `{ %[1]s.mixed != nil }`, false},
+		{"absent without other attrs, not exists", strCol, nil, true, `{ %[1]s.mixed = nil }`, true},
+		{"int in string column, by value", strCol, intValue, false, `{ %[1]s.mixed = 1 }`, true},
+		{"int in string column, exists", strCol, intValue, false, `{ %[1]s.mixed != nil }`, true},
+		{"int in string column, not exists", strCol, intValue, false, `{ %[1]s.mixed = nil }`, false},
+		{"int in string column, exists in or", strCol, intValue, false, `{ %[1]s.mixed != nil || %[1]s.missing = "x" }`, true},
+		{"int in string column, not exists in or", strCol, intValue, false, `{ %[1]s.mixed = nil || %[1]s.missing = "x" }`, false},
+		{"int in string column, exists and value", strCol, intValue, false, `{ %[1]s.mixed != nil && %[1]s.mixed = 1 }`, true},
+		{"int in string column, exists or value", strCol, intValue, false, `{ %[1]s.mixed != nil || %[1]s.mixed = 1 }`, true},
+		{"fits column, exists and value", strCol, strValue, false, `{ %[1]s.mixed != nil && %[1]s.mixed = "a" }`, true},
+		{"fits column, exists or other value", strCol, strValue, false, `{ %[1]s.mixed != nil || %[1]s.mixed = "b" }`, true},
+		{"fits column, not exists or value", strCol, strValue, false, `{ %[1]s.mixed = nil || %[1]s.mixed = "a" }`, true},
+		{"fits column, other value and other exists", strCol, strValue, false, `{ %[1]s.mixed = "b" && %[1]s.other != nil }`, false},
+		{"absent, exists or not exists", strCol, nil, false, `{ %[1]s.mixed != nil || %[1]s.mixed = nil }`, true},
+		{"absent, exists and not exists", strCol, nil, false, `{ %[1]s.mixed != nil && %[1]s.mixed = nil }`, false},
+		{"int in string column, exists and not exists", strCol, intValue, false, `{ %[1]s.mixed != nil && %[1]s.mixed = nil }`, false},
+		{"int in string column, exists and other", strCol, intValue, false, `{ %[1]s.mixed != nil && %[1]s.other = "a" }`, true},
+		{"int in string column, not exists and other", strCol, intValue, false, `{ %[1]s.mixed = nil && %[1]s.other = "a" }`, false},
+		{"int in string column without other attrs, exists", strCol, intValue, true, `{ %[1]s.mixed != nil }`, true},
+		{"int in string column without other attrs, not exists", strCol, intValue, true, `{ %[1]s.mixed = nil }`, false},
+		{"string in int column, by value", intCol, strValue, false, `{ %[1]s.mixed = "a" }`, true},
+		{"string in int column, exists", intCol, strValue, false, `{ %[1]s.mixed != nil }`, true},
+		{"string in int column, not exists", intCol, strValue, false, `{ %[1]s.mixed = nil }`, false},
+		{"fits column, select", strCol, strValue, false, `{ %[1]s.mixed }`, true},
+		{"absent, select", strCol, nil, false, `{ %[1]s.mixed }`, true},
+		{"int in string column, select", strCol, intValue, false, `{ %[1]s.mixed }`, true},
+		{"string in int column, select", intCol, strValue, false, `{ %[1]s.mixed }`, true},
+	}
+
+	// checkQuery reads the trace from a block with filler traces, and runs both fetch paths.
+	// want returns the attribute values a matched span must return. checkQuery returns the IDs of the matched spans of the trace.
+	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, want func(traceql.Span) map[traceql.Attribute]traceql.Static) (fetchIDs, fetchSpansIDs []string) {
+		requireValues := func(path string, sp traceql.Span) {
+			if want == nil {
+				return
+			}
+			for a, v := range want(sp) {
+				got, ok := sp.AttributeFor(a)
+				require.True(t, ok, "%s: %s missing for %s", path, a, query)
+				require.Equal(t, v.EncodeToString(true), got.EncodeToString(true), "%s: %s for %s", path, a, query)
+				require.Equal(t, 1, attributeEntries(sp, a), "%s: %s entries for %s", path, a, query)
+			}
+		}
+
+		b := makeBackendBlockWithFillers(t, id, tr, dc)
+
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(query)
+		resp, err := b.Fetch(t.Context(), req, common.DefaultSearchOptions())
+		require.NoError(t, err)
+
+		for {
+			ss, err := resp.Results.Next(t.Context())
+			require.NoError(t, err)
+			if ss == nil {
+				break
+			}
+			if bytes.Equal(ss.TraceID, id) {
+				for _, sp := range ss.Spans {
+					fetchIDs = append(fetchIDs, util.SpanIDToHexString(sp.ID()))
+					requireValues("Fetch", sp)
+				}
+			}
+		}
+
+		req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+		req.SecondPassConditions = traceql.SearchMetaConditions()
+		spansResp, err := b.FetchSpans(t.Context(), req, common.DefaultSearchOptions())
+		require.NoError(t, err)
+		defer spansResp.Results.Close()
+
+		for {
+			sp, err := spansResp.Results.Next(t.Context())
+			require.NoError(t, err)
+			if sp == nil {
+				break
+			}
+			traceID, ok := sp.AttributeFor(traceql.IntrinsicTraceIDAttribute)
+			if ok && traceID.EncodeToString(false) == util.TraceIDToHexString(id) {
+				fetchSpansIDs = append(fetchSpansIDs, util.SpanIDToHexString(sp.ID()))
+				requireValues("FetchSpans", sp)
+			}
+		}
+		return fetchIDs, fetchSpansIDs
+	}
+
+	staticOf := map[*v1_common.AnyValue]traceql.Static{intValue: traceql.NewStaticInt(1), strValue: traceql.NewStaticString("a")}
+
+	makeTrace := func(id []byte, scope backend.DedicatedColumnScope, value *v1_common.AnyValue, onlyAttr, withEvent bool) *tempopb.Trace {
+		attrs := func(s backend.DedicatedColumnScope) []*v1_common.KeyValue {
+			var kvs []*v1_common.KeyValue
+			if s != scope || !onlyAttr {
+				kvs = append(kvs, &v1_common.KeyValue{Key: "other", Value: strValue})
+			}
+			if s == scope && value != nil {
+				kvs = append(kvs, &v1_common.KeyValue{Key: "mixed", Value: value})
+			}
+			return kvs
+		}
+
+		sp := &v1.Span{
+			TraceId:           id,
+			SpanId:            []byte{1, 2, 3, 4, 5, 6, 7, 8},
+			Name:              "test",
+			StartTimeUnixNano: uint64(100 * time.Second),
+			EndTimeUnixNano:   uint64(200 * time.Second),
+			Attributes:        attrs(backend.DedicatedColumnScopeSpan),
+		}
+		if withEvent {
+			sp.Events = []*v1.Span_Event{{Name: "event", Attributes: attrs(backend.DedicatedColumnScopeEvent)}}
+		}
+		return &tempopb.Trace{ResourceSpans: []*v1.ResourceSpans{{
+			Resource:   &v1_resource.Resource{Attributes: attrs(backend.DedicatedColumnScopeResource)},
+			ScopeSpans: []*v1.ScopeSpans{{Spans: []*v1.Span{sp}}},
+		}}}
+	}
+
+	scopes := []backend.DedicatedColumnScope{backend.DedicatedColumnScopeSpan, backend.DedicatedColumnScopeResource, backend.DedicatedColumnScopeEvent}
+	mixedAttr := func(scope backend.DedicatedColumnScope) traceql.Attribute {
+		return traceql.NewScopedAttribute(traceql.AttributeScopeFromString(string(scope)), false, "mixed")
+	}
+
+	for _, scope := range scopes {
+		for _, tc := range testCases {
+			query := fmt.Sprintf(tc.query, scope)
+			t.Run(fmt.Sprintf("%s/%s", scope, tc.name), func(t *testing.T) {
+				id := test.ValidTraceID(nil)
+				dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: tc.colType}}
+				var want func(traceql.Span) map[traceql.Attribute]traceql.Static
+				if tc.match && tc.value != nil {
+					want = func(traceql.Span) map[traceql.Attribute]traceql.Static {
+						return map[traceql.Attribute]traceql.Static{mixedAttr(scope): staticOf[tc.value]}
+					}
+				}
+				fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, makeTrace(id, scope, tc.value, tc.onlyAttr, true), query, want)
+				require.Equal(t, tc.match, len(fetchIDs) > 0, "Fetch: %s", query)
+				require.Equal(t, tc.match, len(fetchSpansIDs) > 0, "FetchSpans: %s", query)
+			})
+		}
+	}
+
+	// Same as for generic event attributes, a span without events doesn't match event-level = nil.
+	t.Run("event/no events, not exists", func(t *testing.T) {
+		id := test.ValidTraceID(nil)
+		dc := backend.DedicatedColumns{{Scope: backend.DedicatedColumnScopeEvent, Name: "mixed", Type: strCol}}
+		fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, makeTrace(id, backend.DedicatedColumnScopeEvent, nil, false, false), `{ event.mixed = nil }`, nil)
+		require.Empty(t, fetchIDs)
+		require.Empty(t, fetchSpansIDs)
+	})
+
+	// Fetch matches = nil per event, so it can't pair the nil of one event with the other attribute of another.
+	// FetchSpans joins event conditions at span level, also for generic attributes, so only Fetch is checked.
+	for _, tc := range []struct {
+		query string
+		match bool
+	}{
+		{`{ event.mixed = nil && event.other = "a" }`, false},
+		{`{ event.mixed = nil && event.other = "b" }`, true},
+	} {
+		t.Run("event/two events/"+tc.query, func(t *testing.T) {
+			id := test.ValidTraceID(nil)
+			dc := backend.DedicatedColumns{{Scope: backend.DedicatedColumnScopeEvent, Name: "mixed", Type: strCol}}
+			tr := makeTrace(id, backend.DedicatedColumnScopeEvent, nil, false, false)
+			tr.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = []*v1.Span_Event{
+				{Name: "a", Attributes: []*v1_common.KeyValue{{Key: "mixed", Value: intValue}, {Key: "other", Value: strValue}}},
+				{Name: "b", Attributes: []*v1_common.KeyValue{{Key: "other", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "b"}}}}},
+			}
+			fetchIDs, _ := checkQuery(t, dc, id, tr, tc.query, nil)
+			require.Equal(t, tc.match, len(fetchIDs) > 0, "Fetch: %s", tc.query)
+		})
+	}
+
+	// Several rows hold different values in generic attributes, so a join or union reads ahead between them.
+	for _, scope := range scopes {
+		for _, q := range []string{`{ %[1]s.mixed != nil }`, `{ %[1]s.mixed != nil || %[1]s.missing = "x" }`, `{ %[1]s.mixed }`} {
+			query := fmt.Sprintf(q, scope)
+			t.Run(fmt.Sprintf("%s/several rows/%s", scope, query), func(t *testing.T) {
+				id := test.ValidTraceID(nil)
+				dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: strCol}}
+
+				// Rows hold different scalars and arrays, since arrays reuse the collector's buffers.
+				array := func(values ...*v1_common.AnyValue) *v1_common.AnyValue {
+					return &v1_common.AnyValue{Value: &v1_common.AnyValue_ArrayValue{ArrayValue: &v1_common.ArrayValue{Values: values}}}
+				}
+				intOf := func(i int) *v1_common.AnyValue {
+					return &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: int64(i)}}
+				}
+				floatOf := func(f float64) *v1_common.AnyValue {
+					return &v1_common.AnyValue{Value: &v1_common.AnyValue_DoubleValue{DoubleValue: f}}
+				}
+				boolOf := func(b bool) *v1_common.AnyValue {
+					return &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: b}}
+				}
+				wantByRow := map[byte]traceql.Static{}
+				var wantIDs []string
+				tr := &tempopb.Trace{}
+				for i := 0; i < 8; i++ {
+					var value *v1_common.AnyValue
+					switch i % 4 {
+					case 0:
+						value, wantByRow[byte(i)] = intOf(10+i), traceql.NewStaticInt(10+i)
+					case 1:
+						value, wantByRow[byte(i)] = array(intOf(10+i), intOf(20+i)), traceql.NewStaticIntArray([]int{10 + i, 20 + i})
+					case 2:
+						value, wantByRow[byte(i)] = array(floatOf(float64(i)+0.5), floatOf(float64(i)+1.5)), traceql.NewStaticFloatArray([]float64{float64(i) + 0.5, float64(i) + 1.5})
+					case 3:
+						value, wantByRow[byte(i)] = array(boolOf(i == 3), boolOf(i != 3)), traceql.NewStaticBooleanArray([]bool{i == 3, i != 3})
+					}
+					rowTrace := makeTrace(id, scope, value, false, true)
+					rowTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanId = []byte{1, 2, 3, 4, 5, 6, 7, byte(i)}
+					wantIDs = append(wantIDs, util.SpanIDToHexString(rowTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanId))
+					tr.ResourceSpans = append(tr.ResourceSpans, rowTrace.ResourceSpans...)
+				}
+
+				want := func(sp traceql.Span) map[traceql.Attribute]traceql.Static {
+					return map[traceql.Attribute]traceql.Static{mixedAttr(scope): wantByRow[sp.ID()[7]]}
+				}
+				fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, tr, query, want)
+				require.ElementsMatch(t, wantIDs, fetchIDs, "Fetch: %s", query)
+				require.ElementsMatch(t, wantIDs, fetchSpansIDs, "FetchSpans: %s", query)
+			})
+		}
+	}
+
+	// Unscoped conditions read the same dedicated column as the scoped ones.
+	for _, scope := range []backend.DedicatedColumnScope{backend.DedicatedColumnScopeSpan, backend.DedicatedColumnScopeResource} {
+		for _, q := range []string{`{ %[1]s.mixed = nil || .mixed != nil }`, `{ %[1]s.mixed != nil && .mixed = 1 }`} {
+			query := fmt.Sprintf(q, scope)
+			t.Run(fmt.Sprintf("%s/unscoped/%s", scope, query), func(t *testing.T) {
+				id := test.ValidTraceID(nil)
+				dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: strCol}}
+				want := func(traceql.Span) map[traceql.Attribute]traceql.Static {
+					return map[traceql.Attribute]traceql.Static{mixedAttr(scope): traceql.NewStaticInt(1)}
+				}
+				fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, makeTrace(id, scope, intValue, false, true), query, want)
+				require.NotEmpty(t, fetchIDs, "Fetch: %s", query)
+				require.NotEmpty(t, fetchSpansIDs, "FetchSpans: %s", query)
+			})
+		}
+	}
+
+	// Each dedicated column of a scope gets its own existence iterator.
+	for _, scope := range scopes {
+		query := fmt.Sprintf(`{ %[1]s.mixed != nil || %[1]s.other != nil }`, scope)
+		t.Run(fmt.Sprintf("%s/two columns/%s", scope, query), func(t *testing.T) {
+			id := test.ValidTraceID(nil)
+			dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: strCol}, {Scope: scope, Name: "other", Type: strCol}}
+			fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, makeTrace(id, scope, nil, false, true), query, nil)
+			require.NotEmpty(t, fetchIDs, "Fetch: %s", query)
+			require.NotEmpty(t, fetchSpansIDs, "FetchSpans: %s", query)
+		})
+	}
+
+	// The engine builds select() output from AllAttributes, where a "nil" placeholder next to the generic value would show.
+	t.Run("span/int in string column, select through the engine", func(t *testing.T) {
+		id := test.ValidTraceID(nil)
+		dc := backend.DedicatedColumns{{Scope: backend.DedicatedColumnScopeSpan, Name: "mixed", Type: strCol}}
+		b := makeBackendBlockWithFillers(t, id, makeTrace(id, backend.DedicatedColumnScopeSpan, intValue, false, true), dc)
+		opts := common.DefaultSearchOptions()
+		f := traceql.NewSpansetFetcherWrapperBoth(
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return b.Fetch(ctx, req, opts)
+			},
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+				return b.FetchSpans(ctx, req, opts)
+			},
+		)
+		resp, err := traceql.NewEngine().ExecuteSearch(t.Context(), &tempopb.SearchRequest{Query: `{ span.other = "a" } | select(span.mixed)`, Limit: 1000, SpansPerSpanSet: 10}, f)
+		require.NoError(t, err)
+
+		var got []string
+		for _, tr := range resp.Traces {
+			if tr.TraceID != util.TraceIDToHexString(id) {
+				continue
+			}
+			for _, ss := range tr.SpanSets {
+				for _, sp := range ss.Spans {
+					for _, kv := range sp.Attributes {
+						if kv.Key == "mixed" {
+							got = append(got, kv.Value.String())
+						}
+					}
+				}
+			}
+		}
+		require.Equal(t, []string{intValue.String()}, got)
+	})
 }
 
 func searchesThatMatch(t *testing.T, traceIDText string) []struct {

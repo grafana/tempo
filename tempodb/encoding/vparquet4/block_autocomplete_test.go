@@ -10,9 +10,13 @@ import (
 
 	"github.com/grafana/tempo/v3/pkg/collector"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -1175,6 +1179,147 @@ func TestFetchTagValuesWithOrConditions(t *testing.T) {
 			require.Equal(t, expectedValues, actualValues)
 		})
 	}
+}
+
+// TestFetchTagsDedicatedColumnOtherType covers dedicated attributes whose value has another type,
+// which the writer stores in generic attributes instead.
+func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
+	strOf := func(s string) *v1_common.AnyValue {
+		return &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: s}}
+	}
+	intOf := func(i int64) *v1_common.AnyValue {
+		return &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: i}}
+	}
+	tagValues := func(t *testing.T, block *backendBlock, tag traceql.Attribute, cond traceql.Condition) []tempopb.TagValue {
+		distinctValues := collector.NewDistinctValue(1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+		req := traceql.FetchTagValuesRequest{
+			TagName:         tag,
+			ConditionGroups: [][]traceql.Condition{{cond, {Attribute: tag, Op: traceql.OpNone}}},
+		}
+		require.NoError(t, block.FetchTagValues(t.Context(), req, traceql.MakeCollectTagValueFunc(distinctValues.Collect), func(uint64) {}, common.DefaultSearchOptions()))
+		return distinctValues.Values()
+	}
+
+	for _, scope := range []backend.DedicatedColumnScope{backend.DedicatedColumnScopeSpan, backend.DedicatedColumnScopeResource} {
+		t.Run(string(scope), func(t *testing.T) {
+			// Rows hold "a" in the dedicated column, 1 in generic attributes, and no value.
+			rows := [][]*v1_common.KeyValue{
+				{{Key: "mixed", Value: strOf("a")}, {Key: "peer", Value: strOf("x")}},
+				{{Key: "mixed", Value: intOf(1)}, {Key: "peer", Value: strOf("y")}, {Key: "only-int", Value: strOf("q")}},
+				{{Key: "peer", Value: strOf("z")}},
+			}
+			id := test.ValidTraceID(nil)
+			tr := &tempopb.Trace{}
+			for i, kvs := range rows {
+				sp := &v1.Span{
+					TraceId:           id,
+					SpanId:            []byte{1, 2, 3, 4, 5, 6, 7, byte(i)},
+					Name:              "test",
+					StartTimeUnixNano: uint64(100 * time.Second),
+					EndTimeUnixNano:   uint64(200 * time.Second),
+				}
+				rs := &v1.ResourceSpans{Resource: &v1_resource.Resource{}, ScopeSpans: []*v1.ScopeSpans{{Spans: []*v1.Span{sp}}}}
+				switch scope {
+				case backend.DedicatedColumnScopeSpan:
+					sp.Attributes = kvs
+				case backend.DedicatedColumnScopeResource:
+					rs.Resource.Attributes = kvs
+				default:
+					sp.Events = []*v1.Span_Event{{Name: "event", Attributes: kvs}}
+				}
+				tr.ResourceSpans = append(tr.ResourceSpans, rs)
+			}
+
+			dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: backend.DedicatedColumnTypeString}}
+			block := makeBackendBlockWithFillers(t, id, tr, dc)
+
+			attrScope := traceql.AttributeScopeFromString(string(scope))
+			mixed := traceql.NewScopedAttribute(attrScope, false, "mixed")
+			peer := traceql.NewScopedAttribute(attrScope, false, "peer")
+			unscoped := traceql.NewAttribute("mixed")
+
+			testCases := []struct {
+				name     string
+				tag      traceql.Attribute
+				cond     traceql.Condition
+				expected []tempopb.TagValue
+			}{
+				{"values of mixed", mixed, traceql.Condition{Attribute: peer, Op: traceql.OpExists}, []tempopb.TagValue{stringTagValue("a"), intTagValue(1)}},
+				{"values of unscoped mixed", unscoped, traceql.Condition{Attribute: peer, Op: traceql.OpExists}, []tempopb.TagValue{stringTagValue("a"), intTagValue(1)}},
+				{"values of mixed where mixed exists", mixed, traceql.Condition{Attribute: mixed, Op: traceql.OpExists}, []tempopb.TagValue{stringTagValue("a"), intTagValue(1)}},
+				{"values of peer where mixed exists", peer, traceql.Condition{Attribute: mixed, Op: traceql.OpExists}, []tempopb.TagValue{stringTagValue("x"), stringTagValue("y")}},
+				{"values of peer where mixed doesn't exist", peer, traceql.Condition{Attribute: mixed, Op: traceql.OpNotExists}, []tempopb.TagValue{stringTagValue("z")}},
+			}
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					require.ElementsMatch(t, tc.expected, tagValues(t, block, tc.tag, tc.cond))
+				})
+			}
+
+			t.Run("names where mixed exists", func(t *testing.T) {
+				var names []string
+				req := traceql.FetchTagsRequest{Scope: attrScope, ConditionGroups: [][]traceql.Condition{{{Attribute: mixed, Op: traceql.OpExists}}}}
+				require.NoError(t, block.FetchTagNames(t.Context(), req, func(name string, _ traceql.AttributeScope) bool {
+					names = append(names, name)
+					return false
+				}, func(uint64) {}, common.DefaultSearchOptions()))
+				require.Contains(t, names, "only-int")
+			})
+		})
+	}
+
+	// A resource condition on the same name doesn't select the span tag's values.
+	t.Run("span mixed where resource mixed exists", func(t *testing.T) {
+		id := test.ValidTraceID(nil)
+		tr := &tempopb.Trace{}
+		for i, kv := range []struct{ span, res *v1_common.KeyValue }{
+			{span: &v1_common.KeyValue{Key: "mixed", Value: strOf("a")}, res: &v1_common.KeyValue{Key: "mixed", Value: strOf("r")}},
+			{span: &v1_common.KeyValue{Key: "mixed", Value: intOf(1)}},
+		} {
+			rs := &v1.ResourceSpans{Resource: &v1_resource.Resource{}, ScopeSpans: []*v1.ScopeSpans{{Spans: []*v1.Span{{
+				TraceId:           id,
+				SpanId:            []byte{1, 2, 3, 4, 5, 6, 7, byte(i)},
+				Name:              "test",
+				StartTimeUnixNano: uint64(100 * time.Second),
+				EndTimeUnixNano:   uint64(200 * time.Second),
+				Attributes:        []*v1_common.KeyValue{kv.span},
+			}}}}}
+			if kv.res != nil {
+				rs.Resource.Attributes = []*v1_common.KeyValue{kv.res}
+			}
+			tr.ResourceSpans = append(tr.ResourceSpans, rs)
+		}
+		dc := backend.DedicatedColumns{
+			{Scope: backend.DedicatedColumnScopeSpan, Name: "mixed", Type: backend.DedicatedColumnTypeString},
+			{Scope: backend.DedicatedColumnScopeResource, Name: "mixed", Type: backend.DedicatedColumnTypeString},
+		}
+		block := makeBackendBlockWithFillers(t, id, tr, dc)
+
+		spanMixed := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "mixed")
+		resMixed := traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "mixed")
+		require.ElementsMatch(t, []tempopb.TagValue{stringTagValue("a")}, tagValues(t, block, spanMixed, traceql.Condition{Attribute: resMixed, Op: traceql.OpExists}))
+	})
+
+	// Well-known columns also store values of another type in generic attributes.
+	t.Run("values of well-known http.method", func(t *testing.T) {
+		id := test.ValidTraceID(nil)
+		tr := &tempopb.Trace{}
+		for i, method := range []*v1_common.AnyValue{strOf("GET"), intOf(1)} {
+			tr.ResourceSpans = append(tr.ResourceSpans, &v1.ResourceSpans{Resource: &v1_resource.Resource{}, ScopeSpans: []*v1.ScopeSpans{{Spans: []*v1.Span{{
+				TraceId:           id,
+				SpanId:            []byte{1, 2, 3, 4, 5, 6, 7, byte(i)},
+				Name:              "test",
+				StartTimeUnixNano: uint64(100 * time.Second),
+				EndTimeUnixNano:   uint64(200 * time.Second),
+				Attributes:        []*v1_common.KeyValue{{Key: LabelHTTPMethod, Value: method}, {Key: "peer", Value: strOf("x")}},
+			}}}}})
+		}
+		block := makeBackendBlockWithFillers(t, id, tr, nil)
+
+		method := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod)
+		peer := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "peer")
+		require.ElementsMatch(t, []tempopb.TagValue{stringTagValue("GET"), intTagValue(1)}, tagValues(t, block, method, traceql.Condition{Attribute: peer, Op: traceql.OpExists}))
+	})
 }
 
 func TestFetchTagValuesWithIDIntrinsics(t *testing.T) {
