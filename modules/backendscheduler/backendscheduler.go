@@ -457,6 +457,8 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		if err != nil {
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
+
+		metricLastSuccessfulJobTimestamp.WithLabelValues(j.GetType().String()).SetToCurrentTime()
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
 		s.work.FailJob(req.JobId)
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
