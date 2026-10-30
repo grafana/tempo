@@ -875,8 +875,10 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 		return NewStaticBool(static.Type != TypeNil), nil
 	}
 	if o.Op == OpNotExists {
+		// The storage layer marks a missing attribute with the string "nil". Evaluating the
+		// attribute of a span that doesn't have it, like in a later stage of a pipeline, returns nil.
 		staticNilString := NewStaticString("nil")
-		return NewStaticBool(static.Equals(&staticNilString)), nil
+		return NewStaticBool(static.Type == TypeNil || static.Equals(&staticNilString)), nil
 	}
 
 	return NewStaticNil(), fmt.Errorf("UnaryOperation has invalid operator %v", o.Op)

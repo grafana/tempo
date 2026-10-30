@@ -161,6 +161,65 @@ func TestSpansetFilter_matches(t *testing.T) {
 			matches: true,
 		},
 		{
+			// nil checks match a missing attribute
+			query:   `{ .foo = nil }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("fzz"): NewStaticString("bar")}},
+			matches: true,
+		},
+		{
+			query:   `{ .foo = nil }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("bar")}},
+			matches: false,
+		},
+		{
+			query:   `{ !(.foo = nil) }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("bar")}},
+			matches: true,
+		},
+		{
+			query:   `{ !(.foo = nil) }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("fzz"): NewStaticString("bar")}},
+			matches: false,
+		},
+		{
+			query:   `{ !(.foo != nil) }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("fzz"): NewStaticString("bar")}},
+			matches: true,
+		},
+		{
+			// A negated comparison with a missing attribute doesn't match, like NULL in SQL
+			query:   `{ !(.foo = "bar") }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("fzz"): NewStaticString("bar")}},
+			matches: false,
+		},
+		{
+			query:   `{ !(.foo = "bar") }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("bzz")}},
+			matches: true,
+		},
+		{
+			query:   `{ !(.foo = "bar") }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("bar")}},
+			matches: false,
+		},
+		{
+			// ... or with a mismatched type
+			query:   `{ !(.foo = "bar") }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1)}},
+			matches: false,
+		},
+		{
+			query:   `{ !(.foo = "bar" && .fzz = "bar") }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("bar")}},
+			matches: false,
+		},
+		{
+			// the first comparison is false
+			query:   `{ !(.foo = "bar" && .fzz = "bar") }`,
+			span:    &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("bzz"), NewAttribute("fzz"): NewStaticString("bar")}},
+			matches: true,
+		},
+		{
 			query: `{ resource.foo = "scope_resource" }`,
 			span: &mockSpan{
 				attributes: map[Attribute]Static{

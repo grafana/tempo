@@ -54,7 +54,7 @@ type Config struct {
 	QueryEndCutoff time.Duration `yaml:"query_end_cutoff,omitempty"`
 
 	// SkipASTTransformations is a list of AST transformation names to disable globally.
-	// Valid names: "or_to_in". Use "all" to disable all transformations.
+	// Valid names: "or_to_in", "demorgan". Use "all" to disable all transformations.
 	SkipASTTransformations []string `yaml:"skip_ast_transformations,omitempty"`
 }
 
