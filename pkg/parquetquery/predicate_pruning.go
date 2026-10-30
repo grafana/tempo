@@ -25,10 +25,16 @@ func predicateNullValue() pq.Value { return pq.Value{} }
 // keepColumnChunk reports whether cc may hold a value c.filter keeps, so a chunk that
 // can't is skipped before any of its pages is read. Counts into c.stats.
 //
+// The footer's chunk statistics come first: they need no read, and since the writer
+// builds them from the same page values as the column index, the index is only read
+// for a chunk without them.
+//
 // The chunk is kept when:
 //   - there is no filter;
+//   - the footer has nulls the filter keeps, or bounds that pass KeepRange, and the
+//     chunk is not dictionary-encoded;
 //   - it is dictionary-encoded and a dictionary entry matches, or the filter keeps
-//     nulls and the column index shows the chunk has some;
+//     nulls and the footer or column index shows the chunk has some;
 //   - the filter doesn't support column index pruning, and its KeepRange keeps
 //     regardless of bounds (always, except a CallbackPredicate whose callback is done);
 //   - it has no column index;
@@ -48,6 +54,24 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 
 	keepNull := c.filter.KeepValue(predicateNullValue())
 	indexPrunes := c.filter.SupportsColumnIndexPruning()
+	minV, maxV, nulls, hasFooterStats := cc.FooterStats()
+	allNull := hasFooterStats && minV.IsNull()
+
+	mayMatch := false // whether the footer stats allow a match
+	if hasFooterStats {
+		if keepNull && nulls > 0 {
+			// The filter keeps nulls, and the chunk has some.
+			mayMatch = true
+		} else if !allNull {
+			// The chunk has present values, so its bounds may contain a match. This is
+			// skipped for an all-null chunk, which has no real bounds.
+			mayMatch = c.filter.KeepRange(minV, maxV)
+		}
+	}
+
+	if indexPrunes && hasFooterStats && !mayMatch {
+		return false // ruled out before even the dictionary page is read
+	}
 
 	if dict := cc.Dictionary(); dict != nil {
 		// Dict-encoded chunk: every present value is a dictionary entry, so answering
@@ -56,10 +80,17 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 		if c.dictPageReader.matchDictionary(dict, cc.ColumnChunk, c.filter, keepNull) {
 			return true
 		}
-		// No entry matches, so only nulls could. Check the index for them even if the
-		// filter doesn't otherwise use it: one small read decides whether the whole
-		// chunk is read, and a filter rejecting nulls never gets this far.
-		return keepNull && chunkHasNulls(cc)
+		// No entry matches, so only nulls could. Check the footer, or else the index, for
+		// them even if the filter doesn't otherwise use bounds: one small read at most
+		// decides whether the whole chunk is read, and a filter rejecting nulls never
+		// gets this far.
+		if !keepNull {
+			return false
+		}
+		if hasFooterStats {
+			return nulls > 0
+		}
+		return chunkHasNulls(cc)
 	}
 
 	if !indexPrunes {
@@ -69,6 +100,12 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 		return c.filter.KeepRange(predicateNullValue(), predicateNullValue())
 	}
 
+	if hasFooterStats {
+		return true // the index could only prune on gaps between its pages' bounds
+	}
+
+	// Tempo's blocks always carry footer stats, so the rest only runs for chunks that
+	// don't come from a file, and is kept for completeness.
 	ci, err := cc.ColumnIndex()
 	if err != nil || ci == nil {
 		return true // no column index: cannot skip
