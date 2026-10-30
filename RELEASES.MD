@@ -121,15 +121,19 @@ The release type is detected from the version string passed to `release-prep`:
 
 | Version input | Type | Base branch | Image-tag bump | Published as |
 |---------------|------|-------------|----------------|--------------|
-| `X.Y.Z-rc.N`  | Release candidate | `main` | no | pre-release |
+| `X.Y.Z-rc.N`  | Release candidate | `main` (default) or `release-vX.Y` | no | pre-release |
 | `X.Y.0`       | Minor | `release-vX.Y` | yes | latest |
 | `X.Y.Z` (Z>0) | Patch | `release-vX.Y` | yes | latest |
+
+To prepare a release or another RC from an existing release branch,
+set `base_branch=release-vX.Y` and `skip_changelog=true`
+when the changelog section for the requested version is already merged.
 
 > **Prerequisite:** because `pull_request` workflows run from the **base branch's** copy of
 > the workflow file, `release-tag.yml` (plus the reusable `release.yml`/`docker.yml` and the
 > portable `bump-tempo-image-tag` Makefile target) must exist on every branch that
 > `release-prep` PRs target: `main` (for RCs) and each active `release-vX.Y` branch (for
-> minor/patch). Backport these to active release branches before using the flow there.
+> RC/minor/patch). Backport these to active release branches before using the flow there.
 
 ## Steps
 
@@ -157,7 +161,7 @@ bot-generated release-prep PR and aborts otherwise:
   forged PR is rejected even if it is correctly named, labeled, and merged);
 - the `release-prep` label is present;
 - the head branch matches `release-prep/vX.Y.Z[-rc.N]`;
-- the base branch matches the release type (`main` for RCs, `release-vX.Y` otherwise).
+- the base branch matches the release type (`main` or the matching `release-vX.Y` for RCs, `release-vX.Y` otherwise).
 
 The workflow that runs is always the base branch's copy of `release-tag.yml`, so the guard
 cannot be weakened from within a PR.

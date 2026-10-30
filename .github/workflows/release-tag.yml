@@ -1,10 +1,10 @@
 name: release-tag
 # Triggered when a release-prep PR is merged. Handles any release type:
-#   - RC (tag X.Y.Z-rc.N, based on main): published as a pre-release.
+#   - RC (tag X.Y.Z-rc.N, based on main or release-vX.Y): published as a pre-release.
 #   - minor / patch (tag X.Y.Z, based on release-vX.Y): published as latest.
 # NOTE: pull_request workflows run from the BASE branch's copy of this file, so
 # this workflow must exist on every branch that release-prep PRs target — i.e.
-# main (for RCs) and each active release-vX.Y branch (for minor/patch).
+# main and each active release-vX.Y branch (including branch-based RCs).
 on:
   pull_request:
     types: [closed]
@@ -44,9 +44,9 @@ jobs:
           base="${version%%-*}"
           minor="${base%.*}"
           if echo "$version" | grep -q -- '-rc\.'; then
-            # release candidate: must be based on main
-            if [ "$BASE_REF" != "main" ]; then
-              echo "ERROR: RC v${version} must be based on main, got '$BASE_REF'"
+            # release candidate: main or the matching release branch
+            if [ "$BASE_REF" != "main" ] && [ "$BASE_REF" != "release-v${minor}" ]; then
+              echo "ERROR: RC v${version} must be based on main or release-v${minor}, got '$BASE_REF'"
               exit 1
             fi
           else
