@@ -115,6 +115,30 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("frontend metrics interval should be greater than 0")
 	}
 
+	if cfg.Search.Sharder.MinDuration < 0 {
+		return nil, fmt.Errorf("frontend search min_duration should not be negative")
+	}
+
+	if cfg.Search.Sharder.MaxDuration < 0 {
+		return nil, fmt.Errorf("frontend search max_duration should not be negative")
+	}
+
+	if cfg.Metrics.Sharder.MinDuration < 0 {
+		return nil, fmt.Errorf("frontend metrics min_duration should not be negative")
+	}
+
+	if cfg.Metrics.Sharder.MaxDuration < 0 {
+		return nil, fmt.Errorf("frontend metrics max_duration should not be negative")
+	}
+
+	if cfg.Search.Sharder.MaxDuration > 0 && cfg.Search.Sharder.MinDuration > cfg.Search.Sharder.MaxDuration {
+		return nil, fmt.Errorf("frontend search min_duration should not be greater than max_duration")
+	}
+
+	if cfg.Metrics.Sharder.MaxDuration > 0 && cfg.Metrics.Sharder.MinDuration > cfg.Metrics.Sharder.MaxDuration {
+		return nil, fmt.Errorf("frontend metrics min_duration should not be greater than max_duration")
+	}
+
 	if cfg.QueryEndCutoff > cfg.Search.Sharder.QueryBackendAfter {
 		return nil, fmt.Errorf("QueryBackendAfter (%v) must be greater than query end cutoff (%v)", cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff)
 	}
@@ -237,6 +261,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		next,
 	)
 
+	metricsRangeLimiter := newMetricsRangeLimiter(cfg, o, reader, logger)
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
 	traceDiff := newTraceDiffHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, cacheProvider, logger, dataAccessController)
@@ -245,8 +270,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger, dataAccessController)
 	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger, dataAccessController)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, o, logger, dataAccessController) // Reuses the same pipeline
-	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, o, logger, dataAccessController)
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, metricsRangeLimiter, logger, dataAccessController) // Reuses the same pipeline
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, metricsRangeLimiter, logger, dataAccessController)
 
 	f := &QueryFrontend{
 		// http/discrete
@@ -267,8 +292,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger, dataAccessController),
 		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger, dataAccessController),
-		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, o, apiPrefix, logger, dataAccessController),
-		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, o, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
+		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, metricsRangeLimiter, apiPrefix, logger, dataAccessController),
+		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, metricsRangeLimiter, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
 
 		cacheProvider: cacheProvider,
 		logger:        logger,
