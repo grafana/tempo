@@ -1,0 +1,6 @@
+change_type: enhancement
+component: querier
+note: Look up the trace-by-ID page using the parquet column index instead of scanning the row group's trace ID column, reducing bytes read per lookup and keeping lookup cost flat as row groups grow.
+issues: []
+subtext:
+user: mapno
