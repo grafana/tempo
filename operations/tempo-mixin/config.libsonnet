@@ -21,7 +21,7 @@
     },
     alerts: {
       compactions_per_hour_failed: 2,
-      retentions_per_hour_failed: 2,
+      retentions_failed: 0,
       flushes_per_hour_failed: 2,
       polls_per_hour_failed: 2,
       user_configurable_overrides_polls_per_hour_failed: 5,

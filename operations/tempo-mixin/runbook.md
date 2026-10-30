@@ -99,12 +99,12 @@ In the current backend-scheduler/backend-worker flow, the scheduler exposes back
 
 Check to determine the cause for retention errors. Retention processes are responsible for marking and deleting blocks past the configured `block_retention` threshold. If retention fails continuously, blocks will not be deleted, leading to unexpected storage growth.
 
-Inspect compactor logs to see why retention cycles are failing (for example permissions issues deleting objects in storage or errors reading blocklists).
+Inspect backend-worker and backend-scheduler logs to see why retention cycles are failing (for example permissions issues deleting objects in storage or errors reading blocklists).
 
 ### Quick checks
-- Metric/query: `sum by (cluster, namespace) (increase(tempodb_retention_errors_total[1h]))`
+- Metric/query: `sum by (cluster, namespace) (increase(tempodb_retention_errors_total[2h]))`
 - Metric/query: `max by (cluster, namespace) (tempodb_retention_duration_seconds)`
-- Log query: `{container=~"compactor|backend-worker|backend-scheduler"} |= "retention"`
+- Log query: `{container=~"backend-worker|backend-scheduler"} |= "retention"`
 
 ## TempoPollsFailing
 
