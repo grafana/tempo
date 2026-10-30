@@ -122,8 +122,6 @@ func spanAttr(key string, val any) (attribute.KeyValue, bool) {
 
 type requestHeaderFieldsCtxKey struct{}
 
-// withRequestHeaderFields stores the request header log fields built by formatRequestHeaders
-// on the context, so the per-query response log lines can include them.
 func withRequestHeaderFields(ctx context.Context, fields []any) context.Context {
 	if len(fields) == 0 {
 		return ctx

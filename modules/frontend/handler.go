@@ -30,8 +30,6 @@ const (
 	// nil response in ServeHTTP
 	NilResponseError = "nil resp in ServeHTTP"
 
-	// maxLoggedHeaderValueLength caps each logged request header value, because a
-	// client controls the value and it is logged on more than one line per query.
 	maxLoggedHeaderValueLength = 1024
 )
 
@@ -159,8 +157,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	level.Info(f.logger).Log(logMessage...)
 }
 
-// logHeader is a request header configured with log_query_request_headers.
-// The lookup name and the log key are computed once, not on every request.
+// this struct saves the result of header canonicalization, avoiding duplicate work per request
 type logHeader struct {
 	name   string // canonical header name, for example User-Agent
 	logKey string // log field name, for example header_user_agent
@@ -177,10 +174,7 @@ func logHeaders(names []string) (headers []logHeader) {
 	return headers
 }
 
-// formatRequestHeaders returns the log fields for every header in headersToLog
-// that is present in the request. Values longer than maxLoggedHeaderValueLength
-// are truncated. Control and formatting characters are dropped from the values
-// so a client cannot inject log lines.
+// size-cap + input sanitization
 func formatRequestHeaders(h *http.Header, headersToLog []logHeader) (fields []interface{}) {
 	for _, s := range headersToLog {
 		// s.name is canonical already, so read the map directly instead of h.Get.
