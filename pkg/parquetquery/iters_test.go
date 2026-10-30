@@ -326,7 +326,7 @@ func BenchmarkSyncIteratorSeekTo(b *testing.B) {
 	}
 
 	for _, tc := range testCases {
-		// Strides above 1000 rows seek within a page past seekWithinPage's magicThreshold.
+		// Long strides seek within a page by walking its levels.
 		for _, stride := range []int32{10, 500, 2_000, 10_000} {
 			b.Run(fmt.Sprintf("%s/stride=%d", tc.name, stride), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {

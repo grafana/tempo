@@ -8,7 +8,6 @@ import (
 	"io"
 	"math"
 	"slices"
-	"sync"
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/pkg/parquetquery/intern"
@@ -284,28 +283,6 @@ type Iterator interface {
 	Close()
 }
 
-var syncIteratorPool = sync.Pool{
-	New: func() interface{} {
-		return []pq.Value{}
-	},
-}
-
-func syncIteratorPoolGet(capacity, length int) []pq.Value {
-	res := syncIteratorPool.Get().([]pq.Value)
-	if cap(res) < capacity {
-		res = make([]pq.Value, capacity)
-	}
-	res = res[:length]
-	return res
-}
-
-func syncIteratorPoolPut(b []pq.Value) {
-	for i := range b {
-		b[i] = pq.Value{}
-	}
-	syncIteratorPool.Put(b) // nolint: staticcheck
-}
-
 type JoinIteratorOption interface {
 	applyToJoinIterator(*JoinIterator)
 }
@@ -422,12 +399,12 @@ func SyncIteratorOptSelectAs(selectAs string) SyncIteratorOpt {
 	}
 }
 
-// SyncIteratorOptBufferSize overrides the default buffer size. This is how many
-// values are unpacked from the column on each read.
-func SyncIteratorOptBufferSize(bufferSize int) SyncIteratorOpt {
-	return func(i *SyncIterator) {
-		i.readSize = bufferSize
-	}
+// SyncIteratorOptBufferSize does nothing: pages are read from their levels and values
+// in place, without a buffer.
+//
+// Deprecated: pages are no longer read through a value buffer.
+func SyncIteratorOptBufferSize(int) SyncIteratorOpt {
+	return func(*SyncIterator) {}
 }
 
 // SyncIteratorOptMaxDefinitionLevel specifies the maximum definition level that
@@ -465,7 +442,6 @@ type SyncIterator struct {
 	rgs        []pq.RowGroup
 	rgsMin     []RowNumber
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
-	readSize   int
 	filter     Predicate
 	stats      PredicateStats // chunk/page/value decisions of filter; exported as metrics on Close
 	tenant     string         // label for exported stats, from ctx
@@ -478,13 +454,6 @@ type SyncIterator struct {
 	currRowGroupMin RowNumber
 	currRowGroupMax RowNumber
 	currChunk       *ColumnChunkHelper
-	currPage        pq.Page
-	currPageMin     RowNumber
-	currPageMax     RowNumber
-	currValues      pq.ValueReader
-	currBuf         []pq.Value
-	currBufN        int
-	currPageN       int
 	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
 
 	// Seek scratch state owned by next(). Copied from its arguments so the
@@ -494,8 +463,7 @@ type SyncIterator struct {
 
 	maxDefinitionLevel int
 
-	dictPageReader  dictPageReader  // dictionary pushdown, see dict_pushdown.go
-	plainPageReader plainPageReader // seeking within a page, see plain_page_reader.go
+	pageReader pageReader // reads pages from their levels, see dict_pushdown.go
 
 	interner   *intern.Interner
 	makeResult func(t RowNumber, v *pq.Value) *IteratorResult
@@ -528,7 +496,6 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 	i := &SyncIterator{
 		column:             column,
 		rgs:                rgs,
-		readSize:           1000, // default value
 		rgsMin:             rgsMin,
 		rgsMax:             rgsMax,
 		curr:               EmptyRowNumber(),
@@ -617,11 +584,15 @@ func (c *SyncIterator) Next() (*IteratorResult, error) {
 // or equal to the given row number (and based on the given definition level)
 func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
 	for {
-		if done := c.seekRowGroup(to, definitionLevel, true); done {
+		done, err := c.seekRowGroup(to, definitionLevel, true)
+		if err != nil {
+			return nil, err
+		}
+		if done {
 			return nil, nil
 		}
 
-		done, err := c.seekPages(to, definitionLevel, true)
+		done, err = c.seekPages(to, definitionLevel, true)
 		if err != nil {
 			return nil, err
 		}
@@ -664,7 +635,7 @@ func (c *SyncIterator) popRowGroup() (pq.RowGroup, RowNumber, RowNumber) {
 
 // seekRowGroup skips ahead to the row group that could contain the value at the
 // desired row number. Does nothing if the current row group is already the correct one.
-func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune bool) (done bool) {
+func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune bool) (done bool, err error) {
 	if c.currRowGroup != nil && CompareRowNumbers(definitionLevel, seekTo, c.currRowGroupMax) >= 0 {
 		// Done with this row group
 		c.closeCurrRowGroup()
@@ -674,7 +645,7 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune
 
 		rg, minRN, maxRN := c.popRowGroup()
 		if rg == nil {
-			return true
+			return true, nil
 		}
 
 		if CompareRowNumbers(definitionLevel, seekTo, maxRN) != -1 {
@@ -688,21 +659,23 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune
 		}
 
 		// This row group matches both row number and filter.
-		c.setRowGroup(rg, minRN, maxRN, cc)
+		if err := c.setRowGroup(rg, minRN, maxRN, cc); err != nil {
+			return true, err
+		}
 	}
 
-	return c.currRowGroup == nil
+	return c.currRowGroup == nil, nil
 }
 
 // seekPages skips ahead in the current row group to the page that could contain the value at
 // the desired row number. Does nothing if the current page is already the correct one.
 func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bool) (done bool, err error) {
-	if c.currPage != nil && CompareRowNumbers(definitionLevel, seekTo, c.currPageMax) >= 0 {
+	if c.pageReader.page != nil && CompareRowNumbers(definitionLevel, seekTo, c.pageReader.pageMax) >= 0 {
 		// Value not in this page
-		c.setPage(nil)
+		c.closePage()
 	}
 
-	if c.currPage == nil {
+	if c.pageReader.page == nil {
 		// TODO (mdisibio)   :((((((((
 		//    pages.SeekToRow is more costly than expected.  It doesn't reuse existing i/o
 		// so it can't be called naively every time we swap pages. We need to figure out
@@ -720,7 +693,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bo
 				}
 			}*/
 
-		for c.currPage == nil {
+		for c.pageReader.page == nil {
 			pg, err := c.currChunk.NextPage()
 			if pg == nil || err != nil {
 				// No more pages in this column chunk,
@@ -749,118 +722,22 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bo
 				continue
 			}
 
-			c.setPage(pg)
+			if err := c.setPage(pg); err != nil {
+				return true, err
+			}
 		}
 	}
 
 	return false, nil
 }
 
-// seekWithinPage decides if it should jump directly to the desired row number or allow the iterator
-// to call Next() until it finds the desired row number. it uses the magicThreshold as its balance
-// point. if the number of Next()s to skip is less than the magicThreshold, it will not jump. A page
-// read from its levels always jumps, by walking the levels. Otherwise it jumps by switching the
-// page to plainPageReader, or by reslicing the page when that can't read it.
-func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
-	rowSkipRelative := int(to[0] - c.curr[0])
-	if rowSkipRelative == 0 {
-		return
+// seekWithinPage jumps to the start of the desired row by walking the page's levels. The
+// rest of the seek is left to next.
+func (c *SyncIterator) seekWithinPage(to RowNumber, _ int) {
+	if c.pageReader.skipToRow(c.curr[0], to[0]) {
+		// remove all detail below the row number
+		c.curr = TruncateRowNumber(0, to).Preceding()
 	}
-
-	if c.dictPageReader.active || c.plainPageReader.active {
-		c.skipToRow(to)
-		return
-	}
-
-	const magicThreshold = 1000
-	shouldSkip := false
-
-	if definitionLevel == 0 {
-		// if definition level is 0 there is always a 1:1 ratio between Next()s and rows. it's only deeper
-		// levels of nesting we have to manually count
-		shouldSkip = rowSkipRelative > magicThreshold
-	} else {
-		// this is a nested iterator, let's count the Next()s required to get to the desired row number
-		// and decide if we should skip or not
-		replvls := c.currPage.RepetitionLevels()
-		nextsRequired := 0
-
-		for i := c.currPageN; i < len(replvls); i++ {
-			nextsRequired++
-
-			if nextsRequired > magicThreshold {
-				shouldSkip = true
-				break
-			}
-
-			if replvls[i] == 0 { // 0 rep lvl indicates a new row
-				rowSkipRelative-- // decrement the number of rows we need to skip
-				if rowSkipRelative <= 0 {
-					// if we hit here we skipped all rows and did not exceed the magic threshold, so we're leaving shouldSkip false
-					break
-				}
-			}
-		}
-	}
-
-	if !shouldSkip {
-		return
-	}
-
-	// skips are calculated off the start of the page
-	rowSkip := to[0] - c.currPageMin[0]
-	if rowSkip < 1 {
-		return
-	}
-	if rowSkip > int32(c.currPage.NumRows()) {
-		return
-	}
-
-	if c.startPlainPageReader() {
-		c.skipToRow(to)
-		return
-	}
-
-	// reslice the page to jump directly to the desired row number
-	pg := c.currPage.Slice(int64(rowSkip-1), c.currPage.NumRows())
-
-	// remove all detail below the row number
-	c.curr = TruncateRowNumber(0, to)
-	c.curr = c.curr.Preceding()
-
-	// reset buffers and other vars
-	pq.Release(c.currPage)
-	c.currPage = pg
-	c.currPageMin = c.curr
-	c.currPageN = 0
-	// Dictionary pages never take a buffer. Returning nil would put an empty slice in
-	// the pool, and the next Get would allocate a new buffer.
-	if c.currBuf != nil {
-		syncIteratorPoolPut(c.currBuf)
-		c.currBuf = nil
-	}
-	c.currValues = pg.Values()
-}
-
-// skipToRow moves the reader of the current page to the start of row to[0], if that's
-// further than the next row. The rest of the seek is left to next.
-func (c *SyncIterator) skipToRow(to RowNumber) {
-	if to[0] <= c.curr[0]+1 {
-		return
-	}
-	if c.dictPageReader.active {
-		if !c.dictPageReader.skipToRow(c.curr[0], to[0]) {
-			return
-		}
-		c.currPageN = c.dictPageReader.slot
-	} else {
-		if !c.plainPageReader.skipToRow(c.curr[0], to[0]) {
-			return
-		}
-		c.currPageN = c.plainPageReader.slot
-	}
-	// remove all detail below the row number
-	c.curr = TruncateRowNumber(0, to).Preceding()
 }
 
 // next is the core functionality of this iterator and returns the next matching result. This
@@ -891,10 +768,12 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 				continue
 			}
 
-			c.setRowGroup(rg, minRN, maxRN, cc)
+			if err := c.setRowGroup(rg, minRN, maxRN, cc); err != nil {
+				return EmptyRowNumber(), nil, err
+			}
 		}
 
-		if c.currPage == nil {
+		if c.pageReader.page == nil {
 			pg, err := c.currChunk.NextPage()
 			if err != nil && !errors.Is(err, io.EOF) {
 				return EmptyRowNumber(), nil, err
@@ -910,73 +789,17 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 				pq.Release(pg)
 				continue
 			}
-			c.setPage(pg)
-		}
-
-		if c.dictPageReader.active {
-			v, ok := c.nextMatchedValue(seeking)
-			if !ok {
-				c.setPage(nil) // page exhausted
-				continue
-			}
-			return c.curr, v, nil
-		}
-		if c.plainPageReader.active {
-			v, ok := c.nextPlainValue(seeking)
-			if !ok {
-				c.setPage(nil) // page exhausted
-				continue
-			}
-			return c.curr, v, nil
-		}
-
-		// Read next batch of values if needed
-		if c.currBuf == nil {
-			c.currBuf = syncIteratorPoolGet(c.readSize, 0)
-		}
-		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
-			c.currBuf = c.currBuf[:cap(c.currBuf)]
-			n, err := c.currValues.ReadValues(c.currBuf)
-			if err != nil && !errors.Is(err, io.EOF) {
+			if err := c.setPage(pg); err != nil {
 				return EmptyRowNumber(), nil, err
 			}
-			c.currBuf = c.currBuf[:n]
-			c.currBufN = 0
-			if n == 0 {
-				// This value reader and page are exhausted.
-				c.setPage(nil)
-				continue
-			}
 		}
 
-		// Consume current buffer until empty
-		for c.currBufN < len(c.currBuf) {
-			v := &c.currBuf[c.currBufN]
-
-			// Inspect all values to track the current row number,
-			// even if the value is filtered out next.
-			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
-			c.currBufN++
-			c.currPageN++
-
-			if seeking && c.beforeSeekTarget() {
-				continue
-			}
-
-			if c.filter != nil {
-				c.stats.InspectedValues++
-				if !c.filter.KeepValue(*v) {
-					continue
-				}
-				c.stats.KeptValues++
-			}
-
-			if c.sampler != nil && !c.sampler.Sample() {
-				continue
-			}
-
-			return c.curr, v, nil
+		v, ok := c.nextMatchedValue(seeking)
+		if !ok {
+			c.closePage() // page exhausted
+			continue
 		}
+		return c.curr, v, nil
 	}
 }
 
@@ -995,54 +818,36 @@ func (c *SyncIterator) beforeSeekTarget() bool {
 	return false
 }
 
-func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *ColumnChunkHelper) {
+func (c *SyncIterator) setRowGroup(rg pq.RowGroup, min, max RowNumber, cc *ColumnChunkHelper) error {
 	c.closeCurrRowGroup()
 	c.curr = min
 	c.currRowGroup = rg
 	c.currRowGroupMin = min
 	c.currRowGroupMax = max
 	c.currChunk = cc
+	if err := c.pageReader.setChunk(cc.ColumnChunk); err != nil {
+		return fmt.Errorf("column %d (%s): %w", c.column, c.columnName, err)
+	}
+	return nil
 }
 
-func (c *SyncIterator) setPage(pg pq.Page) {
-	// Handle an outgoing page
-	if c.currPage != nil {
-		c.curr = c.currPageMax.Preceding() // Reposition current row number to end of this page.
-		pq.Release(c.currPage)
-		c.currPage = nil
+// setPage closes the current page and makes pg the current one, read by pageReader.
+func (c *SyncIterator) setPage(pg pq.Page) error {
+	c.closePage()
+	if err := c.pageReader.open(pg, c.curr); err != nil {
+		return fmt.Errorf("column %d (%s): %w", c.column, c.columnName, err)
 	}
 
-	// Reset value buffers
-	c.currValues = nil
-	c.dictPageReader.setPage(nil)
-	c.plainPageReader.reset()
-	c.currPageMax = EmptyRowNumber()
-	c.currPageMin = EmptyRowNumber()
-	c.currBufN = 0
-	c.currPageN = 0
-
-	// If we don't immediately have a new incoming page
-	// then return the buffer to the pool.
-	if pg == nil && c.currBuf != nil {
-		syncIteratorPoolPut(c.currBuf)
-		c.currBuf = nil
+	if c.sampler != nil {
+		c.sampler.Expect(uint64(pg.NumValues()))
 	}
+	return nil
+}
 
-	// Handle an incoming page
-	if pg != nil {
-		rn := c.curr
-		rn.Skip(pg.NumRows() + 1) // Exclusive upper bound, points at the first rownumber in the next page
-		c.currPage = pg
-		c.currPageMin = c.curr
-		c.currPageMax = rn
-		c.dictPageReader.setPage(pg)
-		if !c.dictPageReader.active {
-			c.currValues = pg.Values()
-		}
-
-		if c.sampler != nil {
-			c.sampler.Expect(uint64(pg.NumValues()))
-		}
+// closePage releases the current page, if any, and moves to the end of it.
+func (c *SyncIterator) closePage() {
+	if last, ok := c.pageReader.close(); ok {
+		c.curr = last
 	}
 }
 
@@ -1055,7 +860,7 @@ func (c *SyncIterator) closeCurrRowGroup() {
 	c.currRowGroupMin = EmptyRowNumber()
 	c.currRowGroupMax = EmptyRowNumber()
 	c.currChunk = nil
-	c.setPage(nil)
+	c.closePage()
 }
 
 // Several variations of optimized makeResult functions:

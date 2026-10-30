@@ -3,14 +3,17 @@ package parquetquery
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"math"
 	"math/rand/v2"
 	"strings"
 	"testing"
 
 	"github.com/parquet-go/parquet-go"
+	"github.com/parquet-go/parquet-go/encoding"
 	"github.com/stretchr/testify/require"
 )
 
@@ -136,8 +139,7 @@ func seekTestRowsData() []seekRow {
 }
 
 // seekTestSources returns the same rows written with large pages (a page holds more
-// than a long seek), small pages (seeks cross pages), v1 and v2 data pages, and in a
-// buffer that isn't read from a file.
+// than a long seek), small pages (seeks cross pages), and v1 and v2 data pages.
 func seekTestSources(t *testing.T) map[string][]parquet.RowGroup {
 	t.Helper()
 	rows := seekTestRowsData()
@@ -153,16 +155,11 @@ func seekTestSources(t *testing.T) map[string][]parquet.RowGroup {
 		require.Len(t, f.RowGroups(), 2)
 		return f.RowGroups()
 	}
-	b := parquet.NewGenericBuffer[seekRow]()
-	_, err := b.Write(rows)
-	require.NoError(t, err)
-
 	return map[string][]parquet.RowGroup{
 		"large-pages-v2": write(parquet.PageBufferSize(1 << 20)),
 		"large-pages-v1": write(parquet.PageBufferSize(1<<20), parquet.DataPageVersion(1)),
 		"small-pages-v2": write(parquet.PageBufferSize(2 << 10)),
 		"small-pages-v1": write(parquet.PageBufferSize(2<<10), parquet.DataPageVersion(1)),
-		"buffer":         {b},
 	}
 }
 
@@ -193,20 +190,22 @@ func (p hashPredicate) SupportsColumnIndexPruning() bool { return false }
 // seekResult is a result with its value broken down, so results from different pages
 // compare equal.
 type seekResult struct {
-	rn         RowNumber
-	kind       parquet.Kind
-	null       bool
-	rep, def   int
-	column     int
-	bits       uint64
-	byteArray  string
-	plainSeeks bool // the plain page reader was serving the page
+	rn        RowNumber
+	kind      parquet.Kind
+	null      bool
+	rep, def  int
+	column    int
+	bits      uint64
+	byteArray string
 }
 
 func makeSeekResult(res *IteratorResult) seekResult {
-	v := res.Entries[0].Value
+	return makeSeekResultOf(res.RowNumber, res.Entries[0].Value)
+}
+
+func makeSeekResultOf(rn RowNumber, v parquet.Value) seekResult {
 	r := seekResult{
-		rn:     res.RowNumber,
+		rn:     rn,
 		kind:   v.Kind(),
 		null:   v.IsNull(),
 		rep:    v.RepetitionLevel(),
@@ -287,6 +286,21 @@ func pageStarts(t *testing.T, rgs []parquet.RowGroup, column int) []int32 {
 	return starts
 }
 
+// seekTarget returns the row number and definition level step seeks to, with last the
+// root row of the previous result.
+func seekTarget(step seekStep, last int32) (RowNumber, int) {
+	to := EmptyRowNumber()
+	to[0] = step.row
+	if step.row < 0 {
+		to[0] = last + step.stride
+	}
+	if step.child >= 0 {
+		to[1] = step.child
+		return to, 1
+	}
+	return to, 0
+}
+
 // runSeekSteps runs steps on it until it is exhausted, and returns each result, with a
 // null row number for the end.
 func runSeekSteps(t *testing.T, it *SyncIterator, steps []seekStep) []seekResult {
@@ -299,35 +313,97 @@ func runSeekSteps(t *testing.T, it *SyncIterator, steps []seekStep) []seekResult
 		if step.next {
 			res, err = it.Next()
 		} else {
-			to := EmptyRowNumber()
-			to[0] = step.row
-			if step.row < 0 {
-				to[0] = last + step.stride
-			}
-			definitionLevel := 0
-			if step.child >= 0 {
-				to[1] = step.child
-				definitionLevel = 1
-			}
-			res, err = it.SeekTo(to, definitionLevel)
+			res, err = it.SeekTo(seekTarget(step, last))
 		}
 		require.NoError(t, err, "step %d", i)
 		if res == nil {
 			return append(results, seekResult{rn: EmptyRowNumber()})
 		}
-		r := makeSeekResult(res)
-		r.plainSeeks = it.plainPageReader.active
-		results = append(results, r)
+		results = append(results, makeSeekResult(res))
 		last = res.RowNumber[0]
 	}
 	return results
 }
 
-// TestPlainPageReaderMatchesSlice: seeking through the plain page reader returns
-// exactly what reslicing the page does, for every column kind, with and without a
-// filter or sampler, across page boundaries and past the end, and the predicate stats
-// match too.
-func TestPlainPageReaderMatchesSlice(t *testing.T) {
+// oracleSlot is a value of a column with its row number, as the page's value reader
+// reads it.
+type oracleSlot struct {
+	rn    RowNumber
+	value parquet.Value
+}
+
+// valueReaderSlots reads every value of column through the pages' value readers
+// (pq.Page.Values), which SyncIterator doesn't use, numbering rows as SyncIterator does.
+func valueReaderSlots(t *testing.T, rgs []parquet.RowGroup, column, maxDefinitionLevel int) []oracleSlot {
+	t.Helper()
+	var slots []oracleSlot
+	rn := EmptyRowNumber()
+	buf := make([]parquet.Value, 100)
+	for _, rg := range rgs {
+		pages := rg.ColumnChunks()[column].Pages()
+		for {
+			pg, err := pages.ReadPage()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			require.NoError(t, err)
+			values := pg.Values()
+			for {
+				n, err := values.ReadValues(buf)
+				for _, v := range buf[:n] {
+					rn.Next(v.RepetitionLevel(), v.DefinitionLevel(), maxDefinitionLevel)
+					slots = append(slots, oracleSlot{rn: rn, value: v.Clone()})
+				}
+				if errors.Is(err, io.EOF) || n == 0 {
+					break
+				}
+				require.NoError(t, err)
+			}
+			parquet.Release(pg)
+		}
+		require.NoError(t, pages.Close())
+	}
+	return slots
+}
+
+// runOracle runs steps on slots the way SyncIterator runs them: Next returns the next
+// value the filter and then the sampler keep, and SeekTo drops the values before its
+// target first, without asking either.
+func runOracle(slots []oracleSlot, steps []seekStep, filter Predicate, sampler Sampler) []seekResult {
+	var results []seekResult
+	pos, last := 0, int32(0)
+	for _, step := range steps {
+		if !step.next {
+			to, definitionLevel := seekTarget(step, last)
+			for pos < len(slots) && CompareRowNumbers(definitionLevel, slots[pos].rn, to) < 0 {
+				pos++
+			}
+		}
+		found := false
+		for pos < len(slots) && !found {
+			s := slots[pos]
+			pos++
+			if filter != nil && !filter.KeepValue(s.value) {
+				continue
+			}
+			if sampler != nil && !sampler.Sample() {
+				continue
+			}
+			results = append(results, makeSeekResultOf(s.rn, s.value))
+			last = s.rn[0]
+			found = true
+		}
+		if !found {
+			return append(results, seekResult{rn: EmptyRowNumber()})
+		}
+	}
+	return results
+}
+
+// TestPageReaderMatchesValueReader: reading and seeking through pageReader returns
+// exactly the values the pages' own value readers read, for every column kind, with
+// and without a filter or sampler, across page boundaries and past the end.
+func TestPageReaderMatchesValueReader(t *testing.T) {
 	columns := []string{
 		"ID", "Flag", "I32", "I64", "U32", "U64", "Float", "Double", "Bool", "Str", "DictStr", "DictI64",
 		"Fixed", "Fixed16", "Ints", "Attrs.Key", "Attrs.Str", "Attrs.Int", "Attrs.Double", "Attrs.Bool",
@@ -347,56 +423,46 @@ func TestPlainPageReaderMatchesSlice(t *testing.T) {
 
 	schema := parquet.SchemaOf(seekRow{})
 	for name, rgs := range seekTestSources(t) {
+		encodings := map[bool]bool{} // dictionary-encoded or plain pages seen
 		for _, col := range columns {
 			leaf, ok := schema.Lookup(strings.Split(col, ".")...)
 			require.True(t, ok, col)
 			starts := pageStarts(t, rgs, leaf.ColumnIndex)
+			slots := valueReaderSlots(t, rgs, leaf.ColumnIndex, leaf.MaxDefinitionLevel)
+			dict := dictionaryEncoded(t, rgs, leaf.ColumnIndex)
+			require.Equal(t, strings.HasPrefix(col, "Dict") || col == "Attrs.Key", dict, "%s/%s encoding", name, col)
+			encodings[dict] = true
 			for fi, f := range filters {
 				t.Run(fmt.Sprintf("%s/%s/%s", name, col, f.name), func(t *testing.T) {
-					run := func(steps []seekStep, plain bool) ([]seekResult, PredicateStats, *testSampler) {
-						var stats PredicateStats
+					for pi, steps := range seekPlans(uint64(leaf.ColumnIndex*10+fi), leaf.MaxRepetitionLevel > 0, starts) {
 						opts := []SyncIteratorOpt{
 							SyncIteratorOptSelectAs("v"), SyncIteratorOptMaxDefinitionLevel(leaf.MaxDefinitionLevel),
-							SyncIteratorOptPredicate(f.filter()), SyncIteratorOptStats(&stats),
+							SyncIteratorOptPredicate(f.filter()),
 						}
-						var s *testSampler
+						var gotSampler, wantSampler Sampler
 						if f.sampled {
-							s = &testSampler{keepEvery: 2}
-							opts = append(opts, SyncIteratorOptSampler(s))
+							gotSampler, wantSampler = &testSampler{keepEvery: 2}, &testSampler{keepEvery: 2}
+							opts = append(opts, SyncIteratorOptSampler(gotSampler))
 						}
 						it := NewSyncIterator(context.TODO(), rgs, leaf.ColumnIndex, opts...)
-						defer it.Close()
-						it.plainPageReader.disabled = !plain
-						return runSeekSteps(t, it, steps), stats, s
-					}
-
-					engaged := false
-					for pi, steps := range seekPlans(uint64(leaf.ColumnIndex*10+fi), leaf.MaxRepetitionLevel > 0, starts) {
-						got, gotStats, gotSampler := run(steps, true)
-						want, wantStats, wantSampler := run(steps, false)
-						for i := range got {
-							engaged = engaged || got[i].plainSeeks
-							got[i].plainSeeks = false
-						}
+						got := runSeekSteps(t, it, steps)
+						it.Close()
+						want := runOracle(slots, steps, f.filter(), wantSampler)
 						require.Equal(t, want, got, "plan %d", pi)
-						require.Equal(t, wantStats, gotStats, "plan %d", pi)
-						require.Equal(t, wantSampler, gotSampler, "plan %d", pi)
-					}
-					if name == "buffer" {
-						require.False(t, engaged, "no file column")
-					} else if name == "large-pages-v2" && f.name == "nofilter" {
-						require.True(t, engaged, "the plain page reader served a long seek")
+						if f.sampled {
+							require.Equal(t, wantSampler.(*testSampler).seen, gotSampler.(*testSampler).seen, "plan %d", pi)
+						}
 					}
 				})
 			}
 		}
+		require.True(t, encodings[true] && encodings[false], "%s: both dictionary-encoded and plain pages", name)
 	}
 }
 
-// TestPlainPageReaderMatchesScan: seeking returns the first value at or after the
-// target that a scan by Next returns, also on dictionary pages, which are read by
-// their levels with or without the plain page reader.
-func TestPlainPageReaderMatchesScan(t *testing.T) {
+// TestPageReaderMatchesScan: seeking returns the first value at or after the target
+// that a scan by Next returns.
+func TestPageReaderMatchesScan(t *testing.T) {
 	rgs := seekTestSources(t)["large-pages-v2"]
 	schema := parquet.SchemaOf(seekRow{})
 	for _, path := range []string{"I64", "Bool", "Str", "DictStr", "Attrs.Key", "Attrs.Int", "Spans.Attrs.Str"} {
@@ -445,49 +511,36 @@ func TestPlainPageReaderMatchesScan(t *testing.T) {
 	}
 }
 
-// TestNilSyncIteratorLongSeek: NilSyncIterator reads values itself, so a long seek
-// still reslices its page.
-func TestNilSyncIteratorLongSeek(t *testing.T) {
-	pf := createNilIterTestFile(t, 30_000)
+// TestNilSyncIteratorSeekTo: a seek returns the first row at or after the target that
+// lacks the key, as a scan does (see TestNilIterator), within a page and across pages.
+func TestNilSyncIteratorSeekTo(t *testing.T) {
+	const count = 30_000
+	pf := createNilIterTestFile(t, count)
 	idx, _, _ := GetColumnIndexByPath(pf, "attrs.list.element.Key")
-	newIter := func() *NilSyncIterator {
-		return NewNilSyncIterator(context.TODO(), pf.RowGroups(), idx, SyncIteratorOptSelectAs("v"),
-			SyncIteratorOptPredicate(NewIncludeNilStringEqualPredicate([]byte("special-key"))), SyncIteratorOptMaxDefinitionLevel(1))
-	}
-
-	scan := newIter()
-	defer scan.Close()
-	var all []RowNumber
-	for {
-		res, err := scan.Next()
-		require.NoError(t, err)
-		if res == nil {
-			break
-		}
-		all = append(all, res.RowNumber)
-	}
-
-	it := newIter()
+	it := NewNilSyncIterator(context.TODO(), pf.RowGroups(), idx, SyncIteratorOptSelectAs("v"),
+		SyncIteratorOptPredicate(NewIncludeNilStringEqualPredicate([]byte("special-key"))), SyncIteratorOptMaxDefinitionLevel(1))
 	defer it.Close()
-	pos := 0
-	for _, to := range []int32{1, 2_000, 2_001, 9_000, 14_999, 15_000, 29_999} {
+
+	// Every 3rd row has the key, so the others are returned.
+	for _, to := range []int32{1, 2, 3, 2_000, 2_001, 9_000, 14_999, 15_000, 29_998, 29_999} {
 		rn := EmptyRowNumber()
 		rn[0] = to
 		res, err := it.SeekTo(rn, 0)
 		require.NoError(t, err)
-		for pos < len(all) && all[pos][0] < to {
-			pos++
+		want := to
+		if want%3 == 0 {
+			want++
 		}
 		require.NotNil(t, res, "seek to %d", to)
-		require.Equal(t, all[pos], res.RowNumber, "seek to %d", to)
-		require.False(t, it.plainPageReader.active)
-		pos++
+		require.Equal(t, RowNumber{want, -1, -1, -1, -1, -1, -1, -1}, TruncateRowNumber(0, res.RowNumber), "seek to %d", to)
 	}
+	res, err := it.Next()
+	require.NoError(t, err)
+	require.Nil(t, res)
 }
 
-// TestPlainPageReaderTriesPageOnce: a page the reader turns down is resliced, and the
-// reader doesn't try the slice.
-func TestPlainPageReaderTriesPageOnce(t *testing.T) {
+// TestPageReaderLoad: load reads a page only with the column's max definition level.
+func TestPageReaderLoad(t *testing.T) {
 	rgs := seekTestSources(t)["large-pages-v2"]
 	leaf, ok := parquet.SchemaOf(seekRow{}).Lookup("ID")
 	require.True(t, ok)
@@ -497,11 +550,10 @@ func TestPlainPageReaderTriesPageOnce(t *testing.T) {
 	require.NoError(t, err)
 	defer parquet.Release(pg)
 
-	var r plainPageReader
-	require.False(t, r.start(pg, 1, 0), "wrong max definition level")
-	require.False(t, r.start(pg, 0, 0), "already tried")
-	r.reset()
-	require.True(t, r.start(pg, 0, 0))
+	r := pageReader{maxDef: 1}
+	require.ErrorContains(t, r.load(pg), "max definition level is 1")
+	require.NoError(t, r.setChunk(rgs[0].ColumnChunks()[leaf.ColumnIndex]))
+	require.NoError(t, r.load(pg))
 	require.Equal(t, int(pg.NumValues()), r.numSlots)
 }
 
@@ -550,17 +602,71 @@ func TestSkipToRow(t *testing.T) {
 				}
 			}
 
-			gotSlot, gotIndex := slot, index
-			ok := skipToRow(defLevels, repLevels, maxDef, numSlots, &gotSlot, &gotIndex, cur, to)
-			if wantSlot < 0 {
-				require.False(t, ok)
-				require.Equal(t, slot, gotSlot)
-				require.Equal(t, index, gotIndex)
+			r := pageReader{maxDef: maxDef, defLevels: defLevels, repLevels: repLevels, numSlots: numSlots, slot: slot, index: index}
+			moved := r.skipToRow(cur, to)
+			if wantSlot < 0 || to <= cur+1 { // not on the page, or the next row: left to next
+				require.False(t, moved)
+				require.Equal(t, slot, r.slot)
+				require.Equal(t, index, r.index)
 				continue
 			}
-			require.True(t, ok, "slot %d cur %d to %d", slot, cur, to)
-			require.Equal(t, wantSlot, gotSlot)
-			require.Equal(t, wantIndex, gotIndex)
+			require.True(t, moved, "slot %d cur %d to %d", slot, cur, to)
+			require.Equal(t, wantSlot, r.slot)
+			require.Equal(t, wantIndex, r.index)
 		}
 	}
+}
+
+// TestCheckValueCount: a page must hold one value (or dictionary index) per present slot.
+func TestCheckValueCount(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data encoding.Values
+		want int
+		ok   bool
+	}{
+		{"int64", encoding.Int64Values([]int64{1, 2, 3}), 3, true},
+		{"int64 short", encoding.Int64Values([]int64{1, 2}), 3, false},
+		{"int32 indexes long", encoding.Int32Values([]int32{0, 1, 0, 1}), 3, false},
+		{"bytes", encoding.ByteArrayValues([]byte("abc"), []uint32{0, 1, 3}), 2, true},
+		{"bytes short", encoding.ByteArrayValues([]byte("abc"), []uint32{0, 3}), 2, false},
+		{"fixed", encoding.FixedLenByteArrayValues([]byte("abcd"), 2), 2, true},
+		{"fixed ragged", encoding.FixedLenByteArrayValues([]byte("abcde"), 2), 2, false},
+		{"bool last byte", encoding.BooleanValues([]byte{0xff, 0x01}), 9, true},
+		{"bool extra byte", encoding.BooleanValues([]byte{0xff, 0x01, 0x00}), 9, false},
+		{"bool short", encoding.BooleanValues([]byte{0xff}), 9, false},
+	} {
+		err := checkValueCount(tc.data, tc.want)
+		if tc.ok {
+			require.NoError(t, err, tc.name)
+		} else {
+			require.Error(t, err, tc.name)
+		}
+	}
+}
+
+// dictionaryEncoded reports whether every page of column is dictionary-encoded; it fails
+// the test if only some are.
+func dictionaryEncoded(t *testing.T, rgs []parquet.RowGroup, column int) bool {
+	t.Helper()
+	dict, plain := 0, 0
+	for _, rg := range rgs {
+		pages := rg.ColumnChunks()[column].Pages()
+		for {
+			pg, err := pages.ReadPage()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			require.NoError(t, err)
+			if pg.Dictionary() != nil {
+				dict++
+			} else {
+				plain++
+			}
+			parquet.Release(pg)
+		}
+		require.NoError(t, pages.Close())
+	}
+	require.True(t, dict == 0 || plain == 0, "column %d mixes %d dictionary and %d plain pages", column, dict, plain)
+	return dict > 0
 }
