@@ -592,7 +592,7 @@ func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag,
 
 	destBuffer := make([]byte, *props.ContentLength)
 
-	if _, err := blobClient.DownloadBuffer(context.Background(), destBuffer, &blob.DownloadBufferOptions{
+	if _, err := blobClient.DownloadBuffer(ctx, destBuffer, &blob.DownloadBufferOptions{
 		Range: blob.HTTPRange{
 			Offset: 0,
 			Count:  *props.ContentLength,

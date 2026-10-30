@@ -9,6 +9,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 var requestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -19,7 +21,7 @@ var requestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	NativeHistogramBucketFactor:     1.1,
 	NativeHistogramMaxBucketNumber:  100,
 	NativeHistogramMinResetDuration: 1 * time.Hour,
-}, []string{"operation", "status_code"})
+}, []string{"operation", "status_code", "role"})
 
 var connectionsDialed = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempodb",
@@ -60,7 +62,7 @@ func (i instrumentedTransport) RoundTrip(req *http.Request) (*http.Response, err
 	start := time.Now()
 	resp, err := i.next.RoundTrip(req)
 	if err == nil {
-		i.observer.WithLabelValues(req.Method, strconv.Itoa(resp.StatusCode)).Observe(time.Since(start).Seconds())
+		i.observer.WithLabelValues(req.Method, strconv.Itoa(resp.StatusCode), backend.RoleFromContext(req.Context())).Observe(time.Since(start).Seconds())
 	}
 	return resp, err
 }
