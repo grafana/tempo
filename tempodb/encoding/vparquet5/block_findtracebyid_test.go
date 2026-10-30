@@ -30,11 +30,12 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		Path: t.TempDir(),
 	})
 	require.NoError(t, err)
+	cr := &countingRawReader{RawReader: rawR}
 
 	var (
 		ctx       = context.Background()
 		numTraces = 16
-		r         = backend.NewReader(rawR)
+		r         = backend.NewReader(cr)
 		w         = backend.NewWriter(rawW)
 		cfg       = &common.BlockConfig{
 			BloomFP:             0.01,
@@ -129,6 +130,17 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	for i, c := range counters {
 		require.Equal(t, float64(numTraces), prom_testutil.ToFloat64(c)-before[i])
 	}
+
+	// A smaller TraceByIDReadBufferSize replaces ReadBufferSize, so the lookup takes more reads.
+	readsWith := func(bufSize int) int64 {
+		opts := common.DefaultSearchOptions()
+		opts.TraceByIDReadBufferSize = bufSize
+		before := cr.reads.Load()
+		_, err := b.FindTraceByID(ctx, traces[0].id, opts)
+		require.NoError(t, err)
+		return cr.reads.Load() - before
+	}
+	require.Greater(t, readsWith(64), readsWith(0))
 }
 
 func TestBackendBlockFindTraceByID_TestData(t *testing.T) {

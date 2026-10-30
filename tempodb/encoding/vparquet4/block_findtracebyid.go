@@ -128,6 +128,10 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	}
 	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageIndexPass).Inc()
 
+	if opts.TraceByIDReadBufferSize > 0 {
+		opts.ReadBufferSize = opts.TraceByIDReadBufferSize
+	}
+
 	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)

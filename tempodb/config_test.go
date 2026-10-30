@@ -21,6 +21,7 @@ func TestApplyToOptions(t *testing.T) {
 	require.Equal(t, opts.ChunkSizeBytes, uint32(DefaultSearchChunkSizeBytes))
 	require.Equal(t, opts.ReadBufferCount, DefaultReadBufferCount)
 	require.Equal(t, opts.ReadBufferSize, DefaultReadBufferSize)
+	require.Equal(t, opts.TraceByIDReadBufferSize, DefaultTraceByIDReadBufferSize)
 
 	// test parameter fields are left alone
 	opts.StartPage = 1
@@ -36,7 +37,9 @@ func TestApplyToOptions(t *testing.T) {
 	cfg.PrefetchTraceCount = 5
 	cfg.ReadBufferCount = 6
 	cfg.ReadBufferSizeBytes = 7
+	cfg.TraceByIDReadBufferSizeBytes = 8
 	cfg.ApplyToOptions(&opts)
+	require.Equal(t, opts.TraceByIDReadBufferSize, 8)
 	require.Equal(t, cfg.ChunkSizeBytes, uint32(4))
 	require.Equal(t, cfg.PrefetchTraceCount, 5)
 	require.Equal(t, cfg.ReadBufferCount, 6)

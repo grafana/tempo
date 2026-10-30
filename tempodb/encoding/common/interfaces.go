@@ -43,6 +43,9 @@ type SearchOptions struct {
 	PrefetchTraceCount int    // How many traces to prefetch async.
 	ReadBufferCount    int
 	ReadBufferSize     int
+
+	// TraceByIDReadBufferSize overrides ReadBufferSize for trace-by-ID lookups. <= 0 keeps ReadBufferSize.
+	TraceByIDReadBufferSize int
 }
 
 // DefaultSearchOptions is used in a lot of places such as local ingester searches. It is important
@@ -52,9 +55,10 @@ type SearchOptions struct {
 // tempodb.SearchConfig{}.ApplyToOptions(&searchOpts). we should consolidate these.
 func DefaultSearchOptions() SearchOptions {
 	return SearchOptions{
-		ReadBufferCount: 32,
-		ReadBufferSize:  2 * 1024 * 1024,
-		ChunkSizeBytes:  4 * 1024 * 1024,
+		ReadBufferCount:         32,
+		ReadBufferSize:          2 * 1024 * 1024,
+		TraceByIDReadBufferSize: 512 * 1024,
+		ChunkSizeBytes:          4 * 1024 * 1024,
 	}
 }
 
