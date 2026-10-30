@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The redaction query selector accepts only a single spanset filter restricted to
-// equality on resource.*/span.* attributes joined by && / ||. Everything
+// The redaction query selector accepts only a single spanset filter over resource.*/span.*
+// attributes, ANDed with at least one = (or || of =) condition. Everything
 // else is rejected at submission. See designDocRedactionTraceQLQuery.md "Query subset".
 func TestValidateRedactionQuery(t *testing.T) {
 	cases := []struct {
@@ -119,9 +119,18 @@ func TestRedactionQueryExistenceForms(t *testing.T) {
 		query   string
 		wantErr string
 	}{
-		{name: "attr != nil is an existence check", query: `{ span.foo != nil }`},
 		{name: "existence combined with equality", query: `{ resource.service.name != nil && span.foo = "x" }`},
-		{name: "existence combined with or", query: `{ span.a != nil || span.b != nil }`},
+
+		{
+			name:    "existence alone has no positive filter",
+			query:   `{ span.foo != nil }`,
+			wantErr: "at least one = comparison",
+		},
+		{
+			name:    "existence combined with or",
+			query:   `{ span.a != nil || span.b != nil }`,
+			wantErr: "at least one = comparison",
+		},
 
 		{
 			name:    "negation against a value is still refused",
@@ -151,6 +160,59 @@ func TestRedactionQueryExistenceForms(t *testing.T) {
 		{
 			name:    "not-regex stays refused",
 			query:   `{ span.foo !~ "bar" }`,
+			wantErr: "not allowed in redaction query",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateRedactionQuery(tc.query)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+// TestRedactionQueryPositiveFilter covers the shape rule: the query is an && of conditions, at least
+// one of them an = comparison or an || of = comparisons; the rest may combine comparisons freely.
+func TestRedactionQueryPositiveFilter(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		query   string
+		wantErr string
+	}{
+		{name: "or of equalities across attributes", query: `{ resource.namespace = "checkout" || span.tenantref = "acme" }`},
+		{name: "or group anded with existence", query: `{ (resource.service.name = "a" || resource.service.name = "b") && span.foo != nil }`},
+		{name: "existence before the positive filter", query: `{ span.foo != nil && span.bar != nil && resource.service.name = "a" }`},
+		{name: "or of existence anded with equality", query: `{ resource.service.name = "a" && (span.a != nil || span.b != nil) }`},
+		{name: "and of existence anded with equality", query: `{ resource.service.name = "a" && (span.a != nil && span.b != nil) }`},
+		{name: "or of mixed groups anded with equality", query: `{ resource.service.name = "a" && (span.a != nil && span.x = "" || span.b != nil && span.x = "y") }`},
+
+		{
+			name:    "or mixing equality and existence",
+			query:   `{ resource.service.name = "a" || span.foo != nil }`,
+			wantErr: "at least one = comparison",
+		},
+		{
+			name:    "and nested inside or",
+			query:   `{ resource.service.name = "a" && span.foo = "x" || resource.service.name = "b" }`,
+			wantErr: "at least one = comparison",
+		},
+		{
+			name:    "unparenthesised or binds looser than and",
+			query:   `{ resource.service.name = "a" && span.a != nil || span.b != nil }`,
+			wantErr: "parenthesised",
+		},
+		{
+			name:    "only existence checks",
+			query:   `{ span.a != nil && span.b != nil }`,
+			wantErr: "at least one = comparison",
+		},
+		{
+			name:    "unsupported operator nested in an or",
+			query:   `{ resource.service.name = "a" && (span.a != nil || span.b > 1) }`,
 			wantErr: "not allowed in redaction query",
 		},
 	} {
