@@ -6,8 +6,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/grafana/dskit/user"
 	"github.com/parquet-go/parquet-go"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // testPlainInt is deliberately not dict-encoded, so pruning falls to the column index
@@ -142,26 +148,24 @@ func TestKeepStatsCounters(t *testing.T) {
 		require.NoError(t, w.Write(&testDictString{"abc"}))
 	})
 
-	// SyncIteratorOptStats attaches a PredicateStats, so keepColumnChunk counts into it.
-	var keepStats PredicateStats
+	// keepColumnChunk counts into the iterator's stats.
 	keepIt := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
-		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})), SyncIteratorOptStats(&keepStats))
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})))
 	defer keepIt.Close()
 	ccKeep := &ColumnChunkHelper{ColumnChunk: r.RowGroups()[0].ColumnChunks()[0]}
 	defer ccKeep.Close()
 	require.True(t, keepIt.keepColumnChunk(ccKeep))
-	require.Equal(t, int64(1), keepStats.InspectedColumnChunks)
-	require.Equal(t, int64(1), keepStats.KeptColumnChunks)
+	require.Equal(t, int64(1), keepIt.Stats().InspectedColumnChunks)
+	require.Equal(t, int64(1), keepIt.Stats().KeptColumnChunks)
 
-	var skipStats PredicateStats
 	skipIt := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
-		SyncIteratorOptPredicate(NewStringInPredicate([]string{"zzz"})), SyncIteratorOptStats(&skipStats))
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"zzz"})))
 	defer skipIt.Close()
 	ccSkip := &ColumnChunkHelper{ColumnChunk: r.RowGroups()[0].ColumnChunks()[0]}
 	defer ccSkip.Close()
 	require.False(t, skipIt.keepColumnChunk(ccSkip))
-	require.Equal(t, int64(1), skipStats.InspectedColumnChunks)
-	require.Equal(t, int64(0), skipStats.KeptColumnChunks) // chunk skipped
+	require.Equal(t, int64(1), skipIt.Stats().InspectedColumnChunks)
+	require.Equal(t, int64(0), skipIt.Stats().KeptColumnChunks) // chunk skipped
 }
 
 // TestKeepPagePrunesByBounds covers page-level KeepRange pruning on a plain (non-dict)
@@ -181,16 +185,15 @@ func TestKeepPagePrunesByBounds(t *testing.T) {
 	require.NoError(t, err)
 
 	// Matches only the tail of an ascending column, so the leading pages are out of range.
-	var stats PredicateStats
 	it := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
-		SyncIteratorOptPredicate(NewIntBetweenPredicate(rows-5, rows)), SyncIteratorOptStats(&stats))
+		SyncIteratorOptPredicate(NewIntBetweenPredicate(rows-5, rows)))
 	defer it.Close()
 	drain(t, it)
 
-	require.Equal(t, int64(1), stats.KeptColumnChunks, "chunk holds matching values, must be kept")
-	require.Greater(t, stats.InspectedPages, int64(1), "need multiple pages to exercise pruning")
-	require.Less(t, stats.KeptPages, stats.InspectedPages, "out-of-range pages must be pruned")
-	require.Equal(t, int64(5), stats.KeptValues)
+	require.Equal(t, int64(1), it.Stats().KeptColumnChunks, "chunk holds matching values, must be kept")
+	require.Greater(t, it.Stats().InspectedPages, int64(1), "need multiple pages to exercise pruning")
+	require.Less(t, it.Stats().KeptPages, it.Stats().InspectedPages, "out-of-range pages must be pruned")
+	require.Equal(t, int64(5), it.Stats().KeptValues)
 }
 
 // TestStatsCountOnlyRowValues pins the invariant that replaced InstrumentedPredicate's
@@ -203,16 +206,15 @@ func TestStatsCountOnlyRowValues(t *testing.T) {
 		require.NoError(t, w.Write(&testDictString{"cde"}))
 	})
 
-	var stats PredicateStats
 	it := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
-		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})), SyncIteratorOptStats(&stats))
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})))
 	defer it.Close()
 	drain(t, it)
 
 	// Exactly one inspection per row: the 3-entry dictionary scan and the null probe
 	// that keepColumnChunk performed are not counted.
-	require.Equal(t, int64(3), stats.InspectedValues)
-	require.Equal(t, int64(1), stats.KeptValues)
+	require.Equal(t, int64(3), it.Stats().InspectedValues)
+	require.Equal(t, int64(1), it.Stats().KeptValues)
 }
 
 func drain(t *testing.T, it Iterator) {
@@ -510,4 +512,63 @@ func b2i(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// TestStatsExportedAsMetrics checks that an iterator exports its decisions on Close,
+// exactly once, under the tenant from its context.
+func TestStatsExportedAsMetrics(t *testing.T) {
+	r := buildFile(t, func(w *parquet.Writer) { //nolint:all
+		require.NoError(t, w.Write(&testDictString{"abc"}))
+		require.NoError(t, w.Write(&testDictString{"bcd"}))
+		require.NoError(t, w.Write(&testDictString{"cde"}))
+	})
+
+	const tenant = "test-stats-exported"
+	count := func(level, decision string) float64 {
+		return testutil.ToFloat64(metricPredicateDecisions.WithLabelValues(tenant, level, decision))
+	}
+
+	it := NewSyncIterator(user.InjectOrgID(context.Background(), tenant), r.RowGroups(), 0,
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})))
+	drain(t, it)
+	require.Zero(t, count("value", "kept"), "exported on Close, not while iterating")
+
+	it.Close()
+	it.Close()
+
+	require.Equal(t, 1.0, count("column_chunk", "kept"))
+	require.Equal(t, 0.0, count("column_chunk", "pruned"))
+	require.Equal(t, 1.0, count("value", "kept"))
+	require.Equal(t, 2.0, count("value", "pruned"))
+}
+
+// TestStatsRecordedOnSpan checks that Close records the iterator's decisions on its span.
+func TestStatsRecordedOnSpan(t *testing.T) {
+	r := buildFile(t, func(w *parquet.Writer) { //nolint:all
+		require.NoError(t, w.Write(&testDictString{"abc"}))
+		require.NoError(t, w.Write(&testDictString{"bcd"}))
+		require.NoError(t, w.Write(&testDictString{"cde"}))
+	})
+
+	// tracer is a package global bound to the global provider, so record through it.
+	rec := tracetest.NewSpanRecorder()
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec)))
+	t.Cleanup(func() { otel.SetTracerProvider(prev) })
+
+	it := NewSyncIterator(context.Background(), r.RowGroups(), 0,
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})))
+	drain(t, it)
+	it.Close()
+
+	ended := rec.Ended()
+	require.Len(t, ended, 1)
+	attrs := map[attribute.Key]int64{}
+	for _, kv := range ended[0].Attributes() {
+		attrs[kv.Key] = kv.Value.AsInt64()
+	}
+	require.Equal(t, int64(1), attrs["inspectedColumnChunks"])
+	require.Equal(t, int64(1), attrs["keptColumnChunks"])
+	require.Equal(t, int64(3), attrs["inspectedValues"])
+	require.Equal(t, int64(1), attrs["keptValues"])
 }

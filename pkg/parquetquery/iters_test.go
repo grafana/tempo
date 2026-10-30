@@ -182,9 +182,8 @@ func TestColumnIteratorSeekToFilter(t *testing.T) {
 		count := 10_000
 		pf := createTestFile(t, count)
 
-		var stats PredicateStats
 		idx, _, _ := GetColumnIndexByPath(pf, "A")
-		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), idx, SyncIteratorOptSelectAs("A"), SyncIteratorOptPredicate(NewSkipNilsPredicate()), SyncIteratorOptStats(&stats), SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel))
+		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), idx, SyncIteratorOptSelectAs("A"), SyncIteratorOptPredicate(NewSkipNilsPredicate()), SyncIteratorOptMaxDefinitionLevel(MaxDefinitionLevel))
 		defer iter.Close()
 
 		// Seek in steps below the page-reslice threshold so the iterator
@@ -199,8 +198,8 @@ func TestColumnIteratorSeekToFilter(t *testing.T) {
 			require.Equal(t, RowNumber{seekTo, -1, -1, -1, -1, -1, -1, -1}, res.RowNumber)
 			require.Equal(t, seekTo, res.ToMap()["A"][0].Int32())
 
-			require.Equal(t, int64(1), stats.InspectedValues-inspectedBefore, "only the value at the seek target should be inspected by the filter")
-			inspectedBefore = stats.InspectedValues
+			require.Equal(t, int64(1), iter.Stats().InspectedValues-inspectedBefore, "only the value at the seek target should be inspected by the filter")
+			inspectedBefore = iter.Stats().InspectedValues
 		}
 	})
 
@@ -241,8 +240,7 @@ func TestColumnIteratorSeekToFilter(t *testing.T) {
 		}
 		pf := createFileWith(t, context.Background(), traces)
 
-		var stats PredicateStats
-		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), 0, SyncIteratorOptSelectAs("ID"), SyncIteratorOptPredicate(NewSkipNilsPredicate()), SyncIteratorOptStats(&stats), SyncIteratorOptMaxDefinitionLevel(1))
+		iter := NewSyncIterator(context.TODO(), pf.RowGroups(), 0, SyncIteratorOptSelectAs("ID"), SyncIteratorOptPredicate(NewSkipNilsPredicate()), SyncIteratorOptMaxDefinitionLevel(1))
 		defer iter.Close()
 
 		// Seek to trace 5, span 50 at definition level 1.
@@ -253,7 +251,7 @@ func TestColumnIteratorSeekToFilter(t *testing.T) {
 		require.NotNil(t, res)
 		require.Equal(t, RowNumber{5, 50, -1, -1, -1, -1, -1, -1}, res.RowNumber)
 		require.Equal(t, int64(5*1000+50), res.ToMap()["ID"][0].Int64())
-		require.Equal(t, int64(1), stats.InspectedValues, "only the value at the seek target should be inspected by the filter")
+		require.Equal(t, int64(1), iter.Stats().InspectedValues, "only the value at the seek target should be inspected by the filter")
 	})
 }
 
@@ -386,16 +384,31 @@ func BenchmarkColumnIterator(b *testing.B) {
 	}
 }
 
+// BenchmarkColumnIteratorPredicate keeps every value, so the iterator inspects and
+// counts every chunk, page and value.
+func BenchmarkColumnIteratorPredicate(b *testing.B) {
+	for _, tc := range iterTestCases {
+		b.Run(tc.name, func(b *testing.B) {
+			benchmarkColumnIteratorWith(b, tc.makeIter, func(count int) Predicate { return NewIntBetweenPredicate(0, int64(count)) })
+		})
+	}
+}
+
 func benchmarkColumnIterator(b *testing.B, makeIter makeTestIterFn) {
+	benchmarkColumnIteratorWith(b, makeIter, func(int) Predicate { return nil })
+}
+
+func benchmarkColumnIteratorWith(b *testing.B, makeIter makeTestIterFn, makePred func(count int) Predicate) {
 	count := 100_000
 	pf := createTestFile(b, count)
 
 	idx, _, _ := GetColumnIndexByPath(pf, "A")
+	pred := makePred(count)
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		iter := makeIter(pf, idx, nil, "A")
+		iter := makeIter(pf, idx, pred, "A")
 		actualCount := 0
 		for {
 			res, err := iter.Next()

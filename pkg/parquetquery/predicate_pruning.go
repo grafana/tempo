@@ -5,8 +5,8 @@ import (
 )
 
 // PredicateStats counts the chunk/page/value decisions the iterator makes while
-// applying its predicate. It is optional (nil-safe): attach one via SyncIteratorOptStats
-// to collect inspected/kept counts for instrumentation.
+// applying its predicate. Read them with SyncIterator.Stats; Close exports them as
+// metrics.
 type PredicateStats struct {
 	InspectedColumnChunks int64
 	KeptColumnChunks      int64
@@ -23,7 +23,7 @@ type PredicateStats struct {
 func predicateNullValue() pq.Value { return pq.Value{} }
 
 // keepColumnChunk reports whether cc may hold a value c.filter keeps, so a chunk that
-// can't is skipped before any of its pages is read. Counts into c.stats when set.
+// can't is skipped before any of its pages is read. Counts into c.stats.
 //
 // The chunk is kept when:
 //   - there is no filter;
@@ -39,14 +39,12 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 	if c.filter == nil {
 		return true // no predicate: keep everything
 	}
-	if c.stats != nil {
-		c.stats.InspectedColumnChunks++
-		defer func() {
-			if keep {
-				c.stats.KeptColumnChunks++
-			}
-		}()
-	}
+	c.stats.InspectedColumnChunks++
+	defer func() {
+		if keep {
+			c.stats.KeptColumnChunks++
+		}
+	}()
 
 	keepNull := c.filter.KeepValue(predicateNullValue())
 	indexPrunes := c.filter.SupportsColumnIndexPruning()
@@ -91,17 +89,15 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 }
 
 // keepPage reports whether any value in pg can match c.filter, combining a page-bounds
-// range test via KeepRange with a null test via KeepValue(null). Counts into c.stats
-// when set. The caller guards c.filter != nil, so it is always non-nil here.
+// range test via KeepRange with a null test via KeepValue(null). Counts into c.stats.
+// The caller guards c.filter != nil, so it is always non-nil here.
 func (c *SyncIterator) keepPage(pg pq.Page) (keep bool) {
-	if c.stats != nil {
-		c.stats.InspectedPages++
-		defer func() {
-			if keep {
-				c.stats.KeptPages++
-			}
-		}()
-	}
+	c.stats.InspectedPages++
+	defer func() {
+		if keep {
+			c.stats.KeptPages++
+		}
+	}()
 
 	keepNull := c.filter.KeepValue(predicateNullValue())
 	if keepNull && pg.NumNulls() > 0 {
