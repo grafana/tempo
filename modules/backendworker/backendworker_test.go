@@ -312,6 +312,209 @@ func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
 	require.Equal(t, before+1, after, "a missing redaction block must be counted, not silently dropped")
 }
 
+// TestCompletionNotFoundIsTerminal verifies that a codes.NotFound response
+// from the scheduler on a job-completion call (UpdateJob) drops the job rather
+// than retrying indefinitely through callSchedulerWithBackoff. See
+// https://github.com/grafana/tempo/issues/7879.
+func TestCompletionNotFoundIsTerminal(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	var updateCalls int
+	w.backendScheduler = &mockScheduler{
+		next: nextFuncWithJob(store, tenant),
+		updateJob: func(_ context.Context, _ *tempopb.UpdateJobStatusRequest, _ ...grpc.CallOption) (*tempopb.UpdateJobStatusResponse, error) {
+			updateCalls++
+			return nil, status.Error(codes.NotFound, "job not found")
+		},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- w.processJobs(ctx)
+	}()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err, "a NotFound response on job completion must be terminal for that job")
+	case <-time.After(10 * time.Second):
+		t.Fatal("processJobs did not return promptly after a NotFound completion response; the worker appears wedged retrying forever")
+	}
+
+	require.Equal(t, 1, updateCalls, "UpdateJob must not be retried once the scheduler reports the job as NotFound")
+
+	// The worker must resume polling Next() for new work rather than
+	// remaining stuck on the dropped job.
+	var nextCalls int
+	w.backendScheduler = &mockScheduler{
+		next: func(ctx context.Context, req *tempopb.NextJobRequest, opts ...grpc.CallOption) (*tempopb.NextJobResponse, error) {
+			nextCalls++
+			return nextNoop(ctx, req, opts...)
+		},
+		updateJob: updateJobNoop,
+	}
+	err = w.processJobs(ctx)
+	require.Error(t, err, "no jobs found")
+	require.Equal(t, 1, nextCalls, "worker must resume calling Next() for new work after dropping the NotFound job")
+}
+
+// TestCallSchedulerWithBackoffNotFound verifies that the generic retry loop
+// retries NotFound, while updateJob handles it once for each job status. Next()
+// lists NotFound as expected because an empty queue is normal. See
+// https://github.com/grafana/tempo/issues/7879.
+func TestCallSchedulerWithBackoffNotFound(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+	workerCfg.Backoff.MinBackoff = time.Millisecond
+	workerCfg.Backoff.MaxBackoff = time.Millisecond
+
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	notFound := status.Error(codes.NotFound, "not found")
+
+	t.Run("retried when not expected", func(t *testing.T) {
+		var calls int
+		err := w.callSchedulerWithBackoff(ctx, func(context.Context) error {
+			calls++
+			if calls < 3 {
+				return notFound
+			}
+			return nil
+		})
+		require.NoError(t, err)
+		require.Equal(t, 3, calls)
+	})
+
+	t.Run("retried when expected", func(t *testing.T) {
+		var calls int
+		err := w.callSchedulerWithBackoff(ctx, func(context.Context) error {
+			calls++
+			if calls < 3 {
+				return notFound
+			}
+			return nil
+		}, codes.NotFound)
+		require.NoError(t, err)
+		require.Equal(t, 3, calls)
+	})
+
+	for _, jobStatus := range []tempopb.JobStatus{
+		tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		tempopb.JobStatus_JOB_STATUS_FAILED,
+	} {
+		t.Run("update "+jobStatus.String(), func(t *testing.T) {
+			var calls int
+			w.backendScheduler = &mockScheduler{updateJob: func(_ context.Context, _ *tempopb.UpdateJobStatusRequest, _ ...grpc.CallOption) (*tempopb.UpdateJobStatusResponse, error) {
+				calls++
+				return nil, notFound
+			}}
+			err := w.updateJob(ctx, &tempopb.UpdateJobStatusRequest{JobId: "missing-job", Status: jobStatus})
+			require.NoError(t, err)
+			require.Equal(t, 1, calls)
+		})
+	}
+}
+
+// TestCompleteRedactionJobFailsOnGenuineError verifies that completeRedactionJob
+// marks the job as failed (via failJob, i.e. an UpdateJob call with
+// Status: JOB_STATUS_FAILED) when UpdateJob returns a genuine, non-NotFound
+// error. Without this, a real UpdateJob failure (e.g. Unavailable or
+// DeadlineExceeded) would leave the redaction job stuck as in-progress/leased
+// to this worker forever instead of being marked failed and made available
+// for retry/reassignment, unlike processCompactionJob and processRetentionJob.
+func TestCompleteRedactionJobFailsOnGenuineError(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	// Bound callSchedulerWithBackoff's retries: MaxRetries defaults to 0
+	// (infinite retries) which would make the completion attempt below
+	// retry the genuine error forever instead of ever reaching failJob.
+	workerCfg.Backoff.MaxRetries = 1
+
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	var failCalls int
+	w.backendScheduler = &mockScheduler{
+		updateJob: func(_ context.Context, req *tempopb.UpdateJobStatusRequest, _ ...grpc.CallOption) (*tempopb.UpdateJobStatusResponse, error) {
+			if req.Status == tempopb.JobStatus_JOB_STATUS_FAILED {
+				failCalls++
+				return &tempopb.UpdateJobStatusResponse{}, nil
+			}
+			// The completion attempt (SUCCEEDED) fails with a genuine,
+			// non-NotFound error.
+			return nil, status.Error(codes.Unavailable, "scheduler unavailable")
+		},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- w.completeRedactionJob(ctx, "job-genuine-error", 0)
+	}()
+
+	select {
+	case err = <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("completeRedactionJob did not return promptly on a genuine UpdateJob error; it appears wedged retrying forever")
+	}
+	require.Error(t, err, "a genuine UpdateJob failure must not be swallowed")
+	require.Equal(t, 1, failCalls, "completeRedactionJob must call failJob (UpdateJob with JOB_STATUS_FAILED) on a genuine, non-NotFound UpdateJob error")
+}
+
+func TestIsNotFound(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "NotFound status error",
+			err:      status.Error(codes.NotFound, "job not found"),
+			expected: true,
+		},
+		{
+			name:     "other status error",
+			err:      status.Error(codes.Internal, "boom"),
+			expected: false,
+		},
+		{
+			name:     "plain error",
+			err:      assert.AnError,
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, isNotFound(tc.err))
+		})
+	}
+}
+
 func TestIsSharded(t *testing.T) {
 	tests := []struct {
 		name     string
