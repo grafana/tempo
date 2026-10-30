@@ -5,7 +5,6 @@ import (
 	"errors"
 	"hash"
 	"hash/fnv"
-	"iter"
 	"sort"
 	"time"
 
@@ -118,7 +117,7 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 	return nil
 }
 
-func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) iter.Seq[*LiveTrace[T]] {
+func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) []*LiveTrace[T] {
 	idleSince := now.Add(-l.maxIdleTime)
 	liveSince := now.Add(-l.maxLiveTime)
 
@@ -135,11 +134,5 @@ func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) iter.Seq[*LiveTra
 		return bytes.Compare(toCut[i].ID, toCut[j].ID) == -1
 	})
 
-	return func(yield func(*LiveTrace[T]) bool) {
-		for _, tr := range toCut {
-			if !yield(tr) {
-				return
-			}
-		}
-	}
+	return toCut
 }

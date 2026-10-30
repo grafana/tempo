@@ -1,0 +1,6 @@
+change_type: enhancement
+component: live-store
+note: Reduce memory and open file usage for inactive tenants by delaying WAL head block creation until traces arrive.
+issues: []
+subtext: Tenant instances remain in memory, but no longer retain empty WAL writers before receiving data or after a block is cut.
+user: PatelFarhaan

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"iter"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -140,12 +139,13 @@ type instance struct {
 	reclaim *quarantine
 
 	// Live traces
-	liveTracesMtx      sync.Mutex
-	liveTraces         *livetraces.LiveTraces[*v1.ResourceSpans]
-	traceSizes         *tracesizes.Tracker
-	maxTraceLogger     *util_log.RateLimitedLogger
-	liveTracesIterNext func() (*livetraces.LiveTrace[*v1.ResourceSpans], bool)
-	liveTracesIterStop func()
+	liveTracesMtx  sync.Mutex
+	liveTraces     *livetraces.LiveTraces[*v1.ResourceSpans]
+	traceSizes     *tracesizes.Tracker
+	maxTraceLogger *util_log.RateLimitedLogger
+
+	// toFlush is owned by the cut loop until it stops for shutdown.
+	toFlush []*livetraces.LiveTrace[*v1.ResourceSpans]
 
 	// Metrics
 	tracesCreatedTotal prometheus.Counter
@@ -177,13 +177,9 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncod
 		tracesCreatedTotal:     metricTracesCreatedTotal.WithLabelValues(instanceID),
 		bytesReceivedTotal:     metricBytesReceivedTotal,
 		reclaim:                newQuarantine(cfg.BlockReclaimGrace),
+		lastCutTime:            time.Now(),
 	}
 	i.blocks.Store(emptyBlockSnapshot())
-
-	err := i.resetHeadBlock()
-	if err != nil {
-		return nil, err
-	}
 
 	return i, nil
 }
@@ -356,34 +352,58 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 	span.AddEvent("acquired liveTracesMtx")
 
 	// Set metrics before cutting (similar to ingester)
-	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Len()))
+	liveTraceCount := i.liveTraces.Len()
+	metricLiveTraces.WithLabelValues(i.tenantID).Set(float64(liveTraceCount))
 	metricLiveTraceBytes.WithLabelValues(i.tenantID).Set(float64(i.liveTraces.Size()))
-	if i.liveTracesIterNext == nil {
-		i.liveTracesIterNext, i.liveTracesIterStop = iter.Pull(i.liveTraces.CutIdle(time.Now(), immediate))
-	}
-
 	i.liveTracesMtx.Unlock()
 	span.AddEvent("released liveTracesMtx")
+
+	if liveTraceCount == 0 && len(i.toFlush) == 0 {
+		return true, nil
+	}
+	if i.blocks.Load().headBlock == nil {
+		// Create the writer before CutIdle detaches traces or toFlush advances,
+		// so a failed allocation leaves all unwritten traces retryable.
+		i.blocksMtx.Lock()
+		var err error
+		if i.blocks.Load().headBlock == nil {
+			err = i.resetHeadBlock()
+		}
+		i.blocksMtx.Unlock()
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return false, err
+		}
+	}
+	if len(i.toFlush) == 0 {
+		i.liveTracesMtx.Lock()
+		span.AddEvent("acquired liveTracesMtx")
+		i.toFlush = i.liveTraces.CutIdle(time.Now(), immediate)
+		i.liveTracesMtx.Unlock()
+		span.AddEvent("released liveTracesMtx")
+	}
 
 	var tracesCut int
 	defer func() { span.SetAttributes(attribute.Int("traces_cut", tracesCut)) }()
 
 	// Write traces to head block, cutting when MaxBlockBytes is reached.
 	span.AddEvent("writing traces to head block")
-	for {
-		t, ok := i.liveTracesIterNext()
-		if !ok {
-			break
-		}
+	for len(i.toFlush) > 0 {
+		t := i.toFlush[0]
 		blockSize, err := i.writeHeadBlock(t.ID, t)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
-			i.liveTracesIterStop()
-			i.liveTracesIterNext, i.liveTracesIterStop = nil, nil
+			i.toFlush = nil
 			return false, err
 		}
 
+		i.toFlush[0] = nil
+		i.toFlush = i.toFlush[1:]
+		if len(i.toFlush) == 0 {
+			i.toFlush = nil
+		}
 		tracesCut++
 		i.tracesCreatedTotal.Inc()
 
@@ -393,9 +413,6 @@ func (i *instance) cutIdleTraces(ctx context.Context, immediate bool) (bool, err
 			return false, nil
 		}
 	}
-
-	i.liveTracesIterStop()
-	i.liveTracesIterNext, i.liveTracesIterStop = nil, nil
 
 	if tracesCut == 0 { // no traces to process
 		return true, nil
@@ -426,6 +443,7 @@ func (i *instance) writeHeadBlock(id []byte, liveTrace *livetraces.LiveTrace[*v1
 
 	hb := i.blocks.Load().headBlock
 	if hb == nil {
+		// Allocate the WAL writer only when there is a trace to persist.
 		if err := i.resetHeadBlock(); err != nil {
 			return 0, err
 		}
@@ -499,7 +517,6 @@ func (i *instance) resetHeadBlock() error {
 		return err
 	}
 	i.blocks.Store(i.blocks.Load().withHeadBlock(block))
-	i.lastCutTime = time.Now()
 	return nil
 }
 
@@ -581,6 +598,7 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 
 	// Move headBlock into walBlocks and clear head, in one published snapshot.
 	i.blocks.Store(snap.withWALBlockAdded(id, hb).withHeadBlock(nil))
+	i.lastCutTime = time.Now()
 
 	span.SetAttributes(
 		attribute.String("blockID", id.String()),
@@ -588,12 +606,6 @@ func (i *instance) cutBlocks(ctx context.Context, immediate bool) (uuid.UUID, er
 	)
 
 	level.Info(i.logger).Log("msg", "queueing wal block for completion", "block", id.String(), "size", blockSize)
-
-	if err := i.resetHeadBlock(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return uuid.Nil, err
-	}
 
 	recordBlockCutMetric(reason)
 
