@@ -80,13 +80,33 @@ type RawReader interface {
 
 type writer struct {
 	w RawWriter
+
+	tenantIndexJSON bool
+}
+
+// WriterOption configures a writer created by NewWriter.
+type WriterOption func(*writer)
+
+// WithTenantIndexJSONWrite controls whether WriteTenantIndex also writes (and
+// preserves) the legacy JSON-encoded tenant index alongside the protobuf one.
+// Temporary rollout bridge from when tenant indexes moved to protobuf;
+// default false. When false, WriteTenantIndex also opportunistically deletes
+// any existing JSON tenant index for the tenant, self-healing the backend
+// over the tenant's next few poll cycles. Planned for removal, along with
+// that cleanup, once the fleet has fully migrated off pre-protobuf binaries.
+func WithTenantIndexJSONWrite(enabled bool) WriterOption {
+	return func(w *writer) { w.tenantIndexJSON = enabled }
 }
 
 // NewWriter returns an object that implements Writer and bridges to a RawWriter
-func NewWriter(w RawWriter) Writer {
-	return &writer{
+func NewWriter(w RawWriter, opts ...WriterOption) Writer {
+	out := &writer{
 		w: w,
 	}
+	for _, opt := range opts {
+		opt(out)
+	}
+	return out
 }
 
 // TODO: these objects are not raw, so perhaps they could move somewhere else.
@@ -161,6 +181,16 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 		return err
 	}
 
+	if !w.tenantIndexJSON {
+		// Best-effort cleanup of a stale JSON tenant index left over from
+		// before the fleet migrated to the protobuf-encoded one.
+		err := w.w.Delete(ctx, TenantIndexName, []string{tenantID}, nil)
+		if err != nil && !errors.Is(err, ErrDoesNotExist) {
+			return err
+		}
+		return nil
+	}
+
 	// Marshal and write the JSON object.
 	indexBytesJSON, err := b.marshal()
 	if err != nil {
@@ -187,13 +217,30 @@ func (w *writer) DeleteNoCompactFlag(ctx context.Context, blockID uuid.UUID, ten
 
 type reader struct {
 	r RawReader
+
+	tenantIndexJSON bool
+}
+
+// ReaderOption configures a reader created by NewReader.
+type ReaderOption func(*reader)
+
+// WithTenantIndexJSONFallback controls whether TenantIndex falls back to the
+// legacy JSON-encoded tenant index when the protobuf-encoded index is
+// missing. Temporary rollout bridge from when tenant indexes moved to
+// protobuf; default false. See WithTenantIndexJSONWrite.
+func WithTenantIndexJSONFallback(enabled bool) ReaderOption {
+	return func(r *reader) { r.tenantIndexJSON = enabled }
 }
 
 // NewReader returns an object that implements Reader and bridges to a RawReader
-func NewReader(r RawReader) Reader {
-	return &reader{
+func NewReader(r RawReader, opts ...ReaderOption) Reader {
+	out := &reader{
 		r: r,
 	}
+	for _, opt := range opts {
+		opt(out)
+	}
+	return out
 }
 
 // Read implements backend.Reader
@@ -268,7 +315,7 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 		return outPb, nil
 	}
 
-	if !errors.Is(err, ErrDoesNotExist) {
+	if !errors.Is(err, ErrDoesNotExist) || !r.tenantIndexJSON {
 		return nil, err
 	}
 
