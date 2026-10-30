@@ -67,7 +67,7 @@ information from a client application with minimal manual instrumentation of the
 - [OpenTelemetry Go auto-instrumentation](https://github.com/open-telemetry/opentelemetry-go-instrumentation) and [documentation](https://opentelemetry.io/docs/instrumentation/go/getting-started/)
 
 {{< admonition type="note" >}}
-Jaeger client libraries have been deprecated. For more information, refer to the [Deprecating Jaeger clients article](https://www.jaegertracing.io/docs/1.50/client-libraries/#deprecating-jaeger-clients). Jaeger recommends using OpenTelemetry SDKs.
+Jaeger client libraries have been deprecated. For more information, refer to the [Jaeger SDK migration guide](https://www.jaegertracing.io/sdk-migration/#jaeger-clientssdks-are-no-longer-supported). Jaeger recommends using OpenTelemetry SDKs.
 {{< /admonition >}}
 
 #### Additional OTel resources
