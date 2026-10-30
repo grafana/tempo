@@ -872,6 +872,7 @@ func naiveQueryRangeCombine(rNew, rInto *tempopb.QueryRangeResponse) {
 	if rInto.Status == 0 {
 		rInto.Status = rNew.Status
 	}
+	rInto.Extrapolated = rInto.Extrapolated || rNew.Extrapolated
 
 	// metrics?
 	rInto.Metrics.CompletedJobs += rNew.Metrics.CompletedJobs
