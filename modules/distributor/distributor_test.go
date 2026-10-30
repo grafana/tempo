@@ -2252,7 +2252,7 @@ func TestCheckForRateLimits(t *testing.T) {
 			d := prepare(t, overridesConfig, logger)
 
 			// check if we can ingest the batch
-			err := d.checkForRateLimits(tc.tracesSize, 100, "test-user")
+			err := d.checkForRateLimits(tc.tracesSize, 100, "test-user", "test-user")
 			s, ok := status.FromError(err)
 			require.True(t, ok)
 			require.Equal(t, tc.errCode, s.Code())

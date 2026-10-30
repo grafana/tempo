@@ -20,7 +20,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/httpgrpc"
-	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/v3/pkg/validation"
 
 	"github.com/grafana/tempo/v3/pkg/util/tracing"
 )
@@ -64,7 +64,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(pipeline.WithQueryShapeCell(r.Context()))
 	ctx := r.Context()
 	start := time.Now()
-	orgID, _ := user.ExtractOrgID(ctx)
+	orgID, _ := validation.ExtractValidTenantIDs(ctx)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	// add orgid to existing spans

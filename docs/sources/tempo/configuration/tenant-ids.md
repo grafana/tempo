@@ -35,6 +35,23 @@ The tenant ID should not be empty.
 
 For security reasons, `.` and `..` aren't valid tenant IDs. These values are restricted to prevent path traversal attacks.
 
+## Tenant metadata
+
+The `X-Scope-OrgID` header can carry metadata after the tenant ID,
+in the format `<tenant-id>:<key>=<value>`.
+Several pairs are separated by `:` and must be sorted by key, with unique keys.
+For example, `common:source=team-a` and `common:env=prod:source=team-a` are valid.
+
+Metadata keys and values can only include alphanumeric characters (`0-9`, `a-z`, `A-Z`), hyphens (`-`), and underscores (`_`).
+The metadata, including the separators, can be at most 64 bytes long.
+Requests with malformed metadata are rejected.
+
+Tempo stores, queries, and reports data by the tenant ID alone.
+Spans written with `common:source=team-a` are stored under `common`, are returned by queries for `common`,
+and are counted in the `common` tenant's metrics.
+The metadata is only used by the distributor to select ingestion rate limits,
+so that writers sharing one tenant can each get their own ingestion budget.
+Refer to [Metadata-derived ingestion limits](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#metadata-derived-ingestion-limits) for how to configure them.
 
 ## Cross-tenant queries
 

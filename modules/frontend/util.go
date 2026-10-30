@@ -11,8 +11,8 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/pkg/validation"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -20,7 +20,7 @@ import (
 
 // extractTenant extracts tenant ID from request context and returns HTTP error response if extraction fails
 func extractTenant(req *http.Request, logger log.Logger) (string, *http.Response) {
-	tenant, err := user.ExtractOrgID(req.Context())
+	tenant, err := validation.ExtractValidTenantIDs(req.Context())
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to extract tenant id", "err", err)
 		return "", &http.Response{

@@ -44,8 +44,9 @@ type Interface interface {
 	MaxBytesPerTagValuesQuery(userID string) int
 	MaxBlocksPerTagValuesQuery(userID string) int
 	MaxConditionGroupsPerTagQuery() int
-	IngestionRateLimitBytes(userID string) float64
-	IngestionBurstSizeBytes(userID string) int
+	// IngestionRateLimitBytes and IngestionBurstSizeBytes take a limits key: a tenant ID plus optional tenant metadata ("tenant:key=value").
+	IngestionRateLimitBytes(limitsKey string) float64
+	IngestionBurstSizeBytes(limitsKey string) int
 	IngestionTenantShardSize(userID string) int
 	IngestionMaxAttributeBytes(userID string) int
 	MetricsGeneratorIngestionSlack(userID string) time.Duration
