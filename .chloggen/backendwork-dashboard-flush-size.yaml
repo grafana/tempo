@@ -1,0 +1,6 @@
+change_type: enhancement
+component: operations
+note: "tempo-mixin: add a Compaction Output Block Size panel to the Compactions row of the Backend Work dashboard, plotting tempodb_compaction_output_block_size_bytes."
+issues: [7773]
+subtext:
+user: zalegrala
