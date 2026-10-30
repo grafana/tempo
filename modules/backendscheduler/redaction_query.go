@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grafana/tempo/v3/pkg/regexp"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
@@ -40,7 +41,8 @@ func validateRedactionQuery(query string) error {
 }
 
 // validateRedactionExpr requires fe to be an && of conditions, at least one of them a positive filter
-// (see isRedactionPositiveFilter). The other conditions may combine comparisons with && and || freely:
+// (see isRedactionPositiveFilter). The other conditions may combine comparisons (=, !=, =~, !~,
+// != nil) with && and || freely:
 // ANDed with the positive filter, they can only narrow its match, so a typo in one of them cannot
 // widen the deletion beyond it.
 func validateRedactionExpr(fe traceql.FieldExpression) error {
@@ -105,13 +107,31 @@ func validateRedactionCondition(fe traceql.FieldExpression) error {
 			return err
 		}
 		return validateRedactionCondition(bin.RHS)
-	case traceql.OpEqual:
+	case traceql.OpEqual, traceql.OpNotEqual:
 		return validateRedactionComparison(bin.LHS, bin.RHS)
+	case traceql.OpRegex, traceql.OpNotRegex:
+		return validateRedactionRegex(bin.LHS, bin.RHS)
 	default:
-		// Negation against a value is excluded on purpose: its match set is the complement
-		// (potentially all data), as catastrophic as a bad regex on an irreversible delete.
-		return fmt.Errorf("operator %v not allowed in redaction query; only = and != nil are supported", bin.Op)
+		return fmt.Errorf("operator %v not allowed in redaction query; only =, !=, =~, !~ and != nil are supported", bin.Op)
 	}
+}
+
+// validateRedactionRegex requires `<attribute> =~ "<regex>"` (or !~).
+func validateRedactionRegex(lhs, rhs traceql.FieldExpression) error {
+	attr, ok := lhs.(traceql.Attribute)
+	if !ok {
+		return errors.New("redaction query regex comparisons must be <attribute> =~ <regex>")
+	}
+	static, ok := rhs.(traceql.Static)
+	if !ok || static.Type != traceql.TypeString {
+		return errors.New("redaction query regex must be a string literal")
+	}
+	// ParseNoOptimizations does not compile regex literals; fail here rather than in every worker job.
+	pattern := static.EncodeToString(false)
+	if _, err := regexp.NewRegexp([]string{pattern}, true); err != nil {
+		return fmt.Errorf("invalid regex %q: %w", pattern, err)
+	}
+	return validateRedactionAttribute(attr)
 }
 
 // validateRedactionAttribute requires an attribute the subset can act on: scoped to resource. or
@@ -144,7 +164,7 @@ func validateRedactionComparison(lhs, rhs traceql.FieldExpression) error {
 	case rIsAttr && lIsStatic:
 		attr = rAttr
 	default:
-		return errors.New("redaction query comparisons must be <attribute> = <value>")
+		return errors.New("redaction query comparisons must be between an attribute and a literal value")
 	}
 
 	return validateRedactionAttribute(attr)
