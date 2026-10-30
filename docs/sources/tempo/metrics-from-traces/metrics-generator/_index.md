@@ -74,6 +74,26 @@ Use `metrics_generator.registry.collection_interval` to control the writing inte
 
 When you enable multi-tenancy, the metrics-generator forwards the `X-Scope-OrgID` header of the original request to the `remote_write` endpoint. To disable this behavior, set `remote_write_add_org_id_header` to false.
 
+### Avoid colliding series with multiple StatefulSets
+
+The metrics-generator adds a `__metrics_gen_instance` label to every series it generates.
+The label value is the hostname of the metrics-generator.
+
+Kubernetes StatefulSets reuse predictable pod names, such as `metrics-generator-0`.
+If you run more than one metrics-generator StatefulSet that writes to the same `remote_write` backend, multiple metrics-generator instances might write samples into the same timeseries, effectively corrupting the data.
+
+To avoid the collision, configure an external label that is unique for each StatefulSet or cluster:
+
+```yaml
+metrics_generator:
+  registry:
+    external_labels:
+      __metrics_gen_cluster: cluster-x
+```
+
+Use a different value for each StatefulSet.
+The label name is arbitrary, as long as it doesn't conflict with the labels the metrics-generator already generates.
+
 ## Native histograms
 
 [Native histograms](https://grafana.com/docs/mimir/<MIMIR_VERSION>/visualize/native-histograms/) are a data type in Prometheus that can produce, store, and query high-resolution histograms of observations.
