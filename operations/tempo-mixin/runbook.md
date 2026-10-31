@@ -95,6 +95,17 @@ In the current backend-scheduler/backend-worker flow, the scheduler exposes back
 - Metric/query: `max by (pod) (container_memory_working_set_bytes{container="backend-worker"})`
 - Log query: `{container=~"backend-worker|backend-scheduler"} |= "compaction"`
 
+## TempoRetentionFailing
+
+Check to determine the cause for retention errors. Retention processes are responsible for marking and deleting blocks past the configured `block_retention` threshold. If retention fails continuously, blocks will not be deleted, leading to unexpected storage growth.
+
+Inspect backend-worker and backend-scheduler logs to see why retention cycles are failing (for example permissions issues deleting objects in storage or errors reading blocklists).
+
+### Quick checks
+- Metric/query: `sum by (cluster, namespace) (increase(tempodb_retention_errors_total[2h]))`
+- Metric/query: `max by (cluster, namespace) (tempodb_retention_duration_seconds)`
+- Log query: `{container=~"backend-worker|backend-scheduler"} |= "retention"`
+
 ## TempoPollsFailing
 
 See [Polling Issues](#polling-issues) below for general information.
