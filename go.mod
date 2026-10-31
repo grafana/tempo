@@ -135,20 +135,20 @@ require (
 	github.com/antchfx/xmlquery v1.5.1 // indirect
 	github.com/antchfx/xpath v1.3.8 // indirect
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.4 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.43.4 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.32.33 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.32 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.33 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.35 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.35 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.36 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.15 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.35 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.5.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.33.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.45.4 // indirect
-	github.com/aws/smithy-go v1.28.6 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.47.5 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.33.12 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.12 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.5 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.8 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.8 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.12.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.39.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.51.6 // indirect
+	github.com/aws/smithy-go v1.28.7 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bboreham/go-loser v0.0.0-20230920113527-fcc2c21820a3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
