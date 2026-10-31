@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 )
 
 func TestConfig_validate(t *testing.T) {
@@ -25,7 +26,7 @@ func TestConfig_validate(t *testing.T) {
 		},
 		{
 			name: "ValidConfig",
-			cfg:  Config{PartitionsPerInstance: 5},
+			cfg:  Config{PartitionsPerInstance: 5, FlushConcurrency: 4},
 		},
 		{
 			name:        "InvalidPartitionAssignment",
@@ -41,6 +42,40 @@ func TestConfig_validate(t *testing.T) {
 			} else {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErr)
+			}
+		})
+	}
+}
+
+func TestConfig_flushConcurrency(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		yaml        string
+		args        []string
+		want        int
+		wantInvalid bool
+	}{
+		{name: "default", want: 4},
+		{name: "yaml", yaml: "flush_concurrency: 8", want: 8},
+		{name: "flag", args: []string{"-block-builder.flush-concurrency=16"}, want: 16},
+		{name: "zero yaml", yaml: "flush_concurrency: 0", wantInvalid: true},
+		{name: "negative yaml", yaml: "flush_concurrency: -1", want: -1, wantInvalid: true},
+		{name: "zero flag", args: []string{"-block-builder.flush-concurrency=0"}, wantInvalid: true},
+		{name: "negative flag", args: []string{"-block-builder.flush-concurrency=-1"}, want: -1, wantInvalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var cfg Config
+			flags := flag.NewFlagSet("test", flag.ContinueOnError)
+			cfg.RegisterFlagsAndApplyDefaults("block-builder", flags)
+			cfg.PartitionsPerInstance = 1
+			require.NoError(t, yaml.UnmarshalStrict([]byte(tc.yaml), &cfg))
+			require.NoError(t, flags.Parse(tc.args))
+			require.Equal(t, tc.want, cfg.FlushConcurrency)
+
+			if tc.wantInvalid {
+				require.ErrorContains(t, cfg.Validate(), "flush_concurrency must be positive")
+			} else {
+				require.NoError(t, cfg.Validate())
 			}
 		})
 	}

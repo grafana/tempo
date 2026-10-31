@@ -579,6 +579,7 @@ block_builder:
     partitions_per_instance: 0
     consume_cycle_duration: 5m0s
     max_consuming_bytes: 5000000000
+    flush_concurrency: 4
     block:
         max_block_bytes: 20971520
     wal:
