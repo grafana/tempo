@@ -1132,14 +1132,12 @@ query_frontend:
         # range ending at the query end whose blocks fit, raised to min_duration and capped at max_duration.
         # A search of min_duration or shorter is always allowed, and one longer than max_duration is always rejected.
         # Data newer than query_backend_after isn't counted. 0 disables this limit.
-        # (default: 0)
-        [max_scanned_bytes: <int>]
+        [max_scanned_bytes: <int> | default = 0 ]
 
         # A search of this range or shorter is always allowed, even if it scans more than max_scanned_bytes.
         # Has no effect when max_scanned_bytes is 0. Tempo fails to start if min_duration is above max_duration.
         # 0 means no minimum.
-        # (default: 0s)
-        [min_duration: <duration>]
+        [min_duration: <duration> | default = 0s]
 
         # query_backend_after controls where the query-frontend searches for traces.
         # Time ranges newer than query_backend_after will be searched in the live-stores only.
