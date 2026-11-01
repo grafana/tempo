@@ -218,7 +218,18 @@ func (b *BitSet) extendSet(i uint) {
 	if b.set == nil {
 		b.set = make([]uint64, nsize)
 	} else if cap(b.set) >= nsize {
-		b.set = b.set[:nsize] // fast resize
+		// New words must be zeroed. They may hold stale bits because functions
+		// such as CopyFull, ReadFrom, and DeleteAt shrink the slice, and
+		// extendSet accepts slices whose capacity is arbitrary. After extension
+		// those stale bits would get revived unless zeroed here.
+		oldLen := len(b.set)
+		b.set = b.set[:nsize]
+		if oldLen < nsize {
+			newWords := b.set[oldLen:]
+			for j := range newWords {
+				newWords[j] = 0
+			}
+		}
 	} else if len(b.set) < nsize {
 		newset := make([]uint64, nsize, 2*nsize) // increase capacity 2x
 		copy(newset, b.set)
@@ -418,6 +429,9 @@ func (b *BitSet) FlipRange(start, end uint) *BitSet {
 // remain in memory until the GC frees it.
 // If you are memory constrained, this function may cause a panic.
 func (b *BitSet) Shrink(lastbitindex uint) *BitSet {
+	if lastbitindex >= b.length {
+		return b
+	}
 	length := lastbitindex + 1
 	idx := wordsNeeded(length)
 	if idx > len(b.set) {
@@ -533,6 +547,9 @@ func (b *BitSet) String() string {
 // The running time of this operation may potentially be
 // relatively slow, O(length)
 func (b *BitSet) DeleteAt(i uint) *BitSet {
+	if i >= b.length {
+		return b
+	}
 	// the index of the slice element where we'll delete a bit
 	deleteAtElement := i >> log2WordSize
 
@@ -565,12 +582,9 @@ func (b *BitSet) DeleteAt(i uint) *BitSet {
 	// of the package expects. Otherwise, functions that scan the whole
 	// slice (e.g., SetAll, Count) would operate on a word that lies
 	// beyond the length of the bitset.
+	// Note that discarded words are not zeroed here. extendSet zeroes
+	// words on growth.
 	if wordCount := b.wordCount(); wordCount < len(b.set) {
-		// the discarded words must be zeroed: extendSet may later revive
-		// them with a fast resize, and they must not carry stale bits.
-		for i := wordCount; i < len(b.set); i++ {
-			b.set[i] = 0
-		}
 		b.set = b.set[:wordCount]
 	}
 
@@ -791,6 +805,9 @@ func (b *BitSet) PreviousSet(i uint) (uint, bool) {
 // including possibly the current index
 // along with an error code (true = valid, false = no clear bit found i.e. all bits are set)
 func (b *BitSet) PreviousClear(i uint) (uint, bool) {
+	if i >= b.length {
+		return 0, false
+	}
 	x := int(i >> log2WordSize)
 	if x >= len(b.set) {
 		return 0, false
@@ -1399,6 +1416,8 @@ func (b *BitSet) ReadFrom(stream io.Reader) (int64, error) {
 		return 0, err
 	}
 
+	b.cleanLastWord()
+
 	return int64(b.BinaryStorageSize()), nil
 }
 
@@ -1457,8 +1476,6 @@ func (b *BitSet) UnmarshalJSON(data []byte) error {
 // that are set in the bitset.
 // See https://en.wikipedia.org/wiki/Ranking#Ranking_in_statistics
 func (b *BitSet) Rank(index uint) (rank uint) {
-	index++ // Rank is up to and including
-
 	// needed more than once
 	length := len(b.set)
 
@@ -1482,7 +1499,7 @@ func (b *BitSet) Rank(index uint) (rank uint) {
 	// make Rank inlineable and faster in the end
 	// don't test index&63 != 0, just add, less branching
 	if idx < length {
-		rank += uint(bits.OnesCount64(b.set[idx] << (64 - index&63)))
+		rank += uint(bits.OnesCount64(b.set[idx] << (63 - index&63)))
 	}
 
 	return
@@ -1592,15 +1609,14 @@ func (b *BitSet) ShiftRight(bits uint) {
 	}
 
 	if bits > top {
-		b.set = make([]uint64, wordsNeeded(b.length))
+		b.ClearAll()
 		return
 	}
 
 	pad, idx := top%wordSize, top>>log2WordSize
 	shift, pages := bits%wordSize, bits>>log2WordSize
-	if bits%wordSize == 0 { // happy case: just clear pages
-		b.set = b.set[pages:]
-		b.length -= pages * wordSize
+	if bits%wordSize == 0 { // happy case: just copy pages
+		copy(b.set, b.set[pages:idx+1])
 	} else {
 		for i := 0; i <= int(idx-pages); i++ {
 			if i < int(idx-pages) {
@@ -1625,6 +1641,11 @@ func (b *BitSet) ShiftRight(bits uint) {
 // Returns 0 if from >= to.
 func (b *BitSet) OnesBetween(from, to uint) uint {
 	panicIfNull(b)
+
+	// Bits at or past length are unset, so clamp before indexing b.set.
+	if to > b.length {
+		to = b.length
+	}
 
 	if from >= to {
 		return 0
