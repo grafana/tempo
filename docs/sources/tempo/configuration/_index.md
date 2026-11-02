@@ -3087,6 +3087,17 @@ cache:
             [min_idle_conns_headroom_percentage: <float>]
 
             # Optional
+            # How long a free connection can sit unused and still count as
+            # recently used when reaping idle connections. Recently used
+            # connections are never closed and set the headroom kept by
+            # min_idle_conns_headroom_percentage, so a longer value keeps more
+            # connections after a burst. Idle connections are checked once a
+            # minute. Only applies if min_idle_conns_headroom_percentage is not
+            # negative. If 0, the default of 2m is used.
+            # (default: 2m)
+            [recently_used_conns_threshold: <duration>]
+
+            # Optional
             # Period with which to poll DNS for memcache servers.
             # (default: 1m)
             [update_interval: <duration>]

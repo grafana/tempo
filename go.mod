@@ -33,7 +33,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/grafana/dskit v0.0.0-20261021083420-72e594bf1533
 	github.com/grafana/e2e v0.1.2-0.20260925181323-2ec4363d2215
-	github.com/grafana/gomemcache v0.0.0-20260728143316-9448343bd654
+	github.com/grafana/gomemcache v0.0.0-20261102183244-888ddcfa6685
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/jaegertracing/jaeger-idl v0.13.2
 	github.com/jedib0t/go-pretty/v6 v6.7.10

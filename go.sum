@@ -388,6 +388,8 @@ github.com/grafana/e2e v0.1.2-0.20260925181323-2ec4363d2215 h1:jw7oNPPBZS0GNwse5
 github.com/grafana/e2e v0.1.2-0.20260925181323-2ec4363d2215/go.mod h1:o6aUPNFrl7H0XjIdBpXSU2Gou6vVwctVBuSvWPN7Ogg=
 github.com/grafana/gomemcache v0.0.0-20260728143316-9448343bd654 h1:d04mpP3+tVfBec0NkKKASCnzps5xfd8UY5gBoVFOba0=
 github.com/grafana/gomemcache v0.0.0-20260728143316-9448343bd654/go.mod h1:j/s0jkda4UXTemDs7Pgw/vMT06alWc42CHisvYac0qw=
+github.com/grafana/gomemcache v0.0.0-20261102183244-888ddcfa6685 h1:1O89p1MTHzLcveXAR8sEG79DA5XbwZKpn1WzZnyvR08=
+github.com/grafana/gomemcache v0.0.0-20261102183244-888ddcfa6685/go.mod h1:j/s0jkda4UXTemDs7Pgw/vMT06alWc42CHisvYac0qw=
 github.com/grafana/memberlist v0.3.1-0.20260921102813-8c522db348af h1:lrJdCKFFudfYdIQaOoYunORS8LGplY4QgK1iF9uj9b4=
 github.com/grafana/memberlist v0.3.1-0.20260921102813-8c522db348af/go.mod h1:hBsKPfoN6LPaWuxns4g43DDXMoktHb1q9R7aR+C7mPg=
 github.com/grafana/otel-profiling-go v0.7.0 h1:Q6CBLSgAnYmNQNNrj4ipG0S/K/K8iazA9E4kYRzZf0I=
