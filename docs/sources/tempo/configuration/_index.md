@@ -597,6 +597,9 @@ block_builder:
     # Maximum number of bytes that can be consumed in a single cycle. 0 to disable.
     [max_consuming_bytes: <uint64> | default = 5000000000]
 
+    # Maximum number of tenants to flush concurrently per partition section. Must be positive.
+    [flush_concurrency: <int> | default = 4]
+
     # Block configuration for the block builder.
     block: <Block config>
       [max_block_bytes: <uint64> | default = 20971520]
@@ -605,6 +608,12 @@ block_builder:
     wal: <WAL config>
       [path: <string> | default = "/var/tempo/block-builder/traces"]
 ```
+
+Increase `block_builder.flush_concurrency` when tenant flushes on a high-latency object store
+prevent the block-builder from keeping up with its consumption cycles.
+Higher concurrency increases the number of simultaneous block builds and uploads,
+so monitor memory usage and object-store throttling when tuning this setting.
+The equivalent CLI flag is `-block-builder.flush-concurrency`.
 
 ## Live-store
 
