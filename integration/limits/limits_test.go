@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 
 	"github.com/grafana/tempo/v3/integration/util"
 	"github.com/grafana/tempo/v3/pkg/model/trace"
@@ -57,17 +56,11 @@ func TestIngestionLimits(t *testing.T) {
 		batch = util.MakeThriftBatchWithSpanCount(10)
 		err := h.WriteJaegerBatch(batch, "")
 
-		// this error must have a retryinfo as expected in otel collector code: https://github.com/open-telemetry/opentelemetry-collector/blob/d7b49df5d9e922df6ce56ad4b64ee1c79f9dbdbe/exporter/otlpexporter/otlp.go#L172
-		st, ok := status.FromError(err)
-		require.True(t, ok)
-		foundRetryInfo := false
-		for _, detail := range st.Details() {
-			if _, ok := detail.(*errdetails.RetryInfo); ok {
-				foundRetryInfo = true
-				break
-			}
-		}
-		require.True(t, foundRetryInfo)
+		// The batch exceeds the burst capacity, so retrying cannot make it fit.
+		require.Error(t, err)
+		st := status.Convert(err)
+		require.Equal(t, codes.InvalidArgument, st.Code())
+		require.Empty(t, st.Details(), "oversized batches must not advertise retries")
 
 		// test limit metrics
 		liveStore := h.Services[util.ServiceLiveStoreZoneA]
@@ -112,7 +105,7 @@ func TestOTLPLimits(t *testing.T) {
 
 		grpcErr := grpcClient.UploadTraces(context.Background(), protoSpans)
 		assert.Error(t, grpcErr)
-		require.Equal(t, codes.ResourceExhausted, status.Code(grpcErr))
+		require.Equal(t, codes.InvalidArgument, status.Code(grpcErr))
 
 		// HTTP
 		httpClient := otlptracehttp.NewClient(
@@ -124,7 +117,8 @@ func TestOTLPLimits(t *testing.T) {
 
 		httpErr := httpClient.UploadTraces(context.Background(), protoSpans)
 		assert.Error(t, httpErr)
-		require.Contains(t, httpErr.Error(), "retry-able request failure")
+		require.Contains(t, httpErr.Error(), "400 Bad Request")
+		require.NotContains(t, httpErr.Error(), "retry-able request failure")
 	})
 }
 
@@ -141,7 +135,7 @@ func TestOTLPLimitsVanillaClient(t *testing.T) {
 			payload func() []byte
 			headers map[string]string
 		}{
-			// TODO There is an issue when sending the payload in json format. The server returns a 200 instead of a 429.
+			// TODO There is an issue when sending the payload in json format. The server returns a 200 instead of a 400.
 			// {
 			// 	"JSON format",
 			// 	func() []byte {
@@ -182,7 +176,7 @@ func TestOTLPLimitsVanillaClient(t *testing.T) {
 				require.NoError(t, err)
 				fmt.Println(string(bodyBytes))
 
-				assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+				assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 			})
 		}
 	})
