@@ -207,6 +207,44 @@ func TestLexerScoping(t *testing.T) {
 	}))
 }
 
+// TestLexerLookaheadAcrossBufferBoundary pads queries so that attributes and
+// durations straddle text/scanner's 1024-byte read buffer boundary.
+func TestLexerLookaheadAcrossBufferBoundary(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+	}{
+		{"parent scope", `{ parent.resource.foo.bar = "test" }`},
+		{"span attribute", `{ span.foo.bar.baz = "test" }`},
+		{"select list", `{ } | select(span.foo.one, span.foo.two, span.foo.three, resource.test.four)`},
+		{"duration", `{ duration > 1h15m30.5s }`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			want, err := Parse(tt.query)
+			require.NoError(t, err)
+
+			for pad := 900; pad <= 1100; pad++ {
+				got, err := Parse(strings.Repeat(" ", pad) + tt.query)
+				require.NoError(t, err, "pad=%d", pad)
+				require.Equal(t, want.String(), got.String(), "pad=%d", pad)
+
+				lenient, err := ParseLenient(strings.Repeat(" ", pad) + tt.query)
+				require.NoError(t, err, "pad=%d", pad)
+				require.Equal(t, want.String(), lenient.String(), "pad=%d", pad)
+			}
+		})
+	}
+}
+
+func TestTokenizeAcrossBufferBoundary(t *testing.T) {
+	query := `{ parent.resource.foo.bar = }`
+	want := tokenize(query)
+	for pad := 900; pad <= 1100; pad++ {
+		require.Equal(t, want, tokenize(strings.Repeat(" ", pad)+query), "pad=%d", pad)
+	}
+}
+
 func testLexer(t *testing.T, tcs []lexerTestCase) {
 	for _, tc := range tcs {
 		t.Run(tc.input, func(t *testing.T) {
@@ -216,7 +254,7 @@ func testLexer(t *testing.T, tcs []lexerTestCase) {
 					Mode: scanner.SkipComments | scanner.ScanStrings,
 				},
 			}
-			l.Init(strings.NewReader(tc.input))
+			l.init(tc.input)
 			var lval yySymType
 			for {
 				tok := l.Lex(&lval)
