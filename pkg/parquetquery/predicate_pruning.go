@@ -41,7 +41,7 @@ func predicateNullValue() pq.Value { return pq.Value{} }
 //   - the column index shows a page with nulls the filter keeps, or a page whose
 //     bounds pass KeepRange.
 func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
-	c.dictPageReader.reset()
+	c.pageReader.reset()
 	if c.filter == nil {
 		return true // no predicate: keep everything
 	}
@@ -77,7 +77,7 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 		// Dict-encoded chunk: every present value is a dictionary entry, so answering
 		// for each entry decides the chunk and, kept, its rows (dictionary pushdown).
 		// Nulls aren't stored in the dictionary; keepNull decides them.
-		if c.dictPageReader.matchDictionary(dict, cc.ColumnChunk, c.filter, keepNull) {
+		if c.pageReader.matchDictionary(dict, c.filter, keepNull) {
 			return true
 		}
 		// No entry matches, so only nulls could. Check the footer, or else the index, for
