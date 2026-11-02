@@ -74,6 +74,16 @@ func (op Operator) isBoolean() bool {
 		op == OpRegexMatchNone
 }
 
+// isComparison returns true for the operators that compare two values and return a boolean.
+func (op Operator) isComparison() bool {
+	switch op {
+	case OpEqual, OpNotEqual, OpRegex, OpNotRegex, OpGreater, OpGreaterEqual, OpLess, OpLessEqual,
+		OpIn, OpNotIn, OpRegexMatchAny, OpRegexMatchNone:
+		return true
+	}
+	return false
+}
+
 func (op Operator) binaryTypesValid(lhsT StaticType, rhsT StaticType) bool {
 	return binaryTypeValid(op, lhsT) && binaryTypeValid(op, rhsT)
 }

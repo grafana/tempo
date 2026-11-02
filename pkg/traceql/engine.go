@@ -421,6 +421,9 @@ func unixSecToNano(ts uint32) uint64 {
 }
 
 func (s Static) AsAnyValue() *common_v1.AnyValue {
+	if s.IsUnknown() {
+		return &common_v1.AnyValue{}
+	}
 	switch s.Type {
 	case TypeInt:
 		n, _ := s.Int()

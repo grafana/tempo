@@ -516,11 +516,10 @@ func TestUnaryOperation_extractConditions(t *testing.T) {
 		},
 		{
 			// An ordering operator can't be flipped for attributes that may be arrays. The columns
-			// are fetched but nothing is filtered, and span start time returns every span.
+			// are fetched but nothing is filtered.
 			query: `{ !(span.n > 1) }`,
 			conditions: []Condition{
 				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "n"), OpNone),
-				newCondition(IntrinsicSpanStartTimeAttribute, OpNone),
 			},
 			allConditions: false,
 		},
@@ -529,7 +528,6 @@ func TestUnaryOperation_extractConditions(t *testing.T) {
 			conditions: []Condition{
 				newCondition(IntrinsicNameAttribute, OpNotEqual, NewStaticString("hello")),
 				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "n"), OpNone),
-				newCondition(IntrinsicSpanStartTimeAttribute, OpNone),
 			},
 			allConditions: false,
 		},
@@ -554,5 +552,24 @@ func TestUnaryOperation_extractConditions(t *testing.T) {
 			assert.Nil(t, req.SecondPassConditions)
 			assert.Equal(t, tt.allConditions, req.AllConditions, "FetchSpansRequest.AllConditions")
 		})
+	}
+}
+
+// Without the demorgan rewrite a negation is evaluated by the engine. It is true for a span that
+// lacks the attribute of an exists check, which an unfiltered fetch of the column wouldn't return.
+func TestUnaryOperation_extractConditionsWithoutDeMorgan(t *testing.T) {
+	foo := NewScopedAttribute(AttributeScopeSpan, false, "foo")
+
+	expr, err := Parse(`{ !(span.foo != nil) }`, WithSkipOptimization(TransformationDeMorgan))
+	require.NoError(t, err)
+
+	subReq := expr.extractConditions(FetchSpansRequest{AllConditions: true})
+	require.Len(t, subReq, 1, "must have only one sub-query")
+	for _, req := range subReq {
+		assert.Equal(t, []Condition{
+			newCondition(foo, OpNone),
+			newCondition(foo, OpNotExists),
+		}, req.Conditions)
+		assert.False(t, req.AllConditions)
 	}
 }

@@ -156,8 +156,9 @@ func (o UnaryOperation) extractConditions(request *FetchSpansRequest) {
 // extractForcedOpNone extracts the conditions for a negation that the demorgan rewrite
 // could not eliminate. Pushing the inner predicates down as-is would return exactly the spans
 // that the negation excludes, so the columns are fetched without filtering and the engine
-// evaluates the negation itself. Spans that lack the inner attributes also satisfy the negation,
-// so a match-all condition is added to return them.
+// evaluates the negation itself. The negation is only true when the inner expression is false,
+// which needs either the attribute to be present, or for an exists check like !(.a != nil),
+// the attribute to be missing. So those get an OpNotExists condition too.
 func (o UnaryOperation) extractForcedOpNone(request *FetchSpansRequest) {
 	inner := &FetchSpansRequest{}
 	o.Expression.extractConditions(inner)
@@ -167,11 +168,13 @@ func (o UnaryOperation) extractForcedOpNone(request *FetchSpansRequest) {
 			Attribute: c.Attribute,
 			Op:        OpNone,
 		})
+		if c.Op == OpExists && c.Attribute.Intrinsic == IntrinsicNone {
+			request.appendCondition(Condition{
+				Attribute: c.Attribute,
+				Op:        OpNotExists,
+			})
+		}
 	}
-	request.appendCondition(Condition{
-		Attribute: NewIntrinsic(IntrinsicSpanStartTime),
-		Op:        OpNone,
-	})
 	request.AllConditions = false
 }
 

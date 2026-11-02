@@ -117,6 +117,35 @@ func TestCoalesceConditions(t *testing.T) {
 				},
 			},
 		},
+		{
+			// OpNone only pulls spans that have the attribute, so it can't replace OpNotExists
+			f: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNotExists},
+				},
+			},
+			expected: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNotExists},
+				},
+			},
+		},
+		{
+			f: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNotExists},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+				},
+			},
+			expected: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNotExists},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+				},
+			},
+		},
 	}
 
 	for i, tc := range tcs {

@@ -29,6 +29,19 @@ import (
 // queryRangeTestCasesTraceIDHex is the trace ID for span 30 in TestTempoDBQueryRange and the rate_with_traceid_filter case in queryRangeTestCases.
 const queryRangeTestCasesTraceIDHex = "0102030405060708090a0b0c0d0e0f10"
 
+// rateOverIntervals returns the expected rate() series for the default range, from the number of spans in each
+// interval. mult is the number of sources that were merged.
+func rateOverIntervals(mult float64, counts ...float64) []*tempopb.TimeSeries {
+	samples := make([]tempopb.Sample, 0, len(counts))
+	for i, c := range counts {
+		samples = append(samples, tempopb.Sample{TimestampMs: int64(15_000 * (i + 1)), Value: mult * c / 15.0})
+	}
+	return []*tempopb.TimeSeries{{
+		Labels:  []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
+		Samples: samples,
+	}}
+}
+
 func requestWithDefaultRange(q string) *tempopb.QueryRangeRequest {
 	return &tempopb.QueryRangeRequest{
 		Start: 1,
@@ -111,6 +124,86 @@ var queryRangeTestCases = []struct {
 				},
 			},
 		},
+	},
+	// Negations return the complement of the comparison, and never the spans without the attribute.
+	// The odd spans are at 1-49 in the intervals: 8 in (0, 15], 7 in (15, 30], 8 in (30, 45], 2 in (45, 50].
+	{
+		name:       "rate_with_negation",
+		req:        requestWithDefaultRange(`{ !(.service.name="even") } | rate()`),
+		expectedL1: rateOverIntervals(1, 8, 7, 8, 2),
+		expectedL2: rateOverIntervals(2, 8, 7, 8, 2),
+	},
+	{
+		name:       "rate_with_flipped_negation",
+		req:        requestWithDefaultRange(`{ .service.name!="even" } | rate()`),
+		expectedL1: rateOverIntervals(1, 8, 7, 8, 2),
+		expectedL2: rateOverIntervals(2, 8, 7, 8, 2),
+	},
+	{
+		name:       "rate_with_negated_regex",
+		req:        requestWithDefaultRange(`{ !(.service.name=~"ev.*") } | rate()`),
+		expectedL1: rateOverIntervals(1, 8, 7, 8, 2),
+		expectedL2: rateOverIntervals(2, 8, 7, 8, 2),
+	},
+	{
+		name:       "rate_with_negated_regexes",
+		req:        requestWithDefaultRange(`{ !(.service.name=~"ev.*" || .service.name=~"nomatch.*") } | rate()`),
+		expectedL1: rateOverIntervals(1, 8, 7, 8, 2),
+		expectedL2: rateOverIntervals(2, 8, 7, 8, 2),
+	},
+	{
+		name:       "rate_with_negated_and_duration",
+		req:        requestWithDefaultRange(`{ .service.name="odd" && !(duration > 25s) } | rate()`), // odd spans of at most 25s: 8 in (0, 15], 5 in (15, 30]
+		expectedL1: rateOverIntervals(1, 8, 5, 0, 0),
+		expectedL2: rateOverIntervals(2, 8, 5, 0, 0),
+	},
+	{
+		name:       "rate_with_negated_nil_check", // every span has a service name
+		req:        requestWithDefaultRange(`{ !(.service.name = nil) } | rate()`),
+		expectedL1: rateOverIntervals(1, 15, 15, 15, 5),
+		expectedL2: rateOverIntervals(2, 15, 15, 15, 5),
+	},
+	{
+		name:       "rate_with_negated_missing_nil_check", // no span has the attribute
+		req:        requestWithDefaultRange(`{ !(.missing != nil) } | rate()`),
+		expectedL1: rateOverIntervals(1, 15, 15, 15, 5),
+		expectedL2: rateOverIntervals(2, 15, 15, 15, 5),
+	},
+	{
+		name:       "rate_with_negated_all_values", // no span matches the comparison or its negation
+		req:        requestWithDefaultRange(`{ !(.service.name="even" || .service.name="odd") } | rate()`),
+		expectedL1: rateOverIntervals(1, 0, 0, 0, 0),
+		expectedL2: rateOverIntervals(2, 0, 0, 0, 0),
+	},
+	{
+		name:       "rate_with_negated_missing_dedicated_attribute", // no span has the attribute
+		req:        requestWithDefaultRange(`{ !(span.span-dedicated.01="x") } | rate()`),
+		expectedL1: rateOverIntervals(1, 0, 0, 0, 0),
+		expectedL2: rateOverIntervals(2, 0, 0, 0, 0),
+	},
+	{
+		name:       "rate_with_negation_or_nil_check", // unknown || true is true
+		req:        requestWithDefaultRange(`{ !(span.span-dedicated.01="x") || span.span-dedicated.01 = nil } | rate()`),
+		expectedL1: rateOverIntervals(1, 15, 15, 15, 5),
+		expectedL2: rateOverIntervals(2, 15, 15, 15, 5),
+	},
+	{
+		name:       "rate_with_negation_or_filter", // odd spans: true || false, even spans: false || true
+		req:        requestWithDefaultRange(`{ !(.service.name="even") || .service.name="even" } | rate()`),
+		expectedL1: rateOverIntervals(1, 15, 15, 15, 5),
+		expectedL2: rateOverIntervals(2, 15, 15, 15, 5),
+	},
+	{
+		name:       "rate_with_negated_or_filter", // not (true || unknown) is false for even spans, not (false || unknown) is unknown for odd spans
+		req:        requestWithDefaultRange(`{ !(.service.name="even" || .missing="x") } | rate()`),
+		expectedL1: rateOverIntervals(1, 0, 0, 0, 0),
+		expectedL2: rateOverIntervals(2, 0, 0, 0, 0),
+	},
+	{
+		name:       "rate_with_negated_missing_attribute", // the attribute is unknown
+		req:        requestWithDefaultRange(`{ !(.missing="x") } | rate()`),
+		expectedL1: rateOverIntervals(1, 0, 0, 0, 0),
+		expectedL2: rateOverIntervals(2, 0, 0, 0, 0),
 	},
 	{
 		name: "rate_with_rootservice_filter",
@@ -2893,6 +2986,11 @@ func TestTempoDBQueryRange(t *testing.T) {
 
 		t.Run(tc.name+"/new", func(t *testing.T) {
 			runTestWithHint(t, traceql.WithSpanOnlyFetch(true))
+		})
+
+		// The demorgan rewrite is an optimization, so the results are the same without it.
+		t.Run(tc.name+"/no demorgan", func(t *testing.T) {
+			runTestWithHint(t, traceql.WithSkipOptimization(traceql.TransformationDeMorgan))
 		})
 	}
 

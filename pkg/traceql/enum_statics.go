@@ -177,4 +177,7 @@ var (
 	StaticNil   = NewStaticNil()
 	StaticTrue  = NewStaticBool(true)
 	StaticFalse = NewStaticBool(false)
+
+	// StaticUnknown is the result of a comparison with a missing attribute. See [NewStaticUnknown].
+	StaticUnknown = NewStaticUnknown()
 )

@@ -410,11 +410,26 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	lhsT := lhs.Type
 	rhsT := rhs.Type
 
-	// ensure the resolved types are still valid
-	if !lhsT.isMatchingOperand(rhsT) {
-		return StaticFalse, nil
+	// Like NULL in SQL, a comparison with a missing attribute is unknown: neither true nor false.
+	// Only true matches a span, so "attr = x" and "!(attr = x)" both exclude spans without the attribute,
+	// and "!(attr = x)" is equal to "attr != x".
+	switch {
+	case o.Op == OpAnd || o.Op == OpOr:
+		if lhsT == TypeNil || rhsT == TypeNil || lhs.IsUnknown() || rhs.IsUnknown() {
+			if res, ok := executeTriStateLogic(o.Op, lhs, rhs); ok {
+				return res, nil
+			}
+		}
+	case (lhsT == TypeNil || rhsT == TypeNil || lhs.IsUnknown() || rhs.IsUnknown()) && o.Op.isComparison():
+		return StaticUnknown, nil
 	}
-	if !o.Op.binaryTypesValid(lhsT, rhsT) {
+
+	// ensure the resolved types are still valid
+	if !lhsT.isMatchingOperand(rhsT) || !o.Op.binaryTypesValid(lhsT, rhsT) {
+		if o.Op.isComparison() {
+			// comparing different types, like an int attribute with a string, is unknown as with a missing attribute
+			return StaticUnknown, nil
+		}
 		return StaticFalse, nil
 	}
 
@@ -843,6 +858,31 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 	return false, errors.New("unexpected operator " + op.String())
 }
 
+// executeTriStateLogic applies the three-valued logic of SQL to && and ||, when an operand is unknown.
+// A missing boolean attribute (nil) is unknown too.
+//
+//	AND  | true    false  unknown      OR   | true  false    unknown
+//	true | true    false  unknown      true | true  true     true
+//	false| false   false  false        false| true  false    unknown
+//	unk  | unknown false  unknown      unk  | true  unknown  unknown
+//
+// It returns false if an operand is neither a boolean nor unknown, so the caller reports the type mismatch.
+func executeTriStateLogic(op Operator, lhs, rhs Static) (Static, bool) {
+	lhsB, lhsOK := lhs.Bool()
+	rhsB, rhsOK := rhs.Bool()
+	if (!lhsOK && lhs.Type != TypeNil && !lhs.IsUnknown()) || (!rhsOK && rhs.Type != TypeNil && !rhs.IsUnknown()) {
+		return Static{}, false
+	}
+
+	if op == OpAnd && ((lhsOK && !lhsB) || (rhsOK && !rhsB)) {
+		return StaticFalse, true
+	}
+	if op == OpOr && ((lhsOK && lhsB) || (rhsOK && rhsB)) {
+		return StaticTrue, true
+	}
+	return StaticUnknown, true
+}
+
 func (o UnaryOperation) execute(span Span) (Static, error) {
 	static, err := o.Expression.execute(span)
 	if err != nil {
@@ -850,6 +890,10 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 	}
 
 	if o.Op == OpNot {
+		if static.Type == TypeNil || static.IsUnknown() {
+			// not unknown is unknown
+			return StaticUnknown, nil
+		}
 		if static.Type != TypeBoolean {
 			return NewStaticNil(), fmt.Errorf("expression (%v) expected a boolean, but got %v", o, static.Type)
 		}
@@ -877,7 +921,7 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 	if o.Op == OpNotExists {
 		// The storage layer marks a missing attribute with the string "nil". Evaluating the
 		// attribute of a span that doesn't have it, like in a later stage of a pipeline, returns nil.
-		staticNilString := NewStaticString("nil")
+		staticNilString := NewStaticString(missingAttributePlaceholder)
 		return NewStaticBool(static.Type == TypeNil || static.Equals(&staticNilString)), nil
 	}
 
@@ -888,9 +932,18 @@ func (s Static) execute(Span) (Static, error) {
 	return s, nil
 }
 
+// missingAttributePlaceholder is the string that the storage layer returns for an attribute that the span doesn't have.
+const missingAttributePlaceholder = "nil"
+
 func (a Attribute) execute(span Span) (Static, error) {
 	static, ok := span.AttributeFor(a)
 	if ok {
+		// The storage layer returns the string "nil" for the attributes that the span doesn't have,
+		// for example when they are only fetched. They are missing, so they must be unknown like in
+		// SQL, instead of a string that doesn't match.
+		if static.Type == TypeString && len(static.valBytes) == 3 && string(static.valBytes) == missingAttributePlaceholder {
+			return StaticNil, nil
+		}
 		return static, nil
 	}
 

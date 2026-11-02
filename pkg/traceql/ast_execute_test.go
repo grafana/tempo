@@ -1896,7 +1896,7 @@ func TestBinOp(t *testing.T) {
 			op:       OpIn,
 			lhs:      NewStaticInt(2),
 			rhs:      NewStaticStringArray([]string{"1", "2", "3"}),
-			expected: StaticFalse,
+			expected: StaticUnknown,
 		},
 		{
 			op:       OpNotIn,
@@ -1941,7 +1941,7 @@ func TestBinOp(t *testing.T) {
 			op:       OpRegexMatchAny,
 			lhs:      NewStaticString("1.1"),
 			rhs:      NewStaticFloatArray([]float64{1.1, 2.2, 3.3}),
-			expected: StaticFalse,
+			expected: StaticUnknown,
 		},
 		{
 			op:       OpRegexMatchNone,
@@ -2459,6 +2459,153 @@ func TestFloatDivisionByZero(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Empty(t, result, "found spans?")
+		})
+	}
+}
+
+// Like NULL in SQL, a comparison with a missing attribute is unknown: it doesn't match, and neither does its
+// negation. false && unknown is false, true || unknown is true, and everything else is unknown.
+// The result must not depend on the demorgan rewrite, which flips !(a = x) to a != x.
+func TestSpansetFilter_matchesMissingAttribute(t *testing.T) {
+	withFoo := &mockSpan{attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("a")}}
+	withoutFoo := &mockSpan{attributes: map[Attribute]Static{NewAttribute("bar"): NewStaticString("b")}}
+
+	tests := []struct {
+		query               string
+		withFoo, withoutFoo bool
+	}{
+		{`{ .foo = "a" }`, true, false},
+		{`{ !(.foo = "a") }`, false, false},
+		{`{ .foo != "a" }`, false, false},
+		{`{ !(.foo != "a") }`, true, false},
+		{`{ !(.foo =~ "a.*") }`, false, false},
+		{`{ !(.foo !~ "a.*") }`, true, false},
+		{`{ !(.foo = "a" || .foo = "b") }`, false, false},
+		{`{ !(.foo > "a") }`, true, false},
+		{`{ !!(.foo = "a") }`, true, false},
+		// false && unknown is false, true || unknown is true
+		{`{ .bar = "b" && .foo = "a" }`, false, false},
+		{`{ .bar = "x" && .foo = "a" }`, false, false},
+		{`{ !(.bar = "x" && .foo = "a") }`, false, true},
+		{`{ !(.foo = "a" && .bar = "x") }`, false, true},
+		{`{ .bar = "b" || .foo = "a" }`, true, true},
+		{`{ !(.bar = "b" || .foo = "a") }`, false, false},
+		{`{ .bar = "x" || .foo = "a" }`, true, false},
+		// only nil checks match a missing attribute
+		{`{ !(.foo = nil) }`, true, false},
+		{`{ !(.foo != nil) }`, false, true},
+		{`{ .foo = nil || .foo != "a" }`, false, true},
+	}
+
+	for _, tc := range tests {
+		for _, skip := range []bool{false, true} {
+			name := tc.query
+			var opts []CompileOption
+			if skip {
+				name += " (no demorgan)"
+				opts = append(opts, WithSkipOptimization(TransformationDeMorgan))
+			}
+			t.Run(name, func(t *testing.T) {
+				expr, err := Parse(tc.query, opts...)
+				require.NoError(t, err)
+				pipeline, ok := expr.SinglePipeline()
+				require.True(t, ok)
+				filter := pipeline.Elements[0].(*SpansetFilter)
+
+				matches := func(s Span) bool {
+					out, err := filter.evaluate([]*Spanset{{Spans: []Span{s}}})
+					require.NoError(t, err)
+					return len(out) > 0
+				}
+				require.Equal(t, tc.withFoo, matches(withFoo), "span with .foo")
+				require.Equal(t, tc.withoutFoo, matches(withoutFoo), "span without .foo")
+			})
+		}
+	}
+}
+
+// The truth tables of SQL's three-valued logic.
+func TestBinaryOperationTriStateLogic(t *testing.T) {
+	var (
+		T = StaticTrue
+		F = StaticFalse
+		U = StaticUnknown
+	)
+
+	tests := []struct {
+		op       Operator
+		lhs, rhs Static
+		want     Static
+	}{
+		{OpAnd, T, T, T},
+		{OpAnd, T, F, F},
+		{OpAnd, T, U, U},
+		{OpAnd, F, T, F},
+		{OpAnd, F, F, F},
+		{OpAnd, F, U, F},
+		{OpAnd, U, T, U},
+		{OpAnd, U, F, F},
+		{OpAnd, U, U, U},
+
+		{OpOr, T, T, T},
+		{OpOr, T, F, T},
+		{OpOr, T, U, T},
+		{OpOr, F, T, T},
+		{OpOr, F, F, F},
+		{OpOr, F, U, U},
+		{OpOr, U, T, T},
+		{OpOr, U, F, U},
+		{OpOr, U, U, U},
+
+		// a missing boolean attribute is unknown
+		{OpAnd, StaticNil, T, U},
+		{OpAnd, StaticNil, F, F},
+		{OpOr, StaticNil, T, T},
+		{OpOr, F, StaticNil, U},
+
+		// comparing with unknown or nil is unknown, including a boolean comparison
+		{OpEqual, U, T, U},
+		{OpNotEqual, U, F, U},
+		{OpEqual, StaticNil, NewStaticString("a"), U},
+		{OpNotEqual, NewStaticString("a"), StaticNil, U},
+		{OpGreater, StaticNil, NewStaticInt(1), U},
+		{OpRegex, StaticNil, NewStaticString("a.*"), U},
+		{OpNotRegex, StaticNil, NewStaticString("a.*"), U},
+	}
+
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("%v %v %v", tc.lhs, tc.op, tc.rhs), func(t *testing.T) {
+			got, err := newBinaryOperation(tc.op, tc.lhs, tc.rhs).execute(nil)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// NOT of an unknown or missing operand is unknown.
+func TestUnaryOperationTriStateLogic(t *testing.T) {
+	var (
+		T = StaticTrue
+		F = StaticFalse
+		U = StaticUnknown
+	)
+
+	tests := []struct {
+		name string
+		in   Static
+		want Static
+	}{
+		{"true", T, F},
+		{"false", F, T},
+		{"unknown", U, U},
+		{"nil", StaticNil, U},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := UnaryOperation{Op: OpNot, Expression: tc.in}.execute(nil)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
 		})
 	}
 }

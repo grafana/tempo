@@ -5,7 +5,6 @@ import (
 	crand "crypto/rand"
 	"errors"
 	"fmt"
-	stdmath "math"
 	"math/rand"
 	"path"
 	"slices"
@@ -393,10 +392,12 @@ func traceQLNilRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 	}
 }
 
-// traceQLNegationRunner checks that negated expressions return the right spans from storage. The
-// expected trace has 4 spans: MySpan and RootSpan have span.foo = "Bar", and all spans last 1s except
-// RootSpan which lasts 2s. Like NULL in SQL, a comparison with a missing attribute doesn't match, and
-// neither does its negation, except for nil checks.
+// traceQLNegationRunner checks that negated expressions return the right traces from storage. The expected
+// trace has 4 spans: MySpan and RootSpan have span.foo = "Bar", and all spans last 1s except RootSpan which
+// lasts 2s. Like NULL in SQL, a comparison with a missing attribute doesn't match, and neither does its
+// negation, except for nil checks.
+//
+// The demorgan rewrite is an optimization, so every search runs with and without it and must return the same.
 func traceQLNegationRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
 	var (
 		ctx     = context.Background()
@@ -412,85 +413,95 @@ func traceQLNegationRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.Tra
 		)
 	)
 
-	// The number of spans of the expected trace that match. The other traces are random.
-	matchedSpans := func(query string) int {
-		res, err := e.ExecuteSearch(ctx, &tempopb.SearchRequest{Query: query, Limit: 100}, fetcher)
-		if errors.Is(err, util.ErrUnsupported) {
-			return -1
-		}
-		require.NoError(t, err, "search request: %s", query)
-
-		tr := actualForExpectedMeta(wantMeta, res)
-		if tr == nil {
-			return 0
-		}
-		n := 0
-		for _, ss := range tr.SpanSets {
-			n += int(ss.Matched)
-		}
-		return n
-	}
-
-	// The number of spans in all traces, counted by a metrics query.
-	start, end := uint64(900*time.Second), uint64(1100*time.Second)
-	countSpans := func(query string) int {
-		req := &tempopb.QueryRangeRequest{Query: query + " | count_over_time()", Start: start, End: end, Step: end - start}
-		eval, err := e.CompileMetricsQueryRange(req)
-		require.NoError(t, err, "metrics request: %s", query)
-		require.NoError(t, eval.Do(ctx, fetcher, start, end, 0), "metrics request: %s", query)
-
-		n := 0.0
-		for _, ts := range eval.Results() {
-			for _, v := range ts.Values {
-				if !stdmath.IsNaN(v) {
-					n += v
-				}
-			}
-		}
-		return int(n)
-	}
-
-	tcs := []struct {
-		query string
-		want  int
-	}{
+	searchesThatMatch := []*tempopb.SearchRequest{
 		// negations of intrinsics
-		{`{ !(name = "MySpan") }`, 3},
-		{`{ !(name = "MySpan" || name = "RootSpan") }`, 2},
-		{`{ !(name =~ "My.*" || name =~ "Root.*") }`, 2},
-		{`{ !(duration > 1s) }`, 3},
-		{`{ !(resource.service.name = "MyService") }`, 3},
-		{`{ resource.service.name = "RootService" && !(name = "RootSpan") }`, 0},
-		{`{ resource.service.name = "RootService" && !(name = "MySpan") }`, 1},
+		{Query: `{ !(name = "MySpan") }`},
+		{Query: `{ !(name = "MySpan" || name = "RootSpan") }`},
+		{Query: `{ !(name =~ "My.*" || name =~ "Root.*") }`},
+		{Query: `{ !(duration > 1s) }`},
+		{Query: `{ !(resource.service.name = "MyService") }`},
+		{Query: `{ resource.service.name = "RootService" && !(name = "MySpan") }`},
+		// the negation and its flipped comparison are equal
+		{Query: `{ name = "MySpan" && !(name != "MySpan") }`},
+		{Query: `{ name = "MySpan" && !(name = "RootSpan") }`},
 		// negations of attributes. Spans without span.foo don't match, as for the comparison
-		{`{ !(span.foo = "Bar") }`, 0},
-		{`{ !(span.foo = "x") }`, 2},
-		{`{ !(span.foo != "x") }`, 0},
-		{`{ span.foo != "x" }`, 2},
+		{Query: `{ !(span.foo = "x") }`},
+		{Query: `{ !(span.foo != "Bar") }`},
+		{Query: `{ span.foo != "x" }`},
+		{Query: `{ !(span.foo > "x") }`},
+		{Query: `{ !(span.foo =~ "x.*") }`},
+		{Query: `{ !(span.foo = "x" && span.missing = "y") }`}, // false && unknown is false
+		{Query: `{ span.foo = "Bar" && !(span.foo = "x") }`},
+		// dedicated columns
+		{Query: `{ !(span.span-dedicated.01 = "does-not-exist") }`},
+		{Query: `{ !(resource.res-dedicated.01 = "does-not-exist") }`},
+		// or: true || unknown is true, so the other spans match too
+		{Query: `{ span.foo = "Bar" || !(span.foo = "Bar") }`},
+		{Query: `{ !(span.foo = "x") || span.missing = "y" }`},
+		{Query: `{ !(span.foo = "x") || !(span.foo = "y") }`},
+		{Query: `{ !(span.foo = "x" || span.foo = "y") }`},
+		{Query: `{ !(name = "MySpan") || !(name = "RootSpan") }`},
+		{Query: `{ !(span.foo = "Bar") || span.foo = nil }`},
 		// nil checks match missing attributes
-		{`{ !(span.foo != nil) }`, 2},
-		{`{ !(span.foo = nil) }`, 2},
-		{`{ !(span.missing != nil) }`, 4},
+		{Query: `{ !(span.foo != nil) }`},
+		{Query: `{ !(span.foo = nil) }`},
+		{Query: `{ !(span.missing != nil) }`},
+		{Query: `{ span.foo = nil || span.foo != "x" }`},
+		// the nil check isn't lost when the same attribute is also fetched unfiltered
+		{Query: `{ span.foo = nil || span.foo = span.bar }`},
+		// not flippable, and neither attribute needs to exist for the negation to be true
+		{Query: `{ !(span.http.status_code > 1000 && span.missing != nil) }`},
 	}
-	for _, tc := range tcs {
-		t.Run(tc.query, func(t *testing.T) {
-			if got := matchedSpans(tc.query); got >= 0 {
-				require.Equal(t, tc.want, got, "search request: %s", tc.query)
-			}
-		})
+	searchesThatDontMatch := []*tempopb.SearchRequest{
+		// a span can't both match and not match
+		{Query: `{ name = "MySpan" && !(name = "MySpan") }`},
+		{Query: `{ resource.service.name = "RootService" && !(name = "RootSpan") }`},
+		// spans without the attribute match neither the comparison nor its negation
+		{Query: `{ !(span.foo = "Bar") }`},
+		{Query: `{ !(span.foo != "x") }`},
+		{Query: `{ !(span.foo < "x") }`},
+		{Query: `{ !(span.foo =~ "Ba.*") }`},
+		{Query: `{ !(span.span-dedicated.01 =~ ".*") }`},
+		{Query: `{ !(resource.res-dedicated.01 =~ ".*") }`},
+		{Query: `{ !(span.missing = "x") }`},
+		{Query: `{ !(span.missing != "x") }`},
+		{Query: `{ !(span.foo = "x" || span.missing = "y") }`}, // unknown || false is unknown
+		{Query: `{ !(span.foo = "Bar" || span.missing = "y") }`},
+		{Query: `{ span.foo != nil && !(span.foo != nil) }`},
+		// or: unknown || false is unknown, and unknown || unknown too
+		{Query: `{ span.missing = "x" || !(span.missing = "x") }`},
+		{Query: `{ span.foo != "Bar" || !(span.foo = "Bar") }`},
+		{Query: `{ !(span.foo = "Bar" || span.foo = "x") }`},
+		{Query: `{ !(span.foo != "Bar" || span.missing = "y") }`},
+		{Query: `{ !(span.foo = "Bar" || span.foo = nil) }`},
 	}
 
-	// Metrics queries have a single fetch condition, which is trusted without checking the spans again.
-	// The negation and the comparison split all the spans, because every span has a name.
-	for _, q := range []string{
-		`{ name = "MySpan" }`,
-		`{ name =~ "My.*" || name =~ "Root.*" }`,
-		`{ name != "MySpan" && name != "RootSpan" }`,
-	} {
-		t.Run("metrics "+q, func(t *testing.T) {
-			total := countSpans(`{ }`)
-			require.Positive(t, total)
-			require.Equal(t, total, countSpans(q)+countSpans("{ !("+q[1:len(q)-1]+") }"), "metrics request: %s", q)
+	modes := []struct {
+		name  string
+		copts []traceql.CompileOption
+	}{
+		{"demorgan", nil},
+		{"no demorgan", []traceql.CompileOption{traceql.WithSkipOptimization(traceql.TransformationDeMorgan)}},
+	}
+	for _, mode := range modes {
+		t.Run(mode.name, func(t *testing.T) {
+			for _, req := range searchesThatMatch {
+				res, err := e.ExecuteSearch(ctx, req, fetcher, mode.copts...)
+				if errors.Is(err, util.ErrUnsupported) {
+					continue
+				}
+				require.NoError(t, err, "search request: %+v", req)
+				require.NotNil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
+			}
+
+			for _, req := range searchesThatDontMatch {
+				res, err := e.ExecuteSearch(ctx, req, fetcher, mode.copts...)
+				if errors.Is(err, util.ErrUnsupported) {
+					continue
+				}
+				require.NoError(t, err, "search request: %+v", req)
+				require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
+			}
 		})
 	}
 }
