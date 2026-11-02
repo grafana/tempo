@@ -67,7 +67,7 @@ func TestHandlerResponseWriteEvents(t *testing.T) {
 					body = io.NopCloser(strings.NewReader("test"))
 				}
 				return &http.Response{StatusCode: http.StatusOK, Body: body}, nil
-			}), log.NewNopLogger())
+			}), log.NewNopLogger(), noOpQueryTracker{})
 			var w http.ResponseWriter = httptest.NewRecorder()
 			if tc.writeError {
 				w = failingResponseWriter{w}

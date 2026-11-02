@@ -1241,6 +1241,12 @@ query_frontend:
     mcp_server:
         [enabled: <bool> | default = false]
 
+    # Query tracker configuration. Enable it to expose active query status pages.
+    query_tracker:
+        [enabled: <bool> | default = false]
+        [max_queries_per_tenant: <int> | default = 100]
+        [max_query_text_bytes: <int> | default = 4096]
+
 ```
 
 ### Limit query size to improve performance and stability
