@@ -1649,7 +1649,7 @@ func TestPushTracesKafkaWriteErrorReturnsRetryableStatus(t *testing.T) {
 	distributorCfg.PushSpansToKafka = true
 	distributorCfg.KafkaConfig = ingest.KafkaConfig{}
 	distributorCfg.KafkaConfig.RegisterFlags(&flag.FlagSet{})
-	distributorCfg.KafkaConfig.Address = ingest.KafkaAddresses{kafka.ListenAddrs()[0]}
+	distributorCfg.KafkaConfig.Address = flagext.StringSliceCSV{kafka.ListenAddrs()[0]}
 	distributorCfg.KafkaConfig.Topic = topic
 	distributorCfg.KafkaConfig.WriteTimeout = time.Second
 
