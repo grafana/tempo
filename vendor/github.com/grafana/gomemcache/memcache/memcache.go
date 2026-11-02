@@ -198,12 +198,16 @@ type Client struct {
 	// be set to a number higher than your peak parallel requests.
 	MaxIdleConns int
 
-	// recentlyUsedConnsThreshold is the default grace period given to an
-	// idle connection to consider it "recently used". Recently used connections
-	// are never closed even if idle.
+	// RecentlyUsedConnsThreshold is the grace period given to a free connection
+	// to consider it "recently used". Recently used connections are never closed
+	// by the idle connections reaper, and they are the basis for the headroom
+	// computed from MinIdleConnsHeadroomPercentage.
 	//
-	// This field is used for testing.
-	recentlyUsedConnsThreshold time.Duration
+	// If zero, defaultRecentlyUsedConnsThreshold is used. It has no effect if
+	// MinIdleConnsHeadroomPercentage is negative. Idle connections are checked
+	// once a minute, so a connection may be closed up to a minute after it
+	// exceeds this threshold.
+	RecentlyUsedConnsThreshold time.Duration
 
 	// closed channel gets closed once the Client.Close() is called. Once closed,
 	// resources should be released.
@@ -356,7 +360,7 @@ func (c *Client) releaseIdleConnections() {
 	}
 
 	// Get the recently used connections threshold, falling back to the default one.
-	recentlyUsedThreshold := c.recentlyUsedConnsThreshold
+	recentlyUsedThreshold := c.RecentlyUsedConnsThreshold
 	if recentlyUsedThreshold == 0 {
 		recentlyUsedThreshold = defaultRecentlyUsedConnsThreshold
 	}
