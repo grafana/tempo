@@ -553,7 +553,7 @@ func TestPageReaderLoad(t *testing.T) {
 	var r pageReader
 	r.slots.maxDef = 1
 	require.ErrorContains(t, r.load(pg), "max definition level is 1")
-	require.NoError(t, r.setChunk(rgs[0].ColumnChunks()[leaf.ColumnIndex]))
+	require.NoError(t, r.SetChunk(rgs[0].ColumnChunks()[leaf.ColumnIndex]))
 	require.NoError(t, r.load(pg))
 	require.Equal(t, int(pg.NumValues()), r.slots.numSlots)
 }

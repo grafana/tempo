@@ -117,7 +117,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 
 	advanceValue := func(v *pq.Value) {
 		c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
-		c.pageReader.nextSlot()
+		c.pageReader.NextSlot()
 
 		if !v.IsNull() {
 			scopeHasValues = true
@@ -144,7 +144,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			}
 		}
 
-		if c.pageReader.page == nil {
+		if c.pageReader.Page() == nil {
 			pg, err := c.currChunk.NextPage()
 			if err != nil && !errors.Is(err, io.EOF) {
 				return EmptyRowNumber(), nil, err
@@ -163,7 +163,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 		// leaving a scope, the nil for it is returned first, and the value is looked at
 		// again on the next call.
 		for {
-			v, err := c.pageReader.peekValue()
+			v, err := c.pageReader.PeekValue()
 			if err != nil {
 				return EmptyRowNumber(), nil, err
 			}

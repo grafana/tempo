@@ -19,7 +19,9 @@ const (
 	seekThreshold = 1000
 )
 
-var errNotFileColumnChunk = errors.New("column chunk isn't read from a file, so its max definition level is unknown")
+// ErrNotFileColumnChunk is returned by SetChunk for a column chunk that isn't read from a
+// file.
+var ErrNotFileColumnChunk = errors.New("column chunk isn't read from a file, so its max definition level is unknown")
 
 // valueBufferPool holds the batches of bufferedValueReader.
 var valueBufferPool = sync.Pool{
@@ -51,33 +53,32 @@ var valueBufferPool = sync.Pool{
 // This is how it's wired into SyncIterator, for each chunk:
 //
 //	keepColumnChunk
-//	  reset()              forget the previous chunk's matches
-//	  matchDictionary()    if the chunk is dictionary-encoded and has a filter: evaluate
+//	  Reset()              forget the previous chunk's matches
+//	  MatchDictionary()    if the chunk is dictionary-encoded and has a filter: evaluate
 //	                       the filter on each entry, and skip the chunk if nothing
 //	                       matches
 //	setRowGroup
-//	  setChunk()           the column's max definition level; fails for a chunk that
+//	  SetChunk()           the column's max definition level; fails for a chunk that
 //	                       isn't read from a file
 //	for each page:
-//	  setPage(pg)          open(pg): loads the page's levels and its value reader; fails
+//	  setPage(pg)          Open(pg): loads the page's levels and its value reader; fails
 //	                       when pg's levels and values disagree
-//	  nextMatchedValue()   the value reader's: return the next matching row, until the
+//	  NextMatchedValue()   the value reader's: return the next matching row, until the
 //	                       page is exhausted
-//	  closePage()          close()
+//	  closePage()          Close()
 //	on a seek:
-//	  skipToRow()          walk the page's levels to the target row; on a long seek, a
+//	  SkipToRow()          walk the page's levels to the target row; on a long seek, a
 //	                       buffered page moves to a seekableValueReader
 type pageReader struct {
-	// For the current chunk, set by matchDictionary and reset.
+	// For the current chunk, set by MatchDictionary and Reset.
 	matches   []bool // the filter's answer for each dictionary entry; nil when the chunk isn't pushed down
 	matchNull bool   // the filter's answer for a null
 	buf       []bool // storage for matches, reused across chunks
 
-	// For the current page, set by open.
-	slots   slotReader  // the page's levels
-	values  valueReader // the page's value reader; nil between pages
-	page    pq.Page     // nil between pages
-	pageMax RowNumber   // exclusive: the row number of the next page's first row
+	// For the current page, set by Open.
+	slots  slotReader  // the page's levels
+	values valueReader // the page's value reader; nil between pages
+	page   pq.Page     // nil between pages
 }
 
 // valueReader reads the values of a page's slots, as its slotReader walks them.
@@ -96,9 +97,9 @@ type valueReader interface {
 	unload()
 }
 
-// matchDictionary evaluates filter against every entry of dict and reports whether
+// MatchDictionary evaluates filter against every entry of dict and reports whether
 // any entry is kept.
-func (r *pageReader) matchDictionary(dict pq.Dictionary, filter Predicate, matchNull bool) (anyMatch bool) {
+func (r *pageReader) MatchDictionary(dict pq.Dictionary, filter Predicate, matchNull bool) (anyMatch bool) {
 	n := dict.Len()
 	if cap(r.buf) < n {
 		r.buf = make([]bool, n)
@@ -114,9 +115,9 @@ func (r *pageReader) matchDictionary(dict pq.Dictionary, filter Predicate, match
 	return anyMatch
 }
 
-// reset forgets the previous chunk's pushdown, so the next chunk is pushed down only
-// once matchDictionary has run for it.
-func (r *pageReader) reset() {
+// Reset forgets the previous chunk's pushdown, so the next chunk is pushed down only
+// once MatchDictionary has run for it.
+func (r *pageReader) Reset() {
 	r.matches = nil
 }
 
@@ -135,39 +136,48 @@ func fileMaxDefinitionLevel(cc pq.ColumnChunk) (byte, bool) {
 	return byte(col.MaxDefinitionLevel()), true
 }
 
-// setChunk prepares the reader for the pages of cc and forgets the previous page. The
-// pushdown set by matchDictionary is kept: keepColumnChunk runs before setChunk. It
-// fails when cc isn't read from a file: the max definition level, which tells values
-// from nulls, comes from the file's own column.
-func (r *pageReader) setChunk(cc pq.ColumnChunk) error {
+// SetChunk prepares the reader for the pages of cc and forgets the previous page. The
+// pushdown set by MatchDictionary is kept: keepColumnChunk runs before SetChunk. It
+// fails with ErrNotFileColumnChunk when cc isn't read from a file: the max definition
+// level, which tells values from nulls, comes from the file's own column.
+func (r *pageReader) SetChunk(cc pq.ColumnChunk) error {
 	r.unload()
 	maxDef, ok := fileMaxDefinitionLevel(cc)
 	if !ok {
-		return errNotFileColumnChunk
+		return ErrNotFileColumnChunk
 	}
 	r.slots.maxDef = maxDef
 	return nil
 }
 
-// open makes pg the current page, its first row right after row number curr, and
-// points the reader at its first slot. The previous page must be closed.
-func (r *pageReader) open(pg pq.Page, curr RowNumber) error {
-	r.page, r.pageMax = pg, curr
-	r.pageMax.Skip(pg.NumRows() + 1)
+// Page returns the current page, nil between pages.
+func (r *pageReader) Page() pq.Page {
+	return r.page
+}
+
+// Open makes pg the current page and points the reader at its first slot. The previous
+// page must be closed. It fails when pg's levels and values disagree, a slot would read
+// the wrong value; pg is then still the current page, released by Close.
+func (r *pageReader) Open(pg pq.Page) error {
+	r.page = pg
 	return r.load(pg)
 }
 
-// close releases the current page, if any, and returns the row number of its last row:
-// ok is false when there is no page.
-func (r *pageReader) close() (last RowNumber, ok bool) {
+// Close releases the current page, if any, and reports whether there was one.
+func (r *pageReader) Close() bool {
 	r.unload()
 	if r.page == nil {
-		return RowNumber{}, false
+		return false
 	}
-	last = r.pageMax.Preceding()
 	pq.Release(r.page)
-	r.page, r.pageMax = nil, EmptyRowNumber()
-	return last, true
+	r.page = nil
+	return true
+}
+
+// PushedDown reports whether the current page is read by its dictionary indexes.
+func (r *pageReader) PushedDown() bool {
+	_, ok := r.values.(*dictValueReader)
+	return ok
 }
 
 // unload forgets the current page's levels and values.
@@ -179,8 +189,8 @@ func (r *pageReader) unload() {
 	}
 }
 
-// load points the reader at the start of pg. The reader must hold no page: open is only
-// called after close. It fails when pg's levels and values disagree, a slot would read
+// load points the reader at the start of pg. The reader must hold no page: Open is only
+// called after Close. It fails when pg's levels and values disagree, a slot would read
 // the wrong value, and then holds no page.
 //
 // pg must be a page as read from its column chunk, never a slice of one
@@ -213,16 +223,9 @@ func (r *pageReader) initValueReader(pg pq.Page) error {
 	}
 
 	if dict != nil && r.matches != nil {
-		r.values = &dictValueReader{
-			slots:     &r.slots,
-			matches:   r.matches,
-			matchNull: r.matchNull,
-			dict:      dict,
-			indexes:   data.Int32(),
-			column:    pg.Column(),
-		}
+		r.values = newDictValueReader(&r.slots, pg, r.matches, r.matchNull)
 	} else {
-		r.values = newBufferedValueReader(&r.slots, pg.Values())
+		r.values = newBufferedValueReader(&r.slots, pg)
 	}
 	return nil
 }
@@ -271,19 +274,19 @@ func checkValueCount(data encoding.Values, want int) error {
 	return nil
 }
 
-// nextMatchedValue returns the next value of the current page that c's filter and
+// NextMatchedValue returns the next value of the current page that c's filter and
 // sampler keep; see valueReader.nextMatchedValue.
-func (r *pageReader) nextMatchedValue(c *SyncIterator, seeking bool) (v *pq.Value, ok bool, err error) {
+func (r *pageReader) NextMatchedValue(c *SyncIterator, seeking bool) (v *pq.Value, ok bool, err error) {
 	return r.values.nextMatchedValue(c, seeking)
 }
 
-// skipToRow moves the reader to the first slot of root row targetRow, and reports
+// SkipToRow moves the reader to the first slot of root row targetRow, and reports
 // whether it did; see slotReader.skipToRow. On a buffered page, a seek past more than
 // seekThreshold slots moves the rest of the page to a seekableValueReader: walking the
 // levels and making only the values it returns is cheaper than decoding every skipped
 // value. A shorter seek doesn't move: next reads through the batch, which is cheaper
 // when the page is then read on, as by a filter.
-func (r *pageReader) skipToRow(currentRow, targetRow int32) bool {
+func (r *pageReader) SkipToRow(currentRow, targetRow int32) bool {
 	fromSlot, fromIndex := r.slots.slot, r.slots.index
 	if !r.slots.skipToRow(currentRow, targetRow) {
 		return false
@@ -295,22 +298,22 @@ func (r *pageReader) skipToRow(currentRow, targetRow int32) bool {
 			return false
 		}
 		r.values.unload()
-		r.values = r.newSeekableValueReader(r.page)
+		r.values = newSeekableValueReader(&r.slots, r.page)
 	}
 	return true
 }
 
-// peekValue returns the value of the next slot without moving past it, or nil once the
+// PeekValue returns the value of the next slot without moving past it, or nil once the
 // page has no more slots; see valueReader.peekValue.
-func (r *pageReader) peekValue() (*pq.Value, error) {
+func (r *pageReader) PeekValue() (*pq.Value, error) {
 	if !r.slots.hasMoreSlots() {
 		return nil, nil
 	}
 	return r.values.peekValue()
 }
 
-// nextSlot moves past the next slot; see valueReader.nextSlot.
-func (r *pageReader) nextSlot() {
+// NextSlot moves past the next slot; see valueReader.nextSlot.
+func (r *pageReader) NextSlot() {
 	r.values.nextSlot()
 }
 
@@ -328,12 +331,26 @@ func (r *pageReader) nextSlot() {
 //	indexes    1           0     1     // = [1, 0, 1]: nulls have no index
 type dictValueReader struct {
 	slots     *slotReader
-	matches   []bool // the filter's answer for each dictionary entry, from matchDictionary
+	matches   []bool // the filter's answer for each dictionary entry, from MatchDictionary
 	matchNull bool   // the filter's answer for a null
 	dict      pq.Dictionary
 	indexes   []int32 // dictionary index of each present value
 	column    int
 	value     pq.Value
+}
+
+// newDictValueReader returns a dictValueReader of pg, a dictionary page whose levels
+// slots holds, keeping the entries matches keeps.
+func newDictValueReader(slots *slotReader, pg pq.Page, matches []bool, matchNull bool) *dictValueReader {
+	data := pg.Data()
+	return &dictValueReader{
+		slots:     slots,
+		matches:   matches,
+		matchNull: matchNull,
+		dict:      pg.Dictionary(),
+		indexes:   data.Int32(),
+		column:    pg.Column(),
+	}
 }
 
 func (r *dictValueReader) unload() {}
@@ -404,15 +421,15 @@ type seekableValueReader struct {
 	value   pq.Value
 }
 
-// newSeekableValueReader returns a seekableValueReader of pg, whose levels r.slots
+// newSeekableValueReader returns a seekableValueReader of pg, whose levels slots
 // holds.
-func (r *pageReader) newSeekableValueReader(pg pq.Page) *seekableValueReader {
-	v := &seekableValueReader{slots: &r.slots, column: pg.Column()}
+func newSeekableValueReader(slots *slotReader, pg pq.Page) *seekableValueReader {
+	v := &seekableValueReader{slots: slots, column: pg.Column()}
 	data := pg.Data()
 	if dict := pg.Dictionary(); dict != nil {
 		v.values, v.indexes = dict, data.Int32()
 	} else {
-		v.values = pg.Type().NewDictionary(pg.Column(), r.slots.numValues, data)
+		v.values = pg.Type().NewDictionary(pg.Column(), slots.numValues, data)
 	}
 	return v
 }
@@ -485,8 +502,9 @@ type bufferedValueReader struct {
 	next   int            // next value of batch
 }
 
-func newBufferedValueReader(slots *slotReader, values pq.ValueReader) *bufferedValueReader {
-	return &bufferedValueReader{slots: slots, values: values, buf: valueBufferPool.Get().(*[]pq.Value)}
+// newBufferedValueReader returns a bufferedValueReader of pg, whose levels slots holds.
+func newBufferedValueReader(slots *slotReader, pg pq.Page) *bufferedValueReader {
+	return &bufferedValueReader{slots: slots, values: pg.Values(), buf: valueBufferPool.Get().(*[]pq.Value)}
 }
 
 // unload returns the buffer to the pool.
@@ -585,7 +603,7 @@ func (r *bufferedValueReader) nextMatchedValue(c *SyncIterator, seeking bool) (*
 // current slot, and its index by counting the values (def maxDef) it skips; reading then
 // continues from that slot and index.
 type slotReader struct {
-	maxDef byte // the column's max definition level, set per chunk by setChunk
+	maxDef byte // the column's max definition level, set per chunk by SetChunk
 
 	// For the current page, set by load.
 	defLevels []byte // nil for required columns

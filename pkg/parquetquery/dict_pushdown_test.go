@@ -154,14 +154,13 @@ func TestDictPushdownEngages(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, "shop", string(res.Entries[0].Value.ByteArray()))
-	require.NotNil(t, it.pageReader.matches)
-	require.IsType(t, &dictValueReader{}, it.pageReader.values)
+	require.True(t, it.pageReader.PushedDown())
 
 	unfiltered := NewSyncIterator(context.TODO(), f.RowGroups(), 0, SyncIteratorOptSelectAs("v"))
 	defer unfiltered.Close()
 	_, err = unfiltered.Next()
 	require.NoError(t, err)
-	require.IsType(t, &bufferedValueReader{}, unfiltered.pageReader.values, "no filter, nothing to push down")
+	require.False(t, unfiltered.pageReader.PushedDown(), "no filter, nothing to push down")
 }
 
 // TestDictPushdownCountsRows: the stats count every row the fast path inspects and keeps,
@@ -237,13 +236,13 @@ func TestNotFileColumnChunk(t *testing.T) {
 		SyncIteratorOptMaxDefinitionLevel(1))
 	defer it.Close()
 	_, err = it.Next()
-	require.ErrorIs(t, err, errNotFileColumnChunk)
+	require.ErrorIs(t, err, ErrNotFileColumnChunk)
 
 	nilIt := NewNilSyncIterator(context.TODO(), []parquet.RowGroup{buf}, 0, SyncIteratorOptSelectAs("v"),
 		SyncIteratorOptMaxDefinitionLevel(1))
 	defer nilIt.Close()
 	_, err = nilIt.SeekTo(EmptyRowNumber(), 0)
-	require.ErrorIs(t, err, errNotFileColumnChunk)
+	require.ErrorIs(t, err, ErrNotFileColumnChunk)
 }
 
 // TestDictPushdownLongSeek: a seek within a pushed-down page walks the page's levels to

@@ -464,6 +464,7 @@ type SyncIterator struct {
 	maxDefinitionLevel int
 
 	pageReader pageReader // reads pages from their levels, see dict_pushdown.go
+	pageMax    RowNumber  // exclusive: the row number of the next page's first row
 
 	interner   *intern.Interner
 	makeResult func(t RowNumber, v *pq.Value) *IteratorResult
@@ -670,12 +671,12 @@ func (c *SyncIterator) seekRowGroup(seekTo RowNumber, definitionLevel int, prune
 // seekPages skips ahead in the current row group to the page that could contain the value at
 // the desired row number. Does nothing if the current page is already the correct one.
 func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bool) (done bool, err error) {
-	if c.pageReader.page != nil && CompareRowNumbers(definitionLevel, seekTo, c.pageReader.pageMax) >= 0 {
+	if c.pageReader.Page() != nil && CompareRowNumbers(definitionLevel, seekTo, c.pageMax) >= 0 {
 		// Value not in this page
 		c.closePage()
 	}
 
-	if c.pageReader.page == nil {
+	if c.pageReader.Page() == nil {
 		// TODO (mdisibio)   :((((((((
 		//    pages.SeekToRow is more costly than expected.  It doesn't reuse existing i/o
 		// so it can't be called naively every time we swap pages. We need to figure out
@@ -693,7 +694,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bo
 				}
 			}*/
 
-		for c.pageReader.page == nil {
+		for c.pageReader.Page() == nil {
 			pg, err := c.currChunk.NextPage()
 			if pg == nil || err != nil {
 				// No more pages in this column chunk,
@@ -734,7 +735,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bo
 // seekWithinPage jumps to the start of the desired row by walking the page's levels. The
 // rest of the seek is left to next.
 func (c *SyncIterator) seekWithinPage(to RowNumber, _ int) {
-	if c.pageReader.skipToRow(c.curr[0], to[0]) {
+	if c.pageReader.SkipToRow(c.curr[0], to[0]) {
 		// remove all detail below the row number
 		c.curr = TruncateRowNumber(0, to).Preceding()
 	}
@@ -773,7 +774,7 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 			}
 		}
 
-		if c.pageReader.page == nil {
+		if c.pageReader.Page() == nil {
 			pg, err := c.currChunk.NextPage()
 			if err != nil && !errors.Is(err, io.EOF) {
 				return EmptyRowNumber(), nil, err
@@ -794,7 +795,7 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 			}
 		}
 
-		v, ok, err := c.pageReader.nextMatchedValue(c, seeking)
+		v, ok, err := c.pageReader.NextMatchedValue(c, seeking)
 		if err != nil {
 			return EmptyRowNumber(), nil, err
 		}
@@ -828,7 +829,7 @@ func (c *SyncIterator) setRowGroup(rg pq.RowGroup, minRN, maxRN RowNumber, cc *C
 	c.currRowGroupMin = minRN
 	c.currRowGroupMax = maxRN
 	c.currChunk = cc
-	if err := c.pageReader.setChunk(cc.ColumnChunk); err != nil {
+	if err := c.pageReader.SetChunk(cc.ColumnChunk); err != nil {
 		return fmt.Errorf("column %d (%s): %w", c.column, c.columnName, err)
 	}
 	return nil
@@ -837,7 +838,9 @@ func (c *SyncIterator) setRowGroup(rg pq.RowGroup, minRN, maxRN RowNumber, cc *C
 // setPage closes the current page and makes pg the current one, read by pageReader.
 func (c *SyncIterator) setPage(pg pq.Page) error {
 	c.closePage()
-	if err := c.pageReader.open(pg, c.curr); err != nil {
+	c.pageMax = c.curr
+	c.pageMax.Skip(pg.NumRows() + 1)
+	if err := c.pageReader.Open(pg); err != nil {
 		return fmt.Errorf("column %d (%s): %w", c.column, c.columnName, err)
 	}
 
@@ -849,8 +852,9 @@ func (c *SyncIterator) setPage(pg pq.Page) error {
 
 // closePage releases the current page, if any, and moves to the end of it.
 func (c *SyncIterator) closePage() {
-	if last, ok := c.pageReader.close(); ok {
-		c.curr = last
+	if c.pageReader.Close() {
+		c.curr = c.pageMax.Preceding()
+		c.pageMax = EmptyRowNumber()
 	}
 }
 
