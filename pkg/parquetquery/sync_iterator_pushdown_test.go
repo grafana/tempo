@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grafana/tempo/v3/pkg/parquetquery/pagereader"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 )
@@ -236,13 +237,13 @@ func TestNotFileColumnChunk(t *testing.T) {
 		SyncIteratorOptMaxDefinitionLevel(1))
 	defer it.Close()
 	_, err = it.Next()
-	require.ErrorIs(t, err, ErrNotFileColumnChunk)
+	require.ErrorIs(t, err, pagereader.ErrNotFileColumnChunk)
 
 	nilIt := NewNilSyncIterator(context.TODO(), []parquet.RowGroup{buf}, 0, SyncIteratorOptSelectAs("v"),
 		SyncIteratorOptMaxDefinitionLevel(1))
 	defer nilIt.Close()
 	_, err = nilIt.SeekTo(EmptyRowNumber(), 0)
-	require.ErrorIs(t, err, ErrNotFileColumnChunk)
+	require.ErrorIs(t, err, pagereader.ErrNotFileColumnChunk)
 }
 
 // TestDictPushdownLongSeek: a seek within a pushed-down page walks the page's levels to

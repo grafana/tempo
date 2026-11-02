@@ -7,6 +7,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/grafana/tempo/v3/pkg/parquetquery/base"
+
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
@@ -190,7 +192,7 @@ func TestByteInPredicateChunkPageBounds(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, len(tc.pages), ci.NumPages())
 
-			it := &SyncIterator{filter: NewStringInPredicate([]string{tc.value})}
+			it := &SyncIterator{state: base.IteratorState{Filter: NewStringInPredicate([]string{tc.value})}}
 			require.Equal(t, tc.keep, it.keepColumnChunk(cc))
 		})
 	}

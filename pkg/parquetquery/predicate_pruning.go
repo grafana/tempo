@@ -1,20 +1,12 @@
 package parquetquery
 
 import (
+	"github.com/grafana/tempo/v3/pkg/parquetquery/base"
 	pq "github.com/parquet-go/parquet-go"
 )
 
-// PredicateStats counts the chunk/page/value decisions the iterator makes while
-// applying its predicate. Read them with SyncIterator.Stats; Close exports them as
-// metrics.
-type PredicateStats struct {
-	InspectedColumnChunks int64
-	KeptColumnChunks      int64
-	InspectedPages        int64
-	KeptPages             int64
-	InspectedValues       int64
-	KeptValues            int64
-}
+// PredicateStats counts the iterator's predicate decisions; see base.PredicateStats.
+type PredicateStats = base.PredicateStats
 
 // predicateNullValue returns the null pq.Value fed to KeepValue when deciding
 // whether null rows in a chunk/page could match. It must be the same null
@@ -22,8 +14,8 @@ type PredicateStats struct {
 // with per-row evaluation.
 func predicateNullValue() pq.Value { return pq.Value{} }
 
-// keepColumnChunk reports whether cc may hold a value c.filter keeps, so a chunk that
-// can't is skipped before any of its pages is read. Counts into c.stats.
+// keepColumnChunk reports whether cc may hold a value c.state.Filter keeps, so a chunk that
+// can't is skipped before any of its pages is read. Counts into c.state.Stats.
 //
 // The footer's chunk statistics come first: they need no read, and since the writer
 // builds them from the same page values as the column index, the index is only read
@@ -42,18 +34,18 @@ func predicateNullValue() pq.Value { return pq.Value{} }
 //     bounds pass KeepRange.
 func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 	c.pageReader.Reset()
-	if c.filter == nil {
+	if c.state.Filter == nil {
 		return true // no predicate: keep everything
 	}
-	c.stats.InspectedColumnChunks++
+	c.state.Stats.InspectedColumnChunks++
 	defer func() {
 		if keep {
-			c.stats.KeptColumnChunks++
+			c.state.Stats.KeptColumnChunks++
 		}
 	}()
 
-	keepNull := c.filter.KeepValue(predicateNullValue())
-	indexPrunes := c.filter.SupportsColumnIndexPruning()
+	keepNull := c.state.Filter.KeepValue(predicateNullValue())
+	indexPrunes := c.state.Filter.SupportsColumnIndexPruning()
 	minV, maxV, nulls, hasFooterStats := cc.FooterStats()
 	allNull := hasFooterStats && minV.IsNull()
 
@@ -65,7 +57,7 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 		} else if !allNull {
 			// The chunk has present values, so its bounds may contain a match. This is
 			// skipped for an all-null chunk, which has no real bounds.
-			mayMatch = c.filter.KeepRange(minV, maxV)
+			mayMatch = c.state.Filter.KeepRange(minV, maxV)
 		}
 	}
 
@@ -77,7 +69,7 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 		// Dict-encoded chunk: every present value is a dictionary entry, so answering
 		// for each entry decides the chunk and, kept, its rows (dictionary pushdown).
 		// Nulls aren't stored in the dictionary; keepNull decides them.
-		if c.pageReader.MatchDictionary(dict, c.filter, keepNull) {
+		if c.pageReader.MatchDictionary(dict, c.state.Filter, keepNull) {
 			return true
 		}
 		// No entry matches, so only nulls could. Check the footer, or else the index, for
@@ -97,7 +89,7 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 		// Without the index there are no bounds. Such a filter's KeepRange ignores them,
 		// so this is true for all but a CallbackPredicate, which still stops reading the
 		// chunk once its callback is done.
-		return c.filter.KeepRange(predicateNullValue(), predicateNullValue())
+		return c.state.Filter.KeepRange(predicateNullValue(), predicateNullValue())
 	}
 
 	if hasFooterStats {
@@ -118,25 +110,25 @@ func (c *SyncIterator) keepColumnChunk(cc *ColumnChunkHelper) (keep bool) {
 			// All-null page: min/max are not recorded, so only the null decision (above) applies.
 			continue
 		}
-		if c.filter.KeepRange(ci.MinValue(i), ci.MaxValue(i)) {
+		if c.state.Filter.KeepRange(ci.MinValue(i), ci.MaxValue(i)) {
 			return true
 		}
 	}
 	return false
 }
 
-// keepPage reports whether any value in pg can match c.filter, combining a page-bounds
-// range test via KeepRange with a null test via KeepValue(null). Counts into c.stats.
-// The caller guards c.filter != nil, so it is always non-nil here.
+// keepPage reports whether any value in pg can match c.state.Filter, combining a page-bounds
+// range test via KeepRange with a null test via KeepValue(null). Counts into c.state.Stats.
+// The caller guards c.state.Filter != nil, so it is always non-nil here.
 func (c *SyncIterator) keepPage(pg pq.Page) (keep bool) {
-	c.stats.InspectedPages++
+	c.state.Stats.InspectedPages++
 	defer func() {
 		if keep {
-			c.stats.KeptPages++
+			c.state.Stats.KeptPages++
 		}
 	}()
 
-	keepNull := c.filter.KeepValue(predicateNullValue())
+	keepNull := c.state.Filter.KeepValue(predicateNullValue())
 	if keepNull && pg.NumNulls() > 0 {
 		return true
 	}
@@ -152,7 +144,7 @@ func (c *SyncIterator) keepPage(pg pq.Page) (keep bool) {
 		return true
 	}
 	if minV, maxV, ok := pg.Bounds(); ok {
-		return c.filter.KeepRange(minV, maxV)
+		return c.state.Filter.KeepRange(minV, maxV)
 	}
 	return true // no bounds recorded: cannot skip
 }
