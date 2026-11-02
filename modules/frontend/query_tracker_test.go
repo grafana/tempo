@@ -325,7 +325,6 @@ func TestQueryTrackerTracksMultiTenantQueryWhenOneTenantIsAtCap(t *testing.T) {
 
 	stopA()
 	require.Empty(t, tracker.trackedQueries("a"))
-	require.Equal(t, []queryTrackerTenant{
-		{Name: "a", Active: 0, Dropped: 1},
-	}, tracker.trackedTenants())
+	require.Empty(t, tracker.trackedTenants())
+	require.Equal(t, float64(1), testutil.ToFloat64(tracker.droppedQueries.WithLabelValues("a")))
 }

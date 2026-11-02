@@ -1,0 +1,4 @@
+change_type: bug_fix
+component: storage
+note: Fix high querier CPU on vParquet5 metrics queries that filter and group by resource attributes when engine bytes tracking is enabled.
+user: zhxiaogg

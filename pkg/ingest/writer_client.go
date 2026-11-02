@@ -234,11 +234,14 @@ func NewProducer(client *kgo.Client, maxBufferedBytes int64, reg prometheus.Regi
 		maxBufferedBytes: maxBufferedBytes,
 
 		// Metrics.
+		// The Kafka client (kprom) exports "buffered_produce_bytes", which is a gauge. A gauge is a snapshot taken
+		// at scrape time, but to alert on the peak we need higher accuracy, so we also track the distribution
+		// of this value, updated at a high frequency.
 		bufferedProduceBytes: promauto.With(reg).NewSummary(
 			prometheus.SummaryOpts{
 				Namespace:  "tempo",
 				Subsystem:  "distributor",
-				Name:       "buffered_produce_bytes",
+				Name:       "buffered_produce_bytes_distribution",
 				Help:       "The buffered produce records in bytes. Quantile buckets keep track of buffered records size over the last 60s.",
 				Objectives: map[float64]float64{0.5: 0.05, 0.99: 0.001, 1: 0.001},
 				MaxAge:     time.Minute,

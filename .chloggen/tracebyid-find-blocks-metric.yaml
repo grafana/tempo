@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: storage
+
+note: Add `tempodb_find_blocks_total{tenant,stage}` counting blocks checked, passing the bloom filter, passing the index, and read during trace by ID lookups.
+
+issues: []
+
+subtext:
+
+user: zhxiaogg

@@ -1788,6 +1788,109 @@ func TestQueryRangeReportsInspectedBytes(t *testing.T) {
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
 
+func TestQueryRangeExtrapolate(t *testing.T) {
+	tests := []struct {
+		name        string
+		extrapolate bool
+		query       string
+		multiplier  float64
+	}{
+		{"off", false, "{} | count_over_time()", 1},
+		{"on", true, "{} | count_over_time()", 2},
+		{"on, hint off", true, "{} | count_over_time() with(extrapolate=false)", 1},
+		{"off, hint on", false, "{} | count_over_time() with(extrapolate=true)", 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i, ls := defaultInstance(t)
+
+			spanCount := pushSampledTrace(t, i)
+			_, err := i.cutBlocks(t.Context(), true)
+			require.NoError(t, err)
+
+			now := time.Now()
+			total := queryRangeTotal(t, i, tt.query, tt.extrapolate, now.Add(-time.Minute), now.Add(time.Minute))
+			require.Equal(t, tt.multiplier*float64(spanCount), total)
+
+			require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+		})
+	}
+}
+
+// TestQueryRangeExtrapolateCache verifies that results cached for a complete block
+// without extrapolation aren't returned for an extrapolated request, and vice versa.
+func TestQueryRangeExtrapolateCache(t *testing.T) {
+	i, ls := defaultInstance(t)
+
+	spanCount := pushSampledTrace(t, i)
+	blockID, err := i.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+	_, err = i.completeBlock(t.Context(), blockID)
+	require.NoError(t, err)
+
+	var block *LocalBlock
+	for _, b := range i.blocks.Load().completeBlocks {
+		block = b
+		break
+	}
+	require.NotNil(t, block)
+	start := block.BlockMeta().StartTime.Add(-time.Minute)
+	end := block.BlockMeta().EndTime.Add(time.Minute)
+	query := "{} | count_over_time()"
+
+	require.Equal(t, float64(spanCount), queryRangeTotal(t, i, query, false, start, end))
+	require.Equal(t, 2*float64(spanCount), queryRangeTotal(t, i, query, true, start, end))
+	require.Equal(t, float64(spanCount), queryRangeTotal(t, i, query, false, start, end))
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+// pushSampledTrace pushes a trace whose spans all carry a 50% sampling threshold
+// (ot=th:8), so each span extrapolates to 2. It returns the number of spans pushed.
+func pushSampledTrace(t *testing.T, i *instance) int {
+	now := time.Now()
+	id := test.ValidTraceID(nil)
+	tr := test.MakeTrace(2, id)
+	var spanCount int
+	for _, rs := range tr.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			for _, s := range ss.Spans {
+				s.StartTimeUnixNano = uint64(now.UnixNano())
+				s.EndTimeUnixNano = uint64(now.UnixNano())
+				s.TraceState = "ot=th:8"
+				spanCount++
+			}
+		}
+	}
+	require.Positive(t, spanCount)
+	pushTrace(t.Context(), t, i, tr, id)
+
+	drained, err := i.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.True(t, drained)
+	return spanCount
+}
+
+func queryRangeTotal(t *testing.T, i *instance, query string, extrapolate bool, start, end time.Time) float64 {
+	resp, err := i.QueryRange(t.Context(), &tempopb.QueryRangeRequest{
+		Query:       query,
+		Start:       uint64(start.UnixNano()),
+		End:         uint64(end.UnixNano()),
+		Step:        uint64(time.Second),
+		MaxSeries:   10,
+		Extrapolate: extrapolate,
+	})
+	require.NoError(t, err)
+
+	var total float64
+	for _, s := range resp.Series {
+		for _, sample := range s.Samples {
+			total += sample.Value
+		}
+	}
+	return total
+}
+
 func TestQueryRangeCacheName_StableForSameRequest(t *testing.T) {
 	req := tempopb.QueryRangeRequest{
 		Query: "{} | count_over_time()",
@@ -1800,6 +1903,10 @@ func TestQueryRangeCacheName_StableForSameRequest(t *testing.T) {
 	other := req
 	other.End = 3_000_000_000
 	require.NotEqual(t, queryRangeCacheName(req), queryRangeCacheName(other))
+
+	extrapolated := req
+	extrapolated.Extrapolate = true
+	require.NotEqual(t, queryRangeCacheName(req), queryRangeCacheName(extrapolated))
 }
 
 func findCacheFile(t *testing.T, blockDir string) string {

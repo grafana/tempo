@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: distributor
+note: Fix spans from scopes with the same name and version but different attributes being merged under the first scope's attributes.
+issues: []
+subtext:
+user: lazerg

@@ -72,9 +72,13 @@ func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.Asyn
 			"base_trace_id", diffReq.Base.TraceID,
 			"base_start", traceDiffTimeParam(diffReq.Base.Start),
 			"base_end", traceDiffTimeParam(diffReq.Base.End),
+			"base_range", traceRange(diffReq.Base.StartTime, diffReq.Base.EndTime),
+			"base_range_nanos", traceRange(diffReq.Base.StartTime, diffReq.Base.EndTime).Nanoseconds(),
 			"compare_trace_id", diffReq.Compare.TraceID,
 			"compare_start", traceDiffTimeParam(diffReq.Compare.Start),
 			"compare_end", traceDiffTimeParam(diffReq.Compare.End),
+			"compare_range", traceRange(diffReq.Compare.StartTime, diffReq.Compare.EndTime),
+			"compare_range_nanos", traceRange(diffReq.Compare.StartTime, diffReq.Compare.EndTime).Nanoseconds(),
 		)
 
 		baseResp, compareResp, err := fetchTracesForDiff(req.Context(), tenant, diffReq, req.Header, fetchTrace)
@@ -206,7 +210,7 @@ func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDif
 		}
 	}
 
-	traceResp, err := comb.GRPCFinal()
+	traceResp, err := comb.GRPCFinal(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("finalize trace %s response: %w", traceReq.TraceID, err)
 	}

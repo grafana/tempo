@@ -278,6 +278,11 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		logger:        logger,
 	}
 
+	if tracker, ok := queryTrackerInstance.(*queryTracker); ok {
+		f.QueryTrackerHandler = tracker.tenantsHandler()
+		f.QueryTrackerTenantHandler = tracker.tenantHandler()
+	}
+
 	if cfg.MCPServer.Enabled {
 		// Initialize MCP server
 		mcpServer := NewMCPServer(f, apiPrefix, logger, authMiddleware, cfg.MaxQueryExpressionSizeBytes)

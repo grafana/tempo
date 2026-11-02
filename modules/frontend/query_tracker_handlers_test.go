@@ -355,5 +355,5 @@ func TestQueryTrackerCapDoesNotBlockQueries(t *testing.T) {
 	require.Contains(t, page.Body.String(), "<td>1</td><td>1</td>")
 	stop()
 	require.Empty(t, tracker.trackedQueries("tenant-a"))
-	require.Zero(t, tracker.trackedTenants()[0].Active)
+	require.Empty(t, tracker.trackedTenants())
 }

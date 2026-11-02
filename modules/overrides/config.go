@@ -204,6 +204,10 @@ type ReadOverrides struct {
 	// for this tenant.  When not set, then the default behavior is used. Maybe be overridden by query hints.
 	MetricsSpanOnlyFetch *bool `yaml:"metrics_spanonly_fetch,omitempty" json:"metrics_spanonly_fetch,omitempty"`
 
+	// MetricsExtrapolate, when set, enables or disables per-span sampling extrapolation by default for TraceQL metrics
+	// queries for this tenant. When not set, extrapolation is off. May be overridden by the extrapolate query hint.
+	MetricsExtrapolate *bool `yaml:"metrics_extrapolate,omitempty" json:"metrics_extrapolate,omitempty"`
+
 	// SpanPruningAwareness is experimental. When enabled, queries report an
 	// additional metric indicating whether the matched spans include
 	// span-pruning summary spans (spans carrying aggregation.is_summary).

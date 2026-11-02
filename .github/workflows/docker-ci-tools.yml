@@ -80,6 +80,7 @@ jobs:
         with:
           registry: us-docker.pkg.dev
 
+      # don't push "latest" tag: the GAR repository has tag immutability enabled
       - name: docker-manifest-create-and-push
         run: |
           docker manifest create \
@@ -87,9 +88,3 @@ jobs:
           	--amend "$IMAGE_NAME:$TAG-amd64"  \
           	--amend "$IMAGE_NAME:$TAG-arm64"
           docker manifest push "$IMAGE_NAME:$TAG"
-
-          docker manifest create \
-          	"$IMAGE_NAME:latest"              \
-          	--amend "$IMAGE_NAME:$TAG-amd64"   \
-          	--amend "$IMAGE_NAME:$TAG-arm64"
-          docker manifest push "$IMAGE_NAME:latest"

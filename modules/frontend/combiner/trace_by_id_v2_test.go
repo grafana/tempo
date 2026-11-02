@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"testing"
@@ -55,7 +56,7 @@ func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
 	err = combiner.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
-	res, err := combiner.HTTPFinal()
+	res, err := combiner.HTTPFinal(context.Background())
 	require.NoError(t, err)
 
 	actualResp := &tempopb.TraceByIDResponse{}
@@ -83,7 +84,7 @@ func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *te
 	err = combiner.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
-	res, err := combiner.HTTPFinal()
+	res, err := combiner.HTTPFinal(context.Background())
 	require.NoError(t, err)
 
 	actualResp := &tempopb.TraceByIDResponse{}
@@ -113,7 +114,7 @@ func TestTraceByIDV2RedactorHidesTrace(t *testing.T) {
 		err := c.AddResponse(newMockResponse(t))
 		require.NoError(t, err)
 
-		resp, err := c.HTTPFinal()
+		resp, err := c.HTTPFinal(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
@@ -126,7 +127,7 @@ func TestTraceByIDV2RedactorHidesTrace(t *testing.T) {
 		err := c.AddResponse(newMockResponse(t))
 		require.NoError(t, err)
 
-		resp, err := c.GRPCFinal()
+		resp, err := c.GRPCFinal(context.Background())
 		require.Error(t, err)
 		require.Nil(t, resp)
 		st, ok := status.FromError(err)
@@ -156,7 +157,7 @@ func TestNewTraceByIDV2(t *testing.T) {
 		err = combiner.AddResponse(MockResponse{&response})
 		require.NoError(t, err)
 
-		res, err := combiner.HTTPFinal()
+		res, err := combiner.HTTPFinal(context.Background())
 		require.NoError(t, err)
 		assert.Equal(t, api.HeaderAcceptJSON, res.Header.Get(api.HeaderContentType))
 
@@ -169,7 +170,7 @@ func TestNewTraceByIDV2(t *testing.T) {
 		err = combiner.AddResponse(MockResponse{&response})
 		require.NoError(t, err)
 
-		res, err := combiner.HTTPFinal()
+		res, err := combiner.HTTPFinal(context.Background())
 		require.NoError(t, err)
 		require.NotNil(t, res)
 	})
@@ -207,7 +208,7 @@ func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
 	err = c.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
-	res, err := c.HTTPFinal()
+	res, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -259,7 +260,7 @@ func TestNewTraceByIDV2WithSpanPruning_AlreadyPrunedOnWrite(t *testing.T) {
 	err = c.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
-	res, err := c.HTTPFinal()
+	res, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -291,7 +292,7 @@ func TestNewTraceByIDV2SizeAndFilterPartialMessage(t *testing.T) {
 	c := NewTraceByIDV2(10, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{TraceFilter: &dropAllFilter{}})
 	require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-	res, err := c.HTTPFinal()
+	res, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -364,7 +365,7 @@ func TestNewTraceByIDV2FilterThenPruning(t *testing.T) {
 	})
 	require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-	res, err := c.HTTPFinal()
+	res, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -422,7 +423,7 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		response := newResp()
 		require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-		res, err := c.HTTPFinal()
+		res, err := c.HTTPFinal(context.Background())
 		require.NoError(t, err)
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
@@ -440,7 +441,7 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		response := newResp()
 		require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-		res, err := c.GRPCFinal()
+		res, err := c.GRPCFinal(context.Background())
 		require.NoError(t, err)
 		require.True(t, filter.called, "filter must be invoked")
 		require.Empty(t, res.Trace.ResourceSpans, "filtered trace must be reflected in the grpc response")
@@ -453,7 +454,7 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		response := newResp()
 		require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-		res, err := c.HTTPFinal()
+		res, err := c.HTTPFinal(context.Background())
 		require.NoError(t, err)
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
@@ -468,7 +469,7 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		response := newResp()
 		require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-		_, err := c.HTTPFinal()
+		_, err := c.HTTPFinal(context.Background())
 		require.Error(t, err)
 	})
 }

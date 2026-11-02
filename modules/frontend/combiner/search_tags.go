@@ -1,6 +1,8 @@
 package combiner
 
 import (
+	"context"
+
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/collector"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
@@ -27,7 +29,7 @@ func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold
 			}
 			return nil
 		},
-		finalize: func(final *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
+		finalize: func(_ context.Context, final *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
 			final.TagNames = d.Strings()
 			final.Metrics = metricsCombiner.Metrics
 
@@ -71,7 +73,7 @@ func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThresho
 			}
 			return nil
 		},
-		finalize: func(final *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
+		finalize: func(_ context.Context, final *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
 			collected := distinctValues.Strings()
 			final.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(collected))
 

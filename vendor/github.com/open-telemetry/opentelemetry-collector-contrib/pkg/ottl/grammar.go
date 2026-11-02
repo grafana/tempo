@@ -5,6 +5,7 @@ package ottl // import "github.com/open-telemetry/opentelemetry-collector-contri
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -33,6 +34,7 @@ func (p *parsedStatement) checkForCustomError() error {
 	return validator.join()
 }
 
+// constExpr represents a constant expression that resolves to either a boolean or a converter.
 type constExpr struct {
 	Boolean   *boolean   `parser:"( @Boolean"`
 	Converter *converter `parser:"| @@ )"`
@@ -219,8 +221,48 @@ func (c *converter) accept(v grammarVisitor) {
 			a.accept(v)
 		}
 	}
+	if c.Keys != nil {
+		for _, k := range c.Keys {
+			k.accept(v)
+		}
+	}
 }
 
+// lambdaExpr represents a lambda function definition with its parameters and body.
+type lambdaExpr struct {
+	Params []localIdentifierDecl `parser:"'(' ( (@Lowercase | @Underscore) ( ',' (@Lowercase | @Underscore ) )* )? ')'"`
+	Body   lambdaBody            `parser:"LambdaArrow @@"`
+}
+
+// lambdaBody represents the body of a lambda expression, which is either a value or a boolean expression.
+type lambdaBody struct {
+	Value *value             `parser:"( @@ (?! OpOr | OpAnd | OpComparison)"`
+	Expr  *booleanExpression `parser:"| @@ )"`
+}
+
+func (lb *lambdaBody) accept(vis grammarVisitor) {
+	vis.visitLambdaBody(lb)
+	if lb.Expr != nil {
+		lb.Expr.accept(vis)
+	}
+	if lb.Value != nil {
+		lb.Value.accept(vis)
+	}
+}
+
+type localIdentifierDecl string
+
+var _ LocalIdentifierDecl = (*localIdentifierDecl)(nil)
+
+func (n *localIdentifierDecl) Name() string {
+	return string(*n)
+}
+
+func (n *localIdentifierDecl) IsBlank() bool {
+	return n.Name() == "_"
+}
+
+// argument represents a single argument passed to an editor or converter function call.
 type argument struct {
 	Name         string  `parser:"(@(Lowercase(Uppercase | Lowercase)*) Equal)?"`
 	Value        value   `parser:"( @@"`
@@ -236,6 +278,7 @@ func (a *argument) accept(v grammarVisitor) {
 type value struct {
 	IsNil          *isNil           `parser:"( @Nil"`
 	Literal        *mathExprLiteral `parser:"| @@ (?! OpAddSub | OpMultDiv)"`
+	Lambda         *lambdaExpr      `parser:"| @@"`
 	MathExpression *mathExpression  `parser:"| @@"`
 	Bytes          *byteSlice       `parser:"| @Bytes"`
 	String         *string          `parser:"| @String"`
@@ -253,6 +296,13 @@ func (v *value) checkForCustomError() error {
 
 func (v *value) accept(vis grammarVisitor) {
 	vis.visitValue(v)
+	if v.Lambda != nil {
+		if scopeVisitor, ok := vis.(localIdentifierScopeVisitor); ok {
+			scopeVisitor.pushLocalIdentifiers(v.Lambda.Params)
+			defer scopeVisitor.popLocalIdentifiers()
+		}
+		v.Lambda.Body.accept(vis)
+	}
 	if v.Literal != nil {
 		v.Literal.accept(vis)
 	}
@@ -276,6 +326,27 @@ type path struct {
 	Fields  []field `parser:"@@ ( '.' @@ )*"`
 }
 
+func (p *path) dottedSegments() []field {
+	var segments []field
+	if p.Context != "" {
+		segments = append(segments, field{Name: p.Context})
+	}
+	if len(p.Fields) > 0 {
+		return append(segments, p.Fields...)
+	}
+	return segments
+}
+
+func (p *path) inScope(stack localScopeStack) bool {
+	if p.Context != "" {
+		return stack.inScope(p.Context)
+	}
+	if len(p.Fields) == 0 {
+		return false
+	}
+	return stack.inScope(p.Fields[0].Name)
+}
+
 func (p *path) accept(v grammarVisitor) {
 	v.visitPath(p)
 	for _, field := range p.Fields {
@@ -295,6 +366,7 @@ func (f *field) accept(v grammarVisitor) {
 	}
 }
 
+// key represents an index into a path or converter.
 type key struct {
 	String         *string          `parser:"'[' (@String "`
 	Int            *int64           `parser:"| @Int"`
@@ -311,10 +383,12 @@ func (k *key) accept(v grammarVisitor) {
 	}
 }
 
+// list represents a literal list of values.
 type list struct {
-	Values []value `parser:"'[' (@@)* (',' @@)* ']'"`
+	Values []value `parser:"'[' (@@ (',' @@)*)? ']'"`
 }
 
+// mapValue represents a literal map of key/value pairs.
 type mapValue struct {
 	Values []mapItem `parser:"'{' (@@ ','?)* '}'"`
 }
@@ -327,6 +401,7 @@ func (m *mapValue) accept(v grammarVisitor) {
 	}
 }
 
+// mapItem is a single key/value entry within a mapValue.
 type mapItem struct {
 	Key   *string `parser:"@String ':'"`
 	Value *value  `parser:"@@"`
@@ -339,7 +414,7 @@ func (b *byteSlice) Capture(values []string) error {
 	rawStr := values[0][2:]
 	newBytes, err := hex.DecodeString(rawStr)
 	if err != nil {
-		return err
+		return fmt.Errorf("byte literals must have an even number of hexadecimal digits, but got %s: %w", values[0], err)
 	}
 	*b = newBytes
 	return nil
@@ -361,6 +436,7 @@ func (n *isNil) Capture(_ []string) error {
 	return nil
 }
 
+// mathExprLiteral represents a leaf value within a math expression.
 type mathExprLiteral struct {
 	// If editor is matched then error
 	Editor    *editor    `parser:"( @@"`
@@ -383,6 +459,7 @@ func (m *mathExprLiteral) accept(v grammarVisitor) {
 	}
 }
 
+// mathValue represents a value within a math expression, optionally negated or parenthesized.
 type mathValue struct {
 	UnaryOp       *mathOp          `parser:"@OpAddSub?"`
 	Literal       *mathExprLiteral `parser:"( @@"`
@@ -398,6 +475,7 @@ func (m *mathValue) accept(v grammarVisitor) {
 	}
 }
 
+// opMultDivValue represents the right side of a multiplication or division expression.
 type opMultDivValue struct {
 	Operator mathOp     `parser:"@OpMultDiv"`
 	Value    *mathValue `parser:"@@"`
@@ -409,6 +487,7 @@ func (m *opMultDivValue) accept(v grammarVisitor) {
 	}
 }
 
+// addSubTerm represents an arbitrary number of math values joined by multiplication or division.
 type addSubTerm struct {
 	Left  *mathValue        `parser:"@@"`
 	Right []*opMultDivValue `parser:"@@*"`
@@ -425,6 +504,7 @@ func (m *addSubTerm) accept(v grammarVisitor) {
 	}
 }
 
+// opAddSubTerm represents the right side of an addition or subtraction expression.
 type opAddSubTerm struct {
 	Operator mathOp      `parser:"@OpAddSub"`
 	Term     *addSubTerm `parser:"@@"`
@@ -436,6 +516,7 @@ func (r *opAddSubTerm) accept(v grammarVisitor) {
 	}
 }
 
+// mathExpression represents a numeric computation expressed as an arbitrary number of terms separated by addition or subtraction.
 type mathExpression struct {
 	Left  *addSubTerm     `parser:"@@"`
 	Right []*opAddSubTerm `parser:"@@*"`
@@ -510,6 +591,7 @@ func buildLexer() *lexer.StatefulDefinition {
 		{Name: `OpOr`, Pattern: `\b(or)\b`},
 		{Name: `OpAnd`, Pattern: `\b(and)\b`},
 		{Name: `OpComparison`, Pattern: `==|!=|>=|<=|>|<`},
+		{Name: `LambdaArrow`, Pattern: `=>`},
 		{Name: `OpAddSub`, Pattern: `\+|\-`},
 		{Name: `OpMultDiv`, Pattern: `\/|\*`},
 		{Name: `Boolean`, Pattern: `\b(true|false)\b`},
@@ -523,6 +605,7 @@ func buildLexer() *lexer.StatefulDefinition {
 		{Name: `Uppercase`, Pattern: `[A-Z][A-Z0-9_]*`},
 		{Name: `Lowercase`, Pattern: `[a-z][a-z0-9_]*`},
 		{Name: "whitespace", Pattern: `\s+`},
+		{Name: "Underscore", Pattern: `\b(_)\b`},
 	})
 }
 
@@ -554,6 +637,13 @@ func (e *grammarCustomError) Unwrap() []error {
 	return e.errs
 }
 
+// localIdentifierScopeVisitor is a mixin for grammar visitors that need access
+// to the local identifier stack.
+type localIdentifierScopeVisitor interface {
+	pushLocalIdentifiers([]localIdentifierDecl)
+	popLocalIdentifiers()
+}
+
 // grammarVisitor allows accessing the grammar AST nodes using the visitor pattern.
 type grammarVisitor interface {
 	visitPath(v *path)
@@ -561,6 +651,7 @@ type grammarVisitor interface {
 	visitConverter(v *converter)
 	visitValue(v *value)
 	visitMathExprLiteral(v *mathExprLiteral)
+	visitLambdaBody(v *lambdaBody)
 }
 
 // grammarCustomErrorsVisitor is used to execute custom validations on the grammar AST.
@@ -594,5 +685,16 @@ func (g *grammarCustomErrorsVisitor) visitEditor(v *editor) {
 func (g *grammarCustomErrorsVisitor) visitMathExprLiteral(v *mathExprLiteral) {
 	if v.Editor != nil {
 		g.add(fmt.Errorf("converter names must start with an uppercase letter but got '%v'", v.Editor.Function))
+	}
+}
+
+func (g *grammarCustomErrorsVisitor) visitLambdaBody(v *lambdaBody) {
+	// Reject a lambda whose body is another lambda ((...) => (...) => <expression>).
+	// The grammar allows it, but a body that returns *lambdaExpr does not retain outer
+	// parameter bindings for a later Eval, relying only on nested Eval and context.
+	// It might be changed in the future if lambdas become available for general use
+	// within the language.
+	if v.Value != nil && v.Value.Lambda != nil {
+		g.add(errors.New("lambda body cannot result into another lambda expression"))
 	}
 }

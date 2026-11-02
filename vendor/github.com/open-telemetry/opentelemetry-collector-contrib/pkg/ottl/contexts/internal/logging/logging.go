@@ -190,6 +190,23 @@ func (m Metric) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	return err
 }
 
+func DataPoint(d any) zapcore.ObjectMarshaler {
+	switch dp := d.(type) {
+	case pmetric.NumberDataPoint:
+		return NumberDataPoint(dp)
+	case pmetric.HistogramDataPoint:
+		return HistogramDataPoint(dp)
+	case pmetric.ExponentialHistogramDataPoint:
+		return ExponentialHistogramDataPoint(dp)
+	case pmetric.SummaryDataPoint:
+		return SummaryDataPoint(dp)
+	default:
+		return zapcore.ObjectMarshalerFunc(func(zapcore.ObjectEncoder) error {
+			return nil
+		})
+	}
+}
+
 type NumberDataPointSlice pmetric.NumberDataPointSlice
 
 func (n NumberDataPointSlice) MarshalLogArray(encoder zapcore.ArrayEncoder) error {

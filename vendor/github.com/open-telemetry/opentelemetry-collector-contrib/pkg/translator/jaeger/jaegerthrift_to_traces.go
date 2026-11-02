@@ -7,13 +7,16 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	conventionsv125 "go.opentelemetry.io/otel/semconv/v1.25.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator"
 	idutils "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger/internal/metadata"
 )
 
 var blankJaegerThriftSpan = new(jaeger.Span)
@@ -113,6 +116,10 @@ func jThriftSpanToInternal(span *jaeger.Span, dest ptrace.Span) {
 	dest.SetStartTimestamp(microsecondsToUnixNano(span.StartTime))
 	dest.SetEndTimestamp(microsecondsToUnixNano(span.StartTime + span.Duration))
 
+	if model.Flags(span.Flags).IsSampled() {
+		dest.SetFlags(dest.Flags() | spanFlagsSampled)
+	}
+
 	parentSpanID := jThriftSpanParentID(span)
 	if parentSpanID != 0 {
 		dest.SetParentSpanID(idutils.UInt64ToSpanID(uint64(parentSpanID)))
@@ -139,19 +146,32 @@ func jThriftSpanToInternal(span *jaeger.Span, dest ptrace.Span) {
 // jThriftTagsToInternalAttributes sets internal span links based on jaeger span references skipping excludeParentID
 func jThriftTagsToInternalAttributes(tags []*jaeger.Tag, dest pcommon.Map) {
 	for _, tag := range tags {
-		switch tag.GetVType() {
-		case jaeger.TagType_STRING:
-			dest.PutStr(tag.Key, tag.GetVStr())
-		case jaeger.TagType_BOOL:
-			dest.PutBool(tag.Key, tag.GetVBool())
-		case jaeger.TagType_LONG:
-			dest.PutInt(tag.Key, tag.GetVLong())
-		case jaeger.TagType_DOUBLE:
-			dest.PutDouble(tag.Key, tag.GetVDouble())
-		case jaeger.TagType_BINARY:
-			dest.PutEmptyBytes(tag.Key).FromRaw(tag.GetVBinary())
-		default:
-			dest.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.GetVType()))
+		keys := []string{tag.Key}
+		if tag.Key == string(conventionsv125.HTTPStatusCodeKey) || tag.Key == string(conventions.HTTPResponseStatusCodeKey) {
+			keys = nil
+			if !metadata.PkgTranslatorJaegerDontEmitV0HTTPConventionsFeatureGate.IsEnabled() {
+				keys = append(keys, string(conventionsv125.HTTPStatusCodeKey))
+			}
+			if metadata.PkgTranslatorJaegerEmitV1HTTPConventionsFeatureGate.IsEnabled() {
+				keys = append(keys, string(conventions.HTTPResponseStatusCodeKey))
+			}
+		}
+
+		for _, key := range keys {
+			switch tag.GetVType() {
+			case jaeger.TagType_STRING:
+				dest.PutStr(key, tag.GetVStr())
+			case jaeger.TagType_BOOL:
+				dest.PutBool(key, tag.GetVBool())
+			case jaeger.TagType_LONG:
+				dest.PutInt(key, tag.GetVLong())
+			case jaeger.TagType_DOUBLE:
+				dest.PutDouble(key, tag.GetVDouble())
+			case jaeger.TagType_BINARY:
+				dest.PutEmptyBytes(key).FromRaw(tag.GetVBinary())
+			default:
+				dest.PutStr(key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.GetVType()))
+			}
 		}
 	}
 }

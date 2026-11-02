@@ -431,6 +431,10 @@ message QueryRangeRequest {
 
   // names of AST transformations to skip; populated by the frontend from query_frontend.skip_ast_transformations
   repeated string skipASTTransformations = 19;
+
+  // whether to extrapolate counts from per-span sampling probability; resolved by the frontend from the
+  // extrapolate query hint and the tenant's metrics_extrapolate override
+  bool extrapolate = 20;
 }
 
 enum PartialStatus {

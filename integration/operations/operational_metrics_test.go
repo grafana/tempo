@@ -45,6 +45,13 @@ func TestWriteMetrics(t *testing.T) {
 		assertMetricInDelta(t, distributor, "tempo_distributor_bytes_received_total", float64(countBytes), .1*float64(countBytes), nil)
 		assertMetricInDelta(t, distributor, "tempo_distributor_ingress_bytes_total", float64(countBytes), .1*float64(countBytes), nil)
 
+		// kafka producer buffer metrics. The gauge is exported by kprom and the distribution summary by the Producer.
+		assertMetricInDelta(t, distributor, "tempo_distributor_buffered_produce_bytes", 0, float64(countBytes), nil)
+		distSamples, err := distributor.SumMetrics([]string{"tempo_distributor_buffered_produce_bytes_distribution"}, e2e.WithMetricCount)
+		require.NoError(t, err)
+		require.Greater(t, distSamples[0], float64(0))
+		assertMetricGreater(t, distributor, "tempo_distributor_buffered_produce_bytes_limit", 0, nil)
+
 		// livestore
 		livestore := h.Services[util.ServiceLiveStoreZoneA]
 		assertMetricInDelta(t, livestore, "tempo_live_store_bytes_received_total", float64(countBytes), actualBytes, nil)

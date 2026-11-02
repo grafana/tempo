@@ -15,9 +15,10 @@ import (
 )
 
 type TruncateAllArguments[K any] struct {
-	Target   ottl.PMapGetSetter[K]
-	Limit    int64
-	Utf8Safe ottl.Optional[bool]
+	Target           ottl.PMapGetSetter[K]
+	Limit            int64
+	Utf8Safe         ottl.Optional[bool]
+	TruncationMarker ottl.Optional[string]
 }
 
 func NewTruncateAllFactory[K any]() ottl.Factory[K] {
@@ -31,15 +32,20 @@ func createTruncateAllFunction[K any](fCtx ottl.FunctionContext, oArgs ottl.Argu
 		return nil, errors.New("TruncateAllFactory args must be of type *TruncateAllArguments[K]")
 	}
 
-	return TruncateAll(args.Target, args.Limit, args.Utf8Safe, fCtx.Set.Logger)
+	return TruncateAll(args.Target, args.Limit, args.Utf8Safe, args.TruncationMarker, fCtx.Set.Logger)
 }
 
-func TruncateAll[K any](target ottl.PMapGetSetter[K], limit int64, utf8Safe ottl.Optional[bool], logger *zap.Logger) (ottl.ExprFunc[K], error) {
+func TruncateAll[K any](target ottl.PMapGetSetter[K], limit int64, utf8Safe ottl.Optional[bool], truncationMarker ottl.Optional[string], logger *zap.Logger) (ottl.ExprFunc[K], error) {
 	if limit < 0 {
 		return nil, fmt.Errorf("invalid limit for truncate_all function, %d cannot be negative", limit)
 	}
 
 	useUTF8Safe := utf8Safe.GetOr(true)
+	marker := truncationMarker.GetOr("")
+
+	if len(marker) > int(limit) {
+		return nil, fmt.Errorf("invalid truncation marker for truncate_all function, length of marker %d cannot be greater than limit %d", len(marker), limit)
+	}
 
 	return func(ctx context.Context, tCtx K) (any, error) {
 		val, err := target.Get(ctx, tCtx)
@@ -51,14 +57,15 @@ func TruncateAll[K any](target ottl.PMapGetSetter[K], limit int64, utf8Safe ottl
 		for key, value := range val.All() {
 			stringVal := value.Str()
 			if int64(len(stringVal)) > limit {
-				truncateAt := int(limit)
+				truncateAt := int(limit) - len(marker)
+
 				if useUTF8Safe {
 					// Back up to a valid UTF-8 boundary if we're in the middle of a rune
 					for truncateAt > 0 && !utf8.RuneStart(stringVal[truncateAt]) {
 						truncateAt--
 					}
 				}
-				value.SetStr(stringVal[:truncateAt])
+				value.SetStr(stringVal[:truncateAt] + marker)
 				if debugEnabled {
 					truncated = append(truncated, key)
 				}

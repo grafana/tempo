@@ -37,7 +37,7 @@ func (lc LogsConsumer) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 	var condErr error
 	ld.ResourceLogs().RemoveIf(func(rlogs plog.ResourceLogs) bool {
 		if lc.resourceExpr != nil {
-			rCtx := ottlresource.NewTransformContextPtr(rlogs.Resource(), rlogs)
+			rCtx := ottlresource.NewTransformContext(rlogs.Resource(), rlogs)
 			rCond, rErr := lc.resourceExpr.Eval(ctx, rCtx)
 			rCtx.Close()
 			if rErr != nil {
@@ -55,7 +55,7 @@ func (lc LogsConsumer) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 
 		rlogs.ScopeLogs().RemoveIf(func(slogs plog.ScopeLogs) bool {
 			if lc.scopeExpr != nil {
-				sCtx := ottlscope.NewTransformContextPtr(slogs.Scope(), rlogs.Resource(), slogs, rlogs)
+				sCtx := ottlscope.NewTransformContext(slogs.Scope(), rlogs.Resource(), slogs, rlogs)
 				sCond, sErr := lc.scopeExpr.Eval(ctx, sCtx)
 				sCtx.Close()
 				if sErr != nil {
@@ -69,7 +69,7 @@ func (lc LogsConsumer) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
 
 			if lc.logExpr != nil {
 				slogs.LogRecords().RemoveIf(func(log plog.LogRecord) bool {
-					tCtx := ottllog.NewTransformContextPtr(rlogs, slogs, log)
+					tCtx := ottllog.NewTransformContext(rlogs, slogs, log)
 					cond, err := lc.logExpr.Eval(ctx, tCtx)
 					tCtx.Close()
 					if err != nil {

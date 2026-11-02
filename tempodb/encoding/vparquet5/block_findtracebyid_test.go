@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
+	"github.com/prometheus/client_golang/prometheus"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,11 +30,12 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		Path: t.TempDir(),
 	})
 	require.NoError(t, err)
+	cr := &countingRawReader{RawReader: rawR}
 
 	var (
 		ctx       = context.Background()
 		numTraces = 16
-		r         = backend.NewReader(rawR)
+		r         = backend.NewReader(cr)
 		w         = backend.NewWriter(rawW)
 		cfg       = &common.BlockConfig{
 			BloomFP:             0.01,
@@ -98,6 +101,21 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 	b := newBackendBlock(newMeta, r)
 
+	stages := []string{
+		common.FindBlocksStageBloomChecked,
+		common.FindBlocksStageBloomPass,
+		common.FindBlocksStageIndexPass,
+		common.FindBlocksStageRead,
+	}
+	counters := make([]prometheus.Counter, len(stages))
+	for i, stage := range stages {
+		counters[i] = common.MetricFindBlocks.WithLabelValues(newMeta.TenantID, stage)
+	}
+	before := make([]float64, len(counters))
+	for i, c := range counters {
+		before[i] = prom_testutil.ToFloat64(c)
+	}
+
 	// Now find and verify all test traces
 	for _, tr := range traces {
 		gotProto, err := b.FindTraceByID(ctx, tr.id, common.DefaultSearchOptions())
@@ -108,6 +126,21 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		trace.SortTraceAndAttributes(tr.trace)
 		require.Equal(t, tr.trace, gotProto.Trace)
 	}
+
+	for i, c := range counters {
+		require.Equal(t, float64(numTraces), prom_testutil.ToFloat64(c)-before[i])
+	}
+
+	// A smaller TraceByIDReadBufferSize replaces ReadBufferSize, so the lookup takes more reads.
+	readsWith := func(bufSize int) int64 {
+		opts := common.DefaultSearchOptions()
+		opts.TraceByIDReadBufferSize = bufSize
+		before := cr.reads.Load()
+		_, err := b.FindTraceByID(ctx, traces[0].id, opts)
+		require.NoError(t, err)
+		return cr.reads.Load() - before
+	}
+	require.Greater(t, readsWith(64), readsWith(0))
 }
 
 func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
