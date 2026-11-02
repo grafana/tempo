@@ -3093,7 +3093,7 @@ cache:
             # min_idle_conns_headroom_percentage, so a longer value keeps more
             # connections after a burst. Idle connections are checked once a
             # minute. Only applies if min_idle_conns_headroom_percentage is not
-            # negative.
+            # negative. If 0, the default of 2m is used.
             # (default: 2m)
             [recently_used_conns_threshold: <duration>]
 
