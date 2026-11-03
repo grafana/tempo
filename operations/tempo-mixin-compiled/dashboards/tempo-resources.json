@@ -1653,268 +1653,6 @@
        "fill": 0
       }
      ],
-     "span": 4,
-     "targets": [
-      {
-       "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\"}[$__rate_interval]))",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "{{pod}}",
-       "legendLink": null
-      },
-      {
-       "expr": "min(container_spec_cpu_quota{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\"} / container_spec_cpu_period{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\"})",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "limit",
-       "legendLink": null
-      },
-      {
-       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\", resource=\"cpu\"} > 0)",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "request",
-       "legendLink": null
-      }
-     ],
-     "title": "CPU",
-     "type": "timeseries"
-    },
-    {
-     "datasource": "$datasource",
-     "fieldConfig": {
-      "defaults": {
-       "custom": {
-        "drawStyle": "line",
-        "fillOpacity": 1,
-        "lineWidth": 1,
-        "pointSize": 5,
-        "showPoints": "never",
-        "spanNulls": false,
-        "stacking": {
-         "group": "A",
-         "mode": "none"
-        }
-       },
-       "thresholds": {
-        "mode": "absolute",
-        "steps": [
-
-        ]
-       },
-       "unit": "bytes"
-      },
-      "overrides": [
-
-      ]
-     },
-     "id": 20,
-     "links": [
-
-     ],
-     "options": {
-      "legend": {
-       "showLegend": true
-      },
-      "tooltip": {
-       "mode": "single",
-       "sort": "none"
-      }
-     },
-     "seriesOverrides": [
-      {
-       "alias": "limit",
-       "color": "#E02F44",
-       "fill": 0
-      },
-      {
-       "alias": "request",
-       "color": "#FCE300",
-       "fill": 0
-      }
-     ],
-     "span": 4,
-     "targets": [
-      {
-       "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\"})",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "{{pod}}",
-       "legendLink": null
-      },
-      {
-       "expr": "min(container_spec_memory_limit_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\"} > 0)",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "limit",
-       "legendLink": null
-      },
-      {
-       "expr": "min(kube_pod_container_resource_requests{cluster=~\"$cluster\", namespace=~\"$namespace\",container=~\"compactor\", resource=\"memory\"} > 0)",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "request",
-       "legendLink": null
-      }
-     ],
-     "title": "Memory (workingset)",
-     "type": "timeseries",
-     "yaxes": [
-      {
-       "format": "bytes",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    },
-    {
-     "datasource": "$datasource",
-     "fieldConfig": {
-      "defaults": {
-       "custom": {
-        "drawStyle": "line",
-        "fillOpacity": 1,
-        "lineWidth": 1,
-        "pointSize": 5,
-        "showPoints": "never",
-        "spanNulls": false,
-        "stacking": {
-         "group": "A",
-         "mode": "none"
-        }
-       },
-       "thresholds": {
-        "mode": "absolute",
-        "steps": [
-
-        ]
-       },
-       "unit": "bytes"
-      },
-      "overrides": [
-
-      ]
-     },
-     "id": 21,
-     "links": [
-
-     ],
-     "options": {
-      "legend": {
-       "showLegend": true
-      },
-      "tooltip": {
-       "mode": "single",
-       "sort": "none"
-      }
-     },
-     "span": 4,
-     "targets": [
-      {
-       "expr": "sum by(instance) (go_memstats_heap_inuse_bytes{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})",
-       "format": "time_series",
-       "interval": "1m",
-       "legendFormat": "{{instance}}",
-       "legendLink": null
-      }
-     ],
-     "title": "Memory (go heap inuse)",
-     "type": "timeseries",
-     "yaxes": [
-      {
-       "format": "bytes",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": 0,
-       "show": true
-      },
-      {
-       "format": "short",
-       "label": null,
-       "logBase": 1,
-       "max": null,
-       "min": null,
-       "show": false
-      }
-     ]
-    }
-   ],
-   "repeat": null,
-   "repeatIteration": null,
-   "repeatRowId": null,
-   "showTitle": true,
-   "title": "Compactor",
-   "titleSize": "h6"
-  },
-  {
-   "collapse": false,
-   "height": "250px",
-   "panels": [
-    {
-     "datasource": "$datasource",
-     "fieldConfig": {
-      "defaults": {
-       "custom": {
-        "drawStyle": "line",
-        "fillOpacity": 1,
-        "lineWidth": 1,
-        "pointSize": 5,
-        "showPoints": "never",
-        "spanNulls": false,
-        "stacking": {
-         "group": "A",
-         "mode": "none"
-        }
-       },
-       "thresholds": {
-        "mode": "absolute",
-        "steps": [
-
-        ]
-       },
-       "unit": "cores"
-      },
-      "overrides": [
-
-      ]
-     },
-     "id": 22,
-     "links": [
-
-     ],
-     "options": {
-      "legend": {
-       "showLegend": true
-      },
-      "tooltip": {
-       "mode": "single",
-       "sort": "none"
-      }
-     },
-     "seriesOverrides": [
-      {
-       "alias": "limit",
-       "color": "#E02F44",
-       "fill": 0
-      },
-      {
-       "alias": "request",
-       "color": "#FCE300",
-       "fill": 0
-      }
-     ],
      "span": 6,
      "targets": [
       {
@@ -1970,7 +1708,7 @@
 
       ]
      },
-     "id": 23,
+     "id": 20,
      "links": [
 
      ],
@@ -2080,7 +1818,7 @@
 
       ]
      },
-     "id": 24,
+     "id": 21,
      "links": [
 
      ],
@@ -2160,7 +1898,7 @@
 
       ]
      },
-     "id": 25,
+     "id": 22,
      "links": [
 
      ],
@@ -2258,7 +1996,7 @@
 
       ]
      },
-     "id": 26,
+     "id": 23,
      "links": [
 
      ],
@@ -2342,7 +2080,7 @@
 
       ]
      },
-     "id": 27,
+     "id": 24,
      "links": [
 
      ],
@@ -2422,7 +2160,7 @@
 
       ]
      },
-     "id": 28,
+     "id": 25,
      "links": [
 
      ],
@@ -2520,7 +2258,7 @@
 
       ]
      },
-     "id": 29,
+     "id": 26,
      "links": [
 
      ],
@@ -2604,7 +2342,7 @@
 
       ]
      },
-     "id": 30,
+     "id": 27,
      "links": [
 
      ],
@@ -2684,7 +2422,7 @@
 
       ]
      },
-     "id": 31,
+     "id": 28,
      "links": [
 
      ],
@@ -2782,7 +2520,7 @@
 
       ]
      },
-     "id": 32,
+     "id": 29,
      "links": [
 
      ],
@@ -2866,7 +2604,7 @@
 
       ]
      },
-     "id": 33,
+     "id": 30,
      "links": [
 
      ],
@@ -2946,7 +2684,7 @@
 
       ]
      },
-     "id": 34,
+     "id": 31,
      "links": [
 
      ],
@@ -3044,7 +2782,7 @@
 
       ]
      },
-     "id": 35,
+     "id": 32,
      "links": [
 
      ],

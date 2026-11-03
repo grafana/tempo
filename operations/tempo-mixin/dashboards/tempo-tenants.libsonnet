@@ -10,7 +10,7 @@ dashboard_utils {
     ) by (%(limit_name)s)
   ||| % {
     limit_name: limit,
-    matcher: $.jobMatcher($._config.jobs.compactor),  // TODO(mapno): use the correct job for each limit
+    matcher: $.jobMatcher($._config.jobs.backend_scheduler),  // TODO(mapno): use the correct job for each limit
   },
 
   local limit_style(alias) = {
@@ -23,7 +23,7 @@ dashboard_utils {
     'tempo-tenants.json':
       $.dashboard('Tempo / Tenants')
       .addClusterSelectorTemplates()
-      .addTemplate('tenant', 'tempodb_blocklist_length{%s}' % $.jobMatcher($._config.jobs.compactor), 'tenant')
+      .addTemplate('tenant', 'tempodb_blocklist_length{%s}' % $.jobMatcher($._config.jobs.backend_scheduler), 'tenant')
       .addRow(
         g.row('Tenant info')
         .addPanel(
@@ -35,7 +35,7 @@ dashboard_utils {
                   max by (cluster, namespace, limit_name) (tempo_limits_overrides{%s,user="$tenant"})
                   or max by (cluster, namespace, limit_name) (tempo_limits_defaults{%s})
                 ) by (limit_name)
-              ||| % [$.jobMatcher($._config.jobs.compactor), $.jobMatcher($._config.jobs.compactor)],
+              ||| % [$.jobMatcher($._config.jobs.backend_scheduler), $.jobMatcher($._config.jobs.backend_scheduler)],
             ], {}
           ),
         )
@@ -115,7 +115,7 @@ dashboard_utils {
         .addPanel(
           $.panel('Blockslist length') +
           $.queryPanel(
-            'avg(tempodb_blocklist_length{%s,tenant="$tenant"})' % $.jobMatcher($._config.jobs.compactor),
+            'avg(tempodb_blocklist_length{%s,tenant="$tenant"})' % $.jobMatcher($._config.jobs.backend_scheduler),
             'length',
           ) + {
             legend: { show: false },
@@ -129,7 +129,7 @@ dashboard_utils {
               sum(tempodb_compaction_outstanding_blocks{%s,tenant="$tenant"})
               /
               count(tempo_build_info{%s})
-            ||| % [$.jobMatcher($._config.jobs.compactor), $.jobMatcher($._config.jobs.compactor)],
+            ||| % [$.jobMatcher($._config.jobs.backend_scheduler), $.jobMatcher($._config.jobs.backend_scheduler)],
             'blocks',
           ) + {
             legend: { show: false },
