@@ -1182,7 +1182,10 @@ func checkConditions(conditions []traceql.Condition) error {
 
 		switch cond.Op {
 
-		case traceql.OpNone, traceql.OpExists:
+		case traceql.OpNone:
+			// Operands are optional. They don't filter, but limit the types that are fetched.
+
+		case traceql.OpExists:
 			if opCount != 0 {
 				return fmt.Errorf("operation %v must have 0 arguments. condition: %+v", cond.Op, cond)
 			}
@@ -3118,6 +3121,30 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	}
 }
 
+// opNoneColumns returns the value columns that an OpNone condition has to scan. The operands
+// aren't used for filtering, but carry the types that the engine can compare the attribute to.
+// Without operands, or with a type that isn't covered, every column is scanned.
+func opNoneColumns(operands traceql.Operands) (str, num, boolean bool) {
+	if len(operands) == 0 {
+		return true, true, true
+	}
+
+	for _, o := range operands {
+		switch o.Type {
+		case traceql.TypeString, traceql.TypeStringArray:
+			str = true
+		case traceql.TypeInt, traceql.TypeIntArray, traceql.TypeFloat, traceql.TypeFloatArray:
+			// ints and floats are compared with each other
+			num = true
+		case traceql.TypeBoolean, traceql.TypeBooleanArray:
+			boolean = true
+		default:
+			return true, true, true
+		}
+	}
+	return str, num, boolean
+}
+
 func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
@@ -3160,12 +3187,19 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 
 		switch cond.Op {
 		case traceql.OpNone:
-			// This means we have to scan all value columns since we don't know what type
-			// to expect.  No filtering.
-			attrStringPreds = append(attrStringPreds, nil)
-			attrIntPreds = append(attrIntPreds, nil)
-			attrFltPreds = append(attrFltPreds, nil)
-			boolPreds = append(boolPreds, nil)
+			// No filtering. Scan the value columns of the operand types if there are any, else
+			// all of them since we don't know what type to expect.
+			str, num, boolean := opNoneColumns(cond.Operands)
+			if str {
+				attrStringPreds = append(attrStringPreds, nil)
+			}
+			if num {
+				attrIntPreds = append(attrIntPreds, nil)
+				attrFltPreds = append(attrFltPreds, nil)
+			}
+			if boolean {
+				boolPreds = append(boolPreds, nil)
+			}
 			continue
 		case traceql.OpExists:
 			// Similarly scan all value types, but we can skip nils.

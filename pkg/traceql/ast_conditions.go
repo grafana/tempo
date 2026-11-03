@@ -164,9 +164,12 @@ func (o UnaryOperation) extractForcedOpNone(request *FetchSpansRequest) {
 	o.Expression.extractConditions(inner)
 
 	for _, c := range inner.Conditions {
+		// The operands aren't used to filter. They tell the fetch layer which value types the
+		// engine can compare, so it can skip the others.
 		request.appendCondition(Condition{
 			Attribute: c.Attribute,
 			Op:        OpNone,
+			Operands:  c.Operands,
 		})
 		if c.Op == OpExists && c.Attribute.Intrinsic == IntrinsicNone {
 			request.appendCondition(Condition{

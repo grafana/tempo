@@ -516,10 +516,10 @@ func TestUnaryOperation_extractConditions(t *testing.T) {
 		},
 		{
 			// An ordering operator can't be flipped for attributes that may be arrays. The columns
-			// are fetched but nothing is filtered.
+			// are fetched but nothing is filtered. The operand only limits the fetched types.
 			query: `{ !(span.n > 1) }`,
 			conditions: []Condition{
-				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "n"), OpNone),
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "n"), OpNone, NewStaticInt(1)),
 			},
 			allConditions: false,
 		},
@@ -527,7 +527,7 @@ func TestUnaryOperation_extractConditions(t *testing.T) {
 			query: `{ !(name = "hello" || span.n > 1) }`,
 			conditions: []Condition{
 				newCondition(IntrinsicNameAttribute, OpNotEqual, NewStaticString("hello")),
-				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "n"), OpNone),
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "n"), OpNone, NewStaticInt(1)),
 			},
 			allConditions: false,
 		},

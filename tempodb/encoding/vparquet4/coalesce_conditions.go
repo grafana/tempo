@@ -52,6 +52,12 @@ func coalesce(c1, c2 traceql.Condition) (traceql.Condition, bool) {
 		return c1, true
 	}
 
+	// OpNone conditions don't filter. Their operands only limit the fetched types, so those of the same
+	// type are the same fetch. Different types fall through to be merged into OpNone for every type.
+	if c1.Op == traceql.OpNone && c2.Op == traceql.OpNone && operandType(c1.Operands) == operandType(c2.Operands) {
+		return c1, true
+	}
+
 	// if the operations are != and = and the operands are the same this is going to pull every row. let's
 	// collapse to one condition with OpNone and no operands
 	if (c1.Op == traceql.OpEqual && c2.Op == traceql.OpNotEqual || c1.Op == traceql.OpNotEqual && c2.Op == traceql.OpEqual) && // operands are != and =
