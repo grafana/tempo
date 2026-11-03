@@ -542,6 +542,12 @@ ingest:
         # default codec preference is used.
         [producer_compression: <string>]
 
+        # How long the producer buffers a record before sending the batch.
+        # The distributor waits for each Produce request to complete, so a record
+        # that arrives alone pays the whole linger. Set to 0 when the input is a
+        # low-rate topic per partition and the round trip is short.
+        [producer_linger: <duration> | default = 50ms]
+
         # The consumer group used by the consumer to track the last consumed offset.
         # If the value contains the '<partition>' placeholder, it is replaced with the partition ID.
         # When empty (recommended), Tempo uses the instance ID to guarantee uniqueness.

@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: distributor
+
+note: Add `producer_linger` to the Kafka config, so a distributor fed by a low-rate input topic stops paying the 50ms linger on every record
+
+issues: [8165]
+
+subtext: The distributor waits for each Produce request, so a record that arrives alone pays the whole linger. Set `producer_linger: 0` when the round trip is short.
+
+user: paoValle
