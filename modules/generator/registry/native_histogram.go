@@ -325,19 +325,54 @@ func (h *nativeHistogram) removeStaleSeries(appender storage.Appender, timeMs, s
 
 		if s.lastUpdated < staleTimeMs {
 			if appender != nil {
-				_, err := appender.Append(0, s.countLabels, timeMs, math.Float64frombits(value.StaleNaN))
-				if err != nil {
-					errs = append(errs, err)
+				appendStale := func(lbls labels.Labels) {
+					staleValue := math.Float64frombits(value.StaleNaN)
+					_, err := appender.Append(0, lbls, timeMs, staleValue)
+					if err != nil {
+						errs = append(errs, err)
+					}
 				}
-				_, err = appender.Append(0, s.sumLabels, timeMs, math.Float64frombits(value.StaleNaN))
-				if err != nil {
-					errs = append(errs, err)
+
+				if hasClassicHistograms(h.histogramOverride) {
+					// Read the buckets even if this series has never been collected.
+					encodedMetric := &dto.Metric{}
+					if err := s.promHistogram.Write(encodedMetric); err != nil {
+						errs = append(errs, err)
+						continue
+					}
+
+					appendStale(s.countLabels)
+					appendStale(s.sumLabels)
+
+					// Build bucket labels from the native series' base labels,
+					// preserving dimensions and external labels.
+					lb := labels.NewBuilder(s.labels)
+					lb.Set(labels.MetricName, h.nameBucket)
+
+					infBucketWasAdded := false
+					for _, bucket := range encodedMetric.GetHistogram().GetBucket() {
+						upperBound := bucket.GetUpperBound()
+						lb.Set(labels.BucketLabel, formatFloat(upperBound))
+						appendStale(lb.Labels())
+
+						if math.IsInf(upperBound, 1) {
+							infBucketWasAdded = true
+						}
+					}
+
+					// Match classicHistograms: +Inf is emitted even when the
+					// Prometheus histogram snapshot does not contain it.
+					if !infBucketWasAdded {
+						lb.Set(labels.BucketLabel, "+Inf")
+						appendStale(lb.Labels())
+					}
 				}
-				_, err = appender.Append(0, s.labels, timeMs, math.Float64frombits(value.StaleNaN))
-				if err != nil {
-					errs = append(errs, err)
+
+				if hasNativeHistograms(h.histogramOverride) {
+					appendStale(s.labels)
 				}
 			}
+
 			delete(h.series, hash)
 			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
