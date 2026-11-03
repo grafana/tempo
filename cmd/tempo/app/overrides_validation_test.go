@@ -5,17 +5,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/modules/distributor"
-	"github.com/grafana/tempo/modules/distributor/forwarder"
-	"github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/validation"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/util/listtomap"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/modules/distributor"
+	"github.com/grafana/tempo/v3/modules/distributor/forwarder"
+	"github.com/grafana/tempo/v3/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/validation"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v3/pkg/util/listtomap"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -93,6 +93,58 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 				},
 			},
 			expErr: "metrics_generator.processor.service_graphs.histogram_buckets must be strictly increasing: bucket[1]=1 is <= bucket[0]=2",
+		},
+		{
+			name: "service graphs max_items unset",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						ServiceGraphs: overrides.ServiceGraphsOverrides{},
+					},
+				},
+			},
+		},
+		{
+			name: "service graphs max_items valid",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						ServiceGraphs: overrides.ServiceGraphsOverrides{
+							MaxItems: new(1),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "service graphs max_items zero",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						ServiceGraphs: overrides.ServiceGraphsOverrides{
+							MaxItems: new(0),
+						},
+					},
+				},
+			},
+			expErr: "metrics_generator.processor.service_graphs.max_items must be greater than zero, got 0",
+		},
+		{
+			name: "service graphs max_items negative",
+			cfg:  Config{},
+			overrides: overrides.Overrides{
+				MetricsGenerator: overrides.MetricsGeneratorOverrides{
+					Processor: overrides.ProcessorOverrides{
+						ServiceGraphs: overrides.ServiceGraphsOverrides{
+							MaxItems: new(-5),
+						},
+					},
+				},
+			},
+			expErr: "metrics_generator.processor.service_graphs.max_items must be greater than zero, got -5",
 		},
 		{
 			name: "span metrics histogram buckets must be increasing",

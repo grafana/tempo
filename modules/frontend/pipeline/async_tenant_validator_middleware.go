@@ -1,8 +1,8 @@
 package pipeline
 
 import (
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/pkg/validation"
 )
 
 type tenantValidatorRoundTripper struct {

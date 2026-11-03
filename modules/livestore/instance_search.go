@@ -23,18 +23,18 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/pkg/collector"
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/validation"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/v3/pkg/collector"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/validation"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 var (
@@ -51,6 +51,9 @@ var (
 
 const (
 	timeBuffer = 5 * time.Minute
+
+	// extrapolationCacheKeySalt is mixed into the complete-block cache name when a request extrapolates.
+	extrapolationCacheKeySalt = 3147483637
 )
 
 type block interface {
@@ -678,7 +681,9 @@ func (i *instance) FindByTraceID(ctx context.Context, traceID []byte, allowParti
 	i.liveTracesMtx.Lock()
 	if liveTrace, ok := i.liveTraces.Traces[util.HashForTraceID(traceID)]; ok {
 		tempTrace := &tempopb.Trace{}
-		tempTrace.ResourceSpans = liveTrace.Batches
+		// Cap the capacity so the combiner's appends reallocate instead of writing
+		// into the live trace's backing array, which the push path keeps appending to.
+		tempTrace.ResourceSpans = liveTrace.Batches[:len(liveTrace.Batches):len(liveTrace.Batches)]
 		// Previously there was some logic here to add inspected bytes in the ingester. But its hard to do with the different
 		// live traces format and feels inaccurate.
 		_, err := combiner.Consume(tempTrace)
@@ -758,6 +763,8 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	if p := i.overrides.MetricsSpanOnlyFetch(i.tenantID); p != nil {
 		compileOpts = append(compileOpts, traceql.WithSpanOnlyFetch(*p))
 	}
+
+	compileOpts = append(compileOpts, traceql.WithExtrapolation(req.Extrapolate))
 
 	compileOpts = append(compileOpts, overrides.SpanPruningAwarenessCompileOptions(i.overrides.SpanPruningAwareness(i.tenantID))...)
 	if p := i.overrides.EngineBytesTracking(i.tenantID); p != nil {
@@ -1012,6 +1019,11 @@ func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {
 	h = fnv1a.AddUint64(h, req.Start)
 	h = fnv1a.AddUint64(h, req.End)
 	h = fnv1a.AddUint64(h, req.Step)
+
+	// Only mixed in when set so that cache names are unchanged for queries that don't extrapolate.
+	if req.Extrapolate {
+		h = fnv1a.AddUint64(h, extrapolationCacheKeySalt)
+	}
 
 	// TODO - caching for WAL blocks
 	// Including trace count means we can safely cache results

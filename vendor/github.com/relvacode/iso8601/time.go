@@ -18,3 +18,12 @@ func daysIn(m time.Month, year int) int {
 	}
 	return daysInMonth[int(m)]
 }
+
+// daysInYear is the number of days in the given year, used to validate the
+// day-of-year of an ISO 8601 ordinal date.
+func daysInYear(year int) int {
+	if isLeap(year) {
+		return 366
+	}
+	return 365
+}

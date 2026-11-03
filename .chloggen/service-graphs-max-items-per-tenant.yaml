@@ -1,0 +1,23 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: enhancement
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: metrics-generator
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Allow configuring the service-graphs `max_items` limit per tenant through runtime overrides.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  `max_items` must be greater than 0. A value of 0 or less now fails to load the configuration.
+   NOTE: default overrides are now validated with the same rules as per-tenant overrides, so invalid defaults will also fail to load.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: matt-mercer

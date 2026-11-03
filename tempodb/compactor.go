@@ -14,13 +14,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/util/tracing"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/blockselector"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/dataquality"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blockselector"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 const (
@@ -53,6 +54,11 @@ var (
 		Name:      "compaction_errors_total",
 		Help:      "Total number of errors occurring during compaction.",
 	})
+	metricCompactionBlocksMissing = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_blocks_missing_total",
+		Help:      "Total number of blocks skipped during compaction because their meta no longer exists.",
+	}, []string{"tenant"})
 	metricCompactionObjectsCombined = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "compaction_objects_combined_total",
@@ -77,6 +83,15 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
+	metricCompactionTraceSize = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       "tempodb",
+		Name:                            "compaction_trace_size_bytes",
+		Help:                            "Estimated size in bytes of each trace written by compaction.",
+		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 31), // 1KiB to 1TiB, same as the distributor trace size histogram
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	}, []string{"tenant", "level"})
 
 	errCompactionJobNoLongerOwned = fmt.Errorf("compaction job no longer owned")
 )
@@ -263,6 +278,45 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	var err error
 	startTime := time.Now()
 
+	// Drop blocks whose meta has disappeared since the block list was built. Another
+	// compaction may already have compacted them, which is an expected race and must
+	// not discard the blocks in the same batch that are still there.
+	existing := make([]*backend.BlockMeta, 0, len(blockMetas))
+	for _, blockMeta := range blockMetas {
+		_, err = rw.r.BlockMeta(ctx, uuid.UUID(blockMeta.BlockID), tenantID)
+		if err != nil {
+			if errors.Is(err, backend.ErrDoesNotExist) {
+				metricCompactionBlocksMissing.WithLabelValues(tenantID).Inc()
+				level.Warn(rw.logger).Log(
+					"msg", "skipping block with no meta during compaction",
+					"tenantID", tenantID,
+					"blockID", blockMeta.BlockID.String(),
+				)
+				continue
+			}
+			return nil, err
+		}
+		existing = append(existing, blockMeta)
+	}
+
+	if len(existing) < len(blockMetas) {
+		level.Warn(rw.logger).Log(
+			"msg", "compacting remaining blocks after skipping missing metas",
+			"tenantID", tenantID,
+			"missing", len(blockMetas)-len(existing),
+			"remaining", len(existing),
+		)
+		span.SetAttributes(
+			attribute.Int("missing_blocks", len(blockMetas)-len(existing)),
+			attribute.Int("remaining_blocks", len(existing)),
+		)
+	}
+
+	if len(existing) < len(blockMetas) && len(existing) < 2 {
+		return nil, nil
+	}
+	blockMetas = existing
+
 	var totalRecords int
 	for _, blockMeta := range blockMetas {
 		level.Info(rw.logger).Log(
@@ -281,12 +335,6 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 			"replicationFactor", blockMeta.ReplicationFactor,
 		)
 		totalRecords += int(blockMeta.TotalObjects)
-
-		// Make sure block still exists
-		_, err = rw.r.BlockMeta(ctx, uuid.UUID(blockMeta.BlockID), tenantID)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	enc, err := encoding.FromVersion(blockMetas[0].Version)
@@ -313,6 +361,9 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 		},
 		ObjectsWritten: func(compactionLevel, objs int) {
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
+		},
+		TraceWritten: func(compactionLevel, bytes int) {
+			metricCompactionTraceSize.WithLabelValues(tenantID, strconv.Itoa(compactionLevel)).Observe(float64(bytes))
 		},
 		SpansDiscarded: func(traceId, rootSpanName, rootServiceName string, spans int) {
 			compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId, rootSpanName, rootServiceName)
@@ -382,6 +433,12 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*ba
 	for _, meta := range oldBlocks {
 		// Mark in the backend
 		if err := rw.c.MarkBlockCompacted(uuid.UUID(meta.BlockID), tenantID); err != nil {
+			if errors.Is(err, backend.ErrDoesNotExist) {
+				// A concurrent compaction or retention pass already retired this
+				// block. The desired end state (input block retired) is already
+				// true, so this isn't a real failure.
+				continue
+			}
 			errCount++
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()

@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,18 +83,36 @@ func TestCacheFor(t *testing.T) {
 			},
 		},
 		{
-			name: "bloom - compaction lvl invalid",
+			name: "bloom - compaction lvl below minimum",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 0, StartTime: time.Now()},
+			},
+			expectedCache: nil,
+		},
+		{
+			name: "bloom - compaction lvl equal minimum",
 			cacheInfo: &backend.CacheInfo{
 				Role: cache.RoleBloom,
 				Meta: &backend.BlockMeta{CompactionLevel: 2, StartTime: time.Now()},
 			},
+			expectedCache: rw.bloomCache,
 		},
 		{
-			name: "bloom - both invalid",
+			name: "bloom - compaction lvl above minimum",
 			cacheInfo: &backend.CacheInfo{
 				Role: cache.RoleBloom,
-				Meta: &backend.BlockMeta{CompactionLevel: 2, StartTime: time.Now().Add(-2 * time.Hour)},
+				Meta: &backend.BlockMeta{CompactionLevel: 3, StartTime: time.Now()},
 			},
+			expectedCache: rw.bloomCache,
+		},
+		{
+			name: "bloom - compaction lvl below minimum and start time invalid",
+			cacheInfo: &backend.CacheInfo{
+				Role: cache.RoleBloom,
+				Meta: &backend.BlockMeta{CompactionLevel: 0, StartTime: time.Now().Add(-2 * time.Hour)},
+			},
+			expectedCache: nil,
 		},
 	}
 

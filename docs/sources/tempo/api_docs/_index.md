@@ -41,7 +41,8 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [Search tag values V2](#search-tag-values-v2)                                         | Query-frontend                            | HTTP | `GET /api/v2/search/tag/<tag>/values`                     |
 | [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                            |
 | [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
-| [Trace diff](#trace-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
+| [Traces diff](#traces-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
+| [Active queries](#active-queries)                                                      | Query-frontend                            | HTTP | `GET /status/active-queries`                              |
 | [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
 | [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
 | Memberlist                                                                            | Distributor, Querier, Live store          | HTTP | `GET /memberlist`                                         |
@@ -190,7 +191,7 @@ Span pruning is experimental. The `span_pruning*` parameters, their behavior, an
 {{< /admonition >}}
 
 - `span_pruning = (boolean)`
-  Optional. Enables span pruning post-processing on the returned trace, collapsing similar leaf spans into a single summary span. Only takes effect when the query-frontend also has `span_pruning_enabled: true` set under `trace_by_id`; otherwise this parameter is ignored. If the query-frontend also has `span_pruning_enabled_by_default: true` set, pruning defaults to enabled when this parameter is omitted, but an explicit `span_pruning` value in the request (true or false) always takes precedence. Pruning is applied even if the returned trace is partial (for example, because it exceeds the maximum trace size); the resulting summary spans reflect only the spans present in the partial trace.
+  Optional. Enables span pruning post-processing on the returned trace, collapsing similar leaf spans into a single summary span. If the query-frontend has `span_pruning_enabled_by_default: true` set under `trace_by_id`, pruning defaults to enabled when this parameter is omitted, but an explicit `span_pruning` value in the request (true or false) always takes precedence. Pruning is applied even if the returned trace is partial (for example, because it exceeds the maximum trace size); the resulting summary spans reflect only the spans present in the partial trace.
   Default = `false`
 - `span_pruning_group_by = (comma-separated list of attribute glob patterns)`
   Optional. Overrides the attribute patterns used to decide which leaf spans belong in the same aggregation group, for example `db.*,http.method`. Spans must share the span name and have identical values for every matched attribute to be grouped. Only used when pruning is enabled for the request, either via `span_pruning=true` or `span_pruning_enabled_by_default`.
@@ -757,7 +758,7 @@ Actual API parameters must be URL-encoded. This example is left unencoded for re
 GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.name)
 ```
 
-### Trace diff
+### Traces diff
 
 {{< admonition type="warning" >}}
 This endpoint is experimental. The request and response formats may change in future releases.
@@ -834,6 +835,24 @@ Returns status code 200 and body `echo` when the query frontend is up and ready 
 
 {{< admonition type="note" >}}
 Meant to be used in a Query Visualization UI like Grafana to test that the Tempo data source is working.
+{{< /admonition >}}
+
+### Active queries
+
+```
+GET /status/active-queries
+```
+
+Lists tenants with queries currently being processed by this query-frontend instance.
+Open `GET /status/active-queries/{tenant}` to view that tenant's active queries.
+Each query includes its ID, request method and path, query details, and start time.
+The pages render HTML by default and return JSON when the request accepts `application/json`.
+Query tracking is disabled by default.
+
+Enable it by setting `query_frontend.query_tracker.enabled: true`.
+
+{{< admonition type="note" >}}
+In a distributed deployment, query each query-frontend instance to see its active queries.
 {{< /admonition >}}
 
 ### Overrides API

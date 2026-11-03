@@ -35,8 +35,7 @@ func FormatTime[K any](timeValue ottl.TimeGetter[K], format string) (ottl.ExprFu
 		return nil, errors.New("format cannot be nil")
 	}
 
-	gotimeFormat, err := timeutils.StrptimeToGotime(format)
-	if err != nil {
+	if err := timeutils.ValidateStrptime(format); err != nil {
 		return nil, err
 	}
 
@@ -46,6 +45,6 @@ func FormatTime[K any](timeValue ottl.TimeGetter[K], format string) (ottl.ExprFu
 			return nil, err
 		}
 
-		return t.Format(gotimeFormat), nil
+		return timeutils.FormatStrptime(format, t)
 	}, nil
 }

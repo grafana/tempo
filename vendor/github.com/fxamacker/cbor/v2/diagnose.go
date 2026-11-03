@@ -51,11 +51,8 @@ const (
 	maxByteStringEncoding
 )
 
-func (bse ByteStringEncoding) valid() error {
-	if bse >= maxByteStringEncoding {
-		return errors.New("cbor: invalid ByteStringEncoding " + strconv.Itoa(int(bse)))
-	}
-	return nil
+func (bse ByteStringEncoding) valid() bool {
+	return bse < maxByteStringEncoding
 }
 
 // DiagOptions specifies Diag options.
@@ -104,8 +101,8 @@ func (opts DiagOptions) DiagMode() (DiagMode, error) {
 }
 
 func (opts DiagOptions) diagMode() (*diagMode, error) {
-	if err := opts.ByteStringEncoding.valid(); err != nil {
-		return nil, err
+	if !opts.ByteStringEncoding.valid() {
+		return nil, errors.New("cbor: invalid ByteStringEncoding " + strconv.Itoa(int(opts.ByteStringEncoding)))
 	}
 
 	decMode, err := DecOptions{
@@ -173,7 +170,7 @@ func Diagnose(data []byte) (string, error) {
 	return defaultDiagMode.Diagnose(data)
 }
 
-// Diagnose returns extended diagnostic notation (EDN) of the first CBOR data item using the DiagMode. Any remaining bytes are returned in rest.
+// DiagnoseFirst returns extended diagnostic notation (EDN) of the first CBOR data item using the DiagMode. Any remaining bytes are returned in rest.
 func DiagnoseFirst(data []byte) (diagNotation string, rest []byte, err error) {
 	return defaultDiagMode.DiagnoseFirst(data)
 }
@@ -327,12 +324,12 @@ func (di *diagnose) item() error { //nolint:gocyclo
 	t := di.d.nextCBORType()
 	switch t {
 	case cborTypePositiveInt:
-		_, _, val := di.d.getHead()
+		_, _, val := di.d.readHead()
 		di.w.WriteString(strconv.FormatUint(val, 10))
 		return nil
 
 	case cborTypeNegativeInt:
-		_, _, val := di.d.getHead()
+		_, _, val := di.d.readHead()
 		if val > math.MaxInt64 {
 			// CBOR negative integer overflows int64, use big.Int to store value.
 			bi := new(big.Int)
@@ -359,11 +356,11 @@ func (di *diagnose) item() error { //nolint:gocyclo
 		return di.encodeTextString(string(b), '"')
 
 	case cborTypeArray:
-		_, _, val := di.d.getHead()
-		count := int(val)
+		_, _, val := di.d.readHead()
+		count := int(val) //nolint:gosec
 		di.w.WriteByte('[')
 
-		for i := 0; i < count; i++ {
+		for i := range count {
 			if i > 0 {
 				di.w.WriteString(", ")
 			}
@@ -375,11 +372,11 @@ func (di *diagnose) item() error { //nolint:gocyclo
 		return nil
 
 	case cborTypeMap:
-		_, _, val := di.d.getHead()
-		count := int(val)
+		_, _, val := di.d.readHead()
+		count := int(val) //nolint:gosec
 		di.w.WriteByte('{')
 
-		for i := 0; i < count; i++ {
+		for i := range count {
 			if i > 0 {
 				di.w.WriteString(", ")
 			}
@@ -397,7 +394,7 @@ func (di *diagnose) item() error { //nolint:gocyclo
 		return nil
 
 	case cborTypeTag:
-		_, _, tagNum := di.d.getHead()
+		_, _, tagNum := di.d.readHead()
 		switch tagNum {
 		case tagNumUnsignedBignum:
 			if nt := di.d.nextCBORType(); nt != cborTypeByteString {
@@ -439,7 +436,7 @@ func (di *diagnose) item() error { //nolint:gocyclo
 		}
 
 	case cborTypePrimitives:
-		_, ai, val := di.d.getHead()
+		_, ai, val := di.d.readHead()
 		switch ai {
 		case additionalInformationAsFalse:
 			di.w.WriteString("false")
@@ -477,8 +474,8 @@ func (di *diagnose) item() error { //nolint:gocyclo
 func (di *diagnose) writeU16(val rune) {
 	di.w.WriteString("\\u")
 	var in [2]byte
-	in[0] = byte(val >> 8)
-	in[1] = byte(val)
+	in[0] = byte(val >> 8) //nolint:gosec
+	in[1] = byte(val)      //nolint:gosec
 	sz := hex.EncodedLen(len(in))
 	di.w.Grow(sz)
 	dst := di.w.Bytes()[di.w.Len() : di.w.Len()+sz]
@@ -608,7 +605,7 @@ func (di *diagnose) encodeTextString(val string, quote byte) error {
 
 		c, size := utf8.DecodeRuneInString(val[i:])
 		switch {
-		case c == utf8.RuneError:
+		case c == utf8.RuneError && size == 1:
 			return &SemanticError{"cbor: invalid UTF-8 string"}
 
 		case c < utf16SurrSelf:
@@ -631,7 +628,7 @@ func (di *diagnose) encodeFloat(ai byte, val uint64) error {
 	f64 := float64(0)
 	switch ai {
 	case additionalInformationAsFloat16:
-		f16 := float16.Frombits(uint16(val))
+		f16 := float16.Frombits(uint16(val)) //nolint:gosec
 		switch {
 		case f16.IsNaN():
 			di.w.WriteString("NaN")
@@ -647,7 +644,7 @@ func (di *diagnose) encodeFloat(ai byte, val uint64) error {
 		}
 
 	case additionalInformationAsFloat32:
-		f32 := math.Float32frombits(uint32(val))
+		f32 := math.Float32frombits(uint32(val)) //nolint:gosec
 		switch {
 		case f32 != f32:
 			di.w.WriteString("NaN")

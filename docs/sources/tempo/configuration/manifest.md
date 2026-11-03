@@ -33,6 +33,7 @@ server:
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
+    tls_curve_preferences: ""
     http_tls_config:
         cert: ""
         key: null
@@ -96,6 +97,7 @@ server:
             excluded_paths: ""
             excluded_user_agents: ""
     create_new_traces: false
+    enable_open_metrics_text_created_samples: false
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -109,6 +111,7 @@ internal_server:
     proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
+    tls_curve_preferences: ""
     http_tls_config:
         cert: ""
         key: null
@@ -172,6 +175,7 @@ internal_server:
             excluded_paths: ""
             excluded_user_agents: ""
     create_new_traces: false
+    enable_open_metrics_text_created_samples: false
     enable: false
 distributor:
     ring:
@@ -298,6 +302,8 @@ live_store_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        keepalive_time: 20s
+        keepalive_timeout: 10s
         cluster_validation:
             label: ""
 querier:
@@ -312,6 +318,7 @@ querier:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
     partition_ring:
+        read_lookback_period: 0s
         minimize_requests: true
         hedging_delay: 3s
     max_concurrent_queries: 20
@@ -345,11 +352,14 @@ querier:
             connect_timeout: 0s
             connect_backoff_base_delay: 0s
             connect_backoff_max_delay: 0s
+            keepalive_time: 0s
+            keepalive_timeout: 0s
             cluster_validation:
                 label: ""
     shuffle_sharding_ingesters_enabled: false
     shuffle_sharding_ingesters_lookback_period: 1h0m0s
     query_relevant_ingesters: false
+    blocklist_polling: true
 query_frontend:
     max_outstanding_per_tenant: 2000
     max_batch_size: 7
@@ -371,7 +381,7 @@ query_frontend:
         blocks_per_shard: 30
     metrics:
         concurrent_jobs: 1000
-        target_bytes_per_job: 104857600
+        target_bytes_per_job: 629145600
         max_duration: 24h0m0s
         query_backend_after: 15m0s
         interval: 5m0s
@@ -387,6 +397,10 @@ query_frontend:
         max_regex_conditions: 1
     mcp_server:
         enabled: false
+    query_tracker:
+        enabled: false
+        max_queries_per_tenant: 100
+        max_query_text_bytes: 4096
     max_grpc_streaming_packet_size: 1048576
     max_query_expression_size_bytes: 131072
     query_end_cutoff: 30s
@@ -573,11 +587,12 @@ block_builder:
     partitions_per_instance: 0
     consume_cycle_duration: 5m0s
     max_consuming_bytes: 5000000000
+    flush_concurrency: 4
     block:
         max_block_bytes: 20971520
     wal:
         path: /var/tempo/block-builder/traces
-        ingestion_time_range_slack: 2m0s
+        ingestion_time_range_slack: 2h0m0s
 storage:
     trace:
         pool:
@@ -590,7 +605,7 @@ storage:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
             version: vParquet5
-            parquet_row_group_size_bytes: 100000000
+            parquet_row_group_size_bytes: 250000000
             parquet_dedicated_columns:
                 - scope: resource
                   name: k8s.cluster.name
@@ -652,7 +667,8 @@ storage:
             chunk_size_bytes: 1000000
             prefetch_trace_count: 1000
             read_buffer_count: 32
-            read_buffer_size_bytes: 1048576
+            read_buffer_size_bytes: 2097152
+            trace_by_id_read_buffer_size_bytes: 524288
             cache_control:
                 footer: false
                 column_index: false
@@ -705,6 +721,8 @@ storage:
             retry_max_attempts: 10
             retry_backoff_initial: 200ms
             retry_backoff_max: 1s
+            max_idle_connections: 100
+            max_idle_connections_per_host: 100
             signature_v2: false
             forcepathstyle: false
             enable_dual_stack: false
@@ -732,6 +750,7 @@ storage:
             buffer_size: 3145728
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
+            list_blocks_concurrency: 1
         cache: ""
         background_cache:
             writeback_goroutines: 10
@@ -748,6 +767,7 @@ overrides:
             burst_size_bytes: 30000000
             max_traces_per_user: 10000
             retry_info_enabled: true
+            creation_grace_period: 10m0s
         read:
             max_bytes_per_tag_values_query: 1000000
             max_condition_groups_per_tag_query: 100
@@ -802,6 +822,8 @@ overrides:
                 retry_max_attempts: 10
                 retry_backoff_initial: 200ms
                 retry_backoff_max: 1s
+                max_idle_connections: 100
+                max_idle_connections_per_host: 100
                 signature_v2: false
                 forcepathstyle: false
                 enable_dual_stack: false
@@ -829,6 +851,7 @@ overrides:
                 buffer_size: 3145728
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
+                list_blocks_concurrency: 1
         api:
             check_for_conflicting_runtime_overrides: false
     enable_legacy_overrides: false
@@ -866,6 +889,9 @@ memberlist:
     broadcast_timeout_for_local_updates_on_shutdown: 10s
     message_history_buffer_bytes: 0
     watch_prefix_buffer_size: 128
+    cas_retry_min_backoff: 0s
+    cas_retry_max_backoff: 10s
+    local_state_cache_enabled: false
     bind_addr: []
     bind_port: 7946
     packet_dial_timeout: 2s
@@ -918,6 +944,7 @@ backend_scheduler:
                 block_retention: 336h0m0s
                 compacted_block_retention: 1h0m0s
                 retention_concurrency: 10
+                retention_block_concurrency: 4
                 max_time_per_tenant: 5m0s
                 compaction_cycle: 30s
             max_jobs_per_tenant: 1000
@@ -956,6 +983,8 @@ backend_scheduler_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        keepalive_time: 20s
+        keepalive_timeout: 10s
         cluster_validation:
             label: ""
 backend_worker:
@@ -971,6 +1000,7 @@ backend_worker:
         block_retention: 336h0m0s
         compacted_block_retention: 1h0m0s
         retention_concurrency: 10
+        retention_block_concurrency: 4
         max_time_per_tenant: 5m0s
         compaction_cycle: 30s
     override_ring_key: backend-worker

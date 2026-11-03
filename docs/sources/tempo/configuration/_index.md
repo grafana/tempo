@@ -369,7 +369,7 @@ distributor:
     # Optional.
     # Configures the time to retry after returned to the client when Tempo returns a GRPC ResourceExhausted.
     # Set this to `0` to disable retries on ResourceExhausted at cluster level.
-    # per-tenant override `ingestion.retry_info_enabled` can also be used to disable it at tenent level.
+    # per-tenant override `ingestion.retry_info_enabled` can also be used to disable it at tenant level.
     [retry_after_on_resource_exhausted: <duration> | default = 5s]
 
     # Optional
@@ -404,6 +404,9 @@ The default value is `2048`.
 
 Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
 This metric includes `tenant` and `scope` labels, where `scope` is one of `resource`, `scope`, `span`, `event`, or `link`.
+
+Use the `tempo_distributor_attribute_size_bytes` histogram to observe the size distribution of attributes as they are received.
+Like the counter, it includes `tenant` and `scope` labels, and each observation records the combined size of an attribute's key and string value. Every attribute is measured, whether or not it is truncated.
 
 When truncation occurs, the distributor also emits a rate-limited log line (at most one per second) with diagnostic details including the tenant, total truncated count, configured limit, and an example of the first truncated attribute (scope, name, field, and original size).
 
@@ -595,6 +598,9 @@ block_builder:
     # Maximum number of bytes that can be consumed in a single cycle. 0 to disable.
     [max_consuming_bytes: <uint64> | default = 5000000000]
 
+    # Maximum number of tenants to flush concurrently per partition section. Must be positive.
+    [flush_concurrency: <int> | default = 4]
+
     # Block configuration for the block builder.
     block: <Block config>
       [max_block_bytes: <uint64> | default = 20971520]
@@ -603,6 +609,12 @@ block_builder:
     wal: <WAL config>
       [path: <string> | default = "/var/tempo/block-builder/traces"]
 ```
+
+Increase `block_builder.flush_concurrency` when tenant flushes on a high-latency object store
+prevent the block-builder from keeping up with its consumption cycles.
+Higher concurrency increases the number of simultaneous block builds and uploads,
+so monitor memory usage and object-store throttling when tuning this setting.
+The equivalent CLI flag is `-block-builder.flush-concurrency`.
 
 ## Live-store
 
@@ -1178,17 +1190,9 @@ query_frontend:
         # configured in the querier.
         [external_enabled: <bool> | default = false]
 
-        # Enable span pruning support for trace-by-ID v2 requests. When enabled, requests
-        # to the v2 endpoint can opt in to span pruning post-processing via the
-        # `span_pruning` query parameter. When disabled, the query parameter is ignored
-        # and no pruning occurs regardless of the request.
-        # EXPERIMENTAL
-        [span_pruning_enabled: <bool> | default = false]
-
         # Make span pruning default to enabled for trace-by-ID v2 requests that don't set their
         # own `span_pruning` query parameter. An explicit `span_pruning` value in the request,
-        # true or false, always takes precedence over this default. Only takes effect when
-        # span_pruning_enabled is also true.
+        # true or false, always takes precedence over this default.
         # EXPERIMENTAL
         [span_pruning_enabled_by_default: <bool> | default = false]
 
@@ -1207,7 +1211,7 @@ query_frontend:
         [concurrent_jobs: <int> | default = 1000 ]
 
         # The target number of bytes for each job to handle when querying the backend.
-        [target_bytes_per_job: <int> | default = 100MiB ]
+        [target_bytes_per_job: <int> | default = 600MiB ]
 
         # The maximum allowed time range for a metrics query.
         # 0 disables this limit.
@@ -1246,6 +1250,12 @@ query_frontend:
     # to be exposed to LLM-based tools. Requires explicit opt-in.
     mcp_server:
         [enabled: <bool> | default = false]
+
+    # Query tracker configuration. Enable it to expose active query status pages.
+    query_tracker:
+        [enabled: <bool> | default = false]
+        [max_queries_per_tenant: <int> | default = 100]
+        [max_query_text_bytes: <int> | default = 4096]
 
 ```
 
@@ -1298,6 +1308,14 @@ querier:
     # This value controls the overall number of simultaneous subqueries that the querier will service at once. It does
     # not distinguish between the types of queries.
     [max_concurrent_queries: <int> | default = 20]
+
+    # Control blocklist polling in the querier.
+    #
+    # Queriers only use the blocklist to choose blocks for trace by ID, but query-frontends now send blocks in each job.
+    # This is a temporary rollout switch, and will be removed together with querier blocklist polling in a future release.
+    # Set blocklist_polling after all components run the release that added this setting. Older versions fail to start on this setting.
+    # With false, the querier rejects trace by ID jobs without blocks, such as jobs from older query-frontends.
+    [blocklist_polling: <bool> | default = true]
 
     trace_by_id:
         # Timeout for trace lookup requests
@@ -1724,8 +1742,8 @@ storage:
             # Example: "bucket_lookup_type: 0"
             # options: 0: BucketLookupAuto, 1: BucketLookupDNS, 2: BucketLookupPath
             # See the [S3 documentation on virtual-hosted–style and path-style](https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#path-style-access) for more detail.
-            # See the [Minio-API documentation on opts.BucketLookup](https://github.com/minio/minio-go/blob/master/docs/API.md#newendpoint-string-opts-options-client-error)] for more detail.
-            # Notice: ignore this option if `forcepathstyle` is set true, this option allow expose minio's sdk configure.
+            # See the [minio-go API documentation on opts.BucketLookup](https://github.com/minio/minio-go/blob/master/docs/API.md#newendpoint-string-opts-options-client-error) for more detail.
+            # Notice: ignore this option if `forcepathstyle` is set true, this option exposes the minio-go SDK setting.
             [bucket_lookup_type: <int> | default = 0]
 
             # Optional. Default is 0 (disabled)
@@ -1740,21 +1758,34 @@ storage:
             # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
             [hedge_requests_up_to: <int>]
 
-            # Optional. Default is 10 (minio default)
+            # Optional. Default is 10 (minio-go SDK default)
             # Example: "retry_max_attempts: 10"
             # The maximum number of retry attempts on failed S3 requests. Set to 1 to disable retries.
             [retry_max_attempts: <int>]
 
-            # Optional. Default is 200ms (minio default)
+            # Optional. Default is 200ms (minio-go SDK default)
             # Example: "retry_backoff_initial: 200ms"
             # The baseline time after which a retry is attempted on failed S3 requests. This time is
             # doubled each retry until it hits retry_backoff_max, after which it remains at retry_backoff_max.
             [retry_backoff_initial: <duration>]
 
-            # Optional. Default is 1s (minio default)
+            # Optional. Default is 1s (minio-go SDK default)
             # Example: "retry_backoff_max: 1s"
             # The maximum duration to wait between retry attempts on failed S3 requests.
             [retry_backoff_max: <duration>]
+
+            # Optional. Default is 100
+            # Example: "max_idle_connections_per_host: 400"
+            # The maximum number of idle connections kept open to the S3 endpoint. When more requests than
+            # this finish at the same time, the extra connections are closed, and later requests open new
+            # ones with a new TCP and TLS handshake. Set this at or above the number of concurrent S3
+            # requests, for example the storage pool max_workers on queriers.
+            [max_idle_connections_per_host: <int>]
+
+            # Optional. Default is 100
+            # Example: "max_idle_connections: 400"
+            # The maximum number of idle connections kept open across all S3 hosts.
+            [max_idle_connections: <int>]
 
             # Optional
             # Example: "tags: {'key': 'value'}"
@@ -1840,6 +1871,15 @@ storage:
             # Optional. Default is 4
             # Number of simultaneous uploads to Azure.
             [max_buffers: <int> | default = 4]
+
+            # Optional. Default is 1 (no sharding)
+            # The number of list calls to make in parallel to the backend when listing a
+            # tenant's blocks. Azure cannot start a listing at an arbitrary key, so any
+            # value above 1 shards the block ID keyspace 16 ways by leading hex digit and
+            # lists those shards concurrently; a value above 16 adds no further
+            # parallelism. Raising this shortens the blocklist poll cycle for tenants with
+            # many blocks at the cost of more list requests for small tenants.
+            [list_blocks_concurrency: <int> | default = 1]
 
             # Optional. Default is 3145728 (3 MiB)
             # Buffer size for uploads to Azure.
@@ -2107,7 +2147,7 @@ Defines re-used configuration blocks.
 # an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
 #  create larger footers but will be harder to shard when searching. It is difficult to calculate
 #  this field directly and it may vary based on workload. This is roughly a lower bound.
-[parquet_row_group_size_bytes: <int> | default = 100MB]
+[parquet_row_group_size_bytes: <int> | default = 250MB]
 
 # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
 # generic attribute key-value list. This allows for more efficient searching of these attributes.
@@ -2154,6 +2194,10 @@ The `compaction` configuration block is used by the scheduler and worker.
 # Optional
 # Number of tenants to process in parallel during retention.
 [retention_concurrency: <int> | default=10]
+
+# Optional
+# Number of blocks to clear in parallel within a single tenant's retention pass.
+[retention_block_concurrency: <int> | default=4]
 
 # Optional
 # The maximum amount of time to spend compacting a single tenant before moving to the next.
@@ -2308,7 +2352,11 @@ multi:
 
 # Size of read buffers used when performing search on a vparquet block. This value times the read_buffer_count
 # is the total amount of bytes used for buffering when performing search on a parquet block.
-[read_buffer_size_bytes: <int> | default = 1048576]
+[read_buffer_size_bytes: <int> | default = 2097152]
+
+# Size of read buffers used when looking up a trace by ID in a block. A trace-by-ID lookup opens a
+# buffer per column read, so memory per lookup scales with this value.
+[trace_by_id_read_buffer_size_bytes: <int> | default = 524288]
 
 # Granular cache control settings for parquet metadata objects
 # Deprecated. See [Cache](#cache) section.
@@ -2407,6 +2455,12 @@ overrides:
       [max_global_traces_per_user: <int> | default = 0]
 
       # Shuffle sharding shards used for this user. A value of 0 uses all partitions.
+      # A good starting value is 1 shard per 5MB/s of ingest. For example, a tenant
+      # sending 2MB/s gets 1 shard, and a tenant sending 100MB/s gets 20 shards. Setting this
+      # value appropriately for the tenant volume is important to maintain balance between
+      # read and write resources. Setting this value too small increases pressure on block builders
+      # and live stores.  Setting this value too high causes many small blocks to be flushed, 
+      # increasing pressure on queriers, compaction, and polling.
       [tenant_shard_size: <int> | default = 0]
 
       # Maximum bytes any attribute can be for both keys and values.
@@ -2418,6 +2472,11 @@ overrides:
 
       # When enabled, the distributor includes retry information in rate-limit responses.
       [retry_info_enabled: <bool> | default = true]
+
+      # How far into the future a span's start or end time may be, compared to the
+      # distributor's clock. Spans beyond this are discarded and counted in
+      # tempo_discarded_spans_total with reason="too_far_in_future". 0 disables the check.
+      [creation_grace_period: <duration> | default = 10m]
 
     # Read related overrides
     read:
@@ -2461,6 +2520,12 @@ overrides:
       [metrics_spanonly_fetch: <bool> | default = true]
 
       # EXPERIMENTAL
+      # Per-user toggle for extrapolating TraceQL metrics from the per-span
+      # sampling probability by default. May be overridden by the
+      # extrapolate query hint.
+      [metrics_extrapolate: <bool> | default = false]
+
+      # EXPERIMENTAL
       # When enabled, queries report an additional metric indicating whether the
       # matched spans include span-pruning summary spans (spans carrying the
       # aggregation.is_summary attribute). Applies to search and metrics queries.
@@ -2476,9 +2541,7 @@ overrides:
       # Per-tenant override for the query-frontend's span_pruning_enabled_by_default config.
       # When set, overrides whether span pruning defaults to enabled for trace-by-id v2 requests
       # that don't set their own span_pruning param. When not set, the cluster-wide config value
-      # is used. Only takes effect when span pruning is enabled cluster-wide (span_pruning_enabled).
-      # Note: this is a per-tenant default override, not a per-tenant kill switch — it has no effect
-      # unless span pruning is already enabled cluster-wide.
+      # is used.
       [span_pruning_enabled: <bool>]
 
     # Compaction related overrides
@@ -2614,6 +2677,7 @@ overrides:
 
         # Configuration for the service-graphs processor
         service_graphs:
+          [max_items: <int>]
           [histogram_buckets: <list of float>]
           [dimensions: <list of string>]
           [peer_attributes: <list of string>]
@@ -2666,6 +2730,15 @@ overrides:
     # Per-user configuration of generic forwarder feature. Each forwarder in the list
     # must refer by name to a forwarder defined in the distributor.forwarders configuration.
     forwarders: <list of string>
+
+    # Distributor -> external forwarder queue controls.
+    # Each tenant has a separate queue for each enabled forwarder on each distributor.
+    # The same settings apply to every external forwarder enabled for the tenant.
+    forwarder:
+      # Maximum queued batches, not spans or bytes. 0 uses 100; negative values are invalid.
+      [queue_size: <int> | default = 100]
+      # Parallel forwarding workers per queue. 0 uses 2; negative values are invalid.
+      [workers: <int> | default = 2]
 
     # Global enforced overrides
     global:
@@ -2780,6 +2853,11 @@ overrides:
         # Optional per-tenant remote write headers, for example for per-tenant authentication.
         remote_write_headers:
           [<header-name>: <string>]
+      # External forwarder names must match distributor.forwarders entries.
+      [forwarders: <list of strings>]
+      forwarder:
+        [queue_size: <int> | default = 100]
+        [workers: <int> | default = 2]
 
   # A "wildcard" override can be used that will apply to all tenants if a match is not found otherwise.
   "*":
@@ -2800,6 +2878,45 @@ For a complete per-tenant `metrics_generator` example, including `remote_write_h
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
 User-configurable overrides have priority over runtime overrides.
 Refer to [user-configurable overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/) for more details.
+
+#### External forwarder queues
+
+Configure `overrides.defaults.forwarder`, or `forwarder` in a tenant runtime override:
+
+- `queue_size`: maximum buffered batches per queue (default: `100`).
+- `workers`: concurrent forwarding workers per queue (default: `2`).
+
+Each distributor creates a separate queue per tenant and enabled forwarder.
+These operator-only settings don't affect metrics-generator forwarding.
+
+Omitted or zero values use the built-in defaults; negative values are invalid.
+Tenant and wildcard entries don't inherit custom values from `overrides.defaults.forwarder` for omitted fields.
+
+After runtime overrides reload, queue settings update on the next 10-second check.
+Old queues drain asynchronously while replacement queues accept new batches.
+
+For example, use default queue settings and larger queues for one tenant.
+The `external-otlp` name must match a forwarder defined in `distributor.forwarders`:
+
+```yaml
+# /conf/tempo.yaml
+overrides:
+  defaults:
+    forwarders: [external-otlp]
+    forwarder:
+      queue_size: 100
+      workers: 2
+  per_tenant_override_config: /conf/overrides.yaml
+
+---
+# /conf/overrides.yaml
+overrides:
+  tenant-a:
+    forwarders: [external-otlp]
+    forwarder:
+      queue_size: 1000
+      workers: 4
+```
 
 #### Ingestion rate strategy
 
@@ -2930,6 +3047,11 @@ cache:
         - <role1>
         - <role2>
 
+        # Probability of each cache store call. Cache reads are unaffected.
+        # Valid values range from 0 to 1, inclusive. Default is 1 (skip no stores).
+        # Set to 0 to skip all stores, or, for example, 0.25 to store approximately 25%.
+        [store_probability: <float>]
+
         # Memcached caching configuration block
         memcached:
 
@@ -2975,6 +3097,17 @@ cache:
             [min_idle_conns_headroom_percentage: <float>]
 
             # Optional
+            # How long a free connection can sit unused and still count as
+            # recently used when reaping idle connections. Recently used
+            # connections are never closed and set the headroom kept by
+            # min_idle_conns_headroom_percentage, so a longer value keeps more
+            # connections after a burst. Idle connections are checked once a
+            # minute. Only applies if min_idle_conns_headroom_percentage is not
+            # negative. If 0, the default of 2m is used.
+            # (default: 2m)
+            [recently_used_conns_threshold: <duration>]
+
+            # Optional
             # Period with which to poll DNS for memcache servers.
             # (default: 1m)
             [update_interval: <duration>]
@@ -2983,6 +3116,13 @@ cache:
             # Use consistent hashing to distribute keys to memcache servers.
             # (default: true)
             [consistent_hash: <bool>]
+
+            # Optional
+            # Pin this Tempo pod to this many Memcached proxy pods. The proxies
+            # must share the same backend cache pool and key-routing configuration.
+            # Overrides consistent_hash when positive; 0 disables pinning.
+            # (default: 0)
+            [pin_servers: <uint>]
 
             # Optional
             # The maximum size of an item stored in memcached, in bytes.

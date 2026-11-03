@@ -5,16 +5,15 @@ import (
 	"errors"
 	"hash"
 	"hash/fnv"
-	"iter"
 	"sort"
 	"time"
 
 	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/log"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 )
 
 var (
@@ -118,7 +117,7 @@ func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte,
 	return nil
 }
 
-func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) iter.Seq[*LiveTrace[T]] {
+func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) []*LiveTrace[T] {
 	idleSince := now.Add(-l.maxIdleTime)
 	liveSince := now.Add(-l.maxLiveTime)
 
@@ -135,11 +134,5 @@ func (l *LiveTraces[T]) CutIdle(now time.Time, immediate bool) iter.Seq[*LiveTra
 		return bytes.Compare(toCut[i].ID, toCut[j].ID) == -1
 	})
 
-	return func(yield func(*LiveTrace[T]) bool) {
-		for _, tr := range toCut {
-			if !yield(tr) {
-				return
-			}
-		}
-	}
+	return toCut
 }

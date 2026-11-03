@@ -6,7 +6,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/grafana/tempo/pkg/regexp"
+	"github.com/grafana/tempo/v3/pkg/regexp"
 )
 
 var errSpansetOperationMultiple = errors.New("spanset operators are not supported for multiple spansets per trace. consider using coalesce()")
@@ -483,7 +483,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		case OpLessEqual:
 			return NewStaticBool(lhsN <= rhsN), nil
 		case OpPower:
-			return NewStaticInt(intPow(rhsN, lhsN)), nil
+			return NewStaticInt(intPow(lhsN, rhsN)), nil
 		}
 		// if not executed, fall through to the catch-all below
 
@@ -738,7 +738,7 @@ func binOpExecuteScalar(op Operator, lhs, rhs Static, expressions []*regexp.Rege
 		case OpLessEqual:
 			return NewStaticBool(lhsN <= rhsN), expressions, nil
 		case OpPower:
-			return NewStaticInt(intPow(rhsN, lhsN)), expressions, nil
+			return NewStaticInt(intPow(lhsN, rhsN)), expressions, nil
 		}
 
 	case lhsT == TypeBoolean && rhsT == TypeBoolean:

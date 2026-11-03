@@ -132,8 +132,8 @@ func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint 
 
 func instrumentation() ([]grpc.UnaryClientInterceptor, []grpc.StreamClientInterceptor) {
 	return []grpc.UnaryClientInterceptor{
-			middleware.ClientUserHeaderInterceptor,
-		}, []grpc.StreamClientInterceptor{
-			middleware.StreamClientUserHeaderInterceptor,
-		}
+		middleware.ClientUserHeaderInterceptor,
+	}, []grpc.StreamClientInterceptor{
+		middleware.StreamClientUserHeaderInterceptor,
+	}
 }

@@ -1,0 +1,6 @@
+change_type: enhancement
+component: querier
+note: Speed up trace-by-ID lookups on vParquet5 blocks by seeking directly to the matching row's page via the parquet offset index, instead of reading and decoding every page from the start of the row group.
+issues: []
+subtext:
+user: mapno

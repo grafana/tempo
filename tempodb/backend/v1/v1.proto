@@ -36,4 +36,6 @@ message TenantIndex {
     google.protobuf.Timestamp created_at = 1[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "created_at"];
     repeated BlockMeta meta = 2[(gogoproto.jsontag) = "meta"];
     repeated CompactedBlockMeta compacted_meta = 3[(gogoproto.jsontag) = "compacted"];
+    // no_compact lists the live blocks that have a nocompact flag.
+    repeated bytes no_compact = 4[(gogoproto.jsontag) = "noCompact,omitempty", (gogoproto.customtype) = "UUID", (gogoproto.nullable) = false];
 }

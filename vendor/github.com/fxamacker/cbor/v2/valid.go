@@ -54,7 +54,7 @@ func (e *MaxMapPairsError) Error() string {
 	return "cbor: exceeded max number of key-value pairs " + strconv.Itoa(e.maxMapPairs) + " for CBOR map"
 }
 
-// IndefiniteLengthError indicates found disallowed indefinite length items.
+// IndefiniteLengthError indicates found disallowed indefinite-length items.
 type IndefiniteLengthError struct {
 	t cborType
 }
@@ -100,20 +100,25 @@ func (d *decoder) wellformed(allowExtraData bool, checkBuiltinTags bool) error {
 
 // wellformedInternal checks data's well-formedness and returns max depth and error.
 func (d *decoder) wellformedInternal(depth int, checkBuiltinTags bool) (int, error) { //nolint:gocyclo
-	t, _, val, indefiniteLength, err := d.wellformedHeadWithIndefiniteLengthFlag()
-	if err != nil {
-		return 0, err
+	var err error
+
+	t, ai, val, ok := d.tryWellformedSmallHead()
+	if !ok {
+		t, ai, val, err = d.wellformedHead()
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	switch t {
 	case cborTypeByteString, cborTypeTextString:
-		if indefiniteLength {
+		if additionalInformation(ai).isIndefiniteLength() {
 			if d.dm.indefLength == IndefLengthForbidden {
 				return 0, &IndefiniteLengthError{t}
 			}
 			return d.wellformedIndefiniteString(t, depth, checkBuiltinTags)
 		}
-		valInt := int(val)
+		valInt := int(val) //nolint:gosec
 		if valInt < 0 {
 			// Detect integer overflow
 			return 0, errors.New("cbor: " + t.String() + " length " + strconv.FormatUint(val, 10) + " is too large, causing integer overflow")
@@ -129,14 +134,14 @@ func (d *decoder) wellformedInternal(depth int, checkBuiltinTags bool) (int, err
 			return 0, &MaxNestedLevelError{d.dm.maxNestedLevels}
 		}
 
-		if indefiniteLength {
+		if additionalInformation(ai).isIndefiniteLength() {
 			if d.dm.indefLength == IndefLengthForbidden {
 				return 0, &IndefiniteLengthError{t}
 			}
 			return d.wellformedIndefiniteArrayOrMap(t, depth, checkBuiltinTags)
 		}
 
-		valInt := int(val)
+		valInt := int(val) //nolint:gosec
 		if valInt < 0 {
 			// Detect integer overflow
 			return 0, errors.New("cbor: " + t.String() + " length " + strconv.FormatUint(val, 10) + " is too large, it would cause integer overflow")
@@ -157,8 +162,11 @@ func (d *decoder) wellformedInternal(depth int, checkBuiltinTags bool) (int, err
 			count = 2
 		}
 		maxDepth := depth
-		for j := 0; j < count; j++ {
-			for i := 0; i < valInt; i++ {
+		for range count {
+			for range valInt {
+				if d.tryWellformedSmallData() {
+					continue
+				}
 				var dpt int
 				if dpt, err = d.wellformedInternal(depth, checkBuiltinTags); err != nil {
 					return 0, err
@@ -169,6 +177,14 @@ func (d *decoder) wellformedInternal(depth int, checkBuiltinTags bool) (int, err
 			}
 		}
 		depth = maxDepth
+
+	case cborTypePrimitives:
+		if ai <= 24 && d.dm.simpleValues != nil && d.dm.simpleValues.rejected[SimpleValue(val)] { //nolint:gosec
+			return 0, &UnacceptableDataItemError{
+				CBORType: t.String(),
+				Message:  "simple value " + strconv.FormatInt(int64(val), 10) + " is not recognized", //nolint:gosec
+			}
+		}
 
 	case cborTypeTag:
 		if d.dm.tagsMd == TagsForbidden {
@@ -197,8 +213,12 @@ func (d *decoder) wellformedInternal(depth int, checkBuiltinTags bool) (int, err
 			if getType(d.data[d.off]) != cborTypeTag {
 				break
 			}
-			if _, _, tagNum, err = d.wellformedHead(); err != nil {
-				return 0, err
+			var okTag bool
+			_, _, tagNum, okTag = d.tryWellformedSmallHead()
+			if !okTag {
+				if _, _, tagNum, err = d.wellformedHead(); err != nil {
+					return 0, err
+				}
 			}
 			depth++
 			if depth > d.dm.maxNestedLevels {
@@ -206,13 +226,16 @@ func (d *decoder) wellformedInternal(depth int, checkBuiltinTags bool) (int, err
 			}
 		}
 		// Check tag content.
+		if d.tryWellformedSmallData() {
+			return depth, nil
+		}
 		return d.wellformedInternal(depth, checkBuiltinTags)
 	}
 
 	return depth, nil
 }
 
-// wellformedIndefiniteString checks indefinite length byte/text string's well-formedness and returns max depth and error.
+// wellformedIndefiniteString checks indefinite-length byte/text string's well-formedness and returns max depth and error.
 func (d *decoder) wellformedIndefiniteString(t cborType, depth int, checkBuiltinTags bool) (int, error) {
 	var err error
 	for {
@@ -223,7 +246,7 @@ func (d *decoder) wellformedIndefiniteString(t cborType, depth int, checkBuiltin
 			d.off++
 			break
 		}
-		// Peek ahead to get next type and indefinite length status.
+		// Peek ahead to get next type and indefinite-length status.
 		nt, ai := parseInitialByte(d.data[d.off])
 		if t != nt {
 			return 0, &SyntaxError{"cbor: wrong element type " + nt.String() + " for indefinite-length " + t.String()}
@@ -238,7 +261,7 @@ func (d *decoder) wellformedIndefiniteString(t cborType, depth int, checkBuiltin
 	return depth, nil
 }
 
-// wellformedIndefiniteArrayOrMap checks indefinite length array/map's well-formedness and returns max depth and error.
+// wellformedIndefiniteArrayOrMap checks indefinite-length array/map's well-formedness and returns max depth and error.
 func (d *decoder) wellformedIndefiniteArrayOrMap(t cborType, depth int, checkBuiltinTags bool) (int, error) {
 	var err error
 	maxDepth := depth
@@ -251,12 +274,14 @@ func (d *decoder) wellformedIndefiniteArrayOrMap(t cborType, depth int, checkBui
 			d.off++
 			break
 		}
-		var dpt int
-		if dpt, err = d.wellformedInternal(depth, checkBuiltinTags); err != nil {
-			return 0, err
-		}
-		if dpt > maxDepth {
-			maxDepth = dpt
+		if !d.tryWellformedSmallData() {
+			var dpt int
+			if dpt, err = d.wellformedInternal(depth, checkBuiltinTags); err != nil {
+				return 0, err
+			}
+			if dpt > maxDepth {
+				maxDepth = dpt
+			}
 		}
 		i++
 		if t == cborTypeArray {
@@ -275,19 +300,46 @@ func (d *decoder) wellformedIndefiniteArrayOrMap(t cborType, depth int, checkBui
 	return maxDepth, nil
 }
 
-func (d *decoder) wellformedHeadWithIndefiniteLengthFlag() (
-	t cborType,
-	ai byte,
-	val uint64,
-	indefiniteLength bool,
-	err error,
-) {
-	t, ai, val, err = d.wellformedHead()
-	if err != nil {
-		return
+// tryWellformedSmallData returns true and advances offset on success
+// if the next CBOR data item is:
+// - (-24) <= integer < 24
+// - byte string and text string of less than 24 bytes
+func (d *decoder) tryWellformedSmallData() bool {
+	// NOTE: this function is written to be inlinable.
+	if len(d.data) <= d.off {
+		return false
 	}
-	indefiniteLength = additionalInformation(ai).isIndefiniteLength()
-	return
+
+	ai := d.data[d.off] & additionalInformationMask
+	if ai > maxAdditionalInformationWithoutArgument {
+		return false
+	}
+
+	switch cborType(d.data[d.off] & typeMask) {
+	case cborTypePositiveInt, cborTypeNegativeInt:
+		d.off++
+		return true
+	case cborTypeByteString, cborTypeTextString:
+		// Small head (ai <= 23) doesn't contain indefinite length flag.
+		if len(d.data)-d.off-1 >= int(ai) {
+			d.off += 1 + int(ai)
+			return true
+		}
+	}
+	return false
+}
+
+func (d *decoder) tryWellformedSmallHead() (t cborType, ai byte, val uint64, ok bool) {
+	// NOTE: this function is written to be inlinable.
+	if len(d.data) > d.off {
+		t, ai = parseInitialByte(d.data[d.off])
+		if ai <= maxAdditionalInformationWithoutArgument {
+			d.off++
+			return t, ai, uint64(ai), true
+		}
+	}
+
+	return 0, 0, 0, false
 }
 
 func (d *decoder) wellformedHead() (t cborType, ai byte, val uint64, err error) {
@@ -326,7 +378,7 @@ func (d *decoder) wellformedHead() (t cborType, ai byte, val uint64, err error) 
 		val = uint64(binary.BigEndian.Uint16(d.data[d.off : d.off+argumentSize]))
 		d.off += argumentSize
 		if t == cborTypePrimitives {
-			if err := d.acceptableFloat(float64(float16.Frombits(uint16(val)).Float32())); err != nil {
+			if err := d.acceptableFloat(float64(float16.Frombits(uint16(val)).Float32())); err != nil { //nolint:gosec
 				return 0, 0, 0, err
 			}
 		}
@@ -341,7 +393,7 @@ func (d *decoder) wellformedHead() (t cborType, ai byte, val uint64, err error) 
 		val = uint64(binary.BigEndian.Uint32(d.data[d.off : d.off+argumentSize]))
 		d.off += argumentSize
 		if t == cborTypePrimitives {
-			if err := d.acceptableFloat(float64(math.Float32frombits(uint32(val)))); err != nil {
+			if err := d.acceptableFloat(float64(math.Float32frombits(uint32(val)))); err != nil { //nolint:gosec
 				return 0, 0, 0, err
 			}
 		}
@@ -379,12 +431,12 @@ func (d *decoder) wellformedHead() (t cborType, ai byte, val uint64, err error) 
 
 func (d *decoder) acceptableFloat(f float64) error {
 	switch {
-	case d.dm.nanDec == NaNDecodeForbidden && math.IsNaN(f):
+	case d.dm.nan == NaNDecodeForbidden && math.IsNaN(f):
 		return &UnacceptableDataItemError{
 			CBORType: cborTypePrimitives.String(),
 			Message:  "floating-point NaN",
 		}
-	case d.dm.infDec == InfDecodeForbidden && math.IsInf(f, 0):
+	case d.dm.inf == InfDecodeForbidden && math.IsInf(f, 0):
 		return &UnacceptableDataItemError{
 			CBORType: cborTypePrimitives.String(),
 			Message:  "floating-point infinity",

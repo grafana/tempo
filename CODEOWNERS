@@ -11,18 +11,18 @@
 # In each subsection folders are ordered first by depth, then alphabetically.
 # This should make it easy to add new rules without breaking existing ones.
 
-* @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
+* @grafana/tempo
 
-/docs/       @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
-/.chloggen/  @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
+/docs/       @grafana/tempo @grafana/docs-traces
+/.chloggen/  @grafana/tempo @grafana/docs-traces
 
 
-/.github/backport.yml           @jdbaldry @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
-/.github/update-make-docs.yml   @jdbaldry @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
-/.github/website-next.yml       @jdbaldry @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
-/.github/website-versioned.yml  @jdbaldry @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
-/docs/docs.mk                   @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
-/docs/make-docs                 @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
-/docs/Makefile                  @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
-/docs/variables.mk              @jdbaldry @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham @zhxiaogg
-/modules/frontend/docs/         @knylander-grafana @mdisibio @mapno @yvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar @carles-grafana @ruslan-mikhailov @mattdurham  @zhxiaogg
+/.github/backport.yml           @grafana/tempo @grafana/docs-traces
+/.github/update-make-docs.yml   @grafana/tempo @grafana/docs-traces
+/.github/website-next.yml       @grafana/tempo @grafana/docs-traces
+/.github/website-versioned.yml  @grafana/tempo @grafana/docs-traces
+/docs/docs.mk                   @grafana/tempo @grafana/docs-traces
+/docs/make-docs                 @grafana/tempo @grafana/docs-traces
+/docs/Makefile                  @grafana/tempo @grafana/docs-traces
+/docs/variables.mk              @grafana/tempo @grafana/docs-traces
+/modules/frontend/docs/         @grafana/tempo @grafana/docs-traces

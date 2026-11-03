@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/modules/distributor/usage"
-	"github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	"github.com/grafana/tempo/pkg/spanfilter"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v3/modules/distributor/usage"
+	"github.com/grafana/tempo/v3/modules/generator/processor"
+	"github.com/grafana/tempo/v3/modules/generator/registry"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
+	"github.com/grafana/tempo/v3/pkg/spanfilter"
+	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/util/strutil"
@@ -148,6 +148,13 @@ func ValidateHistogramBuckets(buckets []float64, field string) error {
 		if i > 0 && bucket <= buckets[i-1] {
 			return fmt.Errorf("%s must be strictly increasing: bucket[%d]=%g is <= bucket[%d]=%g", field, i, bucket, i-1, buckets[i-1])
 		}
+	}
+	return nil
+}
+
+func ValidateServiceGraphsMaxItems(maxItems int) error {
+	if maxItems <= 0 {
+		return fmt.Errorf("metrics_generator.processor.service_graphs.max_items must be greater than zero, got %d", maxItems)
 	}
 	return nil
 }

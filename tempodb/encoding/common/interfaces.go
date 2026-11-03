@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-kit/log"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 type Finder interface {
@@ -43,6 +43,9 @@ type SearchOptions struct {
 	PrefetchTraceCount int    // How many traces to prefetch async.
 	ReadBufferCount    int
 	ReadBufferSize     int
+
+	// TraceByIDReadBufferSize overrides ReadBufferSize for trace-by-ID lookups. <= 0 keeps ReadBufferSize.
+	TraceByIDReadBufferSize int
 }
 
 // DefaultSearchOptions is used in a lot of places such as local ingester searches. It is important
@@ -52,9 +55,10 @@ type SearchOptions struct {
 // tempodb.SearchConfig{}.ApplyToOptions(&searchOpts). we should consolidate these.
 func DefaultSearchOptions() SearchOptions {
 	return SearchOptions{
-		ReadBufferCount: 32,
-		ReadBufferSize:  1024 * 1024,
-		ChunkSizeBytes:  4 * 1024 * 1024,
+		ReadBufferCount:         32,
+		ReadBufferSize:          2 * 1024 * 1024,
+		TraceByIDReadBufferSize: 512 * 1024,
+		ChunkSizeBytes:          4 * 1024 * 1024,
 	}
 }
 
@@ -80,6 +84,7 @@ type CompactionOptions struct {
 	ObjectsCombined   func(compactionLevel, objects int)
 	ObjectsWritten    func(compactionLevel, objects int)
 	BytesWritten      func(compactionLevel, bytes int)
+	TraceWritten      func(compactionLevel, bytes int)
 	SpansDiscarded    func(traceID string, rootSpanName string, rootServiceName string, spans int)
 	DisconnectedTrace func()
 	RootlessTrace     func()

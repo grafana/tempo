@@ -11,8 +11,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 func TestQuerierSpanAttributesAndMetrics(t *testing.T) {
@@ -317,7 +317,9 @@ func TestTraceByIDSpanAttributesAndMetrics(t *testing.T) {
 		BlockEnd:          "block-end",
 		QueryMode:         QueryModeAll,
 		AllowPartialTrace: true,
-	}, start, end)
+		Start:             start,
+		End:               end,
+	})
 	require.NoError(t, err)
 	finishQuerierSpan(span, nil, &tempopb.TraceByIDMetrics{
 		InspectedBytes: 11,

@@ -5,9 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
+	commonv1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	tracev1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
 func TestStaticFromArray(t *testing.T) {

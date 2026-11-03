@@ -4,6 +4,7 @@
 package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -19,8 +20,8 @@ var _ component.Config = (*Config)(nil)
 
 // Config defines configuration for Kafka receiver.
 type Config struct {
-	configkafka.ClientConfig   `mapstructure:",squash"`
-	configkafka.ConsumerConfig `mapstructure:",squash"`
+	ClientConfig   configkafka.ClientConfig   `mapstructure:",squash"`
+	ConsumerConfig configkafka.ConsumerConfig `mapstructure:",squash"`
 
 	// Logs holds configuration about how logs should be consumed.
 	Logs TopicEncodingConfig `mapstructure:"logs"`
@@ -36,6 +37,10 @@ type Config struct {
 
 	// MessageMarking controls the way the messages are marked as consumed.
 	MessageMarking MessageMarking `mapstructure:"message_marking"`
+
+	// PartitionProcessing controls optional independent processing of assigned
+	// topic partitions.
+	PartitionProcessing PartitionProcessing `mapstructure:"partition_processing"`
 
 	// HeaderExtraction controls extraction of headers from Kafka records.
 	HeaderExtraction HeaderExtraction `mapstructure:"header_extraction"`
@@ -91,6 +96,12 @@ func (c *Config) Validate() error {
 	}
 	if err := validateExcludeTopic("profiles", c.Profiles.Topics, c.Profiles.ExcludeTopics); err != nil {
 		return err
+	}
+	if c.PartitionProcessing.Independent && c.PartitionProcessing.MaxBufferedBatches <= 0 {
+		return errors.New("partition_processing.max_buffered_batches must be greater than zero")
+	}
+	if c.PartitionProcessing.Independent && !c.ConsumerConfig.AutoCommit.Enable {
+		return errors.New("partition_processing.independent requires autocommit.enable")
 	}
 	return nil
 }
@@ -174,6 +185,17 @@ type MessageMarking struct {
 	// Note: this can block the entire partition in case a message processing returns
 	// a permanent error.
 	OnPermanentError bool `mapstructure:"on_permanent_error"`
+}
+
+// PartitionProcessing controls optional ordered, independent processing of
+// assigned Kafka partitions.
+type PartitionProcessing struct {
+	// Independent enables ordered processing by independent partition workers.
+	Independent bool `mapstructure:"independent"`
+
+	// MaxBufferedBatches bounds the number of fetched batches waiting for each
+	// partition worker.
+	MaxBufferedBatches int `mapstructure:"max_buffered_batches"`
 }
 
 type HeaderExtraction struct {

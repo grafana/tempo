@@ -3,7 +3,6 @@
 
 The Jaeger Receiver receives trace data in the [Jaeger](https://www.jaegertracing.io/) format.
 
-
 | Status        |           |
 | ------------- |-----------|
 | Stability     | [beta]: traces   |

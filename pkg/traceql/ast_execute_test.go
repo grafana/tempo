@@ -1740,6 +1740,70 @@ func TestBinaryOperationsWorkAcrossNumberTypes(t *testing.T) {
 	}
 }
 
+func TestBinaryOperationsOrShortCircuitsOnMissingAttribute(t *testing.T) {
+	testCases := []evalTC{
+		{
+			"{ true || .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+		},
+		{
+			"{ .cache.hit || .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("cache.hit"): NewStaticBool(true)}},
+			}}},
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("cache.hit"): NewStaticBool(true)}},
+			}}},
+		},
+		{
+			// reversed operand order: the missing attribute resolves first
+			"{ .does_not_exist || true }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+		},
+		{
+			// && must still correctly reject when the resolved operand is false,
+			// regardless of the other operand being a missing attribute
+			"{ false && .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{},
+		},
+		{
+			// a resolved true on one side of && must not short-circuit past a
+			// missing attribute on the other side
+			"{ true && .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{},
+		},
+		{
+			// a resolved false on either side of || must still fall through to
+			// the missing-attribute handling rather than being forced true
+			"{ false || .does_not_exist }",
+			[]*Spanset{{Spans: []Span{
+				&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{}},
+			}}},
+			[]*Spanset{},
+		},
+	}
+
+	for _, tc := range testCases {
+		testEvaluator(t, tc)
+	}
+}
+
 func TestBinOp(t *testing.T) {
 	testCases := []struct {
 		op        Operator
@@ -1942,6 +2006,11 @@ func TestArithmetic(t *testing.T) {
 			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
 		},
 		{
+			"{ 2 ^ 10 = 1024 }",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
+		},
+		{
 			"{ 2m + 2m = 4m }",
 			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
 			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(1), NewAttribute("bar"): NewStaticFloat(1)}}}}},
@@ -2004,6 +2073,11 @@ func TestArithmetic(t *testing.T) {
 			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3), NewAttribute("bar"): NewStaticFloat(7)}}}}},
 		},
 		{
+			"{ .foo ^ 2 = 9 }",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3), NewAttribute("bar"): NewStaticFloat(7)}}}}},
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3), NewAttribute("bar"): NewStaticFloat(7)}}}}},
+		},
+		{
 			"{ .bar % 2 = .foo - 2 }",
 			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3), NewAttribute("bar"): NewStaticFloat(7)}}}}},
 			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3), NewAttribute("bar"): NewStaticFloat(7)}}}}},
@@ -2021,6 +2095,11 @@ func TestArithmetic(t *testing.T) {
 		},
 		{
 			"{ 2 ^ (.bar * .foo) != 2097152}",
+			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3), NewAttribute("bar"): NewStaticFloat(7)}}}}},
+			[]*Spanset{},
+		},
+		{
+			"{ .foo ^ 2 != 9 }",
 			[]*Spanset{{Spans: []Span{&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticInt(3), NewAttribute("bar"): NewStaticFloat(7)}}}}},
 			[]*Spanset{},
 		},
@@ -2273,6 +2352,26 @@ func TestIntPow(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := intPow(tc.base, tc.exp)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestBinOpExecuteScalarPower(t *testing.T) {
+	tests := []struct {
+		name string
+		lhs  Static
+		rhs  Static
+		want Static
+	}{
+		{"int", NewStaticInt(2), NewStaticInt(10), NewStaticInt(1024)},
+		{"float", NewStaticFloat(2), NewStaticFloat(10), NewStaticFloat(1024)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, _, err := binOpExecuteScalar(OpPower, tc.lhs, tc.rhs, nil)
+			require.NoError(t, err)
 			require.Equal(t, tc.want, got)
 		})
 	}

@@ -11,9 +11,10 @@ import (
 
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/grpcutil"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/go-kit/log"
@@ -21,7 +22,7 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/user"
 
-	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/grafana/tempo/v3/pkg/util/tracing"
 )
 
 const (
@@ -41,19 +42,28 @@ type handler struct {
 	roundTripper           http.RoundTripper
 	logger                 log.Logger
 	logQueryRequestHeaders flagext.StringSliceCSV
+	queryTracker           tracker
 }
 
 // newHandler creates a handler
-func newHandler(LogQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger) http.Handler {
+func newHandler(logQueryRequestHeaders flagext.StringSliceCSV, rt http.RoundTripper, logger log.Logger, queryTracker tracker) http.Handler {
 	return &handler{
-		logQueryRequestHeaders: LogQueryRequestHeaders,
+		logQueryRequestHeaders: logQueryRequestHeaders,
 		roundTripper:           rt,
 		logger:                 logger,
+		queryTracker:           queryTracker,
 	}
 }
 
 // ServeHTTP implements http.Handler
 func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer f.queryTracker.track(r.Context(), r.Method, r.URL.Path, func() string {
+		params := r.URL.Query()
+		if query := params.Get("q"); query != "" {
+			return query
+		}
+		return params.Get("query")
+	})()
 	defer func() {
 		_ = r.Body.Close()
 	}()
@@ -116,9 +126,17 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// write headers, status code and body
 	copyHeader(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
+	span.AddEvent("http.response.write.start")
+	var written int64
 	if resp.Body != nil {
-		_, _ = io.Copy(w, resp.Body)
+		var writeErr error
+		written, writeErr = io.Copy(w, resp.Body)
+		if writeErr != nil {
+			span.SetStatus(codes.Error, "response body write failed")
+		}
 	}
+	span.SetAttributes(attribute.Int64("response_bytes", written))
+	span.AddEvent("http.response.write.done")
 
 	// request/response logging
 	var contentLength int64

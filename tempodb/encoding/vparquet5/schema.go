@@ -2,18 +2,19 @@ package vparquet5
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/parquet-go/parquet-go"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 // Label names for conversion b/n Proto <> Parquet
@@ -569,7 +570,39 @@ func writeAttrs(input []*v1.KeyValue, generic *[]Attribute, dedicated *Dedicated
 // as a boolean indicating whether the trace is a connected graph.
 func finalizeTrace(trace *Trace) (*Trace, bool) {
 	rebatchTrace(trace)
+	sortTrace(trace)
 	return trace, assignNestedSetModelBoundsAndServiceStats(trace)
+}
+
+func sortTrace(trace *Trace) {
+	for _, rs := range trace.ResourceSpans {
+		slices.SortStableFunc(rs.ScopeSpans, func(i, j ScopeSpans) int {
+			return strings.Compare(i.Scope.Name, j.Scope.Name)
+		})
+		for _, ss := range rs.ScopeSpans {
+			slices.SortStableFunc(ss.Spans, func(i, j Span) int {
+				if i.Name != j.Name {
+					return strings.Compare(i.Name, j.Name)
+				}
+				return i.StatusCode - j.StatusCode
+			})
+		}
+	}
+	slices.SortStableFunc(trace.ResourceSpans, func(i, j ResourceSpans) int {
+		// Sort by service name first.
+		if i.Resource.ServiceName != j.Resource.ServiceName {
+			return strings.Compare(i.Resource.ServiceName, j.Resource.ServiceName)
+		}
+
+		// Identical services, then sort by first span name if available.
+		if len(i.ScopeSpans) == 0 || len(i.ScopeSpans[0].Spans) == 0 {
+			return -1
+		}
+		if len(j.ScopeSpans) == 0 || len(j.ScopeSpans[0].Spans) == 0 {
+			return 1
+		}
+		return strings.Compare(i.ScopeSpans[0].Spans[0].Name, j.ScopeSpans[0].Spans[0].Name)
+	})
 }
 
 func instrumentationScopeToParquet(s *v1.InstrumentationScope, ss *InstrumentationScope) {

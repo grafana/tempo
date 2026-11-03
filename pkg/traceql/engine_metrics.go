@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	commonv1proto "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/log"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 )
@@ -1241,10 +1241,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 
 func (e *Engine) applySampleHints(expr *RootExpr, pipeline Pipeline, req *FetchSpansRequest, allowUnsafeHints bool) {
 	// Debug sampling hints, remove once we settle on approach.
-	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeHints); traceSampleOk {
+	if traceSample, traceSampleOk := expr.Hints.GetFloat(HintTraceSample, allowUnsafeHints); traceSampleOk && validSampleFraction(traceSample) {
 		req.TraceSampler = newProbablisticSampler(traceSample)
 	}
-	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeHints); spanSampleOk {
+	if spanSample, spanSampleOk := expr.Hints.GetFloat(HintSpanSample, allowUnsafeHints); spanSampleOk && validSampleFraction(spanSample) {
 		req.SpanSampler = newProbablisticSampler(spanSample)
 	}
 
@@ -1267,7 +1267,7 @@ func (e *Engine) applySampleHints(expr *RootExpr, pipeline Pipeline, req *FetchS
 		}
 	}
 
-	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, allowUnsafeHints); ok && sampleFraction > 0 && sampleFraction < 1 {
+	if sampleFraction, ok := expr.Hints.GetFloat(HintSample, allowUnsafeHints); ok && validSampleFraction(sampleFraction) {
 		// Fixed sampling rate.
 		s := newProbablisticSampler(sampleFraction)
 

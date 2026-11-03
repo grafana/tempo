@@ -11,16 +11,16 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	resourcev1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	tempo_util "github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/modules/generator/processor/servicegraphs/store"
+	"github.com/grafana/tempo/v3/modules/generator/registry"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	resourcev1 "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	tracev1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	tempo_util "github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/model"
@@ -348,6 +348,17 @@ func TestServiceGraphs_applyFilterPolicy(t *testing.T) {
 	}
 }
 
+func TestServiceGraphs_invalidMaxItems(t *testing.T) {
+	for _, maxItems := range []int{0, -1} {
+		cfg := Config{}
+		cfg.RegisterFlagsAndApplyDefaults("", nil)
+		cfg.MaxItems = maxItems
+
+		_, err := New(cfg, "test", &registry.TestRegistry{}, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+		require.ErrorContains(t, err, "max_items must be greater than zero")
+	}
+}
+
 func TestServiceGraphs_tooManySpansErr(t *testing.T) {
 	testRegistry := registry.TestRegistry{}
 
@@ -628,6 +639,19 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
+}
+
+func TestServiceGraphs_virtualNodeLabelDoesNotChangeConfig(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableVirtualNodeLabel = true
+
+	p, err := New(cfg, "test", registry.NewTestRegistry(), log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	// The instance replaces the processor whenever these differ.
+	require.Equal(t, cfg, p.(*Processor).Cfg)
 }
 
 func TestServiceGraphs_expiredEdges(t *testing.T) {

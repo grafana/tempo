@@ -41,15 +41,21 @@ The MCP server exposes the following tools that AI assistants can use to interac
 | `traceql-metrics-instant` | Retrieve a single metric value given a TraceQL metrics query            |
 | `traceql-metrics-range`   | Retrieve a metric series given a TraceQL metrics query                  |
 | `get-trace`               | Retrieve a specific trace by ID                                         |
-| `trace-diff`              | Compare two complete traces and return their differences                |
+| `traces-diff`             | Compare two complete traces and return their differences                |
 | `get-attribute-names`     | Get available attribute names for use in TraceQL queries                |
 | `get-attribute-values`    | Get values for a specific scoped attribute name                         |
 | `docs-traceql`            | Retrieve TraceQL documentation (basic, aggregates, structural, metrics) |
 | `docs-config`             | Retrieve Tempo configuration documentation (overview, reference)        |
 
+### Retrieve a trace
+
+The `get-trace` tool takes a `trace_id`. The optional `start` and `end` arguments limit the
+lookup to an RFC3339 time range; both must be provided together. Tempo searches all blocks
+for the trace when the range is omitted, so provide a range when it is known.
+
 ### Compare traces
 
-The experimental `trace-diff` tool compares a baseline trace with another complete trace.
+The experimental `traces-diff` tool compares a baseline trace with another complete trace.
 Provide `base_trace_id` and `compare_trace_id`. By default, the tool returns
 `trace-summary-v0-composed`, which always contains a compact summary and includes the full
 span-level patch when the patch is no larger than 64 KiB. The 64 KiB limit applies only

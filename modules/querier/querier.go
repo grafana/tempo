@@ -22,21 +22,21 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	livestore_client "github.com/grafana/tempo/modules/livestore/client"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/querier/external"
-	"github.com/grafana/tempo/modules/querier/worker"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/search"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/validation"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	livestore_client "github.com/grafana/tempo/v3/modules/livestore/client"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/querier/external"
+	"github.com/grafana/tempo/v3/modules/querier/worker"
+	"github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/collector"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/search"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/validation"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 var tracer = otel.Tracer("modules/querier")
@@ -193,17 +193,25 @@ func (q *Querier) stopping(_ error) error {
 	return nil
 }
 
+// ErrTraceByIDBlocksRequired fails a job with no blocks, because a querier without a blocklist would miss every backend trace.
+var ErrTraceByIDBlocksRequired = errors.New("query-frontend must send the blocks to search when querier blocklist polling is disabled")
+
 // FindTraceByID implements tempopb.Querier.
-func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart, timeEnd time.Time) (resp *tempopb.TraceByIDResponse, err error) {
+func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (resp *tempopb.TraceByIDResponse, err error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, errors.New("invalid trace id")
 	}
 
-	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req, timeStart, timeEnd)
+	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}
 	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+
+	// TODO: remove with querier blocklist polling, then always require blocks for blocks and all modes
+	if req.Blocks == nil && !q.cfg.BlocklistPolling && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
+		return nil, ErrTraceByIDBlocksRequired
+	}
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
 	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
@@ -250,14 +258,14 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.AddEvent("searching store", oteltrace.WithAttributes(
-			attribute.String("timeStart", timeStart.String()),
-			attribute.String("timeEnd", timeEnd.String()),
+			attribute.String("timeStart", req.Start.String()),
+			attribute.String("timeEnd", req.End.String()),
 		))
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 
 		findStart := time.Now()
-		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
+		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req, opts)
 		observeBackendProcessing(api.OpTraceByID, userID, findStart)
 		if err != nil {
 			return nil, fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)
@@ -287,10 +295,10 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		if req.QueryMode == QueryModeExternal || req.QueryMode == QueryModeAll {
 			span.AddEvent("searching external", oteltrace.WithAttributes(
 				attribute.String("traceID", hex.EncodeToString(req.TraceID)),
-				attribute.String("timeStart", timeStart.String()),
-				attribute.String("timeEnd", timeEnd.String()),
+				attribute.String("timeStart", req.Start.String()),
+				attribute.String("timeEnd", req.End.String()),
 			))
-			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, timeStart, timeEnd)
+			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, req.Start, req.End)
 			if err != nil {
 				return nil, fmt.Errorf("error querying external in Querier.FindTraceByID: %w", err)
 			}
@@ -334,7 +342,7 @@ func (q *Querier) forLiveStoreRing(ctx context.Context, f forEachFn) ([]any, err
 		return nil, errors.New("forLiveStoreRing: partition ring is not configured")
 	}
 
-	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
+	rs, err := q.liveStoreReplicationSets(time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
 	}
@@ -354,7 +362,7 @@ func (q *Querier) forLiveStoreMetricsRing(ctx context.Context, f forEachMetricsF
 	if q.partitionRing == nil {
 		return nil, errors.New("forLiveStoreMetricsRing: partition ring is not configured")
 	}
-	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
+	rs, err := q.liveStoreReplicationSets(time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
 	}
@@ -753,7 +761,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	var inspectedBytes uint64
 
 	fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
-		return q.store.FetchTagNames(ctx, meta, req, cb, func(bytesRead uint64) { inspectedBytes += bytesRead }, common.DefaultSearchOptions())
+		return q.store.FetchTagNames(ctx, meta, req, cb, func(bytesRead uint64) { inspectedBytes += bytesRead }, opts)
 	})
 
 	scope := traceql.AttributeScopeFromString(req.SearchReq.Scope)

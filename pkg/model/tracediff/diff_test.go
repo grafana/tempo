@@ -6,9 +6,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	commonv1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	tracev1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

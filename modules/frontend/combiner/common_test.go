@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +13,9 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -105,6 +106,23 @@ func TestInitHttpCombiner(t *testing.T) {
 	require.Equal(t, api.MarshallingFormatJSON, combiner.httpMarshalingFormat)
 }
 
+func TestGenericCombinerUsesCustomJSONMarshaler(t *testing.T) {
+	called := false
+	combiner := &genericCombiner[*tempopb.ServiceStats]{
+		httpMarshalingFormat: api.MarshallingFormatJSON,
+		marshalJSON: func(*tempopb.ServiceStats) ([]byte, error) {
+			called = true
+			return []byte(`{"custom":true}`), nil
+		},
+	}
+
+	body, contentType, err := combiner.internalMarshalAs(context.Background(), &tempopb.ServiceStats{})
+	require.NoError(t, err)
+	require.True(t, called)
+	require.Equal(t, string(api.MarshallingFormatJSON), contentType)
+	require.JSONEq(t, `{"custom":true}`, string(body))
+}
+
 func TestGenericCombiner(t *testing.T) {
 	combiner := newTestCombiner()
 
@@ -123,7 +141,7 @@ func TestGenericCombiner(t *testing.T) {
 	}
 
 	wg.Wait()
-	actual, err := combiner.finalize(nil)
+	actual, err := combiner.finalize(context.Background(), nil)
 	require.NoError(t, err)
 
 	expected := 10 * 10000
@@ -157,7 +175,7 @@ func TestGenericCombinerHoldsErrors(t *testing.T) {
 	}()
 
 	wg.Wait()
-	resp, err := combiner.HTTPFinal()
+	resp, err := combiner.HTTPFinal(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 }
@@ -200,11 +218,11 @@ func TestGenericCombinerDoesntRace(t *testing.T) {
 	})
 
 	concurrent(func() {
-		_, _ = combiner.HTTPFinal()
+		_, _ = combiner.HTTPFinal(context.Background())
 	})
 
 	concurrent(func() {
-		_, _ = combiner.GRPCFinal()
+		_, _ = combiner.GRPCFinal(context.Background())
 	})
 
 	concurrent(func() {
@@ -266,7 +284,7 @@ func newTestCombiner() *genericCombiner[*tempopb.ServiceStats] {
 			count++
 			return nil
 		},
-		finalize: func(_ *tempopb.ServiceStats) (*tempopb.ServiceStats, error) {
+		finalize: func(_ context.Context, _ *tempopb.ServiceStats) (*tempopb.ServiceStats, error) {
 			return &tempopb.ServiceStats{
 				SpanCount:  uint32(count),
 				ErrorCount: uint32(count),

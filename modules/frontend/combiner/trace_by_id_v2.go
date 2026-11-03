@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,10 +9,10 @@ import (
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	spanpruningprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/spanpruning"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/spanpruning"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 // TraceFilter runs on a complete trace and applies a filter to it.
@@ -29,14 +30,14 @@ type TraceByIDV2Options struct {
 	TraceFilter TraceFilter
 }
 
-func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options) GRPCCombiner[*tempopb.TraceByIDResponse] {
-	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor, opts).(GRPCCombiner[*tempopb.TraceByIDResponse])
+func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options, copts ...Option) GRPCCombiner[*tempopb.TraceByIDResponse] {
+	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor, opts, copts...).(GRPCCombiner[*tempopb.TraceByIDResponse])
 }
 
-func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options) Combiner {
+func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options, copts ...Option) Combiner {
 	combiner := trace.NewCombiner(maxBytes, true)
 	var partialTrace bool
-	metricsCombiner := NewTraceByIDMetricsCombiner()
+	metricsCombiner := NewTraceByIDMetricsCombiner(copts...)
 	gc := &genericCombiner[*tempopb.TraceByIDResponse]{
 		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, pipelineResp PipelineResponse) error {
 			if partial.Status == tempopb.PartialStatus_PARTIAL {
@@ -48,18 +49,15 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			_, err := combiner.Consume(partial.Trace)
 			return err
 		},
-		finalize: func(resp *tempopb.TraceByIDResponse) (*tempopb.TraceByIDResponse, error) {
+		finalize: func(ctx context.Context, resp *tempopb.TraceByIDResponse) (*tempopb.TraceByIDResponse, error) {
 			traceResult, _ := combiner.Result()
 			if traceResult == nil {
 				traceResult = &tempopb.Trace{}
 			}
 
-			// dedupe duplicate span ids
-			deduper := newDeduper()
-			traceResult = deduper.dedupe(traceResult)
+			traceResult = deduplicateTrace(ctx, traceResult)
 			if traceRedactor != nil {
-				err := traceRedactor.RedactTraceAttributes(traceResult)
-				if err != nil {
+				if err := redactTrace(ctx, traceResult, traceRedactor); err != nil {
 					return nil, err
 				}
 			}
@@ -123,8 +121,9 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 
 			return resp, nil
 		},
-		new:     func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
-		current: &tempopb.TraceByIDResponse{},
+		new:         func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
+		current:     &tempopb.TraceByIDResponse{},
+		marshalJSON: tempopb.MarshalTraceByIDResponseToJSON,
 	}
 	initHTTPCombiner(gc, marshalingFormat)
 	return gc

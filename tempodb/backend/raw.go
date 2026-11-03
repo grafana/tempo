@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
 )
 
 const (
@@ -65,8 +65,8 @@ type RawWriter interface {
 type RawReader interface {
 	// List returns all objects one level beneath the provided keypath
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
-	// ListBlocks returns all blockIDs and compactedBlockIDs for a tenant.
-	ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
+	// ListBlocks returns all blockIDs, compactedBlockIDs and the IDs of blocks with a nocompact flag for a tenant.
+	ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, noCompactBlockIDs []uuid.UUID, err error)
 	// Find executes the FindFunc for each object in the backend starting at the specified keypath.  Collection of these objects is the callers responsibility.
 	Find(ctx context.Context, keypath KeyPath, f FindFunc) error
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
@@ -97,7 +97,7 @@ func NewWriter(w RawWriter) Writer {
 
 // Write implements backend.Writer
 func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, cacheInfo *CacheInfo) error {
-	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), bytes.NewReader(buffer), int64(len(buffer)), cacheInfo)
+	return w.w.Write(withRole(ctx, cacheInfo), name, KeyPathForBlock(blockID, tenantID), bytes.NewReader(buffer), int64(len(buffer)), cacheInfo)
 }
 
 // Write implements backend.Writer
@@ -131,7 +131,7 @@ func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 }
 
 // Write implements backend.Writer
-func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta, noCompact []UUID) error {
 	// If meta and compactedMeta are empty, call delete the tenant index.
 	if len(meta) == 0 && len(compactedMeta) == 0 {
 		// Skip returning an error when the object is already deleted.
@@ -148,7 +148,7 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 		return nil
 	}
 
-	b := newTenantIndex(meta, compactedMeta)
+	b := newTenantIndex(meta, compactedMeta, noCompact)
 
 	// Marshal and write the proto object.
 	indexBytesPb, err := b.marshalPb()
@@ -198,7 +198,7 @@ func NewReader(r RawReader) Reader {
 
 // Read implements backend.Reader
 func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, cacheInfo *CacheInfo) ([]byte, error) {
-	objReader, size, err := r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), cacheInfo)
+	objReader, size, err := r.r.Read(withRole(ctx, cacheInfo), name, KeyPathForBlock(blockID, tenantID), cacheInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,32 @@ func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUI
 
 // ReadRange implements backend.Reader
 func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, cacheInfo *CacheInfo) error {
-	return r.r.ReadRange(ctx, name, KeyPathForBlock(blockID, tenantID), offset, buffer, cacheInfo)
+	return r.r.ReadRange(withRole(ctx, cacheInfo), name, KeyPathForBlock(blockID, tenantID), offset, buffer, cacheInfo)
+}
+
+// withRole tags ctx with the cache role so backend request metrics can be split by it.
+func withRole(ctx context.Context, cacheInfo *CacheInfo) context.Context {
+	if cacheInfo == nil {
+		return ctx
+	}
+	return ContextWithRole(ctx, string(cacheInfo.Role))
+}
+
+const RoleNone = "none"
+
+type roleKey struct{}
+
+// ContextWithRole tags backend requests made with ctx with role, e.g. the cache role of the object.
+func ContextWithRole(ctx context.Context, role string) context.Context {
+	return context.WithValue(ctx, roleKey{}, role)
+}
+
+// RoleFromContext returns the role set by ContextWithRole, or RoleNone.
+func RoleFromContext(ctx context.Context) string {
+	if role, ok := ctx.Value(roleKey{}).(string); ok && role != "" {
+		return role
+	}
+	return RoleNone
 }
 
 // Tenants implements backend.Reader
@@ -232,7 +257,7 @@ func (r *reader) Tenants(ctx context.Context) ([]string, error) {
 }
 
 // Blocks implements backend.Reader
-func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, []uuid.UUID, error) {
 	return r.r.ListBlocks(ctx, tenantID)
 }
 
@@ -252,7 +277,7 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	out := &BlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
-		return nil, err
+		return nil, MetaDecodeError(err)
 	}
 
 	return out, nil

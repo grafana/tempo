@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: compactor
+note: Stop retrying retention on compacted blocks that are already gone from the backend.
+issues: []
+subtext:
+user: zhxiaogg

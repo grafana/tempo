@@ -21,7 +21,7 @@ import (
 type SimpleValue uint8
 
 var (
-	typeSimpleValue = reflect.TypeOf(SimpleValue(0))
+	typeSimpleValue = reflect.TypeFor[SimpleValue]()
 )
 
 // MarshalCBOR encodes SimpleValue as CBOR simple value (major type 7).
@@ -81,7 +81,7 @@ func (sv *SimpleValue) unmarshalCBOR(data []byte) error {
 
 	d := decoder{data: data, dm: defaultDecMode}
 
-	typ, ai, val := d.getHead()
+	typ, ai, val := d.readHead()
 
 	if typ != cborTypePrimitives {
 		return &UnmarshalTypeError{CBORType: typ.String(), GoType: "SimpleValue"}
@@ -93,6 +93,6 @@ func (sv *SimpleValue) unmarshalCBOR(data []byte) error {
 	// It is safe to cast val to uint8 here because
 	// - data is already verified to be well-formed CBOR simple value and
 	// - val is <= math.MaxUint8.
-	*sv = SimpleValue(val)
+	*sv = SimpleValue(val) //nolint:gosec
 	return nil
 }

@@ -56,6 +56,8 @@ Tempo integrates well with a number of open source tools:
 - **Grafana Loki**, with its powerful query language LogQL v2 lets you filter requests that you care about, and jump to traces using the [Derived fields support in Grafana](/docs/grafana/latest/datasources/loki).
 - **Prometheus exemplars** let you jump from Prometheus metrics to Tempo traces by clicking on recorded exemplars.
 
+{{< docs/play title="Traces Drilldown" url="https://play.grafana.org/a/grafana-exploretraces-app/explore" >}}
+
 ## Explore
 
 {{< card-grid key="cards" type="simple" >}}

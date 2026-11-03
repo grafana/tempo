@@ -6,12 +6,12 @@ import (
 	"math"
 	"time"
 
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/sampling"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/pkg/sampling"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -1291,6 +1291,11 @@ type spanCollector2 struct {
 	at    span
 	atRes parquetquery.IteratorResult
 
+	// The first-pass span carries trace and resource attributes that are the same for every
+	// span in the trace or batch, so they are copied once, not once per span.
+	firstPassTraceCopied    bool
+	firstPassResourceCopied bool
+
 	name string
 }
 
@@ -1320,12 +1325,14 @@ func (c *spanCollector2) Reset(rowNumber parquetquery.RowNumber) {
 	case rowNumber[DefinitionLevelTrace] != c.at.rowNum[DefinitionLevelTrace]:
 		// New trace
 		c.at.traceAttrs = c.at.traceAttrs[:0]
+		c.firstPassTraceCopied = false
 		clear(c.spansetBuffer.ServiceStats)
 		c.spansetBuffer.StartTimeUnixNanos = 0
 		fallthrough
 	case rowNumber[DefinitionLevelResourceSpans] != c.at.rowNum[DefinitionLevelResourceSpans]:
 		// New batch
 		c.at.resourceAttrs = c.at.resourceAttrs[:0]
+		c.firstPassResourceCopied = false
 		fallthrough
 	case rowNumber[DefinitionLevelInstrumentationScope] != c.at.rowNum[DefinitionLevelInstrumentationScope]:
 		// New instrumentation scope
@@ -1362,8 +1369,14 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 			sp.startTimeUnixNanos = v.startTimeUnixNanos
 			sp.durationNanos = v.durationNanos
 			sp.spanAttrs = append(sp.spanAttrs, v.spanAttrs...)
-			sp.traceAttrs = append(sp.traceAttrs, v.traceAttrs...)
-			sp.resourceAttrs = append(sp.resourceAttrs, v.resourceAttrs...)
+			if !c.firstPassTraceCopied {
+				sp.traceAttrs = append(sp.traceAttrs, v.traceAttrs...)
+				c.firstPassTraceCopied = true
+			}
+			if !c.firstPassResourceCopied {
+				sp.resourceAttrs = append(sp.resourceAttrs, v.resourceAttrs...)
+				c.firstPassResourceCopied = true
+			}
 			sp.eventAttrs = append(sp.eventAttrs, v.eventAttrs...)
 			sp.linkAttrs = append(sp.linkAttrs, v.linkAttrs...)
 			sp.nestedSetParent = v.nestedSetParent

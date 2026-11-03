@@ -5,6 +5,7 @@ package kafka // import "github.com/open-telemetry/opentelemetry-collector-contr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"strings"
@@ -69,6 +70,7 @@ func NewFranzSyncProducer(
 		kgo.ProducerBatchCompression(codec),
 		kgo.ProducerLinger(cfg.Linger),
 		kgo.ProducerBatchMaxBytes(int32(cfg.MaxMessageBytes)),
+		kgo.BrokerMaxWriteBytes(int32(cfg.MaxBrokerWriteBytes)),
 		kgo.MaxBufferedRecords(cfg.FlushMaxMessages),
 	)...)
 	if err != nil {
@@ -162,8 +164,10 @@ func NewFranzConsumerGroup(
 		opts = append(opts, kgo.InstanceID(consumerCfg.GroupInstanceID))
 	}
 
-	// Configure rebalance strategy
-	balancerOpt, err := balancerOptFromStrategy(consumerCfg.GroupRebalanceStrategy, host)
+	balancerOpt, err := balancerOptFromStrategies(
+		consumerCfg.GroupRebalanceStrategies,
+		host,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -203,39 +207,72 @@ func NewFranzClusterAdminClient(
 	return kadm.NewClient(cl), cl, nil
 }
 
-// balancerOptFromStrategy returns a kgo.Opt that sets the group balancer, or
-// nil if strategy is empty (franz-go default applies). Built-in strategy names
-// map to the corresponding kgo balancer. Any other value is treated as a
-// component ID referencing an extension that implements kgo.GroupBalancer.
-func balancerOptFromStrategy(strategy configkafka.GroupRebalanceStrategy, host component.Host) (kgo.Opt, error) {
+// balancerOptFromStrategies returns a kgo.Opt that sets the group balancers, or
+// nil if no strategy is configured (franz-go default applies). The deprecated
+// singular strategy and the strategies list are mutually exclusive (enforced by
+// ConsumerConfig.Validate).
+func balancerOptFromStrategies(
+	strategies []configkafka.GroupRebalanceStrategy,
+	host component.Host,
+) (kgo.Opt, error) {
+	if len(strategies) == 0 {
+		return nil, nil
+	}
+
+	balancers, err := balancersFromStrategies(strategies, host)
+	if err != nil {
+		return nil, err
+	}
+	return kgo.Balancers(balancers...), nil
+}
+
+func balancersFromStrategies(strategies []configkafka.GroupRebalanceStrategy, host component.Host) ([]kgo.GroupBalancer, error) {
+	balancers := make([]kgo.GroupBalancer, 0, len(strategies))
+	for i, strategy := range strategies {
+		field := fmt.Sprintf("group_rebalance_strategies[%d]", i)
+		balancer, err := balancerFromStrategy(strategy, field, host)
+		if err != nil {
+			return nil, err
+		}
+		if balancer != nil {
+			balancers = append(balancers, balancer)
+		}
+	}
+	if len(balancers) == 0 {
+		return nil, errors.New("group_rebalance_strategies has no valid group rebalance strategies")
+	}
+	return balancers, nil
+}
+
+func balancerFromStrategy(strategy configkafka.GroupRebalanceStrategy, field string, host component.Host) (kgo.GroupBalancer, error) {
 	switch strategy {
 	case "":
 		return nil, nil
 	case configkafka.RangeBalanceStrategy:
-		return kgo.Balancers(kgo.RangeBalancer()), nil
+		return kgo.RangeBalancer(), nil
 	case configkafka.RoundRobinBalanceStrategy:
-		return kgo.Balancers(kgo.RoundRobinBalancer()), nil
+		return kgo.RoundRobinBalancer(), nil
 	case configkafka.StickyBalanceStrategy:
-		return kgo.Balancers(kgo.StickyBalancer()), nil
+		return kgo.StickyBalancer(), nil
 	case configkafka.CooperativeStickyBalanceStrategy:
-		return kgo.Balancers(kgo.CooperativeStickyBalancer()), nil
+		return kgo.CooperativeStickyBalancer(), nil
 	default:
 		var id component.ID
 		if err := id.UnmarshalText([]byte(strategy)); err != nil {
 			return nil, fmt.Errorf(
-				"group_rebalance_strategy %q is not a built-in strategy or a valid extension ID: %w",
-				strategy, err,
+				"%s %q is not a built-in strategy or a valid extension ID: %w",
+				field, strategy, err,
 			)
 		}
 		ext, ok := host.GetExtensions()[id]
 		if !ok {
-			return nil, fmt.Errorf("group_rebalance_strategy extension %q not found", id)
+			return nil, fmt.Errorf("%s extension %q not found", field, id)
 		}
 		balancer, ok := ext.(kgo.GroupBalancer)
 		if !ok {
-			return nil, fmt.Errorf("extension %q does not implement kgo.GroupBalancer", id)
+			return nil, fmt.Errorf("%s extension %q does not implement kgo.GroupBalancer", field, id)
 		}
-		return kgo.Balancers(balancer), nil
+		return balancer, nil
 	}
 }
 
@@ -255,9 +292,6 @@ func commonOpts(
 		kgo.DisableClientMetrics(),
 	)
 	tlsConfig := clientCfg.TLS
-	if tlsConfig == nil {
-		tlsConfig = clientCfg.Authentication.TLS
-	}
 	// Configure TLS if needed
 	if tlsConfig != nil {
 		tlsCfg, err := tlsConfig.LoadTLSConfig(ctx)
@@ -267,14 +301,6 @@ func commonOpts(
 		if tlsCfg != nil {
 			opts = append(opts, kgo.DialTLSConfig(tlsCfg))
 		}
-	}
-	// Configure authentication
-	if clientCfg.Authentication.PlainText != nil {
-		auth := plain.Auth{
-			User: clientCfg.Authentication.PlainText.Username,
-			Pass: clientCfg.Authentication.PlainText.Password,
-		}
-		opts = append(opts, kgo.SASL(auth.AsMechanism()))
 	}
 	if clientCfg.Authentication.SASL != nil {
 		saslOpt, err := configureKgoSASL(clientCfg.Authentication.SASL, host)

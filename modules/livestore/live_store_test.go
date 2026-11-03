@@ -17,16 +17,16 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/ingest/testkafka"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/ingest"
+	"github.com/grafana/tempo/v3/pkg/ingest/testkafka"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -40,6 +40,10 @@ func TestLiveStoreBasicConsume(t *testing.T) {
 	liveStore, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
+	t.Cleanup(func() {
+		// t.Context is canceled before cleanup; wait for shutdown before TempDir removal.
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
 
 	// Push 10 traces and store their IDs and expected traces
 	expectedTraces := make(map[string]*tempopb.Trace)
@@ -318,6 +322,7 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
@@ -347,6 +352,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
@@ -380,6 +386,7 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
@@ -417,6 +424,7 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 }
 
@@ -1336,7 +1344,9 @@ func TestShouldForceFromLookback_NoInstancesNonInactivePartition(t *testing.T) {
 
 	ls, err := liveStoreWithConfig(t, cfg)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), ls))
+	})
 
 	require.Empty(t, ls.getInstances())
 
@@ -1350,7 +1360,9 @@ func TestShouldForceFromLookback_NoInstancesInactivePartition(t *testing.T) {
 
 	ls, err := liveStoreWithConfig(t, cfg)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), ls))
+	})
 
 	require.Empty(t, ls.getInstances())
 
@@ -1369,7 +1381,9 @@ func TestShouldForceFromLookback_InstancesExist(t *testing.T) {
 	tmpDir := t.TempDir()
 	ls, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), ls))
+	})
 
 	pushToLiveStore(t, ls)
 	require.NotEmpty(t, ls.getInstances())

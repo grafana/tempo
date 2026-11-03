@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"sort"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func TestBackendBlockFindTraceByID(t *testing.T) {
@@ -24,8 +25,9 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		Path: t.TempDir(),
 	})
 	require.NoError(t, err)
+	cr := &countingRawReader{RawReader: rawR}
 
-	r := backend.NewReader(rawR)
+	r := backend.NewReader(cr)
 	w := backend.NewWriter(rawW)
 	ctx := context.Background()
 
@@ -102,6 +104,27 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		require.Equal(t, wantProto, gotProto.Trace)
 		require.Greater(t, gotProto.Metrics.InspectedBytes, uint64(60000)) // approximate value
 	}
+
+	// A smaller TraceByIDReadBufferSize replaces ReadBufferSize, so the lookup takes more reads.
+	readsWith := func(bufSize int) int64 {
+		opts := common.DefaultSearchOptions()
+		opts.TraceByIDReadBufferSize = bufSize
+		before := cr.reads.Load()
+		_, err := b.FindTraceByID(ctx, traces[0].TraceID, opts)
+		require.NoError(t, err)
+		return cr.reads.Load() - before
+	}
+	require.Greater(t, readsWith(64), readsWith(0))
+}
+
+type countingRawReader struct {
+	backend.RawReader
+	reads atomic.Int64
+}
+
+func (c *countingRawReader) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, cacheInfo *backend.CacheInfo) error {
+	c.reads.Add(1)
+	return c.RawReader.ReadRange(ctx, name, keypath, offset, buffer, cacheInfo)
 }
 
 func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
@@ -113,7 +136,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	r := backend.NewReader(rawR)
 	ctx := context.Background()
 
-	blocks, _, err := r.Blocks(ctx, "single-tenant")
+	blocks, _, _, err := r.Blocks(ctx, "single-tenant")
 	require.NoError(t, err)
 	assert.Len(t, blocks, 1)
 

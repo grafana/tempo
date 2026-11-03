@@ -7,8 +7,8 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/middleware"
-	frontendDocs "github.com/grafana/tempo/modules/frontend/docs"
-	"github.com/grafana/tempo/pkg/model/tracediff"
+	frontendDocs "github.com/grafana/tempo/v3/modules/frontend/docs"
+	"github.com/grafana/tempo/v3/pkg/model/tracediff"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -40,7 +40,7 @@ const (
 	toolTraceQLMetricsInstant = "traceql-metrics-instant"
 	toolTraceQLMetricsRange   = "traceql-metrics-range"
 	toolGetTrace              = "get-trace"
-	toolTraceDiff             = "trace-diff"
+	toolTraceDiff             = "traces-diff"
 	toolGetAttributeNames     = "get-attribute-names"
 	toolGetAttributeValues    = "get-attribute-values"
 	toolDocsTraceQL           = "docs-traceql"
@@ -322,6 +322,16 @@ func (s *MCPServer) setupTools() {
 			"trace_id",
 			mcp.Required(),
 			mcp.Description("Trace ID to retrieve"),
+		),
+		mcp.WithString(
+			"start",
+			mcp.Description("Optional start of the trace search range in RFC3339 format. Must be provided with end. Narrowing the range makes the lookup much cheaper."),
+			mcp.MinLength(1),
+		),
+		mcp.WithString(
+			"end",
+			mcp.Description("Optional end of the trace search range in RFC3339 format. Must be provided with start."),
+			mcp.MinLength(1),
 		),
 		mcp.WithDestructiveHintAnnotation(false),
 	)

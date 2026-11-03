@@ -472,6 +472,165 @@
       "fieldConfig": {
         "defaults": {
           "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "points",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 11,
+        "y": 1
+      },
+      "id": 45,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempodb_blocklist_tenant_index_build_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
+          "legendFormat": ".99",
+          "range": true,
+          "refId": "A_classic"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.99, sum(rate(tempodb_blocklist_tenant_index_build_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": ".99",
+          "range": true,
+          "refId": "A_native"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.90, sum(rate(tempodb_blocklist_tenant_index_build_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
+          "legendFormat": ".9",
+          "range": true,
+          "refId": "B_classic"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.90, sum(rate(tempodb_blocklist_tenant_index_build_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": ".9",
+          "range": true,
+          "refId": "B_native"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempodb_blocklist_tenant_index_build_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) by (le))) and on() (vector($latency_metrics) == 1)",
+          "hide": false,
+          "legendFormat": ".5",
+          "range": true,
+          "refId": "C_classic"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${metrics}"
+          },
+          "editorMode": "code",
+          "expr": "(histogram_quantile(0.50, sum(rate(tempodb_blocklist_tenant_index_build_duration_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))) and on() (vector($latency_metrics) == -1)",
+          "hide": false,
+          "legendFormat": ".5",
+          "range": true,
+          "refId": "C_native"
+        }
+      ],
+      "title": "Tenant Index Build Duration",
+      "type": "timeseries",
+      "description": "Per-tenant duration to build and write the tenant index, aggregated across tenants. Classic-bucket and native-histogram queries are both present. The native series gives full resolution where the classic buckets are coarse; it renders once native histograms are retained for this metric."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${metrics}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
             "mode": "continuous-GrYlRd"
           },
           "custom": {

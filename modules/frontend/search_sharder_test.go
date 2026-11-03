@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,17 +25,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/frontend/shardtracker"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blocklist"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 var _ tempodb.Reader = (*mockReader)(nil)
@@ -43,6 +44,8 @@ var _ tempodb.Reader = (*mockReader)(nil)
 type mockReader struct {
 	metas   []*backend.BlockMeta
 	tenants []string
+	// returned by TraceByIDBlockMetas only, like recently compacted blocks
+	compactedMetas []*backend.BlockMeta
 }
 
 func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, *tempopb.SearchTagsBlockRequest, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
@@ -61,8 +64,22 @@ func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql
 	return nil
 }
 
-func (m *mockReader) Find(context.Context, string, common.ID, string, string, time.Time, time.Time, common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
+func (m *mockReader) Find(context.Context, string, *tempopb.TraceByIDRequest, common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	return nil, nil, nil
+}
+
+func (m *mockReader) TraceByIDBlockMetas(_ context.Context, _ string, start, end time.Time) []*backend.BlockMeta {
+	if start.IsZero() || end.IsZero() {
+		return append(slices.Clone(m.metas), m.compactedMetas...)
+	}
+	// same overlap rule as tempodb's includeBlock
+	metas := make([]*backend.BlockMeta, 0, len(m.metas))
+	for _, b := range append(slices.Clone(m.metas), m.compactedMetas...) {
+		if b.StartTime.Before(end) && b.EndTime.After(start) {
+			metas = append(metas, b)
+		}
+	}
+	return metas
 }
 
 func (m *mockReader) BlockMeta(context.Context, string, backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
@@ -71,6 +88,10 @@ func (m *mockReader) BlockMeta(context.Context, string, backend.UUID) (*backend.
 
 func (m *mockReader) BlockMetas(string) []*backend.BlockMeta {
 	return m.metas
+}
+
+func (m *mockReader) NoCompactBlocks(string) []backend.UUID {
+	return nil
 }
 
 func (m *mockReader) Tenants() []string {
@@ -93,10 +114,10 @@ func (m *mockReader) FetchTagNames(context.Context, *backend.BlockMeta, traceql.
 	return nil
 }
 
-func (m *mockReader) EnablePolling(context.Context, blocklist.JobSharder, bool) {}
-func (m *mockReader) PollNow(context.Context)                                   {}
-func (m *mockReader) PollNotification(context.Context) <-chan struct{}          { return nil }
-func (m *mockReader) Shutdown()                                                 {}
+func (m *mockReader) EnablePolling(context.Context, blocklist.JobSharder) {}
+func (m *mockReader) PollNow(context.Context)                             {}
+func (m *mockReader) PollNotification(context.Context) <-chan struct{}    { return nil }
+func (m *mockReader) Shutdown()                                           {}
 
 //nolint:all deprecated
 

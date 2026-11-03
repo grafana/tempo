@@ -1,0 +1,9 @@
+change_type: enhancement
+component: query-frontend
+note: Reduce CPU and memory used to serialize trace-by-ID JSON responses.
+issues: []
+subtext: |
+  Trace-by-ID JSON responses (v1 and v2) now use a typed encoder instead of
+  reflective protobuf JSON marshalling. The output is byte-identical to the
+  previous encoding. Other response types still use jsonpb.
+user: javiermolinar

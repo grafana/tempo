@@ -37,7 +37,7 @@ func newMinio(port int, envVars map[string]string, bktNames ...string) *e2e.HTTP
 	for _, bkt := range bktNames {
 		commands = append(commands, fmt.Sprintf("mkdir -p /data/%s", bkt))
 	}
-	commands = append(commands, fmt.Sprintf("minio server --address :%v --quiet /data", port))
+	commands = append(commands, fmt.Sprintf("silo server --address :%v --quiet /data", port))
 
 	m := e2e.NewHTTPService(
 		fmt.Sprintf("minio-%v", port),
@@ -52,6 +52,32 @@ func newMinio(port int, envVars map[string]string, bktNames ...string) *e2e.HTTP
 	envVars["MINIO_BROWSER"] = "off"
 	envVars["ENABLE_HTTPS"] = "0"
 	m.SetEnvVars(envVars)
+	return m
+}
+
+// NewRustFS returns a RustFS server, an S3-compatible alternative to NewMinio. It keeps
+// the minio-<port> hostname and the MinioAccessKey/MinioSecretKey credentials so callers
+// can switch without changing their S3 configuration.
+func NewRustFS(port int, bktNames ...string) *e2e.HTTPService {
+	commands := []string{}
+	for _, bkt := range bktNames {
+		commands = append(commands, fmt.Sprintf("mkdir -p /data/%s", bkt))
+	}
+	commands = append(commands, fmt.Sprintf("rustfs --address :%v /data", port))
+
+	m := e2e.NewHTTPService(
+		fmt.Sprintf("minio-%v", port),
+		images.RustFS,
+		// Create the buckets before starting RustFS
+		e2e.NewCommandWithoutEntrypoint("sh", "-c", strings.Join(commands, " && ")),
+		e2e.NewHTTPReadinessProbe(port, "/minio/health/ready", 200, 200),
+		port,
+	)
+	m.SetEnvVars(map[string]string{
+		"RUSTFS_ACCESS_KEY":     MinioAccessKey,
+		"RUSTFS_SECRET_KEY":     MinioSecretKey,
+		"RUSTFS_CONSOLE_ENABLE": "false",
+	})
 	return m
 }
 

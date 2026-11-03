@@ -7,7 +7,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 )
 
 type httpCollector struct {
@@ -50,7 +50,7 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	span.AddEvent("consumeAndCombineResponses done")
 
-	resp, err := r.combiner.HTTPFinal()
+	resp, err := r.combiner.HTTPFinal(ctx)
 	if err != nil {
 		return nil, err
 	}

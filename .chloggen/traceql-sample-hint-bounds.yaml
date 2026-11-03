@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: traceql
+
+note: Ignore `span_sample` and `trace_sample` metrics query hints outside the range (0, 1).
+
+issues: [8102]
+
+subtext:
+
+user: carles-grafana

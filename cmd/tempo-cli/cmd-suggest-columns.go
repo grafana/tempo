@@ -13,7 +13,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 type suggestColumnsCmd struct {
@@ -111,7 +111,7 @@ func (cmd *suggestColumnsCmd) Run(ctx *globalOptions) error {
 	}
 
 	// TODO: Parallelize this
-	blocks, _, err := r.Blocks(context.Background(), cmd.TenantID)
+	blocks, _, _, err := r.Blocks(context.Background(), cmd.TenantID)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (cmd *suggestColumnsCmd) Run(ctx *globalOptions) error {
 			}
 
 			// the block was already compacted and blocks might be outdated: refreshing blocks
-			blocks, _, err = r.Blocks(context.Background(), cmd.TenantID)
+			blocks, _, _, err = r.Blocks(context.Background(), cmd.TenantID)
 			if err != nil {
 				return err
 			}

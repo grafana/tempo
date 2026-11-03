@@ -29,13 +29,66 @@ For detailed information about any release, refer to the [Release notes](https:/
 You can check your configuration options using the [`status` API endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#status) in your Tempo installation.
 {{< /admonition >}}
 
+## Upgrade to Tempo 3.2
+
+### vParquet3 removed
+
+Tempo 3.2 removes support for the vParquet3 block format.
+This means that:
+
+- Tempo can no longer read existing vParquet3 blocks.
+- Tempo refuses to start if configured to write vParquet3 blocks.
+- `tempo-cli parquet convert-3to4` is removed.
+
+Before upgrading, convert any remaining vParquet3 blocks to vParquet4 or later using `tempo-cli parquet convert-3to4` from Tempo 3.1, or wait for them to pass retention.
+If your storage configuration specifies `vParquet3`, change the block version to `vParquet5` (default) or `vParquet4`.
+
+Refer to [Apache Parquet block format](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/) for version details.
+
 ## Upgrade to Tempo 3.1
+
+### Default block format is now vParquet5
+
+Tempo 3.1 writes new blocks in vParquet5.
+Existing vParquet4 blocks are still readable, and no data migration is required.
+[[PR 7775](https://github.com/grafana/tempo/pull/7775)]
+
+To keep writing vParquet4, set the block version explicitly:
+
+```yaml
+storage:
+  trace:
+    block:
+      version: vParquet4
+```
+
+Refer to [Apache Parquet block format](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/) for version details.
+
+### vParquet3 deprecation enforced
+
+vParquet3 deprecation is now enforced in Tempo 3.1 [[PR 7858](https://github.com/grafana/tempo/pull/7858)].
+This means that:
+
+- Tempo refuses to start if configured to write vParquet3 blocks.
+- Existing vParquet3 blocks are no longer compacted.
+- Reads of existing vParquet3 blocks are unaffected.
+
+If your storage configuration specifies `vParquet3`, change the block version to `vParquet5` (default) or `vParquet4` before upgrading:
+
+```yaml
+storage:
+  trace:
+    block:
+      version: vParquet5
+```
+
+Refer to [Apache Parquet block format](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/) for version details.
 
 ### Redis cache configuration changes
 
 Tempo upgrades the Redis cache client to [`github.com/redis/go-redis/v9`](https://github.com/redis/go-redis) and reworks the cache configuration. Redis Cluster is now the default routing mode, Redis Sentinel support is removed, several YAML keys are renamed, and the TLS block is replaced with a dskit-style block that fails closed on invalid configuration. [[PR 7337](https://github.com/grafana/tempo/pull/7337)]
 
-If you do not use the Redis cache, no action is needed.
+If you don't use the Redis cache, no action is needed.
 
 #### Opt single-node Redis into the single-node client
 
@@ -168,8 +221,9 @@ Block-builders, live-stores, and a backend scheduler replace ingesters and the c
 
 {{< admonition type="caution" >}}
 `vParquet3` is deprecated.
-Tempo 3.x still reads existing vParquet3 blocks, so you don't need to convert them.
+Tempo 3.0 and 3.1 still read existing vParquet3 blocks, so you don't need to convert them before upgrading to those versions.
 If your storage configuration specifies `vParquet3`, change the write format to `vParquet4` or later.
+Tempo 3.2 removes vParquet3 support, so convert remaining vParquet3 blocks before upgrading further.
 Refer to [Change the block format version](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#change-the-block-format-version).
 {{< /admonition >}}
 

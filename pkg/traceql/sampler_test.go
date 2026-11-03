@@ -1,10 +1,39 @@
 package traceql
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestProbabilisticSampler(t *testing.T) {
+	s := newProbablisticSampler(0.25)
+	require.Equal(t, 4, s.lim)
+
+	var sampled int
+	for range 100 {
+		if s.Sample() {
+			sampled++
+		}
+	}
+	require.Equal(t, 25, sampled)
+	require.Equal(t, 4.0, s.FinalScalingFactor())
+}
+
+func TestProbabilisticSamplerOutOfRange(t *testing.T) {
+	for _, sample := range []float64{2, 1.5, 1, 0, -0.5, -1, math.Inf(1), math.Inf(-1), math.NaN()} {
+		s := newProbablisticSampler(sample)
+		require.Equal(t, 1, s.lim, "sample=%v", sample)
+		for range 10 {
+			require.True(t, s.Sample(), "sample=%v", sample)
+		}
+	}
+
+	s := newProbablisticSampler(1e-300)
+	require.Equal(t, math.MaxInt32, s.lim)
+	require.True(t, s.Sample())
+}
 
 func TestAdaptiveSamplerRate(t *testing.T) {
 	testCases := []struct {

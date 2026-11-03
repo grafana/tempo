@@ -9,8 +9,8 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 
-	"github.com/grafana/tempo/pkg/model/tracediff"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/model/tracediff"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
 type experimentalTraceDiffCmd struct {

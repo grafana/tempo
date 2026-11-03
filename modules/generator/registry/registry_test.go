@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/overrides/histograms"
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/modules/overrides/histograms"
+	tempo_util "github.com/grafana/tempo/v3/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
@@ -1172,12 +1172,11 @@ func TestManagedRegistry_borrowedLabelsSurviveSanitizerAndLimiter(t *testing.T) 
 
 	// The per-label limiter must only know the stable, owned label names.
 	pll := registry.perLabelLimiter.(*PerLabelLimiter)
-	pll.mtx.Lock()
-	keys := make([]string, 0, len(pll.labelsState))
-	for k := range pll.labelsState {
+	labelsState := *pll.labelsState.Load()
+	keys := make([]string, 0, len(labelsState))
+	for k := range labelsState {
 		keys = append(keys, k)
 	}
-	pll.mtx.Unlock()
 
 	sort.Strings(keys)
 	require.Equal(t, []string{"route", "service", "span_name"}, keys,

@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: storage
+note: "Skip blocks whose `meta.json` cannot be decoded during blocklist polling, instead of failing the tenant poll. Skipped blocks are counted in `tempodb_blocklist_corrupt_block_meta_total`."
+issues: []
+subtext:
+user: zalegrala

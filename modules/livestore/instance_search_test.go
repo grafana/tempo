@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,20 +32,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/ingest/testkafka"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/collector"
+	"github.com/grafana/tempo/v3/pkg/ingest/testkafka"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	trace_v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 )
 
 const (
@@ -842,6 +843,8 @@ func defaultConfig(t testing.TB, tmpDir string) Config {
 	cfg.IngestConfig.Kafka.Address = flagext.StringSliceCSV{kafkaAddr}
 	cfg.IngestConfig.Kafka.Topic = testTopic
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
+	// at the default 10s this costs ~10s per live store shutdown, which dominates this package's runtime
+	cfg.IngestConfig.Kafka.SetMetadataAges(10*time.Millisecond, 100*time.Millisecond)
 
 	cfg.holdAllBackgroundProcesses = true // note that the default testing live store disables background processes so we can deterministically run tests
 
@@ -1203,6 +1206,55 @@ func TestInstanceFindByTraceID(t *testing.T) {
 
 	err = services.StopAndAwaitTerminated(t.Context(), ls)
 	require.NoError(t, err)
+}
+
+func TestInstanceFindByTraceIDDoesNotShareLiveTraceBackingArray(t *testing.T) {
+	i, ls := defaultInstanceAndTmpDir(t)
+	defer func() {
+		err := services.StopAndAwaitTerminated(t.Context(), ls)
+		require.NoError(t, err)
+	}()
+
+	id := test.ValidTraceID(nil)
+	now := time.Now()
+	push := func(batches int) {
+		traceBytes, err := test.MakeTrace(batches, id).Marshal()
+		require.NoError(t, err)
+		i.pushBytes(t.Context(), now, &tempopb.PushBytesRequest{
+			Traces: []tempopb.PreallocBytes{{Slice: traceBytes}},
+			Ids:    [][]byte{id},
+		})
+	}
+
+	// Part of the trace is already in the head block ...
+	push(1)
+	drained, err := i.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.True(t, drained)
+
+	// ... and the rest is still live, with spare capacity in Batches.
+	push(3)
+	i.liveTracesMtx.Lock()
+	liveTrace := i.liveTraces.Traces[util.HashForTraceID(id)]
+	i.liveTracesMtx.Unlock()
+	require.NotNil(t, liveTrace)
+	require.Len(t, liveTrace.Batches, 3)
+	require.Greater(t, cap(liveTrace.Batches), len(liveTrace.Batches))
+
+	resp, err := i.FindByTraceID(t.Context(), id, true)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Trace)
+	require.Len(t, resp.Trace.ResourceSpans, 4)
+	batches := slices.Clone(resp.Trace.ResourceSpans)
+	size := resp.Trace.Size()
+
+	// More spans for the same trace arrive after the lookup. The response must not
+	// change, otherwise Size() and Marshal() disagree and marshalling panics.
+	push(1)
+	for n, batch := range batches {
+		require.Same(t, batch, resp.Trace.ResourceSpans[n])
+	}
+	require.Equal(t, size, resp.Trace.Size())
 }
 
 func TestInstanceFindByTraceIDWithSizeLimits(t *testing.T) {
@@ -1737,6 +1789,109 @@ func TestQueryRangeReportsInspectedBytes(t *testing.T) {
 	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
 }
 
+func TestQueryRangeExtrapolate(t *testing.T) {
+	tests := []struct {
+		name        string
+		extrapolate bool
+		query       string
+		multiplier  float64
+	}{
+		{"off", false, "{} | count_over_time()", 1},
+		{"on", true, "{} | count_over_time()", 2},
+		{"on, hint off", true, "{} | count_over_time() with(extrapolate=false)", 1},
+		{"off, hint on", false, "{} | count_over_time() with(extrapolate=true)", 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i, ls := defaultInstance(t)
+
+			spanCount := pushSampledTrace(t, i)
+			_, err := i.cutBlocks(t.Context(), true)
+			require.NoError(t, err)
+
+			now := time.Now()
+			total := queryRangeTotal(t, i, tt.query, tt.extrapolate, now.Add(-time.Minute), now.Add(time.Minute))
+			require.Equal(t, tt.multiplier*float64(spanCount), total)
+
+			require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+		})
+	}
+}
+
+// TestQueryRangeExtrapolateCache verifies that results cached for a complete block
+// without extrapolation aren't returned for an extrapolated request, and vice versa.
+func TestQueryRangeExtrapolateCache(t *testing.T) {
+	i, ls := defaultInstance(t)
+
+	spanCount := pushSampledTrace(t, i)
+	blockID, err := i.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+	_, err = i.completeBlock(t.Context(), blockID)
+	require.NoError(t, err)
+
+	var block *LocalBlock
+	for _, b := range i.blocks.Load().completeBlocks {
+		block = b
+		break
+	}
+	require.NotNil(t, block)
+	start := block.BlockMeta().StartTime.Add(-time.Minute)
+	end := block.BlockMeta().EndTime.Add(time.Minute)
+	query := "{} | count_over_time()"
+
+	require.Equal(t, float64(spanCount), queryRangeTotal(t, i, query, false, start, end))
+	require.Equal(t, 2*float64(spanCount), queryRangeTotal(t, i, query, true, start, end))
+	require.Equal(t, float64(spanCount), queryRangeTotal(t, i, query, false, start, end))
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+// pushSampledTrace pushes a trace whose spans all carry a 50% sampling threshold
+// (ot=th:8), so each span extrapolates to 2. It returns the number of spans pushed.
+func pushSampledTrace(t *testing.T, i *instance) int {
+	now := time.Now()
+	id := test.ValidTraceID(nil)
+	tr := test.MakeTrace(2, id)
+	var spanCount int
+	for _, rs := range tr.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			for _, s := range ss.Spans {
+				s.StartTimeUnixNano = uint64(now.UnixNano())
+				s.EndTimeUnixNano = uint64(now.UnixNano())
+				s.TraceState = "ot=th:8"
+				spanCount++
+			}
+		}
+	}
+	require.Positive(t, spanCount)
+	pushTrace(t.Context(), t, i, tr, id)
+
+	drained, err := i.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.True(t, drained)
+	return spanCount
+}
+
+func queryRangeTotal(t *testing.T, i *instance, query string, extrapolate bool, start, end time.Time) float64 {
+	resp, err := i.QueryRange(t.Context(), &tempopb.QueryRangeRequest{
+		Query:       query,
+		Start:       uint64(start.UnixNano()),
+		End:         uint64(end.UnixNano()),
+		Step:        uint64(time.Second),
+		MaxSeries:   10,
+		Extrapolate: extrapolate,
+	})
+	require.NoError(t, err)
+
+	var total float64
+	for _, s := range resp.Series {
+		for _, sample := range s.Samples {
+			total += sample.Value
+		}
+	}
+	return total
+}
+
 func TestQueryRangeCacheName_StableForSameRequest(t *testing.T) {
 	req := tempopb.QueryRangeRequest{
 		Query: "{} | count_over_time()",
@@ -1749,6 +1904,10 @@ func TestQueryRangeCacheName_StableForSameRequest(t *testing.T) {
 	other := req
 	other.End = 3_000_000_000
 	require.NotEqual(t, queryRangeCacheName(req), queryRangeCacheName(other))
+
+	extrapolated := req
+	extrapolated.Extrapolate = true
+	require.NotEqual(t, queryRangeCacheName(req), queryRangeCacheName(extrapolated))
 }
 
 func findCacheFile(t *testing.T, blockDir string) string {

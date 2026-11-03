@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util"
 )
 
 func combineTraces(traces ...*Trace) *Trace {

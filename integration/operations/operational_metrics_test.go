@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v3/integration/util"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 )
@@ -44,6 +44,13 @@ func TestWriteMetrics(t *testing.T) {
 		actualBytes := sums[0]
 		assertMetricInDelta(t, distributor, "tempo_distributor_bytes_received_total", float64(countBytes), .1*float64(countBytes), nil)
 		assertMetricInDelta(t, distributor, "tempo_distributor_ingress_bytes_total", float64(countBytes), .1*float64(countBytes), nil)
+
+		// kafka producer buffer metrics. The gauge is exported by kprom and the distribution summary by the Producer.
+		assertMetricInDelta(t, distributor, "tempo_distributor_buffered_produce_bytes", 0, float64(countBytes), nil)
+		distSamples, err := distributor.SumMetrics([]string{"tempo_distributor_buffered_produce_bytes_distribution"}, e2e.WithMetricCount)
+		require.NoError(t, err)
+		require.Greater(t, distSamples[0], float64(0))
+		assertMetricGreater(t, distributor, "tempo_distributor_buffered_produce_bytes_limit", 0, nil)
 
 		// livestore
 		livestore := h.Services[util.ServiceLiveStoreZoneA]

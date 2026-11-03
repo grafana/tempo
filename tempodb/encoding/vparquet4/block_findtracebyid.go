@@ -14,12 +14,12 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 const (
@@ -109,6 +109,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		))
 	defer span.End()
 
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageBloomChecked).Inc()
 	found, err := b.checkBloom(derivedCtx, traceID)
 	if err != nil {
 		return nil, err
@@ -116,6 +117,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	if !found {
 		return nil, nil
 	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageBloomPass).Inc()
 
 	ok, rowGroup, err := b.checkIndex(derivedCtx, traceID)
 	if err != nil {
@@ -124,11 +126,17 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	if !ok {
 		return nil, nil
 	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageIndexPass).Inc()
+
+	if opts.TraceByIDReadBufferSize > 0 {
+		opts.ReadBufferSize = opts.TraceByIDReadBufferSize
+	}
 
 	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageRead).Inc()
 
 	foundTrace, err := findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
 

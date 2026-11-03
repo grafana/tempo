@@ -8,19 +8,21 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/backendscheduler/work"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/blockselector"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/google/uuid"
+	"github.com/grafana/tempo/v3/modules/backendscheduler/work"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/blockselector"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -149,12 +151,16 @@ func TestCompactionProvider_EmptyStart(t *testing.T) {
 
 	writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 1)
 
-	// Poll synchronously so the second block is observed before asserting,
-	// avoiding a fixed sleep or retry loop that can pass or fail on timing.
-	store.PollNow(ctx)
+	// PollNow alone is not enough: the store's own 100ms poll loop runs
+	// concurrently, and both calls end in ApplyPollResults. A background poll
+	// that started before the second block was written can therefore land last
+	// and put the blocklist back to one block. Poll inside the retry so a
+	// clobbered result is followed by a fresh one.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		store.PollNow(ctx)
+		assert.True(c, p.prepareNextTenant(ctx, false), "tenant with two blocks should be found")
+	}, 10*time.Second, 100*time.Millisecond)
 
-	b = p.prepareNextTenant(ctx, false)
-	require.True(t, b, "tenant with two blocks should be found")
 	require.NotNil(t, p.curTenant, "a tenant should be set")
 	require.NotNil(t, p.curSelector, "a block selector should be set")
 
@@ -317,6 +323,47 @@ func TestCompactionProvider_MeasureTenantsIgnoresTenantPending(t *testing.T) {
 	require.Greater(t, measureLen, 0, "newBlockSelectorForMeasurement should return blocks even while TenantPending")
 }
 
+func TestCompactionProvider_SkipsNoCompactBlocks(t *testing.T) {
+	const testTenant = "test-tenant"
+	cfg := CompactionConfig{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	tmpDir := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	store, _, ww := newStore(ctx, t, tmpDir)
+	defer store.Shutdown()
+
+	writer := backend.NewWriter(ww)
+	writeTenantBlocks(ctx, t, writer, testTenant, 5)
+	store.PollNow(ctx)
+
+	metas := store.BlockMetas(testTenant)
+	require.Len(t, metas, 5)
+	flagged := map[backend.UUID]struct{}{}
+	for _, m := range metas[:2] {
+		require.NoError(t, writer.WriteNoCompactFlag(ctx, uuid.UUID(m.BlockID), testTenant))
+		flagged[m.BlockID] = struct{}{}
+	}
+	store.PollNow(ctx)
+	require.Len(t, store.BlockMetas(testTenant), 5)
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	p := NewCompactionProvider(cfg, test.NewTestingLogger(t), store, limits, work.New(work.Config{}))
+
+	selector, blocklistLen := p.newBlockSelector(testTenant)
+	require.Equal(t, 3, blocklistLen)
+	for _, m := range collectAllMetas(selector) {
+		require.NotContains(t, flagged, m.BlockID)
+	}
+
+	_, measureLen := p.newBlockSelectorForMeasurement(testTenant)
+	require.Equal(t, 3, measureLen)
+}
+
 func TestCompactionProvider_InFlightJobsPreventDuplicates(t *testing.T) {
 	const tenant = "test-tenant"
 	cfg := CompactionConfig{}
@@ -439,7 +486,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 	}, nil, log)
 	require.NoError(t, err)
 
-	s.EnablePolling(ctx, &ownsEverythingSharder{}, false)
+	s.EnablePolling(ctx, &ownsEverythingSharder{})
 
 	return s
 }

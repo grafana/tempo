@@ -17,13 +17,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func TestProtoParquetRoundTrip(t *testing.T) {
@@ -704,27 +704,10 @@ func TestTraceToParquet(t *testing.T) {
 						SpanCount: 2,
 						Spans: []Span{
 							{
-								Name:              "span-with-link",
-								SpanID:            []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
-								NestedSetLeft:     1,
-								NestedSetRight:    2,
-								ParentID:          -1,
-								StartTimeUnixNano: 1500,
-								DurationNano:      1500,
-								Links: []Link{{
-									TraceID: traceID,
-									SpanID:  []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
-									Attrs: []Attribute{
-										attr("link.attr", "aaa"),
-									},
-									TraceState: "link trace state",
-								}},
-							},
-							{
 								Name:              "span-with-event",
 								SpanID:            []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
-								NestedSetLeft:     3,
-								NestedSetRight:    4,
+								NestedSetLeft:     1,
+								NestedSetRight:    2,
 								ParentID:          -1,
 								StartTimeUnixNano: 1000,
 								DurationNano:      3000,
@@ -738,6 +721,23 @@ func TestTraceToParquet(t *testing.T) {
 										String01: []string{"dedicated-event-attr-value-1"},
 										String02: []string{"dedicated-event-attr-value-2"},
 									},
+								}},
+							},
+							{
+								Name:              "span-with-link",
+								SpanID:            []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+								NestedSetLeft:     3,
+								NestedSetRight:    4,
+								ParentID:          -1,
+								StartTimeUnixNano: 1500,
+								DurationNano:      1500,
+								Links: []Link{{
+									TraceID: traceID,
+									SpanID:  []byte{0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+									Attrs: []Attribute{
+										attr("link.attr", "aaa"),
+									},
+									TraceState: "link trace state",
 								}},
 							},
 						},

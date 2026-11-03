@@ -9,27 +9,29 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/services"
-	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	backendscheduler_client "github.com/grafana/tempo/v3/modules/backendscheduler/client"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/modules/storage"
+	"github.com/grafana/tempo/v3/pkg/model"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"github.com/grafana/tempo/v3/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -63,6 +65,40 @@ func TestWorker(t *testing.T) {
 
 	err = services.StopAndAwaitTerminated(ctx, w)
 	require.NoError(t, err)
+}
+
+func TestIsExpectedSchedulerError(t *testing.T) {
+	tests := []struct {
+		name          string
+		err           error
+		expectedCodes []codes.Code
+		want          bool
+	}{
+		{
+			name:          "expected not found",
+			err:           status.Error(codes.NotFound, "no jobs found"),
+			expectedCodes: []codes.Code{codes.NotFound},
+			want:          true,
+		},
+		{
+			name:          "unexpected not found",
+			err:           status.Error(codes.NotFound, "job not found"),
+			expectedCodes: []codes.Code{codes.Unavailable},
+			want:          false,
+		},
+		{
+			name:          "non gRPC error",
+			err:           assert.AnError,
+			expectedCodes: []codes.Code{codes.NotFound},
+			want:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isExpectedSchedulerError(tt.err, tt.expectedCodes))
+		})
+	}
 }
 
 func setupDependencies(ctx context.Context, t *testing.T, limits overrides.Config) (Config, backendscheduler_client.Config, overrides.Service, *mockScheduler, storage.Store) {
@@ -194,7 +230,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 
 	// The store service is never started, so only cancel + Shutdown joins the poller.
 	ctx, cancel := context.WithCancel(ctx)
-	s.EnablePolling(ctx, &ownsEverythingSharder{}, false)
+	s.EnablePolling(ctx, &ownsEverythingSharder{})
 
 	t.Cleanup(func() {
 		cancel()

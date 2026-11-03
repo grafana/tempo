@@ -18,16 +18,16 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
-	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/pkg/util"
+	"github.com/grafana/tempo/v3/pkg/util/log"
+	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/local"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func TestCreateIntPredicateFromFloat(t *testing.T) {
@@ -1828,15 +1828,7 @@ func BenchmarkIterators(b *testing.B) {
 	rgs := pf.RowGroups()
 	rgs = rgs[3:5]
 
-	var instrPred *pq.InstrumentedPredicate
-	makeIterInternal := makeIterFunc(ctx, rgs, pf)
-	makeIter := func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator {
-		instrPred = &pq.InstrumentedPredicate{
-			Pred: predicate,
-		}
-
-		return makeIterInternal(columnName, predicate, selectAs)
-	}
+	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1865,16 +1857,15 @@ func BenchmarkIterators(b *testing.B) {
 			}
 			count++
 		}
+		stats := iter.(*pq.SyncIterator).Stats()
 		iter.Close()
-		if instrPred != nil {
-			b.ReportMetric(float64(count), "count")
-			b.ReportMetric(float64(instrPred.InspectedColumnChunks), "stats_cc")
-			b.ReportMetric(float64(instrPred.KeptColumnChunks), "stats_cc_kept")
-			b.ReportMetric(float64(instrPred.InspectedPages), "stats_ip")
-			b.ReportMetric(float64(instrPred.KeptPages), "stats_ip_kept")
-			b.ReportMetric(float64(instrPred.InspectedValues), "stats_v")
-			b.ReportMetric(float64(instrPred.KeptValues), "stats_v_kept")
-		}
+		b.ReportMetric(float64(count), "count")
+		b.ReportMetric(float64(stats.InspectedColumnChunks), "stats_cc")
+		b.ReportMetric(float64(stats.KeptColumnChunks), "stats_cc_kept")
+		b.ReportMetric(float64(stats.InspectedPages), "stats_ip")
+		b.ReportMetric(float64(stats.KeptPages), "stats_ip_kept")
+		b.ReportMetric(float64(stats.InspectedValues), "stats_v")
+		b.ReportMetric(float64(stats.KeptValues), "stats_v_kept")
 	}
 }
 

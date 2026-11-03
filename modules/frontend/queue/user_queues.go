@@ -32,6 +32,17 @@ func (q *queues) len() int {
 	return len(q.userQueues)
 }
 
+// hasPendingRequests reports whether any tenant still has requests to dispatch.
+// The caller must hold the request queue lock.
+func (q *queues) hasPendingRequests() bool {
+	for _, uq := range q.userQueues {
+		if len(uq.ch) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (q *queues) deleteQueue(userID string) {
 	uq := q.userQueues[userID]
 	if uq == nil {

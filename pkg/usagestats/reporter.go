@@ -20,8 +20,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 
-	"github.com/grafana/tempo/cmd/tempo/build"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v3/cmd/tempo/build"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 const (
@@ -250,6 +250,10 @@ func (rep *Reporter) running(ctx context.Context) error {
 
 	if rep.cluster == nil {
 		<-ctx.Done()
+		// a cancelled context is a clean shutdown
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return nil
+		}
 		return ctx.Err()
 	}
 	// check every minute if we should report.

@@ -16,13 +16,13 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/gorilla/mux"
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/model/tracediff"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/cache"
+	"github.com/grafana/tempo/v3/pkg/model/tracediff"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,7 +40,7 @@ var (
 
 // newTraceDiffHandler creates an HTTP handler for trace diff requests.
 // EXPERIMENTAL: this endpoint is not yet a stable API contract.
-func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], _ cache.Provider, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], _ cache.Provider, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	fetchTrace := func(ctx context.Context, tenant string, traceReq api.TraceDiffTraceRequest, headers http.Header) (*tempopb.TraceByIDResponse, error) {
 		return fetchTraceForDiff(ctx, tenant, traceReq, headers, apiPrefix, tracePipeline, o, combinerFn, logger, dataAccessController)
 	}
@@ -72,9 +72,13 @@ func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.Asyn
 			"base_trace_id", diffReq.Base.TraceID,
 			"base_start", traceDiffTimeParam(diffReq.Base.Start),
 			"base_end", traceDiffTimeParam(diffReq.Base.End),
+			"base_range", traceRange(diffReq.Base.StartTime, diffReq.Base.EndTime),
+			"base_range_nanos", traceRange(diffReq.Base.StartTime, diffReq.Base.EndTime).Nanoseconds(),
 			"compare_trace_id", diffReq.Compare.TraceID,
 			"compare_start", traceDiffTimeParam(diffReq.Compare.Start),
 			"compare_end", traceDiffTimeParam(diffReq.Compare.End),
+			"compare_range", traceRange(diffReq.Compare.StartTime, diffReq.Compare.EndTime),
+			"compare_range_nanos", traceRange(diffReq.Compare.StartTime, diffReq.Compare.EndTime).Nanoseconds(),
 		)
 
 		baseResp, compareResp, err := fetchTracesForDiff(req.Context(), tenant, diffReq, req.Header, fetchTrace)
@@ -174,7 +178,7 @@ func buildTraceDiffTraceByIDRequest(ctx context.Context, apiPrefix string, trace
 	return mux.SetURLVars(req, map[string]string{"traceID": traceReq.TraceID})
 }
 
-func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDiffTraceRequest, headers http.Header, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) (*tempopb.TraceByIDResponse, error) {
+func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDiffTraceRequest, headers http.Header, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) (*tempopb.TraceByIDResponse, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -206,7 +210,7 @@ func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDif
 		}
 	}
 
-	traceResp, err := comb.GRPCFinal()
+	traceResp, err := comb.GRPCFinal(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("finalize trace %s response: %w", traceReq.TraceID, err)
 	}

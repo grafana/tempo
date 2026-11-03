@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gogo/status"
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"google.golang.org/grpc/codes"
 )
 
@@ -76,7 +76,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	span.AddEvent("consumeAndCombineResponses done")
 
 	// send the final diff if there is anything left
-	resp, err := c.combiner.GRPCFinal()
+	resp, err := c.combiner.GRPCFinal(ctx)
 	if err != nil {
 		return grpcError(err)
 	}

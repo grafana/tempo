@@ -13,7 +13,7 @@ services:
       - "2345:2345" # delve debug server
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.9
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.11
     environment:
       - ENDPOINT=tempo:4317
     restart: always
@@ -33,7 +33,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:13.1.3@sha256:ab5cb380e3ff3172d6c8bd2e7cfd31cce977d2881b260e1f5bc089bf0b759b43
+    image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

@@ -13,10 +13,10 @@ import (
 
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
+	"github.com/grafana/tempo/v3/cmd/tempo/app"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/backend/azure"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v2"
@@ -184,35 +184,37 @@ func RunIntegrationTests(t *testing.T, config TestHarnessConfig, testFunc func(*
 		config.Components = ComponentsRecentDataQuerying
 	}
 
-	backendTCs := backendTestCases(config.Backends)
+	backendTCs := BackendTestCases(config.Backends)
 
 	// Run tests for each deployment mode and backend combination
 	for _, be := range backendTCs {
 		// t.Run() with t.Parallel() here will cause some tests to run faster, but others like TestKVStores will fail for unknown reasons.
-		runTempoHarness(t, config, be.name, testFunc)
+		runTempoHarness(t, config, be.Name, testFunc)
 	}
 }
 
-type backendTestCase struct {
-	mask BackendsMask
-	name string
+// BackendTestCase pairs a single backend bit with its harness-facing name, letting a test
+// derive its own per-backend subtests instead of hardcoding the backend list.
+type BackendTestCase struct {
+	Backend BackendsMask
+	Name    string
 }
 
-// backendTestCases returns the list of backends to test based on the config
-func backendTestCases(backends BackendsMask) []backendTestCase {
-	var result []backendTestCase
+// BackendTestCases returns the list of backends to test based on the config
+func BackendTestCases(backends BackendsMask) []BackendTestCase {
+	var result []BackendTestCase
 
 	if backends&BackendObjectStorageS3 != 0 {
-		result = append(result, backendTestCase{BackendObjectStorageS3, backend.S3})
+		result = append(result, BackendTestCase{BackendObjectStorageS3, backend.S3})
 	}
 	if backends&BackendObjectStorageAzure != 0 {
-		result = append(result, backendTestCase{BackendObjectStorageAzure, backend.Azure})
+		result = append(result, BackendTestCase{BackendObjectStorageAzure, backend.Azure})
 	}
 	if backends&BackendObjectStorageGCS != 0 {
-		result = append(result, backendTestCase{BackendObjectStorageGCS, backend.GCS})
+		result = append(result, BackendTestCase{BackendObjectStorageGCS, backend.GCS})
 	}
 	if backends&BackendLocal != 0 {
-		result = append(result, backendTestCase{BackendLocal, backend.Local})
+		result = append(result, BackendTestCase{BackendLocal, backend.Local})
 	}
 
 	return result
@@ -344,7 +346,7 @@ func (h *TempoHarness) GetConfig() (app.Config, error) {
 func (h *TempoHarness) restartServiceWithConfigOverlay(t *testing.T, service *e2e.HTTPService, overlayPath string) error {
 	// Stop the service
 	err := service.Stop()
-	if strings.Contains(err.Error(), "exit status 137") { // 137 is returned by linux when it is force killed b/c it doesn't stop in time.
+	if err != nil && strings.Contains(err.Error(), "exit status 137") { // 137 is returned by linux when it is force killed b/c it doesn't stop in time.
 		t.Logf("service %s was force killed during stop: %v", service.Name(), err)
 	} else if err != nil {
 		return fmt.Errorf("failed to stop service: %w", err)
@@ -458,7 +460,7 @@ func startBackend(t *testing.T, s *e2e.Scenario, cfg app.Config) (*e2e.HTTPServi
 		if err != nil {
 			return nil, err
 		}
-		backendService = e2edb.NewMinio(port, "tempo")
+		backendService = e2edb.NewRustFS(port, "tempo")
 		err = s.StartAndWaitReady(backendService)
 		if err != nil {
 			return nil, err
