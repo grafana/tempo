@@ -2,6 +2,7 @@ package traceql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -416,6 +417,56 @@ func TestTrimToBlockOverlap(t *testing.T) {
 		assert.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.RFC3339Nano))
 		assert.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.RFC3339Nano))
 		assert.Equal(t, c.expectedStep, time.Duration(actualStep))
+	}
+}
+
+// reqCapture records the span-only fetch request and stops the query there.
+type reqCapture struct{ req FetchSpansRequest }
+
+func (c *reqCapture) Fetch(context.Context, FetchSpansRequest) (FetchSpansResponse, error) {
+	return FetchSpansResponse{}, util.ErrUnsupported
+}
+
+func (c *reqCapture) FetchSpans(_ context.Context, req FetchSpansRequest) (FetchSpansOnlyResponse, error) {
+	c.req = req
+	return FetchSpansOnlyResponse{}, errStopFetch
+}
+
+var errStopFetch = errors.New("stop")
+
+func TestDoSpansOnlySpanTimePushdown(t *testing.T) {
+	const minute = uint64(time.Minute)
+	start, end := 100*minute, 110*minute
+
+	tests := []struct {
+		name                 string
+		query                string
+		blockStart, blockEnd uint64
+		pushdown             bool
+	}{
+		{"block wider than the window", "{} | rate()", 90 * minute, 120 * minute, true},
+		{"below the overlap cutoff", "{} | rate()", 50 * minute, 250 * minute, true},
+		{"block range unknown", "{} | rate()", 0, 0, true},
+		{"block inside the window", "{} | rate()", 101 * minute, 109 * minute, true},
+		{"span start in the second pass", `{ .foo = "x" } | rate()`, 90 * minute, 120 * minute, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &tempopb.QueryRangeRequest{Query: tt.query, Start: start, End: end, Step: minute}
+			eval, err := NewEngine().CompileMetricsQueryRange(req, WithTimeOverlapCutoff(0.2))
+			require.NoError(t, err)
+
+			c := &reqCapture{}
+			require.ErrorIs(t, eval.Do(t.Context(), c, tt.blockStart, tt.blockEnd, 1000), errStopFetch)
+			if tt.pushdown {
+				require.Equal(t, start, c.req.SpanStartTimeUnixNanos)
+				require.Equal(t, end, c.req.SpanEndTimeUnixNanos)
+				require.Zero(t, c.req.TraceStartTimeUnixNanos, "replaces the trace filter")
+			} else {
+				require.Zero(t, c.req.SpanStartTimeUnixNanos)
+				require.Zero(t, c.req.SpanEndTimeUnixNanos)
+			}
+		})
 	}
 }
 
