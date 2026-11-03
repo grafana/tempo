@@ -9,9 +9,13 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
+// maxOutputPathElements bounds repeated locators in the output, not JSON bytes.
+const maxOutputPathElements = 32 * 1024
+
 var (
 	ErrNilTrace          = errors.New("trace is nil")
 	ErrUnsupportedFormat = errors.New("unsupported trace diff format")
+	ErrOutputTooLarge    = errors.New("trace diff output exceeds path budget")
 )
 
 // Diff compares base and compare and returns the requested diff format.
@@ -33,7 +37,10 @@ func diffTraceInputs(base, compare *tempopb.Trace) (*Result, normalizedTrace, no
 
 	baseTrace, baseWarnings := normalizeTraceForSide(base, "base")
 	compareTrace, compareWarnings := normalizeTraceForSide(compare, "compare")
-	matched, modified, added, removed := computeDiff(baseTrace, compareTrace)
+	matched, modified, added, removed, err := computeDiff(baseTrace, compareTrace)
+	if err != nil {
+		return nil, normalizedTrace{}, normalizedTrace{}, err
+	}
 	warnings := mergeWarnings(baseWarnings, compareWarnings)
 
 	return &Result{
@@ -57,7 +64,16 @@ func diffTraceInputs(base, compare *tempopb.Trace) (*Result, normalizedTrace, no
 	}, baseTrace, compareTrace, nil
 }
 
-func computeDiff(base, compare normalizedTrace) (int, []ModifiedSpan, []SpanChange, []SpanChange) {
+func computeDiff(base, compare normalizedTrace) (int, []ModifiedSpan, []SpanChange, []SpanChange, error) {
+	remaining := maxOutputPathElements
+	consume := func(count int) bool {
+		if count > remaining {
+			return false
+		}
+		remaining -= count
+		return true
+	}
+
 	baseSpanByCompareSpanID := matchSpans(base, compare)
 	matchedBaseSpanIDs := make(map[string]struct{}, len(baseSpanByCompareSpanID))
 
@@ -68,7 +84,12 @@ func computeDiff(base, compare normalizedTrace) (int, []ModifiedSpan, []SpanChan
 	for _, span := range compare.spans {
 		baseSpan, ok := baseSpanByCompareSpanID[span.spanID]
 		if !ok {
-			added = append(added, SpanChange{Target: addedSpanTarget(span.snapshot.Path), Span: span.snapshot})
+			// Snapshot path plus target parent path.
+			if !consume(2*span.path.depth - 1) {
+				return 0, nil, nil, nil, ErrOutputTooLarge
+			}
+			snapshot := span.materializedSnapshot()
+			added = append(added, SpanChange{Target: addedSpanTarget(snapshot.Path), Span: snapshot})
 			continue
 		}
 
@@ -76,7 +97,10 @@ func computeDiff(base, compare normalizedTrace) (int, []ModifiedSpan, []SpanChan
 		changes := fieldChanges(baseSpan, span)
 		changes = append(changes, attributeChanges(baseSpan, span)...)
 		if len(changes) > 0 {
-			modified = append(modified, ModifiedSpan{Span: span.ref, Changes: changes})
+			if !consume(span.path.depth) {
+				return 0, nil, nil, nil, ErrOutputTooLarge
+			}
+			modified = append(modified, ModifiedSpan{Span: span.materializedRef(), Changes: changes})
 		}
 	}
 
@@ -84,13 +108,18 @@ func computeDiff(base, compare normalizedTrace) (int, []ModifiedSpan, []SpanChan
 		if _, ok := matchedBaseSpanIDs[span.spanID]; ok {
 			continue
 		}
+		// Snapshot path plus target path (serialized separately).
+		if !consume(2 * span.path.depth) {
+			return 0, nil, nil, nil, ErrOutputTooLarge
+		}
+		snapshot := span.materializedSnapshot()
 		removed = append(removed, SpanChange{
-			Target: SpanTarget{Type: TargetSpan, Path: span.snapshot.Path},
-			Span:   span.snapshot,
+			Target: SpanTarget{Type: TargetSpan, Path: snapshot.Path},
+			Span:   snapshot,
 		})
 	}
 
-	return len(matchedBaseSpanIDs), modified, added, removed
+	return len(matchedBaseSpanIDs), modified, added, removed, nil
 }
 
 // matchSpans decides which base span, if any, matches each compare span.
