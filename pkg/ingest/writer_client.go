@@ -62,7 +62,7 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 		// doesn't take longer than 1s to process them (if it takes longer, the client will buffer data and stop
 		// issuing new Produce requests until some previous ones complete).
 		kgo.DisableIdempotentWrite(),
-		kgo.ProducerLinger(50*time.Millisecond),
+		kgo.ProducerLinger(kafkaCfg.ProducerLinger),
 		kgo.MaxProduceRequestsInflightPerBroker(maxInflightProduceRequests),
 
 		// Unlimited number of Produce retries but a deadline on the max time a record can take to be delivered.
