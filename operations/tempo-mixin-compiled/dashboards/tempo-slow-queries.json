@@ -73,13 +73,13 @@
      "span": 2,
      "targets": [
       {
-       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap duration_seconds | __error__=\"\" [$__auto]) by ()",
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap duration_seconds | __error__=\"\" [$__auto]) by ()",
        "format": "time_series",
        "legendFormat": "p99",
        "legendLink": null
       },
       {
-       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap duration_seconds | __error__=\"\" [$__auto]) by ()",
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap duration_seconds | __error__=\"\" [$__auto]) by ()",
        "format": "time_series",
        "legendFormat": "p50",
        "legendLink": null
@@ -133,13 +133,13 @@
      "span": 2,
      "targets": [
       {
-       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_spans | __error__=\"\" [$__auto]) by ()",
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_spans | __error__=\"\" [$__auto]) by ()",
        "format": "time_series",
        "legendFormat": "p99",
        "legendLink": null
       },
       {
-       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_spans | __error__=\"\" [$__auto]) by ()",
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_spans | __error__=\"\" [$__auto]) by ()",
        "format": "time_series",
        "legendFormat": "p50",
        "legendLink": null
@@ -193,13 +193,13 @@
      "span": 2,
      "targets": [
       {
-       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_bytes | __error__=\"\" [$__auto]) by ()",
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_bytes | __error__=\"\" [$__auto]) by ()",
        "format": "time_series",
        "legendFormat": "p99",
        "legendLink": null
       },
       {
-       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_bytes | __error__=\"\" [$__auto]) by ()",
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_bytes | __error__=\"\" [$__auto]) by ()",
        "format": "time_series",
        "legendFormat": "p50",
        "legendLink": null
@@ -313,13 +313,13 @@
      "span": 2,
      "targets": [
       {
-       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | unwrap time_span_seconds | __error__=\"\" [$__auto]) by ()",
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | unwrap time_span_seconds | __error__=\"\" [$__auto]) by ()",
        "format": "time_series",
        "legendFormat": "p99",
        "legendLink": null
       },
       {
-       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | unwrap time_span_seconds | __error__=\"\" [$__auto]) by ()",
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | unwrap time_span_seconds | __error__=\"\" [$__auto]) by ()",
        "format": "time_series",
        "legendFormat": "p50",
        "legendLink": null
@@ -373,13 +373,13 @@
      "span": 2,
      "targets": [
       {
-       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap total_requests | __error__=\"\" [$__auto]) by ()",
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap total_requests | __error__=\"\" [$__auto]) by ()",
        "format": "time_series",
        "legendFormat": "p99",
        "legendLink": null
       },
       {
-       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap total_requests | __error__=\"\" [$__auto]) by ()",
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap total_requests | __error__=\"\" [$__auto]) by ()",
        "format": "time_series",
        "legendFormat": "p50",
        "legendLink": null
@@ -445,7 +445,7 @@
      "span": 2,
      "targets": [
       {
-       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap duration_seconds | __error__=\"\" [$__auto]) by (tenant))",
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap duration_seconds | __error__=\"\" [$__auto]) by (tenant))",
        "format": "time_series",
        "legendFormat": "{{tenant}}",
        "legendLink": null
@@ -499,7 +499,7 @@
      "span": 2,
      "targets": [
       {
-       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_spans | __error__=\"\" [$__auto]) by (tenant))",
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_spans | __error__=\"\" [$__auto]) by (tenant))",
        "format": "time_series",
        "legendFormat": "{{tenant}}",
        "legendLink": null
@@ -553,7 +553,7 @@
      "span": 2,
      "targets": [
       {
-       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_bytes | __error__=\"\" [$__auto]) by (tenant))",
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap inspected_bytes | __error__=\"\" [$__auto]) by (tenant))",
        "format": "time_series",
        "legendFormat": "{{tenant}}",
        "legendLink": null
@@ -661,7 +661,7 @@
      "span": 2,
      "targets": [
       {
-       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | unwrap time_span_seconds | __error__=\"\" [$__auto]) by (tenant))",
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | unwrap time_span_seconds | __error__=\"\" [$__auto]) by (tenant))",
        "format": "time_series",
        "legendFormat": "{{tenant}}",
        "legendLink": null
@@ -715,7 +715,7 @@
      "span": 2,
      "targets": [
       {
-       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap total_requests | __error__=\"\" [$__auto]) by (tenant))",
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | unwrap total_requests | __error__=\"\" [$__auto]) by (tenant))",
        "format": "time_series",
        "legendFormat": "{{tenant}}",
        "legendLink": null
@@ -927,7 +927,7 @@
      "span": 12,
      "targets": [
       {
-       "expr": "{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}`",
+       "expr": "{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | query_type=~\"${query_type}\" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}`",
        "instant": false,
        "legendFormat": "",
        "range": true,

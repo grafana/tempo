@@ -5,9 +5,10 @@ local filename = 'tempo-slow-queries.json';
 dashboard_utils {
   local selector = '{%s=~"$cluster", namespace=~"$namespace", %s=~"%s"}' % [$._config.per_cluster_label, $._config.per_component_loki_label, $._config.jobs.query_frontend],
 
-  // Per-query response lines logged by the search and TraceQL metrics handlers in the query-frontend.
+  // Per-query response lines logged by the search and TraceQL metrics handlers in the query-frontend,
+  // including the "- no resp" and "- no metrics" variants.
   // duration_seconds is a plain number, so it is converted to a duration to compare it with $min_duration.
-  local responseLines = selector + ' |~ `msg="(search response|query range response|query instant results)"` | logfmt | tenant=~"${tenant_id}" | query_type=~"${query_type}" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration}',
+  local responseLines = selector + ' |~ `msg="(search response|query range response|query instant results)( - no (resp|metrics))?"` | logfmt | tenant=~"${tenant_id}" | query_type=~"${query_type}" | label_format query_duration=`{{ .duration_seconds }}s` | query_duration > ${min_duration}',
 
   // Search logs its range in seconds, TraceQL metrics in nanoseconds. Normalize both to seconds.
   local timeSpanLines = responseLines + ' | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}`',
