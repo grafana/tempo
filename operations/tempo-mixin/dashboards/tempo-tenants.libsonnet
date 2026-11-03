@@ -129,7 +129,7 @@ dashboard_utils {
               sum(tempodb_compaction_outstanding_blocks{%s,tenant="$tenant"})
               /
               count(tempo_build_info{%s})
-            ||| % [$.jobMatcher($._config.jobs.backend_scheduler), $.jobMatcher($._config.jobs.backend_scheduler)],
+            ||| % [$.jobMatcher($._config.jobs.backend_scheduler), $.jobMatcher($._config.jobs.backend_worker)],
             'blocks',
           ) + {
             legend: { show: false },

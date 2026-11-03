@@ -593,7 +593,7 @@
      "span": 6,
      "targets": [
       {
-       "expr": "sum(tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",tenant=\"$tenant\"})\n/\ncount(tempo_build_info{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\"})\n",
+       "expr": "sum(tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",tenant=\"$tenant\"})\n/\ncount(tempo_build_info{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\"})\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "blocks",
