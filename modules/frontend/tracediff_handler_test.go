@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -249,6 +250,16 @@ func TestTraceDiffHandlerReturnsDiff(t *testing.T) {
 			tt.assertBody(t, resp.Body.Bytes())
 		})
 	}
+}
+
+func TestTraceDiffErrorResponseOutputTooLarge(t *testing.T) {
+	resp := traceDiffErrorResponse(fmt.Errorf("build trace diff: %w", tracediff.ErrOutputTooLarge))
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "build trace diff: trace diff output exceeds path budget", string(body))
 }
 
 func TestTraceDiffHandlerRejectsOversizedCombinedInput(t *testing.T) {

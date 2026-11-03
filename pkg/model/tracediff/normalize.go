@@ -24,6 +24,7 @@ type normalizedTrace struct {
 
 type normalizedSpan struct {
 	spanID         string
+	path           *normalizedPath
 	parentIdentity spanLogicalKey
 	hasParent      bool
 	ref            SpanRef
@@ -38,6 +39,12 @@ type spanLogicalKey struct {
 	service string
 	name    string
 	kind    string
+}
+
+type normalizedPath struct {
+	parent *normalizedPath
+	index  int
+	depth  int
 }
 
 type spanWithResource struct {
@@ -126,7 +133,7 @@ func flattenSpans(trace *tempopb.Trace) ([]spanWithResource, TraceMeta) {
 	return spans, meta
 }
 
-func assignPaths(out *normalizedTrace, children map[string][]spanWithResource, spans []spanWithResource, parentPath []int, parentIdentity spanLogicalKey, hasParent bool, startIndex int, visited map[string]struct{}) int {
+func assignPaths(out *normalizedTrace, children map[string][]spanWithResource, spans []spanWithResource, parentPath *normalizedPath, parentIdentity spanLogicalKey, hasParent bool, startIndex int, visited map[string]struct{}) int {
 	nextIndex := startIndex
 	for _, span := range spans {
 		spanID := spanIDKey(span.span.GetSpanId())
@@ -134,9 +141,15 @@ func assignPaths(out *normalizedTrace, children map[string][]spanWithResource, s
 			continue
 		}
 
-		path := make([]int, len(parentPath)+1)
-		copy(path, parentPath)
-		path[len(parentPath)] = nextIndex
+		depth := 1
+		if parentPath != nil {
+			depth = parentPath.depth + 1
+		}
+		path := &normalizedPath{
+			parent: parentPath,
+			index:  nextIndex,
+			depth:  depth,
+		}
 		nextIndex++
 
 		logicalKey := logicalKey(span)
@@ -147,15 +160,15 @@ func assignPaths(out *normalizedTrace, children map[string][]spanWithResource, s
 	return nextIndex
 }
 
-func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey, parentIdentity spanLogicalKey, hasParent bool) normalizedSpan {
+func normalizeSpan(span spanWithResource, path *normalizedPath, logicalKey spanLogicalKey, parentIdentity spanLogicalKey, hasParent bool) normalizedSpan {
 	ref := SpanRef{
-		Path:    path,
 		Service: logicalKey.service,
 		Name:    logicalKey.name,
 		Kind:    logicalKey.kind,
 	}
 	return normalizedSpan{
 		spanID:         spanIDKey(span.span.GetSpanId()),
+		path:           path,
 		parentIdentity: parentIdentity,
 		hasParent:      hasParent,
 		ref:            ref,
@@ -164,7 +177,6 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 		durationValid:  hasValidDuration(span.span),
 		spanAttrs:      attributesMap(span.span.GetAttributes()),
 		snapshot: SpanSnapshot{
-			Path:          path,
 			Service:       ref.Service,
 			Name:          ref.Name,
 			Kind:          ref.Kind,
@@ -172,6 +184,30 @@ func normalizeSpan(span spanWithResource, path []int, logicalKey spanLogicalKey,
 			Status:        statusToString(span.span.GetStatus()),
 		},
 	}
+}
+
+func materializePath(path *normalizedPath) []int {
+	if path == nil {
+		return nil
+	}
+
+	out := make([]int, path.depth)
+	for current := path; current != nil; current = current.parent {
+		out[current.depth-1] = current.index
+	}
+	return out
+}
+
+func (s normalizedSpan) materializedRef() SpanRef {
+	ref := s.ref
+	ref.Path = materializePath(s.path)
+	return ref
+}
+
+func (s normalizedSpan) materializedSnapshot() SpanSnapshot {
+	snapshot := s.snapshot
+	snapshot.Path = materializePath(s.path)
+	return snapshot
 }
 
 func invalidDurationWarnings(spans []spanWithResource, side string) []Warning {
