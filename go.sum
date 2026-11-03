@@ -472,8 +472,8 @@ github.com/jedib0t/go-pretty/v6 v6.7.10 h1:B/2qW2Bkv2L6n14PP8o1kx75kWzHOQ3YTluWz
 github.com/jedib0t/go-pretty/v6 v6.7.10/go.mod h1:YwC5CE4fJ1HFUDeivSV1r//AmANFHyqczZk+U6BDALU=
 github.com/jmespath/go-jmespath v0.4.0 h1:BEgLn5cpjn8UN1mAw4NjwDrS35OdebyEtFe+9YPoQUg=
 github.com/jmespath/go-jmespath v0.4.0/go.mod h1:T8mJZnbsbmF+m6zOOFylbeCJqk5+pHWvzYPziyZiYoo=
-github.com/jpillora/backoff v1.0.0 h1:uvFg412JmmHBHw7iwprIxkPMI+sGQ4kzOWsMeHnm2EA=
-github.com/jpillora/backoff v1.0.0/go.mod h1:J/6gKK9jxlEcS3zixgDgUAsiuZ7yrSoa/FX5e0EB2j4=
+github.com/jpillora/backoff v1.1.0 h1:9LWA6DCcU2qxTLK7iOxvuIQvuIe/twLJHryAcA3JFAs=
+github.com/jpillora/backoff v1.1.0/go.mod h1:InzEM6zwRZT3SOZRzyrihzVj4k8KKFicc+XgkyHOgNM=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
 github.com/jsternberg/zap-logfmt v1.3.0 h1:z1n1AOHVVydOOVuyphbOKyR4NICDQFiJMn1IK5hVQ5Y=
