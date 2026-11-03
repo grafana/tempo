@@ -1,0 +1,5 @@
+change_type: enhancement
+component: operations
+note: Add opt-in HPA/KEDA autoscaling rows (replicas, desired replicas, scaler failures) to the Tempo / Writes and Tempo / Reads mixin dashboards. Enable per component with `_config.autoscaling.<component>.enabled`.
+issues: []
+user: VoyTechnology
