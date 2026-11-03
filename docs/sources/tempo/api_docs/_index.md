@@ -42,6 +42,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                            |
 | [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
 | [Traces diff](#traces-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
+| [Active queries](#active-queries)                                                      | Query-frontend                            | HTTP | `GET /status/active-queries`                              |
 | [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
 | [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
 | Memberlist                                                                            | Distributor, Querier, Live store          | HTTP | `GET /memberlist`                                         |
@@ -834,6 +835,24 @@ Returns status code 200 and body `echo` when the query frontend is up and ready 
 
 {{< admonition type="note" >}}
 Meant to be used in a Query Visualization UI like Grafana to test that the Tempo data source is working.
+{{< /admonition >}}
+
+### Active queries
+
+```
+GET /status/active-queries
+```
+
+Lists tenants with queries currently being processed by this query-frontend instance.
+Open `GET /status/active-queries/{tenant}` to view that tenant's active queries.
+Each query includes its ID, request method and path, query details, and start time.
+The pages render HTML by default and return JSON when the request accepts `application/json`.
+Query tracking is disabled by default.
+
+Enable it by setting `query_frontend.query_tracker.enabled: true`.
+
+{{< admonition type="note" >}}
+In a distributed deployment, query each query-frontend instance to see its active queries.
 {{< /admonition >}}
 
 ### Overrides API

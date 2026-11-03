@@ -359,21 +359,16 @@ func accessExemplars[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			newExemplars, err := ctxutil.ExpectType[pmetric.ExemplarSlice](val)
-			if err != nil {
-				return err
-			}
 			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
-				newExemplars.CopyTo(dp.Exemplars())
+				return ctxutil.SetPSliceValue(dp.Exemplars(), pmetric.NewExemplarSlice, val)
 			case pmetric.HistogramDataPoint:
-				newExemplars.CopyTo(dp.Exemplars())
+				return ctxutil.SetPSliceValue(dp.Exemplars(), pmetric.NewExemplarSlice, val)
 			case pmetric.ExponentialHistogramDataPoint:
-				newExemplars.CopyTo(dp.Exemplars())
+				return ctxutil.SetPSliceValue(dp.Exemplars(), pmetric.NewExemplarSlice, val)
 			default:
 				return fmt.Errorf("unsupported data point type: %T", dp)
 			}
-			return nil
 		},
 	}
 }
@@ -700,16 +695,11 @@ func accessQuantileValues[K Context]() ottl.StandardGetSetter[K] {
 			return nil, nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			newQuantileValues, err := ctxutil.ExpectType[pmetric.SummaryDataPointValueAtQuantileSlice](val)
-			if err != nil {
-				return err
-			}
 			summaryDataPoint, err := ctxutil.ExpectType[pmetric.SummaryDataPoint](tCtx.GetDataPoint())
 			if err != nil {
 				return err
 			}
-			newQuantileValues.CopyTo(summaryDataPoint.QuantileValues())
-			return nil
+			return ctxutil.SetPSliceValue(summaryDataPoint.QuantileValues(), pmetric.NewSummaryDataPointValueAtQuantileSlice, val)
 		},
 	}
 }

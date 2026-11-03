@@ -597,6 +597,9 @@ block_builder:
     # Maximum number of bytes that can be consumed in a single cycle. 0 to disable.
     [max_consuming_bytes: <uint64> | default = 5000000000]
 
+    # Maximum number of tenants to flush concurrently per partition section. Must be positive.
+    [flush_concurrency: <int> | default = 4]
+
     # Block configuration for the block builder.
     block: <Block config>
       [max_block_bytes: <uint64> | default = 20971520]
@@ -605,6 +608,12 @@ block_builder:
     wal: <WAL config>
       [path: <string> | default = "/var/tempo/block-builder/traces"]
 ```
+
+Increase `block_builder.flush_concurrency` when tenant flushes on a high-latency object store
+prevent the block-builder from keeping up with its consumption cycles.
+Higher concurrency increases the number of simultaneous block builds and uploads,
+so monitor memory usage and object-store throttling when tuning this setting.
+The equivalent CLI flag is `-block-builder.flush-concurrency`.
 
 ## Live-store
 
@@ -1244,6 +1253,12 @@ query_frontend:
     mcp_server:
         [enabled: <bool> | default = false]
 
+    # Query tracker configuration. Enable it to expose active query status pages.
+    query_tracker:
+        [enabled: <bool> | default = false]
+        [max_queries_per_tenant: <int> | default = 100]
+        [max_query_text_bytes: <int> | default = 4096]
+
 ```
 
 ### Limit query size to improve performance and stability
@@ -1760,6 +1775,19 @@ storage:
             # Example: "retry_backoff_max: 1s"
             # The maximum duration to wait between retry attempts on failed S3 requests.
             [retry_backoff_max: <duration>]
+
+            # Optional. Default is 100
+            # Example: "max_idle_connections_per_host: 400"
+            # The maximum number of idle connections kept open to the S3 endpoint. When more requests than
+            # this finish at the same time, the extra connections are closed, and later requests open new
+            # ones with a new TCP and TLS handshake. Set this at or above the number of concurrent S3
+            # requests, for example the storage pool max_workers on queriers.
+            [max_idle_connections_per_host: <int>]
+
+            # Optional. Default is 100
+            # Example: "max_idle_connections: 400"
+            # The maximum number of idle connections kept open across all S3 hosts.
+            [max_idle_connections: <int>]
 
             # Optional
             # Example: "tags: {'key': 'value'}"
@@ -2328,6 +2356,10 @@ multi:
 # is the total amount of bytes used for buffering when performing search on a parquet block.
 [read_buffer_size_bytes: <int> | default = 2097152]
 
+# Size of read buffers used when looking up a trace by ID in a block. A trace-by-ID lookup opens a
+# buffer per column read, so memory per lookup scales with this value.
+[trace_by_id_read_buffer_size_bytes: <int> | default = 524288]
+
 # Granular cache control settings for parquet metadata objects
 # Deprecated. See [Cache](#cache) section.
 cache_control:
@@ -2488,6 +2520,12 @@ overrides:
       # which is enabled by default. Set to false to opt out for the tenant.
       # May be overridden by query hints.
       [metrics_spanonly_fetch: <bool> | default = true]
+
+      # EXPERIMENTAL
+      # Per-user toggle for extrapolating TraceQL metrics from the per-span
+      # sampling probability by default. May be overridden by the
+      # extrapolate query hint.
+      [metrics_extrapolate: <bool> | default = false]
 
       # EXPERIMENTAL
       # When enabled, queries report an additional metric indicating whether the
@@ -3059,6 +3097,17 @@ cache:
             # idle for longer than two minutes are closed.
             # (default: -1)
             [min_idle_conns_headroom_percentage: <float>]
+
+            # Optional
+            # How long a free connection can sit unused and still count as
+            # recently used when reaping idle connections. Recently used
+            # connections are never closed and set the headroom kept by
+            # min_idle_conns_headroom_percentage, so a longer value keeps more
+            # connections after a burst. Idle connections are checked once a
+            # minute. Only applies if min_idle_conns_headroom_percentage is not
+            # negative. If 0, the default of 2m is used.
+            # (default: 2m)
+            [recently_used_conns_threshold: <duration>]
 
             # Optional
             # Period with which to poll DNS for memcache servers.

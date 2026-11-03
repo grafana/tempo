@@ -39,13 +39,13 @@ func isMatch[K any](target ottl.StringLikeGetter[K], pattern ottl.StringGetter[K
 		if err != nil {
 			return nil, err
 		}
-		val, err := target.Get(ctx, tCtx)
+		val, ok, err := target.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
-		if val == nil {
+		if !ok {
 			return false, nil
 		}
-		return cp.MatchString(*val), nil
+		return cp.MatchString(val), nil
 	}, nil
 }

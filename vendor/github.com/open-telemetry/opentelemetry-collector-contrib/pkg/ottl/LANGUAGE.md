@@ -2,6 +2,17 @@
 
 OTTL grammar includes function invocations, Values and Boolean Expressions. These parts all fit into a Statement, which is the basis of execution in OTTL.
 
+### Statements
+
+A Statement is a single [Editor](#editors) invocation optionally followed by the keyword `where` and a [Boolean Expression](#boolean-expressions). When a `where` clause is present, the Editor is only executed if the Boolean Expression evaluates to `true`.
+
+Example Statements
+- `set(log.attributes["namespace"], resource.attributes["k8s.namespace.name"])`
+- `set(log.attributes["env"], "prod") where resource.attributes["k8s.namespace.name"] == "prod"`
+- `delete_key(log.attributes, "http.request.header.authorization") where log.attributes["http.request.header.authorization"] != nil`
+
+OTTL can also parse a [Boolean Expression](#boolean-expressions) on its own, without an Editor or the `where` keyword, as a Condition. Conditions are used to calculate a decision rather than a produce a mutation.
+
 ### Design principles
 
 OTTL is intended as a domain-specific language (DSL) for telemetry mutation and generation,
@@ -30,7 +41,7 @@ Converters are made up of 3 parts:
 
 - a string identifier. The string identifier must start with an uppercase letter.
 - zero or more Values (comma separated) surrounded by parentheses (`()`).
-- a combination of zero or more a string key (`["key"]`) or int key (`[0]`)
+- a combination of zero or more string (`["key"]`) or int (`[0]`) keys
 
 **OTTL has no built-in Converters.**
 Users must include Converters in the same map that Editors are supplied.
@@ -55,12 +66,16 @@ Example Converters
 
 ### Function parameters
 
-The following types are supported for single-value parameters in OTTL functions:
+The following types are supported for parameters in OTTL functions:
 
 - `Setter`
 - `GetSetter`
 - `Getter`
 - `PMapGetter`
+- `PMapGetSetter`
+- `PSliceGetter`
+- `PSliceGetSetter`
+- `SliceGetter`
 - `FloatGetter`
 - `FloatLikeGetter`
 - `StringGetter`
@@ -70,27 +85,36 @@ The following types are supported for single-value parameters in OTTL functions:
 - `BoolGetter`
 - `BoolLikeGetter`
 - `ByteSliceLikeGetter`
+- `DurationGetter`
+- `TimeGetter`
+- `FunctionGetter`
+- `LambdaExpression`
 - `Enum`
 - `string`
 - `float64`
 - `int64`
 - `bool`
 
-For slice parameters, the following types are supported:
+Bare slice parameters (`[]T`) accept only literal lists. The following element types are supported:
 
 - `Getter`
 - `PMapGetter`
+- `PSliceGetter`
 - `FloatGetter`
 - `FloatLikeGetter`
 - `StringGetter`
 - `StringLikeGetter`
 - `IntGetter`
 - `IntLikeGetter`
+- `DurationGetter`
+- `TimeGetter`
 - `string`
 - `float64`
 - `int64`
 - `uint8`. Byte slice literals are parsed as byte slices by OTTL.
-- `Getter`
+
+To accept lists that are not known until runtime, use a `SliceGetter` parameter. Unlike bare slice
+parameters, it can accept either a literal list or a path or converter that evaluates to a slice.
 
 To make a parameter optional, use the `Optional` type, which takes a type argument for the underlying
 parameter type. For example, an optional string parameter would be specified as `Optional[string]`.
@@ -100,6 +124,8 @@ All optional parameters must be specified after all required parameters.
 
 Function arguments must be passed in the order defined in the `Arguments` struct for the function unless they are named, in which case the arguments can come in any order. All named arguments must come after all arguments without
 names. Argument names are snake-cased versions of the argument's field name in the function's `Arguments` struct.
+
+A named argument is passed by preceding its value with the argument name and an equals sign (`=`), such as `example(foo="bar")`.
 
 When passing optional arguments, all optional arguments preceding a given optional argument must be specified if
 the arguments are not named. Passing a named argument allows skipping the preceding optional arguments.
@@ -114,6 +140,7 @@ Values are passed as function parameters or are used in a Boolean Expression. Va
 - [Enums](#enums)
 - [Converters](#converters)
 - [Math Expressions](#math-expressions)
+- [Lambda Expressions](#lambda-expressions)
 - [Maps](#maps)
 
 ### Paths
@@ -149,14 +176,14 @@ When using OTTL it is recommended to use these contexts unless you have a specif
 ### Lists
 
 A List Value comprises a sequence of Values.
-Currently, list can only be created by the grammar to be used in functions or conditions;
-the grammar does not provide an accessor to individual list entries.
+Currently, lists can only be created by the grammar to be used in functions or conditions;
+the grammar does not provide an accessor to individual literal list entries.
 
 Example List Values:
 - `[]`
 - `[1]`
 - `["1", "2", "3"]`
-- `["a", attributes["key"], Concat(["a", "b"], "-")]`
+- `["a", log.attributes["key"], Concat(["a", "b"], "-")]`
 
 ### Maps
 
@@ -166,7 +193,22 @@ Example Map Values:
 - `{}`
 - `{"foo": "bar"}`
 - `{"foo": {"a": 2}}`
-- `{"foo": {"a": attributes["key"]}}`
+- `{"foo": {"a": log.attributes["key"]}}`
+
+> [!IMPORTANT]
+> The examples above include a space after each `:` for readability, but a statement
+> written this way cannot be used as an unquoted YAML scalar in a Collector configuration.
+> YAML interprets a colon followed by a space (`: `) inside an unquoted scalar as a mapping
+> key separator, so loading the config fails Collector config parsing. When a statement
+> contains a map literal, wrap the whole statement in a YAML string (single quotes are
+> simplest, since OTTL uses double quotes internally):
+>
+> ```yaml
+> statements:
+>   - 'set(log.attributes["a"], {"foo": "bar"})'
+> ```
+>
+> Alternatively, omit the space after `:` (`{"foo":"bar"}`).
 
 ### Literals
 
@@ -184,12 +226,12 @@ Example Literals
 - `1`, `-1`
 - `1.5`, `-.5`
 - `true`, `false`
-- `nil`,
+- `nil`
 - `0x0001`
 
 ### Enums
 
-Enums are uppercase identifiers that get interpreted during parsing and converted to an `int64`. **The interpretation of an Enum is NOT implemented by OTTL.** Instead, the user must provide a `EnumParser` that OTTL can use to interpret the Enum.  The `EnumParser` returns an `int64` instead of a function, which means that the Enum's numeric value is retrieved during parsing instead of during execution.
+Enums are uppercase identifiers that get interpreted during parsing and converted to an `int64`. **The interpretation of an Enum is NOT implemented by OTTL.** Instead, the user must provide a `EnumParser` that OTTL can use to interpret the Enum.  The `EnumParser` resolves an Enum to its numeric value during parsing.
 
 Within the grammar Enums are always used as `int64`.  As a result, the Enum's symbol can be used as if it is an Int value.
 
@@ -219,19 +261,54 @@ Division by zero is gracefully handled with an error, but other arithmetic opera
 Division of integers results in an integer and follows Go's rules for division of integers.
 
 Since Math Expressions support `Path`s and `Converter`s as input, they are evaluated during data processing.
-__As a result, in order for a function to be able to accept an Math Expressions as a parameter it must use a `Getter`.__
+__As a result, in order for a function to be able to accept a Math Expression as a parameter it must use a `Getter`.__
 
 Example Math Expressions
 - `1 + 1`
-- `end_time_unix_nano - end_time_unix_nano`
+- `span.end_time_unix_nano - span.start_time_unix_nano`
 - `sum([1, 2, 3, 4]) + (10 / 1) - 1`
 
+### Lambda Expressions
+
+> [!IMPORTANT]
+> Lambda expressions are currently in alpha and may change or be removed in future releases.
+> To use them, enable the [`ottl.functions.enableLambda`](documentation.md#feature-gates) feature gate.
+
+Lambda Expressions are anonymous/inline functions that can be passed to OTTL functions whose arguments
+accept `LambdaExpression`. Their syntax is a parenthesized list of parameters, followed by the
+lambda arrow (`=>`) and a single Value or OTTL expression.
+
+```
+(parameter1, parameter2) => body
+```
+
+Parameter names must be lowercase identifiers and must be unique within the Lambda Expression.
+The blank identifier (`_`) can be used more than once to discard parameters that the body does not
+need. The function receiving the Lambda Expression defines the required number, position, and meaning 
+of its parameters.
+
+Named parameters are read-only local identifiers. They can be used anywhere a Path can be read in
+the body, including as function arguments and in Math or Boolean Expressions. Map and slice values
+held by a parameter can be indexed with square brackets. A Lambda Expression body can also read
+regular OTTL Paths from the surrounding context.
+
+Lambda Expressions may be nested. An inner Lambda Expression can read named parameters from an
+outer Lambda Expression, while a parameter declared by the inner Lambda Expression shadows an outer
+parameter with the same name.
+
+Examples:
+
+- `(_, value) => value`
+- `(key, _) => IsMatch(key, "^http")`
+- `(index, value) => Concat([String(index), String(value)], ":")`
+- `(value) => value["nested"][0]`
+- `(_, outerVal) => Filter((_, innerVal) => outerVal == innerVal)`
 
 ### Boolean Expressions
 
-Boolean Expressions allow a decision to be made about whether an Editor should be called. Boolean Expressions are optional.  When used, the parsed statement will include a `Condition`, which can be used to evaluate the result of the statement's Boolean Expression. Boolean Expressions always evaluate to a boolean value (true or false).
+Boolean Expressions allow a decision to be made about whether an Editor should be called. Within a Statement they are optional, appearing after the `where` keyword; they can also be parsed on their own as a Condition. When used in a Statement, the parsed statement will include a `Condition`, which can be used to evaluate the result of the statement's Boolean Expression. Boolean Expressions always evaluate to a boolean value (true or false).
 
-Boolean Expressions consist of the literal string `where` followed by one or more Booleans (see below).
+Boolean Expressions consist of one or more Booleans (see below).
 Booleans can be joined with the literal strings `and` and `or`.
 Booleans can be negated with the literal string `not`.
 Note that `not` has the highest precedence and `and` Boolean Expressions have higher precedence than `or`.
@@ -257,8 +334,8 @@ The valid operators are:
 
 Booleans can be negated with the `not` keyword such as
 - `not true`
-- `not name == "foo"`
-- `not (IsMatch(name, "http_.*") and kind > 0)`
+- `not span.name == "foo"`
+- `not (IsMatch(span.name, "http_.*") and span.kind > 0)`
 
 ## Comparison Rules
 
@@ -270,29 +347,32 @@ For numeric values and strings, the comparison rules are those implemented by Go
 
 For values that are not one of the basic primitive types, the only valid comparisons are Equal and Not Equal, which are implemented using Go's standard `==` and `!=` operators.
 
+A `pcommon.Value` is compared by extracting its underlying typed value and then applying the comparison rules for that type. When two `pcommon.Value` instances share the same underlying type, they are compared directly. A `pcommon.Value` with `ValueTypeEmpty` is considered equivalent to nil.
+
 A `not equal` notation in the table below means that the "!=" operator returns true, but any other operator returns false. Note that a nil byte array is considered equivalent to nil.
 
 The `time.Time` and `time.Duration` types are compared using comparison functions from their respective packages. For more details on how those comparisons work, see the [Golang Time package](https://pkg.go.dev/time).
 
-| base type      | bool        | int64               | float64             | string                          | Bytes                    | nil                    | time.Time                            | time.Duration                                        | map[string]any                                               | pcommon.Map                                                  | []any                                                          | pcommon.Slice                                                  |
-|----------------|-------------|---------------------|---------------------|---------------------------------|--------------------------|------------------------|--------------------------------------|------------------------------------------------------|--------------------------------------------------------------|--------------------------------------------------------------|----------------------------------------------------------------|----------------------------------------------------------------|
-| bool           | normal, T>F | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      |
-| int64          | not equal   | compared as largest | compared as float64 | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      |
-| float64        | not equal   | compared as float64 | compared as largest | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      |
-| string         | not equal   | not equal           | not equal           | normal (compared as Go strings) | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      |
-| Bytes          | not equal   | not equal           | not equal           | not equal                       | byte-for-byte comparison | []byte(nil) == nil     | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      |
-| nil            | not equal   | not equal           | not equal           | not equal                       | []byte(nil) == nil       | true for equality only | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      |
-| time.Time      | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | uses `time.Equal()`to check equality | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      |
-| time.Duration  | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | uses `time.Before()` and `time.After` for comparison | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      |
-| map[string]any | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | uses reflect.DeepEqual for comparison                        | convert to raw map and uses reflect.DeepEqual for comparison | not equal                                                      | not equal                                                      |
-| pcommon.Map    | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | convert to raw map and uses reflect.DeepEqual for comparison | uses pcommon.Map Equal for comparison                        | not equal                                                      | not equal                                                      |
-| []any          | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | uses reflect.DeepEqual for comparison                          | convert to raw slice and uses reflect.DeepEqual for comparison |
-| pcommon.Slice  | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | convert to raw slice and uses reflect.DeepEqual for comparison | uses pcommon.Slice Equal for comparison                        |
+| base type      | bool        | int64               | float64             | string                          | Bytes                    | nil                    | time.Time                            | time.Duration                                        | map[string]any                                               | pcommon.Map                                                  | []any                                                          | pcommon.Slice                                                  | pcommon.Value                                          |
+|----------------|-------------|---------------------|---------------------|---------------------------------|--------------------------|------------------------|--------------------------------------|------------------------------------------------------|--------------------------------------------------------------|--------------------------------------------------------------|----------------------------------------------------------------|----------------------------------------------------------------|--------------------------------------------------------|
+| bool           | normal, T>F | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      | compared as bool if compatible                         |
+| int64          | not equal   | compared as largest | compared as float64 | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      | compared as numeric if compatible                      |
+| float64        | not equal   | compared as float64 | compared as largest | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      | compared as numeric if compatible                      |
+| string         | not equal   | not equal           | not equal           | normal (compared as Go strings) | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      | compared as Go strings if compatible                   |
+| Bytes          | not equal   | not equal           | not equal           | not equal                       | byte-for-byte comparison | []byte(nil) == nil     | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      | byte-for-byte comparison if compatible                 |
+| nil            | not equal   | not equal           | not equal           | not equal                       | []byte(nil) == nil       | true for equality only | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      | ValueTypeEmpty == nil                                  |
+| time.Time      | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | uses `time.Equal()`to check equality | not equal                                            | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      | not equal                                              |
+| time.Duration  | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | uses `time.Before()` and `time.After` for comparison | not equal                                                    | not equal                                                    | not equal                                                      | not equal                                                      | not equal                                              |
+| map[string]any | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | uses reflect.DeepEqual for comparison                        | convert to raw map and uses reflect.DeepEqual for comparison | not equal                                                      | not equal                                                      | uses reflect.DeepEqual if compatible                   |
+| pcommon.Map    | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | convert to raw map and uses reflect.DeepEqual for comparison | uses pcommon.Map Equal for comparison                        | not equal                                                      | not equal                                                      | uses pcommon.Map Equal if compatible                   |
+| []any          | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | uses reflect.DeepEqual for comparison                          | convert to raw slice and uses reflect.DeepEqual for comparison | uses reflect.DeepEqual if compatible                   |
+| pcommon.Slice  | not equal   | not equal           | not equal           | not equal                       | not equal                | not equal              | not equal                            | not equal                                            | not equal                                                    | not equal                                                    | convert to raw slice and uses reflect.DeepEqual for comparison | uses pcommon.Slice Equal for comparison                        | uses pcommon.Slice Equal if compatible                 |
+| pcommon.Value  | compared as bool if compatible | compared as numeric if compatible | compared as numeric if compatible | compared as Go strings if compatible | byte-for-byte comparison if compatible | ValueTypeEmpty == nil | not equal                            | not equal                                            | uses reflect.DeepEqual if compatible | uses pcommon.Map Equal if compatible | uses reflect.DeepEqual if compatible | uses pcommon.Slice Equal if compatible | compared using underlying type rules |
 
 Examples:
-- `name == "a name"`
+- `span.name == "a name"`
 - `1 < 2`
-- `attributes["custom-attr"] != nil`
+- `log.attributes["custom-attr"] != nil`
 - `IsMatch(resource.attributes["host.name"], "pod-*")`
 
 ## Accessing signal telemetry

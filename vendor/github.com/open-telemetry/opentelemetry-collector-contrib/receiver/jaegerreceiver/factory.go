@@ -32,11 +32,22 @@ func NewFactory() receiver.Factory {
 	return receiver.NewFactory(
 		metadata.Type,
 		createDefaultConfig,
-		receiver.WithTraces(createTracesReceiver, metadata.TracesStability))
+		receiver.WithTraces(createTracesReceiver, metadata.TracesStability),
+	)
 }
 
 // CreateDefaultConfig creates the default configuration for Jaeger receiver.
 func createDefaultConfig() component.Config {
+	thriftHTTPServerConfig := confighttp.NewDefaultServerConfig()
+	// TODO: See https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/49316.
+	thriftHTTPServerConfig.WriteTimeout = 0
+	thriftHTTPServerConfig.ReadHeaderTimeout = 0
+	thriftHTTPServerConfig.IdleTimeout = 0           //nolint:staticcheck // SA1019: see TODO above
+	thriftHTTPServerConfig.KeepAlivesEnabled = false //nolint:staticcheck // SA1019: see TODO above
+	thriftHTTPServerConfig.NetAddr = confignet.AddrConfig{
+		Endpoint:  defaultHTTPEndpoint,
+		Transport: confignet.TransportTypeTCP,
+	}
 	return &Config{
 		Protocols: Protocols{
 			GRPC: configoptional.Default(configgrpc.ServerConfig{
@@ -45,12 +56,7 @@ func createDefaultConfig() component.Config {
 					Transport: confignet.TransportTypeTCP,
 				},
 			}),
-			ThriftHTTP: configoptional.Default(confighttp.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint:  defaultHTTPEndpoint,
-					Transport: confignet.TransportTypeTCP,
-				},
-			}),
+			ThriftHTTP: configoptional.Default(thriftHTTPServerConfig),
 			ThriftBinaryUDP: configoptional.Default(ProtocolUDP{
 				Endpoint:        defaultThriftBinaryEndpoint,
 				ServerConfigUDP: defaultServerConfigUDP(),

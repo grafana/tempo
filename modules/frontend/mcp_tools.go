@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -277,11 +278,23 @@ func (s *MCPServer) handleGetTrace(ctx context.Context, request mcp.CallToolRequ
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
+	start, end, err := parseTimeRange(request, "start", "end")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
 	level.Info(s.logger).Log("msg", "getting trace", "trace_id", traceID)
 
+	u := &url.URL{Path: s.buildPath("/api/v2/traces/" + url.PathEscape(traceID))}
+	if start != nil {
+		u.RawQuery = url.Values{
+			"start": {strconv.FormatInt(*start, 10)},
+			"end":   {strconv.FormatInt(*end, 10)},
+		}.Encode()
+	}
 	httpReq := &http.Request{
 		Method: "GET",
-		URL:    &url.URL{Path: s.buildPath("/api/v2/traces/" + url.PathEscape(traceID))},
+		URL:    u,
 	}
 	httpReq, ctx = injectMuxVars(ctx, httpReq, map[string]string{"traceID": traceID})
 
@@ -309,11 +322,11 @@ func (s *MCPServer) handleTraceDiff(ctx context.Context, request mcp.CallToolReq
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	baseStart, baseEnd, err := parseTraceDiffRange(request, "base_start", "base_end")
+	baseStart, baseEnd, err := parseTimeRange(request, "base_start", "base_end")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	compareStart, compareEnd, err := parseTraceDiffRange(request, "compare_start", "compare_end")
+	compareStart, compareEnd, err := parseTimeRange(request, "compare_start", "compare_end")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -371,7 +384,7 @@ func traceDiffFormat(request mcp.CallToolRequest) (string, error) {
 	return format, nil
 }
 
-func parseTraceDiffRange(request mcp.CallToolRequest, startName, endName string) (*int64, *int64, error) {
+func parseTimeRange(request mcp.CallToolRequest, startName, endName string) (*int64, *int64, error) {
 	args := request.GetArguments()
 	_, hasStart := args[startName]
 	_, hasEnd := args[endName]
@@ -390,18 +403,18 @@ func parseTraceDiffRange(request mcp.CallToolRequest, startName, endName string)
 	if err != nil {
 		return nil, nil, err
 	}
-	start, err := parseTraceDiffTime(startValue, startName)
+	start, err := parseRFC3339Epoch(startValue, startName)
 	if err != nil {
 		return nil, nil, err
 	}
-	end, err := parseTraceDiffTime(endValue, endName)
+	end, err := parseRFC3339Epoch(endValue, endName)
 	if err != nil {
 		return nil, nil, err
 	}
 	return start, end, nil
 }
 
-func parseTraceDiffTime(value, name string) (*int64, error) {
+func parseRFC3339Epoch(value, name string) (*int64, error) {
 	timestamp, err := time.Parse(time.RFC3339, value)
 	if err != nil {
 		return nil, fmt.Errorf("invalid %s: %w", name, err)

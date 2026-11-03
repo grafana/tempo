@@ -249,7 +249,8 @@ func (td toDomain) findServiceNameAndIP(zSpan *zipkincore.Span) (string, int32, 
 	}
 	err := fmt.Errorf(
 		"cannot find service name in Zipkin span [traceID=%x, spanID=%x]",
-		uint64(zSpan.TraceID), uint64(zSpan.ID))
+		uint64(zSpan.TraceID), uint64(zSpan.ID),
+	)
 	return UnknownServiceName, 0, err
 }
 

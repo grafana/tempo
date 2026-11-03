@@ -559,7 +559,7 @@ Samples a fixed percentage of traces for trace-level aggregations.
 
 ## Extrapolation from ingest-time sampling: `with(extrapolate=true)` (experimental)
 
-{{< docs/experimental product="Tempo" >}}
+{{< docs/experimental product="TraceQL metrics extrapolation" >}}
 
 If your traces were sampled at ingest time by an OpenTelemetry probability
 sampler (for example, an OTel Collector `probabilistic_sampler` in
@@ -579,6 +579,8 @@ Applies to `rate`, `count_over_time`, `sum_over_time`, `avg_over_time`,
 `histogram_over_time`, `quantile_over_time`, and `compare`. `min_over_time`
 and `max_over_time` are intentionally unaffected because extremes don't
 scale with sampling.
+
+Operators can also [turn on extrapolation by default for a tenant](/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-queries/#extrapolation-from-ingest-time-sampling).
 
 ## The `compare` function
 

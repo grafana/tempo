@@ -175,8 +175,8 @@ func TestOne(t *testing.T) {
 	// q := `{ resource.str-array =~ "value.*" }`
 	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
-	req.StartTimeUnixNanos = uint64(1000 * time.Second)
-	req.EndTimeUnixNanos = uint64(1001 * time.Second)
+	req.TraceStartTimeUnixNanos = uint64(1000 * time.Second)
+	req.TraceEndTimeUnixNanos = uint64(1001 * time.Second)
 
 	resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
 	require.NoError(t, err, "search request:", req)
@@ -603,22 +603,22 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{
 			"Time range inside trace",
 			traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(1100 * time.Second),
-				EndTimeUnixNanos:   uint64(1200 * time.Second),
+				TraceStartTimeUnixNanos: uint64(1100 * time.Second),
+				TraceEndTimeUnixNanos:   uint64(1200 * time.Second),
 			},
 		},
 		{
 			"Time range overlap start",
 			traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(900 * time.Second),
-				EndTimeUnixNanos:   uint64(1100 * time.Second),
+				TraceStartTimeUnixNanos: uint64(900 * time.Second),
+				TraceEndTimeUnixNanos:   uint64(1100 * time.Second),
 			},
 		},
 		{
 			"Time range overlap end",
 			traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(1900 * time.Second),
-				EndTimeUnixNanos:   uint64(2100 * time.Second),
+				TraceStartTimeUnixNanos: uint64(1900 * time.Second),
+				TraceEndTimeUnixNanos:   uint64(2100 * time.Second),
 			},
 		},
 		// Intrinsics
@@ -828,15 +828,15 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{
 			name: "Time range after trace",
 			req: traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(20000 * time.Second),
-				EndTimeUnixNanos:   uint64(30000 * time.Second),
+				TraceStartTimeUnixNanos: uint64(20000 * time.Second),
+				TraceEndTimeUnixNanos:   uint64(30000 * time.Second),
 			},
 		},
 		{
 			name: "Time range before trace",
 			req: traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(600 * time.Second),
-				EndTimeUnixNanos:   uint64(700 * time.Second),
+				TraceStartTimeUnixNanos: uint64(600 * time.Second),
+				TraceEndTimeUnixNanos:   uint64(700 * time.Second),
 			},
 		},
 		{
@@ -1609,13 +1609,7 @@ func BenchmarkIterators(b *testing.B) {
 	rgs := pf.RowGroups()
 	rgs = rgs[3:5]
 
-	var stats *parquetquery.PredicateStats
-	makeIterInternal := makeIterFunc(ctx, rgs, pf)
-	makeIter := func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator {
-		stats = &parquetquery.PredicateStats{}
-
-		return makeIterInternal(columnName, predicate, selectAs, parquetquery.SyncIteratorOptStats(stats))
-	}
+	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1631,16 +1625,15 @@ func BenchmarkIterators(b *testing.B) {
 			}
 			count++
 		}
+		stats := iter.(*parquetquery.SyncIterator).Stats()
 		iter.Close()
-		if stats != nil {
-			b.ReportMetric(float64(count), "count")
-			b.ReportMetric(float64(stats.InspectedColumnChunks), "stats_cc")
-			b.ReportMetric(float64(stats.KeptColumnChunks), "stats_cc_kept")
-			b.ReportMetric(float64(stats.InspectedPages), "stats_ip")
-			b.ReportMetric(float64(stats.KeptPages), "stats_ip_kept")
-			b.ReportMetric(float64(stats.InspectedValues), "stats_v")
-			b.ReportMetric(float64(stats.KeptValues), "stats_v_kept")
-		}
+		b.ReportMetric(float64(count), "count")
+		b.ReportMetric(float64(stats.InspectedColumnChunks), "stats_cc")
+		b.ReportMetric(float64(stats.KeptColumnChunks), "stats_cc_kept")
+		b.ReportMetric(float64(stats.InspectedPages), "stats_ip")
+		b.ReportMetric(float64(stats.KeptPages), "stats_ip_kept")
+		b.ReportMetric(float64(stats.InspectedValues), "stats_v")
+		b.ReportMetric(float64(stats.KeptValues), "stats_v_kept")
 	}
 }
 

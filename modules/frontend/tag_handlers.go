@@ -573,7 +573,8 @@ func logTagsRequest(logger log.Logger, tenantID, handler, scope string, rangeSec
 		"tenant", tenantID,
 		"handler", handler,
 		"scope", scope,
-		"range_seconds", rangeSeconds,
+		"range", time.Duration(rangeSeconds)*time.Second,
+		"range_nanos", int64(time.Duration(rangeSeconds)*time.Second),
 	)
 }
 
@@ -586,7 +587,8 @@ func logTagsResult(ctx context.Context, logger log.Logger, tenantID, handler, sc
 		"traceID", traceID,
 		"handler", handler,
 		"scope", scope,
-		"range_seconds", rangeSeconds,
+		"range", time.Duration(rangeSeconds)*time.Second,
+		"range_nanos", int64(time.Duration(rangeSeconds)*time.Second),
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
 		"request_throughput", float64(inspectedBytes)/durationSeconds,
@@ -601,7 +603,8 @@ func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query st
 		"handler", handler,
 		"tag", tagName,
 		"query", query,
-		"range_seconds", rangeSeconds,
+		"range", time.Duration(rangeSeconds)*time.Second,
+		"range_nanos", int64(time.Duration(rangeSeconds)*time.Second),
 	)
 }
 
@@ -615,7 +618,8 @@ func logTagValuesResult(ctx context.Context, logger log.Logger, tenantID, handle
 		"handler", handler,
 		"tag", tagName,
 		"query", query,
-		"range_seconds", rangeSeconds,
+		"range", time.Duration(rangeSeconds)*time.Second,
+		"range_nanos", int64(time.Duration(rangeSeconds)*time.Second),
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
 		"request_throughput", float64(inspectedBytes)/durationSeconds,

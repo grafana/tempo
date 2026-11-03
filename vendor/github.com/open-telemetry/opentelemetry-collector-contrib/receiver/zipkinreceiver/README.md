@@ -3,7 +3,6 @@
 
 This receiver receives spans from [Zipkin](https://zipkin.io/) (V1 and V2).
 
-
 | Status        |           |
 | ------------- |-----------|
 | Stability     | [beta]: traces   |

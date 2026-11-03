@@ -1201,11 +1201,8 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, opts .
 		// (2) Only include spans that started in this time frame.
 		//     This is checked outside the fetch layer in the evaluator. Timestamp
 		//     is only checked on the spans that are the final results.
-		// TODO - I think there are cases where we can push this down.
-		// Queries like {status=error} | rate() don't assert inter-span conditions
-		// and we could filter on span start time without affecting correctness.
-		// Queries where we can't are like:  {A} >> {B} | rate() because only require
-		// that {B} occurs within our time range but {A} is allowed to occur any time.
+		//     DoSpansOnly pushes it down for queries without inter-span conditions. Queries like {A} >> {B} | rate() can't: only {B}
+		//     must occur within the time range, {A} can occur any time.
 		me.checkTime = true
 		me.start = req.Start
 		me.end = req.End
@@ -1536,8 +1533,8 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 		// them doesn't outweight the benefits. The default 20% was measured in
 		// local benchmarking.
 		if overlap < e.timeOverlapCutoff {
-			storageReq.StartTimeUnixNanos = e.start
-			storageReq.EndTimeUnixNanos = e.end // Should this be exclusive?
+			storageReq.TraceStartTimeUnixNanos = e.start
+			storageReq.TraceEndTimeUnixNanos = e.end // Should this be exclusive?
 		}
 	}
 
@@ -1623,10 +1620,29 @@ func (e *metricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 	return nil
 }
 
+func hasFirstPassSpanStart(conds []Condition) bool {
+	for _, c := range conds {
+		if c.Attribute == IntrinsicSpanStartTimeAttribute && c.Op == OpNone {
+			return true
+		}
+	}
+	return false
+}
+
 // DoSpansOnly is the same as Do but using the new span-only fetch layer.
 func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
+
+	// Spans are evaluated on their own here, so spans outside the window can be dropped
+	// in storage by their start time. Only when the first pass already reads the span
+	// start, so it costs no extra column. It replaces the trace-level filter below, which
+	// reads the trace start and end columns. checkTime still does the exact check.
+	spanTimePushdown := hasFirstPassSpanStart(storageReq.Conditions)
+	if spanTimePushdown {
+		storageReq.SpanStartTimeUnixNanos = e.start
+		storageReq.SpanEndTimeUnixNanos = e.end
+	}
 
 	if fetcherStart > 0 && fetcherEnd > 0 &&
 		// exclude special case for a block with the same start and end
@@ -1645,9 +1661,10 @@ func (e *metricsEvaluator) DoSpansOnly(ctx context.Context, f SpansetFetcher, fe
 		// and the request is less than X%, use them.  Above X%, the cost of loading
 		// them doesn't outweight the benefits. The default 20% was measured in
 		// local benchmarking.
-		if overlap < e.timeOverlapCutoff {
-			storageReq.StartTimeUnixNanos = e.start
-			storageReq.EndTimeUnixNanos = e.end // Should this be exclusive?
+		// TODO: consider dropping this trace-level filter in favour of spanTimePushdown.
+		if overlap < e.timeOverlapCutoff && !spanTimePushdown {
+			storageReq.TraceStartTimeUnixNanos = e.start
+			storageReq.TraceEndTimeUnixNanos = e.end // Should this be exclusive?
 		}
 	}
 

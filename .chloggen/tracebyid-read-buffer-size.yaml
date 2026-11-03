@@ -1,0 +1,15 @@
+change_type: change
+
+component: storage
+
+note: Add `storage.trace.search.trace_by_id_read_buffer_size_bytes` and default it to 512KiB. vParquet4 and vParquet5 trace-by-ID lookups previously used `read_buffer_size_bytes` (2MiB).
+
+issues: []
+
+subtext: |
+  A trace-by-ID lookup opens one read buffer per column, so memory per lookup scales with the buffer size.
+  In benchmarks a 512KiB buffer halves live heap under concurrent lookups for about 3% higher p50 latency.
+  Set it to the value of `read_buffer_size_bytes` to restore the previous behavior.
+  Live-store trace-by-ID lookups on complete blocks also use 512KiB.
+
+user: zhxiaogg

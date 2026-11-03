@@ -1,0 +1,6 @@
+change_type: enhancement
+component: cache
+note: Add `tempo_memcache_request_errors_total`, which counts failed memcached requests by method and reason (`timeout`, `circuit_breaker_open`, `other`).
+issues: []
+subtext:
+user: zalegrala

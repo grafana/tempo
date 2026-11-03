@@ -74,7 +74,7 @@ func TestHandlerPassesRequestHeaderFieldsToResponseLogs(t *testing.T) {
 		// The per-query handlers log their response lines with the request context.
 		recordResult(level.Info(logger), r.Context(), nil, "msg", "search response")
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("test"))}, nil
-	}), log.NewNopLogger())
+	}), log.NewNopLogger(), noOpQueryTracker{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/search", nil)
 	req.Header.Set("User-Agent", "Grafana/12.0.0")
@@ -119,7 +119,7 @@ func TestHandlerResponseWriteEvents(t *testing.T) {
 					body = io.NopCloser(strings.NewReader("test"))
 				}
 				return &http.Response{StatusCode: http.StatusOK, Body: body}, nil
-			}), log.NewNopLogger())
+			}), log.NewNopLogger(), noOpQueryTracker{})
 			var w http.ResponseWriter = httptest.NewRecorder()
 			if tc.writeError {
 				w = failingResponseWriter{w}

@@ -45,12 +45,13 @@ type genericCombiner[T TResponse] struct {
 
 	current T // todo: state mgmt is mixed between the combiner and the various implementations. put it in one spot.
 
-	new      func() T
-	combine  func(partial T, final T, resp PipelineResponse) error
-	metadata func(resp PipelineResponse, final T) error
-	finalize func(context.Context, T) (T, error)
-	diff     func(T) (T, error)
-	quit     func(T) bool
+	new         func() T
+	combine     func(partial T, final T, resp PipelineResponse) error
+	metadata    func(resp PipelineResponse, final T) error
+	finalize    func(context.Context, T) (T, error)
+	diff        func(T) (T, error)
+	quit        func(T) bool
+	marshalJSON func(T) ([]byte, error)
 
 	// Segment one response into smaller ones, that fit within the given max size.
 	segment func(T, int) []T
@@ -66,6 +67,17 @@ type genericCombiner[T TResponse] struct {
 func initHTTPCombiner[T TResponse](c *genericCombiner[T], marshalingFormat api.MarshallingFormat) {
 	c.httpStatusCode = 200
 	c.httpMarshalingFormat = marshalingFormat
+	if c.marshalJSON == nil {
+		c.marshalJSON = defaultJSONMarshaler[T]
+	}
+}
+
+func defaultJSONMarshaler[T TResponse](response T) ([]byte, error) {
+	body, err := new(jsonpb.Marshaler).MarshalToString(response)
+	if err != nil {
+		return nil, err
+	}
+	return unsafeStringToBytes(body), nil
 }
 
 // AddResponse is used to add a http response to the combiner.
@@ -342,7 +354,8 @@ func (c *genericCombiner[T]) internalMarshalAs(ctx context.Context, final T) ([]
 	var contentType string
 	var err error
 
-	if response, ok := any(final).(*tempopb.TraceByIDResponse); ok {
+	traceResponse, isTrace := any(final).(*tempopb.TraceByIDResponse)
+	if isTrace {
 		encoding := "json" // The LLM representation is also JSON encoded.
 		if c.httpMarshalingFormat == api.MarshallingFormatProtobuf {
 			encoding = "protobuf"
@@ -350,7 +363,7 @@ func (c *genericCombiner[T]) internalMarshalAs(ctx context.Context, final T) ([]
 		span := oteltrace.SpanFromContext(ctx)
 		span.SetAttributes(
 			attribute.String("format", encoding),
-			attribute.Int("span_count", countTraceSpans(response.Trace)),
+			attribute.Int("span_count", countTraceSpans(traceResponse.Trace)),
 		)
 		span.AddEvent("trace.marshal.start")
 		defer func() {
@@ -379,10 +392,8 @@ func (c *genericCombiner[T]) internalMarshalAs(ctx context.Context, final T) ([]
 	case api.MarshallingFormatJSON:
 		fallthrough
 	default:
-		var bodyString string
-		bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
 		contentType = string(api.MarshallingFormatJSON)
-		bodyBytes = unsafeStringToBytes(bodyString)
+		bodyBytes, err = c.marshalJSON(final)
 	}
 
 	return bodyBytes, contentType, err

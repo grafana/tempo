@@ -76,12 +76,7 @@ func accessSample[K Context]() ottl.StandardGetSetter[K] {
 			return tCtx.GetProfile().Samples(), nil
 		},
 		Setter: func(_ context.Context, tCtx K, val any) error {
-			v, err := ctxutil.ExpectType[pprofile.SampleSlice](val)
-			if err != nil {
-				return err
-			}
-			v.CopyTo(tCtx.GetProfile().Samples())
-			return nil
+			return ctxutil.SetPSliceValue(tCtx.GetProfile().Samples(), pprofile.NewSampleSlice, val)
 		},
 	}
 }

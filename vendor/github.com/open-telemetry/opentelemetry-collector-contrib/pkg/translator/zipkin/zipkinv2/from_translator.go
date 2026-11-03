@@ -15,6 +15,7 @@ import (
 	zipkinmodel "github.com/openzipkin/zipkin-go/model"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	conventionsv118 "go.opentelemetry.io/otel/semconv/v1.18.0"
 	conventionsv125 "go.opentelemetry.io/otel/semconv/v1.25.0"
 	conventionsv138 "go.opentelemetry.io/otel/semconv/v1.38.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -93,10 +94,20 @@ func extractScopeTags(il pcommon.InstrumentationScope, zTags map[string]string) 
 	}
 
 	if ilName := il.Name(); ilName != "" {
-		zTags[string(conventionsv125.OTelLibraryNameKey)] = ilName
+		if !metadata.PkgTranslatorZipkinDontEmitV0ScopeConventionsFeatureGate.IsEnabled() {
+			zTags[string(conventionsv125.OTelLibraryNameKey)] = ilName
+		}
+		if metadata.PkgTranslatorZipkinEmitV1ScopeConventionsFeatureGate.IsEnabled() {
+			zTags[string(conventions.OTelScopeNameKey)] = ilName
+		}
 	}
 	if ilVer := il.Version(); ilVer != "" {
-		zTags[string(conventionsv125.OTelLibraryVersionKey)] = ilVer
+		if !metadata.PkgTranslatorZipkinDontEmitV0ScopeConventionsFeatureGate.IsEnabled() {
+			zTags[string(conventionsv125.OTelLibraryVersionKey)] = ilVer
+		}
+		if metadata.PkgTranslatorZipkinEmitV1ScopeConventionsFeatureGate.IsEnabled() {
+			zTags[string(conventions.OTelScopeVersionKey)] = ilVer
+		}
 	}
 }
 
@@ -197,6 +208,13 @@ func aggregateSpanTags(span ptrace.Span, zTags map[string]string) map[string]str
 	maps.Copy(tags, zTags)
 	spanTags := attributeMapToStringMap(span.Attributes())
 	maps.Copy(tags, spanTags)
+
+	if val, ok := tags[string(conventions.HTTPResponseStatusCodeKey)]; ok {
+		if _, ok2 := tags[string(conventionsv125.HTTPStatusCodeKey)]; !ok2 {
+			tags[string(conventionsv125.HTTPStatusCodeKey)] = val
+		}
+	}
+
 	return tags
 }
 
@@ -268,6 +286,26 @@ func resourceToZipkinEndpointServiceNameAndAttributeMap(
 
 	for k, v := range attrs.All() {
 		zTags[k] = v.AsString()
+	}
+
+	if val, ok := zTags[string(conventions.CloudResourceIDKey)]; ok {
+		if !metadata.PkgTranslatorZipkinDontEmitV0CloudResourceConventionsFeatureGate.IsEnabled() {
+			if _, ok2 := zTags[string(conventionsv118.FaaSIDKey)]; !ok2 {
+				zTags[string(conventionsv118.FaaSIDKey)] = val
+			}
+		}
+		if !metadata.PkgTranslatorZipkinEmitV1CloudResourceConventionsFeatureGate.IsEnabled() {
+			delete(zTags, string(conventions.CloudResourceIDKey))
+		}
+	} else if val, ok := zTags[string(conventionsv118.FaaSIDKey)]; ok {
+		if metadata.PkgTranslatorZipkinEmitV1CloudResourceConventionsFeatureGate.IsEnabled() {
+			if _, ok2 := zTags[string(conventions.CloudResourceIDKey)]; !ok2 {
+				zTags[string(conventions.CloudResourceIDKey)] = val
+			}
+		}
+		if metadata.PkgTranslatorZipkinDontEmitV0CloudResourceConventionsFeatureGate.IsEnabled() {
+			delete(zTags, string(conventionsv118.FaaSIDKey))
+		}
 	}
 
 	serviceName = extractZipkinServiceName(zTags)

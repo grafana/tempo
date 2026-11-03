@@ -85,9 +85,16 @@ func ExemplarMetaConditionsWithout(cb func() bool, remove []Condition, allCondit
 type SecondPassFn func(*Spanset) ([]*Spanset, error)
 
 type FetchSpansRequest struct {
-	StartTimeUnixNanos uint64
-	EndTimeUnixNanos   uint64
-	Conditions         []Condition
+	// TraceStartTimeUnixNanos and TraceEndTimeUnixNanos, when set, drop traces that don't
+	// overlap the range.
+	TraceStartTimeUnixNanos uint64
+	TraceEndTimeUnixNanos   uint64
+	// SpanStartTimeUnixNanos and SpanEndTimeUnixNanos, when set, drop spans that don't
+	// start in the range. Only valid for requests without inter-span conditions. Storage
+	// may return a superset.
+	SpanStartTimeUnixNanos uint64
+	SpanEndTimeUnixNanos   uint64
+	Conditions             []Condition
 
 	// Hints
 

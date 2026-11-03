@@ -44,6 +44,7 @@ const (
 	urlParamExemplars       = "exemplars"
 	urlMaxSeries            = "maxSeries"
 	urlInstant              = "instant"
+	urlParamExtrapolate     = "extrapolate"
 
 	// backend search querier
 	urlParamStartPage        = "startPage"
@@ -87,6 +88,7 @@ const (
 	PathSearchTagValues     = "/api/search/tag/" + MuxVarTagInPath + "/values"
 	PathEcho                = "/api/echo"
 	PathBuildInfo           = "/api/status/buildinfo"
+	PathQueryTracker        = "/status/active-queries"
 	PathUsageStats          = "/status/usage-stats"
 	PathMetricsQueryInstant = "/api/metrics/query"
 	PathMetricsQueryRange   = "/api/metrics/query_range"
@@ -432,6 +434,13 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 		}
 	}
 
+	if extrapolate, found := extractQueryParam(vals, urlParamExtrapolate); found {
+		val, err := strconv.ParseBool(extrapolate)
+		if err == nil {
+			req.Extrapolate = val
+		}
+	}
+
 	if s, ok := extractQueryParam(vals, urlParamSkipASTTransformations); ok {
 		for _, name := range strings.Split(s, ",") {
 			if name = strings.TrimSpace(name); name != "" {
@@ -510,6 +519,9 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	qb.addParam(urlMaxSeries, strconv.Itoa(int(searchReq.MaxSeries)))
 	if searchReq.HasInstant() {
 		qb.addParam(urlInstant, strconv.FormatBool(searchReq.GetInstant()))
+	}
+	if searchReq.Extrapolate {
+		qb.addParam(urlParamExtrapolate, "true")
 	}
 
 	if len(searchReq.SkipASTTransformations) > 0 {

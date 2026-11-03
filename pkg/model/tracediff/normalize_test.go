@@ -1,6 +1,8 @@
 package tracediff
 
 import (
+	"encoding/binary"
+	"fmt"
 	"math"
 	"testing"
 
@@ -20,7 +22,7 @@ func TestNormalizeTraceAssignsStructuralPaths(t *testing.T) {
 
 	paths := map[string][]int{}
 	for _, span := range got.spans {
-		paths[span.spanID] = span.ref.Path
+		paths[span.spanID] = materializePath(span.path)
 	}
 
 	require.Len(t, paths, 5)
@@ -48,7 +50,7 @@ func TestNormalizeTraceBuildsSpanRefsAndSnapshots(t *testing.T) {
 		Service: "inventory",
 		Name:    "reserve",
 		Kind:    "client",
-	}, reserve.ref)
+	}, reserve.materializedRef())
 	assert.Equal(t, SpanSnapshot{
 		Path:          []int{0, 1, 0},
 		Service:       "inventory",
@@ -56,7 +58,7 @@ func TestNormalizeTraceBuildsSpanRefsAndSnapshots(t *testing.T) {
 		Kind:          "client",
 		DurationNanos: 25_000_000,
 		Status:        "error",
-	}, reserve.snapshot)
+	}, reserve.materializedSnapshot())
 }
 
 func TestNormalizeTraceHandlesCyclicParents(t *testing.T) {
@@ -81,7 +83,7 @@ func TestNormalizeTraceHandlesCyclicParents(t *testing.T) {
 
 	paths := map[string][]int{}
 	for _, span := range got.spans {
-		paths[span.spanID] = span.ref.Path
+		paths[span.spanID] = materializePath(span.path)
 	}
 	require.Len(t, paths, 2)
 	assert.NotEmpty(t, paths["a"])
@@ -203,5 +205,92 @@ func TestDurationNanos(t *testing.T) {
 			span := &tracev1.Span{StartTimeUnixNano: tt.start, EndTimeUnixNano: tt.end}
 			assert.Equal(t, tt.want, durationNanos(span))
 		})
+	}
+}
+
+func BenchmarkDiffIdenticalTraceTopology(b *testing.B) {
+	for _, spanCount := range []int{1_000, 2_000} {
+		for _, topology := range []struct {
+			name  string
+			chain bool
+		}{
+			{name: "flat"},
+			{name: "chain", chain: true},
+		} {
+			b.Run(fmt.Sprintf("%s/%d", topology.name, spanCount), func(b *testing.B) {
+				trace := benchmarkTrace(spanCount, topology.chain)
+				b.ReportAllocs()
+				b.ResetTimer()
+
+				for range b.N {
+					if _, err := Diff(trace, trace, FormatTracePatchV0); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		}
+	}
+}
+
+func BenchmarkComputeDiffIdenticalTraceTopology(b *testing.B) {
+	for _, spanCount := range []int{1_000, 2_000} {
+		for _, topology := range []struct {
+			name  string
+			chain bool
+		}{
+			{name: "flat"},
+			{name: "chain", chain: true},
+		} {
+			b.Run(fmt.Sprintf("%s/%d", topology.name, spanCount), func(b *testing.B) {
+				trace := benchmarkTrace(spanCount, topology.chain)
+				normalized, warnings := normalizeTrace(trace)
+				if len(warnings) != 0 {
+					b.Fatalf("unexpected normalization warnings: %v", warnings)
+				}
+				b.ReportAllocs()
+				b.ResetTimer()
+
+				for range b.N {
+					matched, modified, added, removed, err := computeDiff(normalized, normalized)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if matched != spanCount || len(modified) != 0 || len(added) != 0 || len(removed) != 0 {
+						b.Fatalf("unexpected diff: matched=%d modified=%d added=%d removed=%d", matched, len(modified), len(added), len(removed))
+					}
+				}
+			})
+		}
+	}
+}
+
+func benchmarkTrace(spanCount int, chain bool) *tempopb.Trace {
+	traceID := []byte("trace-id-0000001")
+	spans := make([]*tracev1.Span, 0, spanCount)
+	var parentID []byte
+
+	for i := range spanCount {
+		spanID := make([]byte, 8)
+		binary.BigEndian.PutUint64(spanID, uint64(i+1))
+		span := &tracev1.Span{
+			TraceId:           traceID,
+			SpanId:            spanID,
+			ParentSpanId:      parentID,
+			Name:              fmt.Sprintf("span-%d", i),
+			Kind:              tracev1.Span_SPAN_KIND_INTERNAL,
+			StartTimeUnixNano: uint64(i + 1),
+			EndTimeUnixNano:   uint64(i + 2),
+			Status:            &tracev1.Status{Code: tracev1.Status_STATUS_CODE_OK},
+		}
+		spans = append(spans, span)
+		if chain {
+			parentID = spanID
+		}
+	}
+
+	return &tempopb.Trace{
+		ResourceSpans: []*tracev1.ResourceSpans{{
+			ScopeSpans: []*tracev1.ScopeSpans{{Spans: spans}},
+		}},
 	}
 }

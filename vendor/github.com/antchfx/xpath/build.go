@@ -692,6 +692,19 @@ func (b *builder) processNode(root node, flags flag, props *builderProp) (q quer
 		}
 		q = &groupQuery{Input: q}
 		b.firstInput = q
+	case nodeVariable:
+		// Variables have no binding in a compiled expression, so they cannot
+		// resolve to a query. A bare "$x" already surfaces as an undeclared
+		// variable error because the nil result reaches the caller, but a
+		// variable nested in a larger expression (e.g. "$x/@attr") would be
+		// swallowed here and left as a nil sub-query that panics at select
+		// time. Report it as undeclared instead.
+		n := root.(*variableNode)
+		name := n.Name
+		if n.Prefix != "" {
+			name = n.Prefix + ":" + name
+		}
+		err = fmt.Errorf("undeclared variable in XPath expression: $%s", name)
 	}
 	b.parseDepth--
 	return

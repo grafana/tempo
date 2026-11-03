@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
 // TestParseSearchTagValues tests the SearchTagValues function
@@ -131,7 +132,7 @@ func TestSearchTagValuesBlockRequestRoundTripPreservesLimits(t *testing.T) {
 		FooterSize:    456,
 	}
 
-	httpReq, err := BuildSearchTagValuesBlockRequest(httptest.NewRequest("GET", "http://tempo/", nil), original)
+	httpReq, err := BuildSearchTagValuesBlockRequest(httptest.NewRequest("GET", "http://tempo/", nil), original, "")
 	require.NoError(t, err)
 	httpReq = mux.SetURLVars(httpReq, map[string]string{MuxVarTagName: original.SearchReq.TagName})
 
@@ -140,6 +141,39 @@ func TestSearchTagValuesBlockRequestRoundTripPreservesLimits(t *testing.T) {
 
 	require.Equal(t, original.SearchReq.MaxTagValues, parsed.SearchReq.MaxTagValues)
 	require.Equal(t, original.SearchReq.StaleValueThreshold, parsed.SearchReq.StaleValueThreshold)
+}
+
+// TestSearchTagsBlockRequestsRoundTripDedicatedColumns locks that dedicated columns reach the querier, which needs them to find those attributes.
+func TestSearchTagsBlockRequestsRoundTripDedicatedColumns(t *testing.T) {
+	cols := backend.DefaultDedicatedColumns()
+	expected, err := cols.ToTempopb()
+	require.NoError(t, err)
+	dcJSON, err := NewDedicatedColumnsToJSON().JSONForDedicatedColumns(cols)
+	require.NoError(t, err)
+
+	tagsReq, err := BuildSearchTagsBlockRequest(httptest.NewRequest("GET", "http://tempo/", nil), &tempopb.SearchTagsBlockRequest{
+		SearchReq:     &tempopb.SearchTagsRequest{Scope: "span", Start: 100, End: 200},
+		BlockID:       uuid.New().String(),
+		PagesToSearch: 1,
+		TotalRecords:  1,
+		Version:       "vParquet5",
+	}, dcJSON)
+	require.NoError(t, err)
+	parsedTags, err := ParseSearchTagsBlockRequest(tagsReq)
+	require.NoError(t, err)
+	require.Equal(t, expected, parsedTags.DedicatedColumns)
+
+	valuesReq, err := BuildSearchTagValuesBlockRequest(httptest.NewRequest("GET", "http://tempo/", nil), &tempopb.SearchTagValuesBlockRequest{
+		SearchReq:     &tempopb.SearchTagValuesRequest{TagName: "span.http.request.method", Start: 100, End: 200},
+		BlockID:       uuid.New().String(),
+		PagesToSearch: 1,
+		TotalRecords:  1,
+		Version:       "vParquet5",
+	}, dcJSON)
+	require.NoError(t, err)
+	parsedValues, err := ParseSearchTagValuesBlockRequestV2(mux.SetURLVars(valuesReq, map[string]string{MuxVarTagName: "span.http.request.method"}))
+	require.NoError(t, err)
+	require.Equal(t, expected, parsedValues.DedicatedColumns)
 }
 
 // TestParseSearchTags tests the SearchTagValues function
