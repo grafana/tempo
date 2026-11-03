@@ -310,8 +310,8 @@ func (r *ManagedRegistry) collectionInterval() time.Duration {
 }
 
 func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
-	r.metricsMtx.RLock()
-	defer r.metricsMtx.RUnlock()
+	r.metricsMtx.Lock()
+	defer r.metricsMtx.Unlock()
 
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 	appender := r.appendable.Appender(ctx)
