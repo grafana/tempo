@@ -87,7 +87,7 @@ func TestProducerBufferedProduceBytesMetrics(t *testing.T) {
 	t.Cleanup(cluster.Close)
 
 	reg := prometheus.NewPedanticRegistry()
-	cfg := KafkaConfig{Address: cluster.ListenAddrs()[0], Topic: "test", WriteTimeout: 10 * time.Second}
+	cfg := KafkaConfig{Address: flagext.StringSliceCSV{cluster.ListenAddrs()[0]}, Topic: "test", WriteTimeout: 10 * time.Second}
 
 	client, err := NewWriterClient(cfg, 10, test.NewTestingLogger(t), prometheus.WrapRegistererWithPrefix("tempo_distributor_", reg))
 	require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestProducerBufferedProduceBytesValues(t *testing.T) {
 	t.Cleanup(releaseOnce)
 
 	reg := prometheus.NewPedanticRegistry()
-	cfg := KafkaConfig{Address: cluster.ListenAddrs()[0], Topic: "test", WriteTimeout: 10 * time.Second}
+	cfg := KafkaConfig{Address: flagext.StringSliceCSV{cluster.ListenAddrs()[0]}, Topic: "test", WriteTimeout: 10 * time.Second}
 
 	client, err := NewWriterClient(cfg, 10, test.NewTestingLogger(t), prometheus.WrapRegistererWithPrefix("tempo_distributor_", reg))
 	require.NoError(t, err)
