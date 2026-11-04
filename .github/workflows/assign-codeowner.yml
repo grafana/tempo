@@ -244,7 +244,11 @@ jobs:
             sort > "$temp_dir/load"
 
           # ---------------------------------------------------------------
-          # Candidate PRs: open, unassigned, not a draft, not opened by a bot.
+          # Candidate PRs: open, unassigned, not a draft, not opened by a bot,
+          # and not opened by an eligible code owner: the owners triage their
+          # own PRs internally, so those never enter the queue. Filtering them
+          # out here also removes the sole-owner deadlock, where the author was
+          # the only assignable owner and the PR stayed unassigned forever.
           # A deleted author is skipped explicitly instead of breaking the
           # filter. Oldest first, so the tail of the queue is not starved.
           # ---------------------------------------------------------------
@@ -266,6 +270,12 @@ jobs:
                 for (i = 1; i <= n; i++) if (names[i] == marker) marked = 1
                 print $1, $2, marked
               }' |
+
+            # Drop PRs opened by a code owner. $temp_dir/eligible is the same
+            # pool used for load, so "code owner" here means someone eligible
+            # to receive assignments, not merely someone named in CODEOWNERS.
+            awk -F'\t' 'NR == FNR { owner[tolower($1)] = 1; next }
+              !(tolower($2) in owner)' "$temp_dir/eligible" - |
 
             # Sort numerically by PR number and drop duplicates that concurrent
             # pushes can introduce while paginating.
@@ -331,6 +341,9 @@ jobs:
             # Widest possible pool: everyone tied on total load, preferring the
             # fewest open PRs, then a random pick. Open count is a preference
             # within the tied set, not a filter over all owners.
+            # Code owners never reach this point as an author (they are dropped
+            # from the candidates above), so the author guard is a backstop in
+            # case that filter is ever loosened.
             assignee=$(awk -F'\t' -v author="$author_lc" '
                 tolower($1) == author { next }
                 {
