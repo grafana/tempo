@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload coverage artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-${{ matrix.test-target }}
           path: .coverage/*.out
@@ -197,7 +197,7 @@ jobs:
       - name: Save images
         run: docker save grafana/tempo tempo grafana/tempo-query tempo-query -o /tmp/tempo-e2e-images.tar
       - name: Upload images
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: tempo-e2e-images
           path: /tmp/tempo-e2e-images.tar
