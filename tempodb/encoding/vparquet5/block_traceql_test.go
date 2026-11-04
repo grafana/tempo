@@ -560,9 +560,7 @@ func TestBackendNilValueBlockSearchTraceQL(t *testing.T) {
 	}
 }
 
-// TestBackendBlockSearchTraceQLDedicatedColumnOtherType covers attributes with a dedicated column
-// whose value has another type, which the writer stores in generic attributes instead.
-// attributeEntries counts the entries of a, because compare() counts every entry of a span.
+// attributeEntries counts a's entries, because attributesMatched counts each one toward minAttributes.
 func attributeEntries(sp traceql.Span, a traceql.Attribute) int {
 	n := 0
 	sp.AllAttributesFunc(func(got traceql.Attribute, _ traceql.Static) {
@@ -573,6 +571,8 @@ func attributeEntries(sp traceql.Span, a traceql.Attribute) int {
 	return n
 }
 
+// TestBackendBlockSearchTraceQLDedicatedColumnOtherType covers attributes with a dedicated column
+// whose value has another type, which the writer stores in generic attributes instead.
 func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 	var (
 		intValue = &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}
@@ -628,8 +628,7 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{"string in int column, select", intCol, strValue, false, `{ %[1]s.mixed }`, true},
 	}
 
-	// checkQuery reads the trace from a block with filler traces, and runs both fetch paths.
-	// want returns the attribute values a matched span must return. checkQuery returns the IDs of the matched spans of the trace.
+	// checkQuery runs both fetch paths over a block with filler traces.
 	checkQuery := func(t *testing.T, dc backend.DedicatedColumns, id []byte, tr *tempopb.Trace, query string, want func(traceql.Span) map[traceql.Attribute]traceql.Static) (fetchIDs, fetchSpansIDs []string) {
 		requireValues := func(path string, sp traceql.Span) {
 			if want == nil {

@@ -863,7 +863,7 @@ func createDistinctAttributeIterator(
 	return nil, nil
 }
 
-// isTagAttribute reports whether a is the looked-up tag, which an unscoped tag matches in any scope.
+// isTagAttribute reports whether a is the looked-up tag, which an unscoped tag matches in span and resource scope.
 func isTagAttribute(tr tagRequest, a traceql.Attribute) bool {
 	return a == tr.tag || (a.Name == tr.tag.Name && tr.tag.Scope == traceql.AttributeScopeNone)
 }

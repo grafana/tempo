@@ -3119,7 +3119,7 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	}
 }
 
-// dedicatedExistenceCondition merges the existence checks on cond's attribute, so 1 iterator selects each value once.
+// dedicatedExistenceCondition returns the existence condition that builds cond's iterator, so each value is selected once.
 func dedicatedExistenceCondition(conditions []traceql.Condition, cond traceql.Condition) (traceql.Condition, bool) {
 	var exists, none bool
 	for _, c := range conditions {
