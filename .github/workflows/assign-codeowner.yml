@@ -5,10 +5,12 @@ on:
   # creation. Scheduled runs execute from the default branch with the
   # repository's own token, so they can assign on PRs opened from forks. A
   # `pull_request` trigger cannot do that: fork PRs receive a read-only token
-  # and no secrets, so the assignment would fail for most contributors.
+  # and no secrets, so assignment would fail for outside contributors.
+  #
+  # Trade-off: assignment happens within a day of a PR opening, not within
+  # seconds. PRs above the per-run cap wait for a subsequent run.
   schedule:
     - cron: '0 7 * * *'
-  # Lets the job be run by hand while testing.
   workflow_dispatch:
 
 permissions: {}
@@ -19,10 +21,12 @@ concurrency:
 
 jobs:
   assign:
+    name: Balance assignments across code owners
     if: github.repository == 'grafana/tempo'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # PR listing uses the Pulls API; assignment uses the Issues API.
+    # Reads repository contents and pull requests; writes assignments and
+    # labels on issues and pull requests.
     permissions:
       contents: read
       issues: write
@@ -32,101 +36,261 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          # Comma or space separated logins that override the code owner pool.
+          # Set it when CODEOWNERS names teams only, since teams cannot be
+          # assigned to a pull request and expanding their members needs an
+          # org-scoped token. Leave empty to derive the pool from CODEOWNERS.
+          ASSIGNEE_POOL: ${{ vars.CODEOWNER_ASSIGNEES }}
           # Caps a single run. The first run after merging would otherwise
-          # assign every unassigned PR in the queue at once and notify each
-          # owner once per PR. Remaining PRs are picked up on later runs.
+          # assign every unassigned PR at once and notify each owner once per
+          # PR. The remainder is picked up on later runs.
           MAX_ASSIGNMENTS: '25'
+          # Open PRs older than this stop counting as load. Otherwise an
+          # abandoned PR penalises its assignee permanently, while closed PRs
+          # only count for seven days.
+          OPEN_LOAD_MAX_AGE_DAYS: '90'
+          # Marks PRs this sweep has assigned, so a later run can tell
+          # "auto-assigned then cleared" from "never assigned".
+          MARKER_LABEL: codeowner-sweep
+          # The account that appears as the actor when the workflow assigns
+          # through GITHUB_TOKEN. Only used to interpret timeline events.
+          BOT_ACTOR: 'github-actions[bot]'
         run: |
           set -euo pipefail
+          export LC_ALL=C
 
           temp_dir=$(mktemp -d)
           trap 'rm -rf "$temp_dir"' EXIT
 
-          # CODEOWNERS is read from the default branch, so no PR content is
-          # trusted and no PR commit is ever checked out.
-          default_branch=$(gh api "repos/$REPO" --jq '.default_branch')
+          # Retries transient 5xx and rate-limit errors. Without this a single
+          # blip aborts the whole sweep partway through.
+          retry() {
+            local attempt=1
+            until "$@"; do
+              if [ "$attempt" -ge 3 ]; then
+                return 1
+              fi
+              sleep "$((attempt * 2))"
+              attempt=$((attempt + 1))
+            done
+          }
 
-          # Every current CODEOWNERS rule shares these owners, so each is an
-          # owner of every file in every PR.
-          gh api "repos/$REPO/contents/CODEOWNERS?ref=$default_branch" --jq '.content' |
-            base64 -d |
-            awk '
-              NF && $1 !~ /^#/ {
-                rules++
-                for (i = 2; i <= NF; i++) {
-                  if (substr($i, 1, 1) == "@" && index($i, "/") == 0)
-                    count[substr($i, 2)]++
-                }
-              }
-              END {
-                for (owner in count) if (count[owner] == rules) print owner
-              }
-            ' |
-            tr '[:upper:]' '[:lower:]' |
-            sort -u > "$temp_dir/owners"
+          default_branch=$(retry gh api "repos/$REPO" --jq '.default_branch')
 
-          eligible=$(comm -12 \
-            "$temp_dir/owners" \
-            <(gh api --paginate "repos/$REPO/assignees?per_page=100" --jq '.[].login' |
-              tr '[:upper:]' '[:lower:]' | sort -u))
+          # ---------------------------------------------------------------
+          # Read CODEOWNERS from the default branch. No PR content is trusted
+          # and no PR commit is ever checked out; there is no checkout step at
+          # all, so PR-controlled files cannot reach this job.
+          # ---------------------------------------------------------------
+          codeowners_path=""
+          for candidate in CODEOWNERS .github/CODEOWNERS docs/CODEOWNERS; do
+            if retry gh api "repos/$REPO/contents/$candidate?ref=$default_branch" \
+              --jq '.content' > "$temp_dir/codeowners.b64" 2>/dev/null; then
+              codeowners_path=$candidate
+              break
+            fi
+          done
 
-          if [ -z "$eligible" ]; then
-            echo "::error::No assignable code owner was found."
+          if [ -z "$codeowners_path" ]; then
+            echo "::error::No CODEOWNERS file found at any known location."
             exit 1
           fi
+          echo "Reading $codeowners_path from $default_branch."
+          base64 -d < "$temp_dir/codeowners.b64" > "$temp_dir/CODEOWNERS"
 
-          # Seed each owner's load with the PRs already assigned to them. Open
-          # PRs still count while queued; recently closed PRs still count after
-          # they leave the queue. Each PR is counted once, via its assignees.
-          # Every PR counts as 1 regardless of size: a typo fix and a large
-          # refactor weigh the same. That is deliberate for now, but if load
-          # balance turns out to be skewed by a few large PRs, weight each PR by
-          # some size proxy instead (e.g. additions + deletions, bucketed). Note
-          # that the closed-PR search results carry no size fields, so weighting
-          # them would cost one extra API call per PR.
+          # Split CODEOWNERS owners into assignable individuals and team
+          # handles. Each owner counts once per rule even if a line repeats it,
+          # so a duplicated token cannot silently drop an owner from the pool.
+          awk '
+            NF && $1 !~ /^#/ {
+              rules++
+              delete seen
+              for (i = 2; i <= NF; i++) {
+                if (substr($i, 1, 1) != "@") continue
+                owner = tolower(substr($i, 2))
+                if (owner in seen) continue
+                seen[owner] = 1
+                if (index(owner, "/") > 0) team[owner] = 1
+                else count[owner]++
+              }
+            }
+            END {
+              for (owner in count) {
+                # An owner of only some rules is not treated as owning the
+                # files in an arbitrary PR, so the pool is the intersection.
+                if (count[owner] == rules) print "user\t" owner
+                else print "partial\t" owner
+              }
+              for (owner in team) print "team\t" owner
+            }
+          ' "$temp_dir/CODEOWNERS" | sort > "$temp_dir/codeowners_owners"
+
+          awk -F'\t' '$1 == "user" { print $2 }' "$temp_dir/codeowners_owners" > "$temp_dir/owners_users"
+          awk -F'\t' '$1 == "team" { print $2 }' "$temp_dir/codeowners_owners" > "$temp_dir/owners_teams"
+          awk -F'\t' '$1 == "partial" { print $2 }' "$temp_dir/codeowners_owners" > "$temp_dir/owners_partial"
+
+          if [ -s "$temp_dir/owners_partial" ]; then
+            echo "::notice::These CODEOWNERS owners appear in only some rules and are excluded from the pool: $(tr '\n' ' ' < "$temp_dir/owners_partial")"
+          fi
+
+          # Every assignable person in the repository. Anyone outside this list
+          # would be rejected by the assignment endpoint.
+          retry gh api --paginate "repos/$REPO/assignees?per_page=100" \
+            --jq '.[].login' | tr '[:upper:]' '[:lower:]' | sort -u > "$temp_dir/assignable"
+
+          # ---------------------------------------------------------------
+          # Resolve the pool. Teams cannot be assigned to a pull request, so a
+          # team handle is expanded to its members when the token can read
+          # them. CODEOWNERS in this repository may name teams only, in which
+          # case ASSIGNEE_POOL or team expansion is the only source.
+          # ---------------------------------------------------------------
+          : > "$temp_dir/pool"
+
+          if [ -n "${ASSIGNEE_POOL:-}" ]; then
+            printf '%s\n' "$ASSIGNEE_POOL" | tr , '\n' | tr ' ' '\n' |
+              tr '[:upper:]' '[:lower:]' | sed '/^[[:space:]]*$/d' >> "$temp_dir/pool"
+            echo "Using ASSIGNEE_POOL for the code owner pool."
+          else
+            cat "$temp_dir/owners_users" >> "$temp_dir/pool"
+
+            org=${REPO%%/*}
+            while read -r team; do
+              [ -n "$team" ] || continue
+              slug=${team#*/}
+              if retry gh api --paginate "orgs/$org/teams/$slug/members?per_page=100" \
+                --jq '.[].login' 2>/dev/null |
+                tr '[:upper:]' '[:lower:]' | sort -u > "$temp_dir/team_members"; then
+                echo "Expanded @$team to $(awk 'END { print NR }' "$temp_dir/team_members") member(s)."
+                cat "$temp_dir/team_members" >> "$temp_dir/pool"
+              else
+                echo "::warning::Could not expand team @$team; set the CODEOWNER_ASSIGNEES repository variable to supply the pool directly."
+              fi
+            done < "$temp_dir/owners_teams"
+          fi
+
+          sort -u "$temp_dir/pool" -o "$temp_dir/pool"
+          comm -12 "$temp_dir/pool" "$temp_dir/assignable" > "$temp_dir/eligible"
+
+          if [ ! -s "$temp_dir/eligible" ]; then
+            echo "::error::No assignable code owner was found. CODEOWNERS named $(awk 'END { print NR }' "$temp_dir/owners_users") individual owner(s) and $(awk 'END { print NR }' "$temp_dir/owners_teams") team(s); after expanding teams and intersecting with repository assignees the pool is empty. Set the CODEOWNER_ASSIGNEES repository variable, or name individuals in CODEOWNERS."
+            exit 1
+          fi
+          echo "Eligible owners: $(awk 'END { print NR }' "$temp_dir/eligible")."
+
+          # ---------------------------------------------------------------
+          # Seed load. Load counts pull requests, not events: a PR assigned to
+          # two people adds one unit to each of them, and no PR is counted
+          # twice for the same person. Open PRs and recently closed PRs both
+          # count, which rewards throughput without letting a closed PR keep
+          # counting forever.
+          #
+          # Size is not considered: a typo fix and a large refactor weigh the
+          # same. If balance ever skews toward a few large PRs, weight each PR
+          # by a size proxy such as additions + deletions, bucketed. The open
+          # PR listing does carry additions/deletions; the closed-PR search
+          # results do not, so weighting those would cost one API call per PR.
+          # ---------------------------------------------------------------
+          max_open_age=$OPEN_LOAD_MAX_AGE_DAYS
           since=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
-          gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
-            --jq '.[].assignees[]?.login' > "$temp_dir/open"
-          gh api --paginate -X GET search/issues \
+
+          # number, login, age in days. Sorted so the later dedupe is cheap.
+          # shellcheck disable=SC2016
+          # $n and $age are jq variables, not shell expansions.
+          retry gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
+            --jq '.[]
+              | .number as $n
+              | ((now - (.created_at | fromdate)) / 86400 | floor) as $age
+              | .assignees[]?
+              | [$n, (.login | ascii_downcase), $age] | @tsv' |
+            sort -n > "$temp_dir/open"
+
+          closed_total=$(retry gh api -X GET search/issues \
+            -f "q=repo:$REPO is:pr is:closed closed:>=$since" -f per_page=1 \
+            --jq '.total_count')
+          if [ "$closed_total" -gt 1000 ]; then
+            echo "::warning::$closed_total PRs closed in the last seven days, but the search API returns at most 1000. Closed load is undercounted."
+          fi
+
+          # shellcheck disable=SC2016
+          # $n is a jq variable; $since is a shell expansion.
+          retry gh api --paginate -X GET search/issues \
             -f "q=repo:$REPO is:pr is:closed closed:>=$since" -f per_page=100 \
-            --jq '.items[].assignees[]?.login' > "$temp_dir/closed"
+            --jq '.items[]
+              | .number as $n
+              | .assignees[]?
+              | [$n, (.login | ascii_downcase)] | @tsv' |
+            sort -n > "$temp_dir/closed"
 
           # owner<TAB>open<TAB>closed
-          awk '
+          awk -F'\t' -v max_age="$max_open_age" '
             FILENAME == ARGV[1] { eligible[$1] = 1; next }
             FILENAME == ARGV[2] {
-              owner = tolower($1)
-              if (owner in eligible) open[owner]++
+              if (seen[$1 SUBSEP $2]++) next
+              if ($3 > max_age) { stale[$2]++; next }
+              if ($2 in eligible) open[$2]++
               next
             }
             {
-              owner = tolower($1)
-              if (owner in eligible) closed[owner]++
+              if (seen[$1 SUBSEP $2]++) next
+              if ($2 in eligible) closed[$2]++
             }
             END {
               for (owner in eligible)
                 printf "%s\t%d\t%d\n", owner, open[owner] + 0, closed[owner] + 0
+              for (owner in stale)
+                printf "Open PRs by %s older than %d days no longer count as load.\n", owner, max_age > "/dev/stderr"
             }
-          ' <(printf '%s\n' "$eligible") "$temp_dir/open" "$temp_dir/closed" |
+          ' "$temp_dir/eligible" "$temp_dir/open" "$temp_dir/closed" |
             sort > "$temp_dir/load"
 
-          # Unassigned PRs from anyone but Renovate. The author is excluded
-          # later, per PR, so they are not assigned their own work.
-          gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
+          # ---------------------------------------------------------------
+          # Candidate PRs: open, unassigned, not a draft, not opened by a bot.
+          # A deleted author is skipped explicitly instead of breaking the
+          # filter. Oldest first, so the tail of the queue is not starved.
+          # ---------------------------------------------------------------
+          retry gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
             --jq '.[]
               | select(.assignees | length == 0)
-              | select(.user.login | ascii_downcase | contains("renovate") | not)
-              | "\(.number)\t\(.user.login)"' > "$temp_dir/candidates"
+              | select(.draft | not)
+              | select(.user != null)
+              | select(.user.type != "Bot")
+              | [(.number | tostring), .user.login, (.labels | map(.name) | join(","))]
+              | @tsv' |
+            # A PR carries the marker label only if this sweep assigned it
+            # before, which is what makes the skip decision below possible
+            # without relying on the assignment actor.
+            awk -F'\t' -v marker="$MARKER_LABEL" 'BEGIN { OFS = "\t" }
+              {
+                n = split($3, names, ",")
+                marked = 0
+                for (i = 1; i <= n; i++) if (names[i] == marker) marked = 1
+                print $1, $2, marked
+              }' |
 
-          candidates=$(wc -l < "$temp_dir/candidates" | tr -d ' ')
+            # Sort numerically by PR number and drop duplicates that concurrent
+            # pushes can introduce while paginating.
+            sort -t"$(printf '\t')" -k1,1n |
+            awk -F'\t' '!seen[$1]++' > "$temp_dir/candidates"
+
+          # awk's END counts lines even without a trailing newline, unlike wc -l.
+          candidates=$(awk 'END { print NR }' "$temp_dir/candidates")
           echo "Found $candidates unassigned PR(s)."
           if [ "$candidates" -eq 0 ]; then
             exit 0
           fi
 
+          # Ensure the marker label exists before it is used.
+          retry gh label create "$MARKER_LABEL" \
+            --color ededed --description "Assigned by the daily code owner sweep" \
+            --force > /dev/null 2>&1 ||
+            echo "::warning::Could not create the $MARKER_LABEL label."
+
           assigned=0
           skipped=0
-          while IFS=$'\t' read -r number author; do
+          failed=0
+          unassignable=0
+
+          while IFS=$'\t' read -r number author has_marker; do
             [ -n "$number" ] || continue
 
             if [ "$assigned" -ge "$MAX_ASSIGNMENTS" ]; then
@@ -134,35 +298,78 @@ jobs:
               break
             fi
 
-            # Assign a PR once. If this bot assigned it before and it now has no
-            # assignee, a maintainer deliberately cleared it, so leave it alone
-            # instead of re-assigning every day.
-            gh api --paginate "repos/$REPO/issues/$number/timeline?per_page=100" \
-              --jq '.[] | select(.event == "assigned") | .actor.login' \
-              > "$temp_dir/timeline"
-            if grep -qxF 'github-actions[bot]' "$temp_dir/timeline"; then
-              echo "PR #$number was auto-assigned before and has since been unassigned; skipping."
-              skipped=$((skipped + 1))
-              continue
+            # Assign a PR once. A PR this sweep previously assigned and that is
+            # now unassigned was deliberately cleared: leave it alone rather
+            # than re-assigning every day. The timeline is consulted because an
+            # assignment can also disappear without anyone acting (the assignee
+            # loses access), and that case should be re-assignable.
+            if [ "$has_marker" = "1" ]; then
+              if ! retry gh api --paginate "repos/$REPO/issues/$number/timeline?per_page=100" \
+                --jq '.[]
+                  | select(.event == "assigned" or .event == "unassigned")
+                  | [.event, (.actor.login // "")] | @tsv' > "$temp_dir/timeline"; then
+                echo "::warning::Could not read the timeline for PR #$number; leaving it for the next run."
+                failed=$((failed + 1))
+                continue
+              fi
+
+              # exit 0 means the most recent unassign was by a person, not by
+              # the bot or an automatic removal.
+              if awk -F'\t' -v bot="$BOT_ACTOR" '
+                $1 == "assigned" && $2 == bot { last_bot = NR }
+                $1 == "unassigned" && $2 != "" && $2 != bot { last_human = NR }
+                END { exit !(last_human > last_bot) }
+              ' "$temp_dir/timeline"; then
+                echo "PR #$number was auto-assigned before and unassigned by a person; skipping."
+                skipped=$((skipped + 1))
+                continue
+              fi
             fi
 
             author_lc=$(printf '%s' "$author" | tr '[:upper:]' '[:lower:]')
+
+            # Widest possible pool: everyone tied on total load, preferring the
+            # fewest open PRs, then a random pick. Open count is a preference
+            # within the tied set, not a filter over all owners.
             assignee=$(awk -F'\t' -v author="$author_lc" '
                 tolower($1) == author { next }
-                { print $2 + $3, $2, $1 }
-              ' "$temp_dir/load" |
-              sort -k1,1n -k2,2n |
-              awk 'NR == 1 { load = $1; open = $2 }
-                $1 == load && $2 == open { print $3 }' |
-              shuf -n 1)
+                {
+                  total = $2 + $3
+                  if (!found || total < best_total) {
+                    found = 1; best_total = total; best_open = $2
+                    pool = $1
+                  } else if (total == best_total) {
+                    if ($2 < best_open) { best_open = $2; pool = $1 }
+                    else if ($2 == best_open) pool = pool "\n" $1
+                  }
+                }
+                END { if (found) print pool }
+              ' "$temp_dir/load" | shuf -n 1)
 
             if [ -z "$assignee" ]; then
               echo "::warning::No eligible owner other than @$author for PR #$number."
+              unassignable=$((unassignable + 1))
               continue
             fi
 
-            jq -n --arg login "$assignee" '{assignees: [$login]}' |
-              gh api -X POST "repos/$REPO/issues/$number/assignees" --input - > /dev/null
+            # A dropped assignee would otherwise be logged as success, so the
+            # response is checked rather than discarded.
+            if ! response=$(jq -n --arg login "$assignee" '{assignees: [$login]}' |
+              retry gh api -X POST "repos/$REPO/issues/$number/assignees" --input -); then
+              echo "::warning::Could not assign PR #$number to @$assignee."
+              failed=$((failed + 1))
+              continue
+            fi
+            if ! printf '%s' "$response" | jq -e --arg login "$assignee" \
+              'any(.assignees[]?; .login == $login)' > /dev/null; then
+              echo "::warning::PR #$number assignment to @$assignee was not reflected in the response."
+              failed=$((failed + 1))
+              continue
+            fi
+
+            retry gh api -X POST "repos/$REPO/issues/$number/labels" \
+              -f "labels[]=$MARKER_LABEL" > /dev/null 2>&1 ||
+              echo "::warning::Could not mark PR #$number with $MARKER_LABEL."
 
             # Count the assignment immediately so a batch spreads across owners
             # instead of piling every PR onto one lowest-load owner.
@@ -176,4 +383,34 @@ jobs:
             assigned=$((assigned + 1))
           done < "$temp_dir/candidates"
 
-          echo "Done: assigned $assigned PR(s), skipped $skipped deliberately unassigned PR(s)."
+          echo "Done: assigned $assigned, skipped $skipped deliberately unassigned, $unassignable with no eligible owner, $failed deferred by errors."
+
+          # Partial failure leaves real assignments behind, so it is reported as
+          # a failure rather than a success.
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed PR(s) could not be processed; they will be retried on the next run."
+            exit 1
+          fi
+
+      - name: Report a failed sweep
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # A scheduled failure notifies only this file's last editor, so the
+          # failure is recorded where maintainers will see it.
+          title="assign-codeowner sweep failed"
+          body=$(printf 'The daily code owner sweep failed.\n\nRun: %s\n\nThis is expected when the code owner pool resolves to nobody: CODEOWNERS may name teams only, and a team cannot be assigned to a pull request. Set the CODEOWNER_ASSIGNEES repository variable, or name individuals in CODEOWNERS.\n' "$RUN_URL")
+
+          existing=$(gh api -X GET search/issues \
+            -f "q=repo:$REPO is:issue is:open in:title \"$title\"" --jq '.items[0].number // empty' || true)
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
