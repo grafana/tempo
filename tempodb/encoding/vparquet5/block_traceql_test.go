@@ -3340,3 +3340,14 @@ func blockForBenchmarks(b testing.TB) *backendBlock {
 
 	return newBackendBlock(meta, rr)
 }
+
+func TestDedicatedExistenceConditionSkipsIntrinsics(t *testing.T) {
+	cond := traceql.Condition{Attribute: traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "name"), Op: traceql.OpNotExists}
+	// by(name) adds an intrinsic OpNone with the same name.
+	conditions := []traceql.Condition{cond, {Attribute: traceql.NewIntrinsic(traceql.IntrinsicName), Op: traceql.OpNone}}
+
+	got, ok := dedicatedExistenceCondition(conditions, cond)
+
+	require.True(t, ok)
+	require.Equal(t, traceql.OpNotExists, got.Op)
+}

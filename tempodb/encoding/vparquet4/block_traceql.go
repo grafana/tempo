@@ -3026,7 +3026,8 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 func dedicatedExistenceCondition(conditions []traceql.Condition, cond traceql.Condition) (traceql.Condition, bool) {
 	var exists, none bool
 	for _, c := range conditions {
-		if c.Attribute.Name != cond.Attribute.Name {
+		// Intrinsics share names like "name" with attributes but read other columns.
+		if c.Attribute.Name != cond.Attribute.Name || c.Attribute.Intrinsic != traceql.IntrinsicNone {
 			continue
 		}
 		switch c.Op {
