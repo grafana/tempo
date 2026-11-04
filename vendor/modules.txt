@@ -1548,9 +1548,10 @@ github.com/rs/cors/internal
 # github.com/rs/xid v1.6.0
 ## explicit; go 1.16
 github.com/rs/xid
-# github.com/sagikazarmark/locafero v0.11.0
+# github.com/sagikazarmark/locafero v0.12.0
 ## explicit; go 1.23.0
 github.com/sagikazarmark/locafero
+github.com/sagikazarmark/locafero/internal/queue
 # github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 ## explicit; go 1.21
 github.com/santhosh-tekuri/jsonschema/v6
@@ -1575,11 +1576,6 @@ github.com/shirou/gopsutil/v4/process
 # github.com/sony/gobreaker v1.0.0
 ## explicit; go 1.12
 github.com/sony/gobreaker
-# github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8
-## explicit; go 1.20
-github.com/sourcegraph/conc
-github.com/sourcegraph/conc/panics
-github.com/sourcegraph/conc/pool
 # github.com/spf13/afero v1.15.0
 ## explicit; go 1.23.0
 github.com/spf13/afero
