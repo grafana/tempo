@@ -1,42 +1,54 @@
 name: Assign a code owner to pull requests
 
 on:
-  # The job reads CODEOWNERS from the base commit and never runs PR code.
-  pull_request_target: # zizmor: ignore[dangerous-triggers]
-    types:
-      - opened
-      - reopened
+  # A daily sweep over unassigned PRs, rather than an event handler on PR
+  # creation. Scheduled runs execute from the default branch with the
+  # repository's own token, so they can assign on PRs opened from forks. A
+  # `pull_request` trigger cannot do that: fork PRs receive a read-only token
+  # and no secrets, so the assignment would fail for most contributors.
+  schedule:
+    - cron: '0 7 * * *'
+  # Lets the job be run by hand while testing.
+  workflow_dispatch:
 
 permissions: {}
 
+concurrency:
+  group: assign-codeowner
+  cancel-in-progress: false
+
 jobs:
   assign:
-    if: github.repository == 'grafana/tempo' && !contains(github.event.pull_request.user.login, 'renovate')
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # PR listing uses the Pulls API; assignment uses the Issues API.
     permissions:
       contents: read
       issues: write
       pull-requests: read
     steps:
-      - name: Assign an available code owner
+      - name: Assign available code owners
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          # Caps a single run. The first run after merging would otherwise
+          # assign every unassigned PR in the queue at once and notify each
+          # owner once per PR. Remaining PRs are picked up on later runs.
+          MAX_ASSIGNMENTS: '25'
         run: |
           set -euo pipefail
 
-          if [ "$(gh api "repos/$REPO/issues/$PR_NUMBER" --jq '.assignees | length')" -gt 0 ]; then
-            echo "PR already has an assignee."
-            exit 0
-          fi
+          temp_dir=$(mktemp -d)
+          trap 'rm -rf "$temp_dir"' EXIT
+
+          # CODEOWNERS is read from the default branch, so no PR content is
+          # trusted and no PR commit is ever checked out.
+          default_branch=$(gh api "repos/$REPO" --jq '.default_branch')
 
           # Every current CODEOWNERS rule shares these owners, so each is an
-          # owner of every file in the PR. Read the base branch's rules only.
-          owners=$(gh api "repos/$REPO/contents/CODEOWNERS?ref=$BASE_SHA" --jq '.content' |
+          # owner of every file in every PR.
+          gh api "repos/$REPO/contents/CODEOWNERS?ref=$default_branch" --jq '.content' |
             base64 -d |
             awk '
               NF && $1 !~ /^#/ {
@@ -51,25 +63,21 @@ jobs:
               }
             ' |
             tr '[:upper:]' '[:lower:]' |
-            sort -u)
+            sort -u > "$temp_dir/owners"
 
           eligible=$(comm -12 \
-            <(printf '%s\n' "$owners" | sort -u) \
+            "$temp_dir/owners" \
             <(gh api --paginate "repos/$REPO/assignees?per_page=100" --jq '.[].login' |
-              tr '[:upper:]' '[:lower:]' | sort -u) |
-            awk -v author="$PR_AUTHOR" 'tolower($0) != tolower(author)')
+              tr '[:upper:]' '[:lower:]' | sort -u))
 
           if [ -z "$eligible" ]; then
-            echo "::error::No assignable code owner other than the PR author was found."
+            echo "::error::No assignable code owner was found."
             exit 1
           fi
 
-          temp_dir=$(mktemp -d)
-          trap 'rm -rf "$temp_dir"' EXIT
-          printf '%s\n' "$eligible" > "$temp_dir/eligible"
-
-          # Recently closed PRs still count toward load after they leave the
-          # open queue. Count each PR once, using its current assignees.
+          # Seed each owner's load with the PRs already assigned to them. Open
+          # PRs still count while queued; recently closed PRs still count after
+          # they leave the queue. Each PR is counted once, via its assignees.
           since=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
           gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
             --jq '.[].assignees[]?.login' > "$temp_dir/open"
@@ -77,7 +85,8 @@ jobs:
             -f "q=repo:$REPO is:pr is:closed closed:>=$since" -f per_page=100 \
             --jq '.items[].assignees[]?.login' > "$temp_dir/closed"
 
-          scores=$(awk '
+          # owner<TAB>open<TAB>closed
+          awk '
             FILENAME == ARGV[1] { eligible[$1] = 1; next }
             FILENAME == ARGV[2] {
               owner = tolower($1)
@@ -90,15 +99,75 @@ jobs:
             }
             END {
               for (owner in eligible)
-                print open[owner] + closed[owner], open[owner] + 0, owner
+                printf "%s\t%d\t%d\n", owner, open[owner] + 0, closed[owner] + 0
             }
-          ' "$temp_dir/eligible" "$temp_dir/open" "$temp_dir/closed" |
-            sort -k1,1n -k2,2n)
-          assignee=$(printf '%s\n' "$scores" |
-            awk 'NR == 1 { load = $1; open = $2 }
-              $1 == load && $2 == open { print $3 }' |
-            shuf -n 1)
+          ' <(printf '%s\n' "$eligible") "$temp_dir/open" "$temp_dir/closed" |
+            sort > "$temp_dir/load"
 
-          jq -n --arg login "$assignee" '{assignees: [$login]}' |
-            gh api -X POST "repos/$REPO/issues/$PR_NUMBER/assignees" --input - > /dev/null
-          echo "Assigned @$assignee to PR #$PR_NUMBER (load: open PRs + PRs closed in the past seven days)."
+          # Unassigned PRs from anyone but Renovate. The author is excluded
+          # later, per PR, so they are not assigned their own work.
+          gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
+            --jq '.[]
+              | select(.assignees | length == 0)
+              | select(.user.login | ascii_downcase | contains("renovate") | not)
+              | "\(.number)\t\(.user.login)"' > "$temp_dir/candidates"
+
+          candidates=$(wc -l < "$temp_dir/candidates" | tr -d ' ')
+          echo "Found $candidates unassigned PR(s)."
+          if [ "$candidates" -eq 0 ]; then
+            exit 0
+          fi
+
+          assigned=0
+          skipped=0
+          while IFS=$'\t' read -r number author; do
+            [ -n "$number" ] || continue
+
+            if [ "$assigned" -ge "$MAX_ASSIGNMENTS" ]; then
+              echo "Reached the per-run cap of $MAX_ASSIGNMENTS; the rest are left for the next run."
+              break
+            fi
+
+            # Assign a PR once. If this bot assigned it before and it now has no
+            # assignee, a maintainer deliberately cleared it, so leave it alone
+            # instead of re-assigning every day.
+            gh api --paginate "repos/$REPO/issues/$number/timeline?per_page=100" \
+              --jq '.[] | select(.event == "assigned") | .actor.login' \
+              > "$temp_dir/timeline"
+            if grep -qxF 'github-actions[bot]' "$temp_dir/timeline"; then
+              echo "PR #$number was auto-assigned before and has since been unassigned; skipping."
+              skipped=$((skipped + 1))
+              continue
+            fi
+
+            author_lc=$(printf '%s' "$author" | tr '[:upper:]' '[:lower:]')
+            assignee=$(awk -F'\t' -v author="$author_lc" '
+                tolower($1) == author { next }
+                { print $2 + $3, $2, $1 }
+              ' "$temp_dir/load" |
+              sort -k1,1n -k2,2n |
+              awk 'NR == 1 { load = $1; open = $2 }
+                $1 == load && $2 == open { print $3 }' |
+              shuf -n 1)
+
+            if [ -z "$assignee" ]; then
+              echo "::warning::No eligible owner other than @$author for PR #$number."
+              continue
+            fi
+
+            jq -n --arg login "$assignee" '{assignees: [$login]}' |
+              gh api -X POST "repos/$REPO/issues/$number/assignees" --input - > /dev/null
+
+            # Count the assignment immediately so a batch spreads across owners
+            # instead of piling every PR onto one lowest-load owner.
+            awk -F'\t' -v owner="$assignee" 'BEGIN { OFS = "\t" }
+              $1 == owner { $2 = $2 + 1 } { print }' "$temp_dir/load" > "$temp_dir/load.new"
+            mv "$temp_dir/load.new" "$temp_dir/load"
+
+            read -r open_count closed_count < <(
+              awk -F'\t' -v owner="$assignee" '$1 == owner { print $2, $3 }' "$temp_dir/load")
+            echo "Assigned @$assignee to PR #$number (load: $((open_count + closed_count)) = $open_count open + $closed_count closed in the past seven days)."
+            assigned=$((assigned + 1))
+          done < "$temp_dir/candidates"
+
+          echo "Done: assigned $assigned PR(s), skipped $skipped deliberately unassigned PR(s)."
