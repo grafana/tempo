@@ -1688,8 +1688,8 @@ github.com/twmb/franz-go/plugin/kprom
 # github.com/twmb/franz-go/plugin/kzap v1.1.2
 ## explicit; go 1.18
 github.com/twmb/franz-go/plugin/kzap
-# github.com/twmb/murmur3 v1.1.8
-## explicit; go 1.11
+# github.com/twmb/murmur3 v1.2.2
+## explicit; go 1.26
 github.com/twmb/murmur3
 # github.com/twpayne/go-geom v1.6.1
 ## explicit; go 1.22
