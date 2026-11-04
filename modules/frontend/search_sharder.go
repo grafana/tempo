@@ -51,9 +51,8 @@ type SearchSharderConfig struct {
 }
 
 type asyncSearchSharder struct {
-	next      pipeline.AsyncRoundTripper[combiner.PipelineResponse]
-	reader    tempodb.Reader
-	overrides overrides.Interface
+	next   pipeline.AsyncRoundTripper[combiner.PipelineResponse]
+	reader tempodb.Reader
 
 	cfg                    SearchSharderConfig
 	limiter                rangeLimiter
@@ -67,9 +66,8 @@ func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg Sea
 	limiter := newSearchRangeLimiter(cfg, o, reader, logger)
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return asyncSearchSharder{
-			next:      next,
-			reader:    reader,
-			overrides: o,
+			next:   next,
+			reader: reader,
 
 			cfg:                    cfg,
 			limiter:                limiter,
