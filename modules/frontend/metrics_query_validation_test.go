@@ -102,6 +102,8 @@ func TestValidateQueryRangeReqRange(t *testing.T) {
 		{name: "start equal to end", start: 1, end: 1, wantErr: errEndMustBeGreaterThanStart.Error()},
 		// An end past math.MaxInt64 nanoseconds must not wrap negative and slip under max_duration.
 		{name: "huge end over max_duration", start: 1, end: math.MaxUint64, wantErr: "metrics query time range exceeds the maximum allowed duration of 1h0m0s"},
+		// Both timestamps past math.MaxInt64 nanoseconds must not clamp to one instant and read as a 0s range.
+		{name: "huge start and end over max_duration", start: math.MaxInt64, end: math.MaxUint64, wantErr: "metrics query time range exceeds the maximum allowed duration of 1h0m0s"},
 		{name: "no org ID", noOrgID: true, start: 1, end: 2, wantErr: "no org id"},
 	}
 
@@ -301,7 +303,7 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			cfg:            QueryRangeSharderConfig{MaxScannedBytes: 1},
 			start:          1,
 			end:            math.MaxUint64,
-			wantErr:        "metrics query time range of 2562047h47m16s exceeds the maximum allowed range of 2561047h47m16s for tenant foo (limited by scanned bytes), reduce the time range to 2561047h47m16s or less",
+			wantErr:        "metrics query time range of 2562047h47m16s exceeds the maximum allowed range of 2562047h47m16s for tenant foo (limited by scanned bytes), reduce the time range to 2562047h47m16s or less",
 			wantSpanResult: scannedBytesResultRejected,
 		},
 	}

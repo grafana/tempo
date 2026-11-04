@@ -243,5 +243,5 @@ func (c scannedBytesCheck) fields() []any {
 
 // unixNanoTime converts a request timestamp without wrapping past math.MaxInt64.
 func unixNanoTime(ns uint64) time.Time {
-	return time.Unix(0, int64(min(ns, math.MaxInt64)))
+	return time.Unix(int64(ns/uint64(time.Second)), int64(ns%uint64(time.Second)))
 }
