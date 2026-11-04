@@ -3,12 +3,17 @@ package ingest
 import (
 	"flag"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.yaml.in/yaml/v2"
+
+	"github.com/grafana/tempo/v3/pkg/util/test"
 )
 
 func TestKafkaConfig_ClientRackFlag(t *testing.T) {
@@ -130,4 +135,57 @@ func TestKafkaConfig_Validate_ProducerCompression(t *testing.T) {
 	// validate that an invalid value raises an error.
 	cfg.ProducerCompression = "unsupported"
 	require.ErrorIs(t, cfg.Validate(), ErrInvalidProducerCompression)
+}
+
+func TestKafkaConfig_ProducerLingerFlag(t *testing.T) {
+	var cfg KafkaConfig
+	f := flag.NewFlagSet("test", flag.PanicOnError)
+	cfg.RegisterFlags(f)
+
+	// The default is what the writer client used before it became configurable.
+	fl := f.Lookup("kafka.producer-linger")
+	require.NotNil(t, fl, "kafka.producer-linger flag should be registered")
+	require.Equal(t, "50ms", fl.DefValue)
+	require.Equal(t, 50*time.Millisecond, cfg.ProducerLinger)
+
+	// Zero is a value, not "unset": a caller that waits for every Produce
+	// acknowledgement wants no buffering at all.
+	require.NoError(t, f.Parse([]string{"-kafka.producer-linger=0"}))
+	require.Equal(t, time.Duration(0), cfg.ProducerLinger)
+}
+
+// The config file overlays the flag defaults, so an explicit zero has to survive
+// the decode instead of being read as "unset".
+func TestKafkaConfig_ProducerLingerYAML(t *testing.T) {
+	var cfg KafkaConfig
+	cfg.RegisterFlags(flag.NewFlagSet("test", flag.PanicOnError))
+	require.Equal(t, 50*time.Millisecond, cfg.ProducerLinger)
+
+	require.NoError(t, yaml.UnmarshalStrict([]byte("producer_linger: 0s\n"), &cfg))
+	require.Equal(t, time.Duration(0), cfg.ProducerLinger)
+
+	var untouched KafkaConfig
+	untouched.RegisterFlags(flag.NewFlagSet("test", flag.PanicOnError))
+	require.NoError(t, yaml.UnmarshalStrict([]byte("topic: traces\n"), &untouched))
+	require.Equal(t, 50*time.Millisecond, untouched.ProducerLinger)
+}
+
+// The writer client is the only thing that makes the setting do something.
+func TestNewWriterClient_ProducerLinger(t *testing.T) {
+	for _, linger := range []time.Duration{0, 7 * time.Millisecond} {
+		var cfg KafkaConfig
+		cfg.RegisterFlags(flag.NewFlagSet("test", flag.PanicOnError))
+		cfg.Topic = "traces"
+		cfg.ProducerLinger = linger
+
+		client, err := NewWriterClient(
+			cfg,
+			10,
+			test.NewTestingLogger(t),
+			prometheus.NewPedanticRegistry(),
+		)
+		require.NoError(t, err)
+		require.Equal(t, linger, client.OptValue(kgo.ProducerLinger))
+		client.Close()
+	}
 }
