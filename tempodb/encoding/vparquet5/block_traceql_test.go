@@ -624,6 +624,7 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{"fits column, select", strCol, strValue, false, `{ %[1]s.mixed }`, true},
 		{"absent, select", strCol, nil, false, `{ %[1]s.mixed }`, true},
 		{"int in string column, select", strCol, intValue, false, `{ %[1]s.mixed }`, true},
+		{"int in string column, by", strCol, intValue, false, `{ %[1]s.other = "a" } | by(%[1]s.mixed)`, true},
 		{"string in int column, select", intCol, strValue, false, `{ %[1]s.mixed }`, true},
 	}
 
@@ -726,9 +727,15 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 				id := test.ValidTraceID(nil)
 				dc := backend.DedicatedColumns{{Scope: scope, Name: "mixed", Type: tc.colType}}
 				var want func(traceql.Span) map[traceql.Attribute]traceql.Static
-				if tc.match && tc.value != nil {
+				switch {
+				case tc.match && tc.value != nil:
 					want = func(traceql.Span) map[traceql.Attribute]traceql.Static {
 						return map[traceql.Attribute]traceql.Static{mixedAttr(scope): staticOf[tc.value]}
+					}
+				case tc.match && strings.Contains(tc.query, ".mixed = nil"):
+					// One "nil" placeholder, so the generic half of = nil stays unselected.
+					want = func(traceql.Span) map[traceql.Attribute]traceql.Static {
+						return map[traceql.Attribute]traceql.Static{mixedAttr(scope): traceql.NewStaticString("nil")}
 					}
 				}
 				fetchIDs, fetchSpansIDs := checkQuery(t, dc, id, makeTrace(id, scope, tc.value, tc.onlyAttr, true), query, want)
