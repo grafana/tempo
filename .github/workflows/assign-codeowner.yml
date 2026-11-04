@@ -78,6 +78,12 @@ jobs:
           # Seed each owner's load with the PRs already assigned to them. Open
           # PRs still count while queued; recently closed PRs still count after
           # they leave the queue. Each PR is counted once, via its assignees.
+          # Every PR counts as 1 regardless of size: a typo fix and a large
+          # refactor weigh the same. That is deliberate for now, but if load
+          # balance turns out to be skewed by a few large PRs, weight each PR by
+          # some size proxy instead (e.g. additions + deletions, bucketed). Note
+          # that the closed-PR search results carry no size fields, so weighting
+          # them would cost one extra API call per PR.
           since=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
           gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
             --jq '.[].assignees[]?.login' > "$temp_dir/open"
