@@ -353,7 +353,20 @@ jobs:
             fi
 
             # A dropped assignee would otherwise be logged as success, so the
-            # response is checked rather than discarded.
+            # response is checked rather than discarded. The assignee list is
+            # re-read first: a PR can gain one between the candidate fetch and
+            # this point, and the assignment call appends rather than replaces.
+            current=$(retry gh api "repos/$REPO/issues/$number" --jq '.assignees | length') || {
+              echo "::warning::Could not re-read PR #$number before assigning."
+              failed=$((failed + 1))
+              continue
+            }
+            if [ "$current" -gt 0 ]; then
+              echo "PR #$number was assigned elsewhere while the sweep ran; leaving it alone."
+              skipped=$((skipped + 1))
+              continue
+            fi
+
             if ! response=$(jq -n --arg login "$assignee" '{assignees: [$login]}' |
               retry gh api -X POST "repos/$REPO/issues/$number/assignees" --input -); then
               echo "::warning::Could not assign PR #$number to @$assignee."
