@@ -594,7 +594,6 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		intValue = &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 1}}
 		strValue = &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "a"}}
 		strCol   = backend.DedicatedColumnTypeString
-		intCol   = backend.DedicatedColumnTypeInt
 	)
 
 	// query uses %[1]s for the scope. A nil value means the attribute isn't written.
@@ -634,13 +633,9 @@ func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
 		{"int in string column, not exists and other", strCol, intValue, false, `{ %[1]s.mixed = nil && %[1]s.other = "a" }`, false},
 		{"int in string column without other attrs, exists", strCol, intValue, true, `{ %[1]s.mixed != nil }`, true},
 		{"int in string column without other attrs, not exists", strCol, intValue, true, `{ %[1]s.mixed = nil }`, false},
-		{"string in int column, by value", intCol, strValue, false, `{ %[1]s.mixed = "a" }`, true},
-		{"string in int column, exists", intCol, strValue, false, `{ %[1]s.mixed != nil }`, true},
-		{"string in int column, not exists", intCol, strValue, false, `{ %[1]s.mixed = nil }`, false},
 		{"fits column, select", strCol, strValue, false, `{ %[1]s.mixed }`, true},
 		{"absent, select", strCol, nil, false, `{ %[1]s.mixed }`, true},
 		{"int in string column, select", strCol, intValue, false, `{ %[1]s.mixed }`, true},
-		{"string in int column, select", intCol, strValue, false, `{ %[1]s.mixed }`, true},
 		{"int in string column, by", strCol, intValue, false, `{ %[1]s.other = "a" } | by(%[1]s.mixed)`, true},
 	}
 

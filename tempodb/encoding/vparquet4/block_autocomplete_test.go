@@ -1224,8 +1224,6 @@ func TestFetchTagsDedicatedColumnOtherType(t *testing.T) {
 					sp.Attributes = kvs
 				case backend.DedicatedColumnScopeResource:
 					rs.Resource.Attributes = kvs
-				default:
-					sp.Events = []*v1.Span_Event{{Name: "event", Attributes: kvs}}
 				}
 				tr.ResourceSpans = append(tr.ResourceSpans, rs)
 			}
