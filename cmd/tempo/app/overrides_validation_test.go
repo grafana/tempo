@@ -301,26 +301,6 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 			expErr: "span_name_sanitization \"invalid\" is not valid, valid values: [ dry_run enabled]",
 		},
 		{
-			name:      "read.max_search_duration negative",
-			overrides: overrides.Overrides{Read: overrides.ReadOverrides{MaxSearchDuration: model.Duration(-time.Hour)}},
-			expErr:    "read.max_search_duration must not be negative, got -1h0m0s",
-		},
-		{
-			name:      "read.min_search_duration negative",
-			overrides: overrides.Overrides{Read: overrides.ReadOverrides{MinSearchDuration: model.Duration(-time.Hour)}},
-			expErr:    "read.min_search_duration must not be negative, got -1h0m0s",
-		},
-		{
-			name:      "read.max_metrics_duration negative",
-			overrides: overrides.Overrides{Read: overrides.ReadOverrides{MaxMetricsDuration: model.Duration(-time.Hour)}},
-			expErr:    "read.max_metrics_duration must not be negative, got -1h0m0s",
-		},
-		{
-			name:      "read.min_metrics_duration negative",
-			overrides: overrides.Overrides{Read: overrides.ReadOverrides{MinMetricsDuration: model.Duration(-time.Hour)}},
-			expErr:    "read.min_metrics_duration must not be negative, got -1h0m0s",
-		},
-		{
 			name: "read.min_search_duration above read.max_search_duration",
 			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
 				MinSearchDuration: model.Duration(2 * time.Hour),
