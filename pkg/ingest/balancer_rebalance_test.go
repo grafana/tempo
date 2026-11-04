@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/tempo/v3/pkg/ingest"
 	"github.com/stretchr/testify/require"
@@ -92,7 +93,7 @@ func TestCooperativeActiveStickyBalancer_InactivePartitionsStayOnOwnerAcrossReba
 	tracker := newOwnershipTracker()
 
 	cfg := ingest.KafkaConfig{
-		Address:                        addr,
+		Address:                        flagext.StringSliceCSV{addr},
 		Topic:                          rebalanceTopic,
 		ConsumerGroup:                  rebalanceGroup,
 		DisableKafkaTelemetry:          true,
