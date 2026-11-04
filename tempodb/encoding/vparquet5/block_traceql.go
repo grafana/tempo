@@ -3207,7 +3207,7 @@ func createDedicatedExistenceIterator(makeIter, makeNilIter makeIterFn, cond tra
 		// Each row matches exactly one half, so the span gets one value and still matches when all conditions are required.
 		return parquetquery.NewUnionIterator(definitionLevel, []parquetquery.Iterator{existsIter, notExistsIter}, nil), nil
 	default:
-		return nil, nil
+		return nil, fmt.Errorf("unexpected operator %s for dedicated column existence", cond.Op)
 	}
 }
 
