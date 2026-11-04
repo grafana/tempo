@@ -6,9 +6,9 @@ package base
 import (
 	"fmt"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/datamodel"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 // PropertyMerger handles merging of local properties with referenced schema properties

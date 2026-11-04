@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 // buildDefinitionPath assembles absPath + "#/" + seenPath + extra segments joined by
@@ -50,7 +50,7 @@ func (index *SpecIndex) collectInlineSchemaDefinition(parent, node *yaml.Node, s
 	}
 
 	keyNode := node.Content[keyIndex]
-	valueNode := node.Content[keyIndex+1]
+	valueNode := utils.ResolveMergeNodes(node.Content[keyIndex+1])
 
 	var jsonPath, definitionPath, fullDefinitionPath string
 	if len(seenPath) > 0 || keyNode.Value != "" {
@@ -90,7 +90,7 @@ func (index *SpecIndex) collectMapSchemaDefinitions(parent, node *yaml.Node, see
 	}
 
 	keyNode := node.Content[keyIndex]
-	propertiesNode := node.Content[keyIndex+1]
+	propertiesNode := utils.ResolveMergeNodes(node.Content[keyIndex+1])
 
 	if len(seenPath) > 0 {
 		for _, p := range seenPath {
@@ -108,6 +108,7 @@ func (index *SpecIndex) collectMapSchemaDefinitions(parent, node *yaml.Node, see
 			continue
 		}
 
+		prop = utils.ResolveMergeNodes(prop)
 		var jsonPath, definitionPath, fullDefinitionPath string
 		if len(seenPath) > 0 || keyNode.Value != "" && label != "" {
 			if prefix == "" {
@@ -146,10 +147,11 @@ func (index *SpecIndex) collectArraySchemaDefinitions(parent, node *yaml.Node, s
 	}
 
 	keyNode := node.Content[keyIndex]
-	arrayNode := node.Content[keyIndex+1]
+	arrayNode := utils.ResolveMergeNodes(node.Content[keyIndex+1])
 
 	prefix := ""
 	for h, element := range arrayNode.Content {
+		element = utils.ResolveMergeNodes(element)
 		var jsonPath, definitionPath, fullDefinitionPath string
 		if len(seenPath) > 0 {
 			if prefix == "" {

@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"errors"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/datamodel/high"
 	"github.com/pb33f/libopenapi/datamodel/high/base"
 	"github.com/pb33f/libopenapi/datamodel/low"
@@ -20,7 +21,6 @@ import (
 	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/json"
 	"github.com/pb33f/libopenapi/orderedmap"
-	"go.yaml.in/yaml/v4"
 )
 
 // Document represents a high-level OpenAPI 3 document (both 3.0 & 3.1). A Document is the root of the specification.
@@ -173,9 +173,13 @@ func (d *Document) Render() ([]byte, error) {
 // RenderWithIndention will return a YAML representation of the Document object as a byte slice.
 // the rendering will use the original indention of the document.
 func (d *Document) RenderWithIndention(indent int) []byte {
+	// the emitter supports indents of 2 to 9 spaces; anything else (such as the 0 detected for
+	// minified JSON) renders with 2.
+	if indent < 2 || indent > 9 {
+		indent = 2
+	}
 	var buf bytes.Buffer
-	yamlDumper, _ := yaml.NewDumper(&buf, yaml.WithV3Defaults(), yaml.WithLineWidth(-1))
-	yamlDumper.SetIndent(indent)
+	yamlDumper, _ := yaml.NewDumper(&buf, yaml.WithV3Defaults(), yaml.WithIndent(indent), yaml.WithLineWidth(-1))
 	_ = yamlDumper.Dump(d)
 	_ = yamlDumper.Close()
 	return buf.Bytes()

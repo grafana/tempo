@@ -81,6 +81,11 @@ type DocumentConfiguration struct {
 	// FileFilter should be used to limit the scope of the rolodex.
 	AllowFileReferences bool
 
+	// AllowExcessiveAliases disables the YAML alias expansion limit during indexing.
+	// Use it for trusted documents with large amounts of shared YAML content.
+	// The limit remains enabled by default; cycle detection is always enabled.
+	AllowExcessiveAliases bool
+
 	// SkipExternalRefResolution will skip resolving external $ref references (those not starting with #).
 	// When enabled, external references will be left as-is during model building. Schema proxies will
 	// report IsReference()=true and GetReference() will return the ref string, but Schema() will return nil.

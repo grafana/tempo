@@ -17,7 +17,7 @@ import (
 	"github.com/pb33f/jsonpath/pkg/jsonpath"
 	jsonpathconfig "github.com/pb33f/jsonpath/pkg/jsonpath/config"
 
-	"go.yaml.in/yaml/v4"
+	"github.com/pb33f/go-yaml"
 )
 
 type Case int8
@@ -364,7 +364,8 @@ func expandMergeContent(node *yaml.Node, visited map[*yaml.Node]struct{}) []*yam
 		return nil
 	}
 	visited[node] = struct{}{}
-	defer delete(visited, node)
+	// Earlier merge sources win. Revisiting this mapping cannot add a key
+	// that was not already supplied or overridden by its first expansion.
 
 	if !hasMergeKeys(node.Content) {
 		return node.Content
@@ -411,6 +412,10 @@ func appendExpandedMergeContent(
 	}
 
 	if mergeValue.Kind == yaml.SequenceNode {
+		if _, seen := visited[mergeValue]; seen {
+			return target
+		}
+		visited[mergeValue] = struct{}{}
 		for _, item := range mergeValue.Content {
 			target = appendExpandedMergeContent(target, seenKeys, item, visited)
 		}
@@ -690,20 +695,31 @@ func NodeMerge(nodes []*yaml.Node) *yaml.Node {
 	for i, v := range nodes {
 		if v.Tag == "!!merge" {
 			if i+1 < len(nodes) {
-				return resolvedMergeNode(nodes[i+1])
+				return ResolveMergeNodes(nodes[i+1])
 			}
 		}
 	}
 	if len(nodes) > 0 {
-		return resolvedMergeNode(nodes[0])
+		return ResolveMergeNodes(nodes[0])
 	}
 	return nil
 }
 
-func resolvedMergeNode(node *yaml.Node) *yaml.Node {
+// ResolveMergeNodes returns a read-only view of a mapping with YAML merges expanded.
+// Local keys take precedence over merged keys, and earlier merge sources take
+// precedence over later sources. Aliases are resolved before expansion.
+// A merged mapping is shallow-copied: source nodes are not modified, and original
+// key/value nodes and their location/comment metadata are retained. Mappings
+// place explicit key/value pairs first, followed by inherited pairs. Mappings
+// without merges retain their identity. Callers must not mutate shared children
+// while readers or model builders use them.
+func ResolveMergeNodes(node *yaml.Node) *yaml.Node {
 	node = NodeAlias(node)
 	if node == nil {
 		return nil
+	}
+	if node.Kind != yaml.MappingNode && node.Tag != "!!map" {
+		return node
 	}
 	if !hasMergeKeys(node.Content) {
 		return node
@@ -927,36 +943,37 @@ var (
 	bracketNameExp = regexp.MustCompile(`^(\w+)\['?([\w/]+)'?]$`)
 )
 
+var jsonPathDotChars = func() [256]bool {
+	var allowed [256]bool
+	for _, c := range []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_\\") {
+		allowed[c] = true
+	}
+	return allowed
+}()
+
 // isPathChar checks if a string is valid for JSONPath dot notation.
 // returns true only if the string contains only alphanumeric, underscore, or backslash characters
 // and does not start with a digit (unless it's a pure integer, which is handled separately).
 // jsonPath requires bracket notation for property names starting with digits like "403_permission_denied".
 // this is an optimized replacement for the pathCharExp regex.
+
 func isPathChar(s string) bool {
 	if len(s) == 0 {
 		return false
 	}
-
-	firstChar := s[0]
-	startsWithDigit := firstChar >= '0' && firstChar <= '9'
-	allDigits := startsWithDigit
-
-	// single pass: validate characters and track if all are digits
-	for _, r := range s {
-		if !((r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '\\') {
+	if s[0] >= '0' && s[0] <= '9' {
+		for i := 1; i < len(s); i++ {
+			if s[i] < '0' || s[i] > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	for i := range len(s) {
+		if !jsonPathDotChars[s[i]] {
 			return false
 		}
-		if allDigits && (r < '0' || r > '9') {
-			allDigits = false
-		}
 	}
-
-	// if starts with digit but not pure integer, requires bracket notation
-	// property names like "403_permission_denied" must use bracket notation
-	if startsWithDigit && !allDigits {
-		return false
-	}
-
 	return true
 }
 
@@ -1216,21 +1233,6 @@ func DetectCase(input string) Case {
 		return ScreamingKebabCase
 	}
 	return RegularCase
-}
-
-// CheckEnumForDuplicates will check an array of nodes to check if there are any duplicate values.
-func CheckEnumForDuplicates(seq []*yaml.Node) []*yaml.Node {
-	var res []*yaml.Node
-	seen := make(map[string]*yaml.Node)
-
-	for _, enum := range seq {
-		if seen[enum.Value] != nil {
-			res = append(res, enum)
-			continue
-		}
-		seen[enum.Value] = enum
-	}
-	return res
 }
 
 // DetermineWhitespaceLengthBytes determines the minimum leading-space indentation

@@ -11,13 +11,13 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/datamodel"
 	"github.com/pb33f/libopenapi/datamodel/low"
 	"github.com/pb33f/libopenapi/datamodel/low/base"
 	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 // Components represents a low-level OpenAPI 3+ Components Object, that is backed by a low-level one.
@@ -42,7 +42,7 @@ type Components struct {
 	RootNode        *yaml.Node
 	index           *index.SpecIndex
 	context         context.Context
-	nodeStore       sync.Map
+	nodeStore       low.NodeLines
 	reference       low.Reference
 	*low.Reference
 	low.NodeMap
@@ -171,11 +171,10 @@ func (co *Components) FindMediaType(mediaType string) *low.ValueReference[*Media
 // Build converts root YAML node containing components to low level model.
 // Process each component in parallel.
 func (co *Components) Build(ctx context.Context, root *yaml.Node, idx *index.SpecIndex) error {
-	root = utils.NodeAlias(root)
-	utils.CheckForMergeNodes(root)
+	root = utils.ResolveMergeNodes(root)
 	co.reference = low.Reference{}
 	co.Reference = &co.reference
-	co.nodeStore = sync.Map{}
+	co.nodeStore = low.NodeLines{}
 	co.Nodes = &co.nodeStore
 	if len(root.Content) > 0 {
 		co.NodeMap.ExtractNodes(root, false)
@@ -279,6 +278,7 @@ func (co *Components) Build(ctx context.Context, root *yaml.Node, idx *index.Spe
 func extractComponentValues[T low.Buildable[N], N any](ctx context.Context, label string, root *yaml.Node, idx *index.SpecIndex, co *Components) (low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[T]]], error) {
 	var emptyResult low.NodeReference[*orderedmap.Map[low.KeyReference[string], low.ValueReference[T]]]
 	_, nodeLabel, nodeValue := utils.FindKeyNodeFullTop(label, root.Content)
+	nodeValue = utils.ResolveMergeNodes(nodeValue)
 	if nodeValue == nil {
 		return emptyResult, nil
 	}

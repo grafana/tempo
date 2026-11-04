@@ -18,11 +18,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/datamodel/low"
 	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 // GoesLow is used to represent any high-level model. All high level models meet this interface and can be used to
