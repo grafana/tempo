@@ -55,7 +55,7 @@ require (
 	github.com/parquet-go/parquet-go v0.32.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
-	github.com/prometheus/common v0.72.1
+	github.com/prometheus/common v0.73.1
 	github.com/prometheus/prometheus v0.312.0
 	github.com/redis/go-redis/v9 v9.20.0
 	github.com/segmentio/fasthash v1.0.3
@@ -298,6 +298,7 @@ require (
 	github.com/opentracing-contrib/go-stdlib v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
+	github.com/pandatix/go-abnf v0.5.3 // indirect
 	github.com/parquet-go/bitpack v1.1.0 // indirect
 	github.com/parquet-go/jsonlite v1.5.5 // indirect
 	github.com/pb33f/jsonpath v0.8.2 // indirect
