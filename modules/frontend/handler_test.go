@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -30,6 +31,20 @@ func TestFormatRequestHeaders(t *testing.T) {
 	}
 
 	require.Equal(t, expected, fields)
+}
+
+func TestHandlerLogsRequestHeadersStrippedByPipeline(t *testing.T) {
+	var logs bytes.Buffer
+	h := newHandler([]string{"X-Grafana-User"}, handlerRoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		clear(r.Header)
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("test"))}, nil
+	}), log.NewLogfmtLogger(&logs), noOpQueryTracker{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/search", nil)
+	req.Header.Set("X-Grafana-User", "probe@example.org")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	require.Contains(t, logs.String(), "header_x_grafana_user=probe@example.org")
 }
 
 type handlerRoundTripperFunc func(*http.Request) (*http.Response, error)
