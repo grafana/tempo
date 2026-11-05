@@ -35,9 +35,9 @@ func newBuffer(capacity uint64) *buffer {
 }
 
 // MPSC is an MPSC array queue which starts at initialCapacity and grows to maxCapacity in
-// linked chunks of the initial size. The queue grows only when the current buffer is full and
-// elements are not copied on resize, instead a link to the new buffer is stored in the old buffer
-// for the consumer to follow.
+// linked chunks, doubling the size of every next chunk. The queue grows only when the current
+// buffer is full and elements are not copied on resize, instead a link to the new buffer is stored
+// in the old buffer for the consumer to follow.
 type MPSC[T any] struct {
 	producerIndex    atomic.Uint64
 	_                [xruntime.CacheLineSize - 8]byte

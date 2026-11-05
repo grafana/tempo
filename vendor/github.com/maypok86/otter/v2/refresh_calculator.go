@@ -20,6 +20,10 @@ import (
 
 // RefreshCalculator calculates when cache entries will be reloaded. A single refresh time is retained so that the lifetime
 // of an entry may be extended or reduced by subsequent evaluations.
+//
+// WARNING: Its methods run under the lock of the entry's hash table bucket. They may only read entries
+// with [Cache.GetIfPresent], [Cache.GetEntry] or [Cache.GetEntryQuietly]. Any other call of the cache,
+// even a write of another key, may deadlock it: its locks are not reentrant.
 type RefreshCalculator[K comparable, V any] interface {
 	// RefreshAfterCreate returns the duration after which the entry is eligible for an automatic refresh after the
 	// entry's creation. To indicate no refresh, an entry may be given an excessively long period.

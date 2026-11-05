@@ -4,7 +4,10 @@
 package node
 
 import (
+	"math"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -20,30 +23,35 @@ const (
 	deadState
 )
 
-// Node is a cache entry.
-type Node[K comparable, V any] interface {
-	// Key returns the key.
-	Key() K
-	// Value returns the value.
-	Value() V
+// The layouts a node with state is allocated as, recorded in its header.
+const (
+	inlineVariant uint8 = iota
+	boxedVariant
+	pointerVariant
+	wordVariant
+	emptyVariant
+
+	variantCount
+)
+
+// Node is the header of a cache entry. It does not depend on the key and value types, so that
+// the code that only links, schedules and moves nodes is compiled once per program; the key and
+// the value are read through the Manager, which knows where they follow the header.
+type Node interface {
+	// CanSetValue reports whether the value can be replaced in place with Manager.SetValue
+	// without a concurrent reader observing a torn value: it is kept in one atomic word, or
+	// behind a pointer.
+	CanSetValue() bool
 	// AsPointer returns the node as a pointer.
 	AsPointer() unsafe.Pointer
 	// Prev returns the previous node in the eviction policy.
-	Prev() Node[K, V]
+	Prev() Node
 	// SetPrev sets the previous node in the eviction policy.
-	SetPrev(v Node[K, V])
+	SetPrev(v Node)
 	// Next returns the next node in the eviction policy.
-	Next() Node[K, V]
+	Next() Node
 	// SetNext sets the next node in the eviction policy.
-	SetNext(v Node[K, V])
-	// PrevExp returns the previous node in the expiration policy.
-	PrevExp() Node[K, V]
-	// SetPrevExp sets the previous node in the expiration policy.
-	SetPrevExp(v Node[K, V])
-	// NextExp returns the next node in the expiration policy.
-	NextExp() Node[K, V]
-	// SetNextExp sets the next node in the expiration policy.
-	SetNextExp(v Node[K, V])
+	SetNext(v Node)
 	// HasExpired returns true if node has expired.
 	HasExpired(now int64) bool
 	// ExpiresAt returns the expiration time.
@@ -61,6 +69,12 @@ type Node[K comparable, V any] interface {
 	IsFresh(now int64) bool
 	// Weight returns the weight of the node.
 	Weight() uint32
+	// SetWeight atomically replaces the weight (used for in-place updates).
+	SetWeight(weight uint32)
+	// PolicyWeight returns the weight the eviction policy has accounted for the node.
+	PolicyWeight() uint32
+	// SetPolicyWeight sets the weight the eviction policy has accounted for the node.
+	SetPolicyWeight(weight uint32)
 	// IsAlive returns true if the entry is available in the hash-table and page replacement policy.
 	IsAlive() bool
 	// IsRetired returns true if the entry was removed from the hash-table and is awaiting removal from the page
@@ -90,16 +104,6 @@ type Node[K comparable, V any] interface {
 	MakeMainProtected()
 }
 
-func Equals[K comparable, V any](a, b Node[K, V]) bool {
-	if a == nil {
-		return b == nil || b.AsPointer() == nil
-	}
-	if b == nil {
-		return a.AsPointer() == nil
-	}
-	return a.AsPointer() == b.AsPointer()
-}
-
 type Config struct {
 	WithSize       bool
 	WithExpiration bool
@@ -107,9 +111,76 @@ type Config struct {
 	WithRefresh    bool
 }
 
+// Kind is the part of a node type that does not depend on the key and value types.
+type Kind struct {
+	fromPointer func(ptr unsafe.Pointer) Node
+	init        func(ptr unsafe.Pointer, expiresAt, refreshableAt int64, weight uint32, variant uint8) Node
+	newHeader   func() unsafe.Pointer
+	// variantOffset is the offset of the variant byte in the header of a node with state.
+	variantOffset uintptr
+	withState     bool
+	// linksOffset and expLinksOffset are the offsets of the Links of the eviction policy and of
+	// the timer wheel in the header, and so in the node, which starts with its header.
+	linksOffset    uintptr
+	expLinksOffset uintptr
+	hasLinks       bool
+	hasExpLinks    bool
+}
+
+// Links is the pair of pointers that links a node into a list: prev and next of the eviction
+// policy, or prevExp and nextExp of the timer wheel. They are adjacent in every header, so a
+// list can follow them through a raw pointer to the node at the offset the Kind reports,
+// without calling the node's methods.
+type Links struct {
+	Prev unsafe.Pointer
+	Next unsafe.Pointer
+}
+
+// LinksOffset returns the offset of the eviction policy's Links in a node. It panics for nodes
+// of an unbounded cache, which have no such links: a list writing at a made-up offset would
+// overwrite the node's other fields.
+func (k *Kind) LinksOffset() uintptr {
+	if !k.hasLinks {
+		panic("node: the nodes have no eviction policy links")
+	}
+	return k.linksOffset
+}
+
+// ExpLinksOffset returns the offset of the timer wheel's Links in a node. It panics for nodes
+// without expiration, which have no such links.
+func (k *Kind) ExpLinksOffset() uintptr {
+	if !k.hasExpLinks {
+		panic("node: the nodes have no expiration links")
+	}
+	return k.expLinksOffset
+}
+
+// PointerOf returns the pointer to the node's header that n holds. Every node type is a pointer,
+// so it is the interface's data word, read without a method call.
+func PointerOf(n Node) unsafe.Pointer {
+	return (*[2]unsafe.Pointer)(unsafe.Pointer(&n))[1]
+}
+
+func (k *Kind) FromPointer(ptr unsafe.Pointer) Node {
+	return k.fromPointer(ptr)
+}
+
+// NewSentinel returns a node without a key and a value, which only links other nodes.
+func (k *Kind) NewSentinel() Node {
+	return k.init(k.newHeader(), math.MaxInt64, math.MaxInt64, 1, emptyVariant)
+}
+
 type Manager[K comparable, V any] struct {
-	create      func(key K, value V, expiresAt, refreshableAt int64, weight uint32) Node[K, V]
-	fromPointer func(ptr unsafe.Pointer) Node[K, V]
+	*Kind
+	// stateless is set for nodes without state, whose value is always inline, so that the
+	// accessors know the variant without loading the Kind.
+	stateless        bool
+	alloc            func(variant uint8) unsafe.Pointer
+	keyOffset        uintptr
+	valueOffsets     [variantCount]uintptr
+	valueStorage     string
+	createdVariant   uint8
+	updatableVariant uint8
 }
 
 func NewManager[K comparable, V any](c Config) *Manager[K, V] {
@@ -129,58 +200,242 @@ func NewManager[K comparable, V any](c Config) *Manager[K, V] {
 	}
 	nodeType := sb.String()
 	m := &Manager[K, V]{}
+	if c.WithSize || c.WithExpiration || c.WithWeight {
+		m.valueStorage = valueStorage(reflect.TypeFor[V]())
+		m.createdVariant, m.updatableVariant = variantsOfStorage(m.valueStorage)
+	}
 
 	switch nodeType {
 	case "b":
-		m.create = NewB[K, V]
-		m.fromPointer = CastPointerToB[K, V]
+		m.Kind = &bKind
+		m.alloc = allocB[K, V]
+		m.keyOffset, m.valueOffsets = layoutB[K, V]()
 	case "be":
-		m.create = NewBE[K, V]
-		m.fromPointer = CastPointerToBE[K, V]
+		m.Kind = &beKind
+		m.alloc = allocBE[K, V]
+		m.keyOffset, m.valueOffsets = layoutBE[K, V]()
 	case "ber":
-		m.create = NewBER[K, V]
-		m.fromPointer = CastPointerToBER[K, V]
+		m.Kind = &berKind
+		m.alloc = allocBER[K, V]
+		m.keyOffset, m.valueOffsets = layoutBER[K, V]()
 	case "berw":
-		m.create = NewBERW[K, V]
-		m.fromPointer = CastPointerToBERW[K, V]
+		m.Kind = &berwKind
+		m.alloc = allocBERW[K, V]
+		m.keyOffset, m.valueOffsets = layoutBERW[K, V]()
 	case "bew":
-		m.create = NewBEW[K, V]
-		m.fromPointer = CastPointerToBEW[K, V]
+		m.Kind = &bewKind
+		m.alloc = allocBEW[K, V]
+		m.keyOffset, m.valueOffsets = layoutBEW[K, V]()
 	case "br":
-		m.create = NewBR[K, V]
-		m.fromPointer = CastPointerToBR[K, V]
+		m.Kind = &brKind
+		m.alloc = allocBR[K, V]
+		m.keyOffset, m.valueOffsets = layoutBR[K, V]()
 	case "brw":
-		m.create = NewBRW[K, V]
-		m.fromPointer = CastPointerToBRW[K, V]
+		m.Kind = &brwKind
+		m.alloc = allocBRW[K, V]
+		m.keyOffset, m.valueOffsets = layoutBRW[K, V]()
 	case "bs":
-		m.create = NewBS[K, V]
-		m.fromPointer = CastPointerToBS[K, V]
+		m.Kind = &bsKind
+		m.alloc = allocBS[K, V]
+		m.keyOffset, m.valueOffsets = layoutBS[K, V]()
 	case "bse":
-		m.create = NewBSE[K, V]
-		m.fromPointer = CastPointerToBSE[K, V]
+		m.Kind = &bseKind
+		m.alloc = allocBSE[K, V]
+		m.keyOffset, m.valueOffsets = layoutBSE[K, V]()
 	case "bser":
-		m.create = NewBSER[K, V]
-		m.fromPointer = CastPointerToBSER[K, V]
+		m.Kind = &bserKind
+		m.alloc = allocBSER[K, V]
+		m.keyOffset, m.valueOffsets = layoutBSER[K, V]()
 	case "bsr":
-		m.create = NewBSR[K, V]
-		m.fromPointer = CastPointerToBSR[K, V]
+		m.Kind = &bsrKind
+		m.alloc = allocBSR[K, V]
+		m.keyOffset, m.valueOffsets = layoutBSR[K, V]()
 	case "bw":
-		m.create = NewBW[K, V]
-		m.fromPointer = CastPointerToBW[K, V]
+		m.Kind = &bwKind
+		m.alloc = allocBW[K, V]
+		m.keyOffset, m.valueOffsets = layoutBW[K, V]()
 	default:
 		panic("not valid nodeType")
 	}
+	m.stateless = !m.withState
 	return m
 }
 
-func (m *Manager[K, V]) Create(key K, value V, expiresAt, refreshableAt int64, weight uint32) Node[K, V] {
-	return m.create(key, value, expiresAt, refreshableAt, weight)
+func (m *Manager[K, V]) Create(key K, value V, expiresAt, refreshableAt int64, weight uint32) Node {
+	return m.create(key, value, expiresAt, refreshableAt, weight, m.createdVariant)
 }
 
-func (m *Manager[K, V]) FromPointer(ptr unsafe.Pointer) Node[K, V] {
-	return m.fromPointer(ptr)
+// CreateUpdatable creates a node whose value can be replaced in place (see Node.CanSetValue): a
+// value that would be kept inline is kept behind an atomic pointer instead. Nodes without state
+// are never updated in place and are created as by Create.
+func (m *Manager[K, V]) CreateUpdatable(key K, value V, expiresAt, refreshableAt int64, weight uint32) Node {
+	return m.create(key, value, expiresAt, refreshableAt, weight, m.updatableVariant)
 }
 
-func (m *Manager[K, V]) IsNil(n Node[K, V]) bool {
-	return n == nil || n.AsPointer() == nil
+func (m *Manager[K, V]) variantOf(ptr unsafe.Pointer) uint8 {
+	if m.stateless {
+		return inlineVariant
+	}
+	return *(*uint8)(unsafe.Add(ptr, m.variantOffset))
+}
+
+func (m *Manager[K, V]) create(key K, value V, expiresAt, refreshableAt int64, weight uint32, variant uint8) Node {
+	ptr := m.alloc(variant)
+	*(*K)(unsafe.Add(ptr, m.keyOffset)) = key
+	n := m.init(ptr, expiresAt, refreshableAt, weight, variant)
+	m.storeValue(ptr, variant, value)
+	return n
+}
+
+// ValueStorage returns how the nodes keep their values: "p" in an atomic pointer, "u64" in an
+// atomic.Uint64, "empty" not at all (a value of zero size), or "" inline until the first update
+// and behind an atomic pointer afterwards.
+func (m *Manager[K, V]) ValueStorage() string {
+	return m.valueStorage
+}
+
+// KeyOffset returns the offset of the key from the node's header.
+func (m *Manager[K, V]) KeyOffset() uintptr {
+	return m.keyOffset
+}
+
+// Key returns the key of n.
+func (m *Manager[K, V]) Key(n Node) K {
+	return *(*K)(unsafe.Add(PointerOf(n), m.keyOffset))
+}
+
+// Value returns the value of n. Nodes without state return before the switch: those caches read
+// a value on every hit.
+func (m *Manager[K, V]) Value(n Node) V {
+	ptr := PointerOf(n)
+	if m.stateless {
+		return *(*V)(unsafe.Add(ptr, m.valueOffsets[inlineVariant]))
+	}
+	variant := *(*uint8)(unsafe.Add(ptr, m.variantOffset))
+	switch variant {
+	case boxedVariant:
+		return *(*atomic.Pointer[V])(unsafe.Add(ptr, m.valueOffsets[variant])).Load()
+	case pointerVariant:
+		p := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Add(ptr, m.valueOffsets[variant])))
+		return *(*V)(unsafe.Pointer(&p))
+	case wordVariant:
+		w := (*atomic.Uint64)(unsafe.Add(ptr, m.valueOffsets[variant])).Load()
+		return *(*V)(unsafe.Pointer(&w))
+	case emptyVariant:
+		var zero V
+		return zero
+	default:
+		return *(*V)(unsafe.Add(ptr, m.valueOffsets[variant]))
+	}
+}
+
+// SetValue replaces the value of n. It may be called on a node that is already in the cache only
+// when CanSetValue reports true, which makes it an atomic replacement that lock-free readers
+// never observe torn.
+func (m *Manager[K, V]) SetValue(n Node, v V) {
+	ptr := PointerOf(n)
+	m.storeValue(ptr, m.variantOf(ptr), v)
+}
+
+func (m *Manager[K, V]) storeValue(ptr unsafe.Pointer, variant uint8, v V) {
+	switch variant {
+	case boxedVariant:
+		m.storeBoxedValue(ptr, v)
+	case pointerVariant:
+		atomic.StorePointer((*unsafe.Pointer)(unsafe.Add(ptr, m.valueOffsets[variant])), *(*unsafe.Pointer)(unsafe.Pointer(&v)))
+	case wordVariant:
+		var w uint64
+		*(*V)(unsafe.Pointer(&w)) = v
+		(*atomic.Uint64)(unsafe.Add(ptr, m.valueOffsets[variant])).Store(w)
+	case emptyVariant:
+		// a value of zero size has nothing to store
+	default:
+		*(*V)(unsafe.Add(ptr, m.valueOffsets[variant])) = v
+	}
+}
+
+// storeBoxedValue is separate from storeValue: escape analysis works per function, and the
+// pointer taken to the value here would otherwise move the value of every store to the heap.
+func (m *Manager[K, V]) storeBoxedValue(ptr unsafe.Pointer, v V) {
+	(*atomic.Pointer[V])(unsafe.Add(ptr, m.valueOffsets[boxedVariant])).Store(&v)
+}
+
+// ValueAndIdentity returns the value of n with what SetValue stored for it: its box or pointer,
+// or its word. Identities that differ tell a reader that the value was replaced in place in
+// between; a box is not reused while an identity holds it. Equal identities mean an equal
+// value. A node whose value is never replaced in place always returns the same identity.
+func (m *Manager[K, V]) ValueAndIdentity(n Node) (V, unsafe.Pointer, uint64) {
+	ptr := PointerOf(n)
+	variant := m.variantOf(ptr)
+	switch variant {
+	case boxedVariant:
+		// the box is loaded once, so the value is the one it identifies
+		p := (*atomic.Pointer[V])(unsafe.Add(ptr, m.valueOffsets[variant])).Load()
+		return *p, unsafe.Pointer(p), 0
+	case pointerVariant:
+		p := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Add(ptr, m.valueOffsets[variant])))
+		return *(*V)(unsafe.Pointer(&p)), p, 0
+	case wordVariant:
+		w := (*atomic.Uint64)(unsafe.Add(ptr, m.valueOffsets[variant])).Load()
+		return *(*V)(unsafe.Pointer(&w)), nil, w
+	case emptyVariant:
+		var zero V
+		return zero, nil, 0
+	default:
+		// never replaced in place
+		return *(*V)(unsafe.Add(ptr, m.valueOffsets[variant])), nil, 0
+	}
+}
+
+// variantsOfStorage returns the layouts of the nodes of a value storage: the one a new entry is
+// created as, and the one an entry whose value is replaced in place needs.
+func variantsOfStorage(storage string) (created, updatable uint8) {
+	switch storage {
+	case "p":
+		return pointerVariant, pointerVariant
+	case "u64":
+		return wordVariant, wordVariant
+	case "empty":
+		return emptyVariant, emptyVariant
+	default:
+		return inlineVariant, boxedVariant
+	}
+}
+
+// valueStorage returns how values of type t are kept: a pointer-shaped value, or a value
+// without pointers of up to 8 bytes, fits in one atomic word and is updated in place without a
+// box; a value of zero size is not stored at all.
+func valueStorage(t reflect.Type) string {
+	if t.Size() == 0 {
+		return "empty"
+	}
+	switch t.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Chan, reflect.Func, reflect.UnsafePointer:
+		return "p"
+	}
+	if t.Size() <= 8 && !hasPointers(t) {
+		return "u64"
+	}
+	return ""
+}
+
+func hasPointers(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
+		return false
+	case reflect.Array:
+		return t.Len() > 0 && hasPointers(t.Elem())
+	case reflect.Struct:
+		for i := range t.NumField() {
+			if hasPointers(t.Field(i).Type) {
+				return true
+			}
+		}
+		return false
+	default:
+		return true
+	}
 }

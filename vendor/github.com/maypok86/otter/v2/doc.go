@@ -18,7 +18,7 @@
 //
 // [Cache] instances should always be configured and created using [Options].
 //
-// The [Cache] also has [Cache.Get]/[Cache.BulkGet]/[Cache.Refresh]/[Cache.Refresh] methods
+// The [Cache] also has [Cache.Get]/[Cache.BulkGet]/[Cache.Refresh]/[Cache.BulkRefresh] methods
 // which allows the cache to populate itself on a miss and offers refresh capabilities.
 //
 // Additional functionality such as bounding by the entry's size, deletion notifications, statistics,

@@ -158,5 +158,6 @@ nav:
       - Throughput: performance/throughput.md
       - Hit ratio: performance/hit-ratio.md
       - Memory consumption: performance/memory-consumption.md
+      - Linearizability: performance/linearizability.md
   - Blog:
       - blog/index.md

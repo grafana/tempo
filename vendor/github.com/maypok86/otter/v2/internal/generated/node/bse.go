@@ -8,186 +8,255 @@ import (
 	"unsafe"
 )
 
-// BSE is a cache entry that provide the following features:
+// BSE is the header of a cache entry that provide the following features:
 //
 // 1. Base
 //
 // 2. Size
 //
 // 3. Expiration
-type BSE[K comparable, V any] struct {
-	key       K
-	value     V
-	prev      *BSE[K, V]
-	next      *BSE[K, V]
-	prevExp   *BSE[K, V]
-	nextExp   *BSE[K, V]
+//
+// A node is allocated as one of the layouts that follow the header with the key and the
+// value (BSEInline...), so that a pointer to the header is a pointer to the whole node. The
+// header does not depend on the key and value types: its methods are compiled once,
+// whatever caches a program creates, and only the layouts are instantiated per cache type.
+type BSE struct {
+	prev      *BSE
+	next      *BSE
+	prevExp   *BSE
+	nextExp   *BSE
 	expiresAt atomic.Int64
 	state     atomic.Uint32
 	queueType uint8
+	variant   uint8
 }
 
-// NewBSE creates a new BSE.
-func NewBSE[K comparable, V any](key K, value V, expiresAt, refreshableAt int64, weight uint32) Node[K, V] {
-	n := &BSE[K, V]{
-		key:   key,
-		value: value,
+// BSEInline is the layout of a BSE whose value is kept inline and never changed. The first
+// update of a live entry replaces the node with a BSEBoxed.
+type BSEInline[K comparable, V any] struct {
+	header BSE
+	key    K
+	value  V
+}
+
+// BSEBoxed is the layout of a BSE whose value lives behind an atomic pointer and is
+// replaced in place.
+type BSEBoxed[K comparable, V any] struct {
+	header BSE
+	key    K
+	value  atomic.Pointer[V]
+}
+
+// BSEP is the layout of a BSE whose pointer-shaped value is kept in an atomic pointer.
+type BSEP[K comparable, V any] struct {
+	header BSE
+	key    K
+	value  unsafe.Pointer
+}
+
+// BSEU64 is the layout of a BSE whose value, without pointers and of at most 8 bytes,
+// is kept in an atomic.Uint64.
+type BSEU64[K comparable, V any] struct {
+	header BSE
+	key    K
+	value  atomic.Uint64
+}
+
+// BSEEmpty is the layout of a BSE without a value field, for values of zero size.
+type BSEEmpty[K comparable, V any] struct {
+	header BSE
+	key    K
+}
+
+// allocBSE allocates a node as the given variant's layout and returns its header; nodes
+// without state have a single layout and ignore the variant.
+func allocBSE[K comparable, V any](variant uint8) unsafe.Pointer {
+	switch variant {
+	case boxedVariant:
+		return unsafe.Pointer(new(BSEBoxed[K, V]))
+	case pointerVariant:
+		return unsafe.Pointer(new(BSEP[K, V]))
+	case wordVariant:
+		return unsafe.Pointer(new(BSEU64[K, V]))
+	case emptyVariant:
+		return unsafe.Pointer(new(BSEEmpty[K, V]))
+	default:
+		return unsafe.Pointer(new(BSEInline[K, V]))
 	}
+}
+
+// layoutBSE returns the offsets of the key and of the value of every variant's layout.
+func layoutBSE[K comparable, V any]() (key uintptr, values [variantCount]uintptr) {
+	key = unsafe.Offsetof(BSEInline[K, V]{}.key)
+	values[inlineVariant] = unsafe.Offsetof(BSEInline[K, V]{}.value)
+	values[boxedVariant] = unsafe.Offsetof(BSEBoxed[K, V]{}.value)
+	values[pointerVariant] = unsafe.Offsetof(BSEP[K, V]{}.value)
+	values[wordVariant] = unsafe.Offsetof(BSEU64[K, V]{}.value)
+	return key, values
+}
+
+// initBSE initializes the header of a node allocated by allocBSE.
+func initBSE(ptr unsafe.Pointer, expiresAt, refreshableAt int64, weight uint32, variant uint8) Node {
+	n := (*BSE)(ptr)
+	n.variant = variant
 	n.expiresAt.Store(expiresAt)
 	n.state.Store(aliveState)
-
 	return n
 }
 
 // CastPointerToBSE casts a pointer to BSE.
-func CastPointerToBSE[K comparable, V any](ptr unsafe.Pointer) Node[K, V] {
-	return (*BSE[K, V])(ptr)
+func CastPointerToBSE(ptr unsafe.Pointer) Node {
+	if ptr == nil {
+		return nil
+	}
+	return (*BSE)(ptr)
 }
 
-func (n *BSE[K, V]) Key() K {
-	return n.key
+var bseKind = Kind{
+	fromPointer:    CastPointerToBSE,
+	init:           initBSE,
+	newHeader:      func() unsafe.Pointer { return unsafe.Pointer(new(BSE)) },
+	variantOffset:  unsafe.Offsetof(BSE{}.variant),
+	withState:      true,
+	linksOffset:    unsafe.Offsetof(BSE{}.prev),
+	hasLinks:       true,
+	expLinksOffset: unsafe.Offsetof(BSE{}.prevExp),
+	hasExpLinks:    true,
 }
 
-func (n *BSE[K, V]) Value() V {
-	return n.value
-}
-
-func (n *BSE[K, V]) AsPointer() unsafe.Pointer {
+func (n *BSE) AsPointer() unsafe.Pointer {
 	return unsafe.Pointer(n)
 }
 
-func (n *BSE[K, V]) Prev() Node[K, V] {
+func (n *BSE) Prev() Node {
+	if n.prev == nil {
+		return nil
+	}
 	return n.prev
 }
 
-func (n *BSE[K, V]) SetPrev(v Node[K, V]) {
+func (n *BSE) SetPrev(v Node) {
 	if v == nil {
 		n.prev = nil
 		return
 	}
-	n.prev = (*BSE[K, V])(v.AsPointer())
+	n.prev = (*BSE)(v.AsPointer())
 }
 
-func (n *BSE[K, V]) Next() Node[K, V] {
+func (n *BSE) Next() Node {
+	if n.next == nil {
+		return nil
+	}
 	return n.next
 }
 
-func (n *BSE[K, V]) SetNext(v Node[K, V]) {
+func (n *BSE) SetNext(v Node) {
 	if v == nil {
 		n.next = nil
 		return
 	}
-	n.next = (*BSE[K, V])(v.AsPointer())
+	n.next = (*BSE)(v.AsPointer())
 }
 
-func (n *BSE[K, V]) PrevExp() Node[K, V] {
-	return n.prevExp
-}
-
-func (n *BSE[K, V]) SetPrevExp(v Node[K, V]) {
-	if v == nil {
-		n.prevExp = nil
-		return
-	}
-	n.prevExp = (*BSE[K, V])(v.AsPointer())
-}
-
-func (n *BSE[K, V]) NextExp() Node[K, V] {
-	return n.nextExp
-}
-
-func (n *BSE[K, V]) SetNextExp(v Node[K, V]) {
-	if v == nil {
-		n.nextExp = nil
-		return
-	}
-	n.nextExp = (*BSE[K, V])(v.AsPointer())
-}
-
-func (n *BSE[K, V]) HasExpired(now int64) bool {
+func (n *BSE) HasExpired(now int64) bool {
 	return n.ExpiresAt() <= now
 }
 
-func (n *BSE[K, V]) ExpiresAt() int64 {
+func (n *BSE) ExpiresAt() int64 {
 	return n.expiresAt.Load()
 }
 
-func (n *BSE[K, V]) CASExpiresAt(old, new int64) bool {
+func (n *BSE) CASExpiresAt(old, new int64) bool {
 	return n.expiresAt.CompareAndSwap(old, new)
 }
 
-func (n *BSE[K, V]) SetExpiresAt(new int64) {
+func (n *BSE) SetExpiresAt(new int64) {
 	n.expiresAt.Store(new)
 }
 
-func (n *BSE[K, V]) RefreshableAt() int64 {
+func (n *BSE) RefreshableAt() int64 {
 	panic("not implemented")
 }
 
-func (n *BSE[K, V]) CASRefreshableAt(old, new int64) bool {
+func (n *BSE) CASRefreshableAt(old, new int64) bool {
 	panic("not implemented")
 }
 
-func (n *BSE[K, V]) SetRefreshableAt(new int64) {
+func (n *BSE) SetRefreshableAt(new int64) {
 	panic("not implemented")
 }
 
-func (n *BSE[K, V]) IsFresh(now int64) bool {
+func (n *BSE) IsFresh(now int64) bool {
 	return true
 }
 
-func (n *BSE[K, V]) Weight() uint32 {
+func (n *BSE) Weight() uint32 {
 	return 1
 }
 
-func (n *BSE[K, V]) IsAlive() bool {
+func (n *BSE) SetWeight(weight uint32) {
+	panic("not implemented")
+}
+
+func (n *BSE) PolicyWeight() uint32 {
+	return 1
+}
+
+func (n *BSE) SetPolicyWeight(weight uint32) {
+}
+
+func (n *BSE) IsAlive() bool {
 	return n.state.Load() == aliveState
 }
 
-func (n *BSE[K, V]) IsRetired() bool {
+func (n *BSE) IsRetired() bool {
 	return n.state.Load() == retiredState
 }
 
-func (n *BSE[K, V]) Retire() {
+func (n *BSE) Retire() {
 	n.state.Store(retiredState)
 }
 
-func (n *BSE[K, V]) IsDead() bool {
+func (n *BSE) IsDead() bool {
 	return n.state.Load() == deadState
 }
 
-func (n *BSE[K, V]) Die() {
+func (n *BSE) Die() {
 	n.state.Store(deadState)
 }
 
-func (n *BSE[K, V]) GetQueueType() uint8 {
+func (n *BSE) GetQueueType() uint8 {
 	return n.queueType
 }
 
-func (n *BSE[K, V]) SetQueueType(queueType uint8) {
+func (n *BSE) SetQueueType(queueType uint8) {
 	n.queueType = queueType
 }
 
-func (n *BSE[K, V]) InWindow() bool {
+func (n *BSE) InWindow() bool {
 	return n.GetQueueType() == InWindowQueue
 }
 
-func (n *BSE[K, V]) MakeWindow() {
+func (n *BSE) MakeWindow() {
 	n.SetQueueType(InWindowQueue)
 }
 
-func (n *BSE[K, V]) InMainProbation() bool {
+func (n *BSE) InMainProbation() bool {
 	return n.GetQueueType() == InMainProbationQueue
 }
 
-func (n *BSE[K, V]) MakeMainProbation() {
+func (n *BSE) MakeMainProbation() {
 	n.SetQueueType(InMainProbationQueue)
 }
 
-func (n *BSE[K, V]) InMainProtected() bool {
+func (n *BSE) InMainProtected() bool {
 	return n.GetQueueType() == InMainProtectedQueue
 }
 
-func (n *BSE[K, V]) MakeMainProtected() {
+func (n *BSE) MakeMainProtected() {
 	n.SetQueueType(InMainProtectedQueue)
+}
+
+func (n *BSE) CanSetValue() bool {
+	return n.variant != inlineVariant
 }

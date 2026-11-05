@@ -19,9 +19,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 // LoadCacheFromFile loads cache data from the given filePath.
@@ -41,6 +41,10 @@ func LoadCacheFromFile[K comparable, V any](c *Cache[K, V], filePath string) err
 // LoadCacheFrom loads cache data from the given [io.Reader].
 //
 // See SaveCacheToFile for saving cache data to file.
+//
+// The data is decoded with [encoding/gob], so the keys and values have the limits of gob: unexported
+// struct fields are not restored. The saved expiration and refresh times are absolute, so both
+// caches' clocks must count from the same point, as the default clock does (Unix time).
 func LoadCacheFrom[K comparable, V any](c *Cache[K, V], r io.Reader) error {
 	dec := gob.NewDecoder(r)
 
@@ -49,10 +53,13 @@ func LoadCacheFrom[K comparable, V any](c *Cache[K, V], r io.Reader) error {
 		return fmt.Errorf("otter: decode maximum: %w", err)
 	}
 
-	maximum := min(savedMaximum, c.GetMaximum())
-	maximum2 := maximum / 4
-	maximum1 := 2 * maximum2
-	size := uint64(0)
+	// The snapshot and the cache may count their maxima in different units, entries or weight, so
+	// each is measured in its own: the cache is filled up to its maximum by the weights it gives the
+	// entries, and the warm-up credits the hottest quarter of the snapshot twice and the next one
+	// once, by the saved weights, as long as they fit in the same part of the cache.
+	maximum := c.GetMaximum()
+	savedSize, size := uint64(0), uint64(0)
+	var warm []warmKey[K]
 	for size < maximum {
 		var entry Entry[K, V]
 		if err := dec.Decode(&entry); err != nil {
@@ -64,35 +71,75 @@ func LoadCacheFrom[K comparable, V any](c *Cache[K, V], r io.Reader) error {
 		}
 
 		nowNano := c.cache.clock.NowNano()
-		if c.cache.withExpiration && entry.ExpiresAtNano < nowNano {
+		if c.cache.withExpiration && entry.ExpiresAtNano <= nowNano {
 			continue
 		}
 		c.Set(entry.Key, entry.Value)
 		if c.cache.withExpiration && entry.ExpiresAtNano != unreachableExpiresAt {
-			expiresAfter := max(1, time.Duration(entry.ExpiresAtNano-nowNano))
-			c.SetExpiresAfter(entry.Key, expiresAfter)
+			c.cache.setExpiresAt(entry.Key, func(int64) int64 { return entry.ExpiresAtNano })
 		}
 		if c.cache.withRefresh && entry.RefreshableAtNano != unreachableRefreshableAt {
-			refreshableAfter := max(1, time.Duration(entry.RefreshableAtNano-nowNano))
-			c.SetRefreshableAfter(entry.Key, refreshableAfter)
+			c.cache.setRefreshableAt(entry.Key, func(int64) int64 { return entry.RefreshableAtNano })
 		}
-		size += uint64(entry.Weight)
+		savedSize += uint64(entry.Weight)
+		size += uint64(c.cache.weigher(entry.Key, entry.Value))
 
-		if size <= maximum2 {
-			c.GetIfPresent(entry.Key)
-			c.GetIfPresent(entry.Key)
+		// only a cache with an eviction policy has anything to warm up
+		if !c.cache.withEviction {
 			continue
 		}
-		if size <= maximum1 {
-			c.GetIfPresent(entry.Key)
+		if savedSize <= savedMaximum/4 && size <= maximum/4 {
+			warm = append(warm, warmKey[K]{key: entry.Key, reads: 2})
 			continue
+		}
+		if savedSize <= savedMaximum/2 && size <= maximum/2 {
+			warm = append(warm, warmKey[K]{key: entry.Key, reads: 1})
 		}
 	}
+	warmUp(c, warm)
 
 	return nil
 }
 
-// SaveCacheToFile atomically saves cache data to the given filePath.
+// warmKey is a restored key that warmUp credits to the eviction policy as reads reads.
+type warmKey[K comparable] struct {
+	key   K
+	reads int
+}
+
+// warmUp credits the restored entries to the eviction policy as reads would, so that the hottest
+// entries of the snapshot are not the first ones evicted. It runs once every entry is written,
+// under the eviction lock and after maintenance has applied the writes: the policy then holds the
+// nodes and has sized its frequency sketch, which a cache without InitialCapacity does only once it
+// is half full, and the reads skip the read buffer, which drops them when it is full. These are not
+// the caller's reads: they record no hits, and do not call ExpireAfterRead, which would replace the
+// lifetime just restored.
+func warmUp[K comparable, V any](c *Cache[K, V], keys []warmKey[K]) {
+	ci := c.cache
+	if len(keys) == 0 {
+		return
+	}
+	nowNano := ci.clock.NowNano()
+	// Deferred before the unlock, so that it runs after it: writers that ran during the warm-up
+	// could not take the lock, and left a drain required.
+	defer ci.rescheduleCleanUpIfIncomplete()
+	ci.evictionMutex.Lock()
+	defer ci.evictionMutex.Unlock()
+	ci.maintenance(nil)
+	for _, wk := range keys {
+		n := ci.hashmap.Get(wk.key)
+		if n == nil || !n.IsAlive() || n.HasExpired(nowNano) {
+			continue
+		}
+		for range wk.reads {
+			ci.evictionPolicy.access(n)
+		}
+	}
+}
+
+// SaveCacheToFile atomically saves cache data to the given filePath: the data is written to a
+// temporary file in the same directory, which then replaces the file, so that a failed or
+// interrupted save leaves the previous file as it was.
 //
 // SaveCacheToFile may be called concurrently with other operations on the cache.
 //
@@ -101,6 +148,11 @@ func LoadCacheFrom[K comparable, V any](c *Cache[K, V], r io.Reader) error {
 // WARNING: Beware that this operation is performed within the eviction policy's exclusive lock.
 // While the operation is in progress further eviction maintenance will be halted.
 func SaveCacheToFile[K comparable, V any](c *Cache[K, V], filePath string) error {
+	// The file a link points to is replaced, not the link, as when the file was written in place.
+	if resolved, err := filepath.EvalSymlinks(filePath); err == nil {
+		filePath = resolved
+	}
+
 	// Create dir if it doesn't exist.
 	dir := filepath.Dir(filePath)
 	if _, err := os.Stat(dir); err != nil {
@@ -112,24 +164,63 @@ func SaveCacheToFile[K comparable, V any](c *Cache[K, V], filePath string) error
 		}
 	}
 
-	file, err := os.Create(filePath)
+	// opened with the permissions os.Create would give the file
+	tmpPath := fmt.Sprintf("%s.%d.tmp", filePath, rand.Uint64())
+	file, err := os.OpenFile(tmpPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
 	if err != nil {
-		return fmt.Errorf("otter: create file %s: %w", filePath, err)
+		return fmt.Errorf("otter: create file %s: %w", tmpPath, err)
 	}
-	//nolint:errcheck // it's ok
-	defer file.Close()
-
-	return SaveCacheTo(c, file)
+	if err := writeCacheFile(c, file, filePath); err != nil {
+		//nolint:errcheck // the save has failed already
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, filePath); err != nil {
+		//nolint:errcheck // the save has failed already
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("otter: rename %s to %s: %w", tmpPath, filePath, err)
+	}
+	return nil
 }
 
-// SaveCacheTo atomically saves cache data to the given [io.Writer].
+// writeCacheFile saves the data of c to file, which is to replace filePath, flushes it to disk and
+// closes file. An existing filePath keeps its permissions, as when it was written in place: a file
+// closed to other users must stay closed. Its owner is not kept.
+func writeCacheFile[K comparable, V any](c *Cache[K, V], file *os.File, filePath string) error {
+	var err error
+	if info, statErr := os.Stat(filePath); statErr == nil {
+		if err = file.Chmod(info.Mode().Perm()); err != nil {
+			err = fmt.Errorf("otter: chmod file %s: %w", file.Name(), err)
+		}
+	}
+	if err == nil {
+		err = SaveCacheTo(c, file)
+	}
+	if err == nil {
+		if err = file.Sync(); err != nil {
+			err = fmt.Errorf("otter: sync file %s: %w", file.Name(), err)
+		}
+	}
+	if closeErr := file.Close(); closeErr != nil && err == nil {
+		err = fmt.Errorf("otter: close file %s: %w", file.Name(), closeErr)
+	}
+	return err
+}
+
+// SaveCacheTo saves cache data to the given [io.Writer].
 //
-// SaveCacheToFile may be called concurrently with other operations on the cache.
+// SaveCacheTo may be called concurrently with other operations on the cache. The data is not a
+// point-in-time snapshot: an entry written or removed while it runs may or may not be saved, and
+// one updated may be saved with either value.
 //
 // The saved data may be loaded with LoadCacheFrom.
 //
+// The data is encoded with [encoding/gob], so the keys and values have the limits of gob: unexported
+// struct fields are not saved.
+//
 // WARNING: Beware that this operation is performed within the eviction policy's exclusive lock.
-// While the operation is in progress further eviction maintenance will be halted.
+// While the operation is in progress further eviction maintenance will be halted, and w has the
+// restrictions of the loop body of [Cache.Hottest].
 func SaveCacheTo[K comparable, V any](c *Cache[K, V], w io.Writer) error {
 	enc := gob.NewEncoder(w)
 

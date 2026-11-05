@@ -8,173 +8,234 @@ import (
 	"unsafe"
 )
 
-// BE is a cache entry that provide the following features:
+// BE is the header of a cache entry that provide the following features:
 //
 // 1. Base
 //
 // 2. Expiration
-type BE[K comparable, V any] struct {
-	key       K
-	value     V
-	prevExp   *BE[K, V]
-	nextExp   *BE[K, V]
+//
+// A node is allocated as one of the layouts that follow the header with the key and the
+// value (BEInline...), so that a pointer to the header is a pointer to the whole node. The
+// header does not depend on the key and value types: its methods are compiled once,
+// whatever caches a program creates, and only the layouts are instantiated per cache type.
+type BE struct {
+	prevExp   *BE
+	nextExp   *BE
 	expiresAt atomic.Int64
 	state     atomic.Uint32
+	variant   uint8
 }
 
-// NewBE creates a new BE.
-func NewBE[K comparable, V any](key K, value V, expiresAt, refreshableAt int64, weight uint32) Node[K, V] {
-	n := &BE[K, V]{
-		key:   key,
-		value: value,
+// BEInline is the layout of a BE whose value is kept inline and never changed. The first
+// update of a live entry replaces the node with a BEBoxed.
+type BEInline[K comparable, V any] struct {
+	header BE
+	key    K
+	value  V
+}
+
+// BEBoxed is the layout of a BE whose value lives behind an atomic pointer and is
+// replaced in place.
+type BEBoxed[K comparable, V any] struct {
+	header BE
+	key    K
+	value  atomic.Pointer[V]
+}
+
+// BEP is the layout of a BE whose pointer-shaped value is kept in an atomic pointer.
+type BEP[K comparable, V any] struct {
+	header BE
+	key    K
+	value  unsafe.Pointer
+}
+
+// BEU64 is the layout of a BE whose value, without pointers and of at most 8 bytes,
+// is kept in an atomic.Uint64.
+type BEU64[K comparable, V any] struct {
+	header BE
+	key    K
+	value  atomic.Uint64
+}
+
+// BEEmpty is the layout of a BE without a value field, for values of zero size.
+type BEEmpty[K comparable, V any] struct {
+	header BE
+	key    K
+}
+
+// allocBE allocates a node as the given variant's layout and returns its header; nodes
+// without state have a single layout and ignore the variant.
+func allocBE[K comparable, V any](variant uint8) unsafe.Pointer {
+	switch variant {
+	case boxedVariant:
+		return unsafe.Pointer(new(BEBoxed[K, V]))
+	case pointerVariant:
+		return unsafe.Pointer(new(BEP[K, V]))
+	case wordVariant:
+		return unsafe.Pointer(new(BEU64[K, V]))
+	case emptyVariant:
+		return unsafe.Pointer(new(BEEmpty[K, V]))
+	default:
+		return unsafe.Pointer(new(BEInline[K, V]))
 	}
+}
+
+// layoutBE returns the offsets of the key and of the value of every variant's layout.
+func layoutBE[K comparable, V any]() (key uintptr, values [variantCount]uintptr) {
+	key = unsafe.Offsetof(BEInline[K, V]{}.key)
+	values[inlineVariant] = unsafe.Offsetof(BEInline[K, V]{}.value)
+	values[boxedVariant] = unsafe.Offsetof(BEBoxed[K, V]{}.value)
+	values[pointerVariant] = unsafe.Offsetof(BEP[K, V]{}.value)
+	values[wordVariant] = unsafe.Offsetof(BEU64[K, V]{}.value)
+	return key, values
+}
+
+// initBE initializes the header of a node allocated by allocBE.
+func initBE(ptr unsafe.Pointer, expiresAt, refreshableAt int64, weight uint32, variant uint8) Node {
+	n := (*BE)(ptr)
+	n.variant = variant
 	n.expiresAt.Store(expiresAt)
 	n.state.Store(aliveState)
-
 	return n
 }
 
 // CastPointerToBE casts a pointer to BE.
-func CastPointerToBE[K comparable, V any](ptr unsafe.Pointer) Node[K, V] {
-	return (*BE[K, V])(ptr)
+func CastPointerToBE(ptr unsafe.Pointer) Node {
+	if ptr == nil {
+		return nil
+	}
+	return (*BE)(ptr)
 }
 
-func (n *BE[K, V]) Key() K {
-	return n.key
+var beKind = Kind{
+	fromPointer:    CastPointerToBE,
+	init:           initBE,
+	newHeader:      func() unsafe.Pointer { return unsafe.Pointer(new(BE)) },
+	variantOffset:  unsafe.Offsetof(BE{}.variant),
+	withState:      true,
+	expLinksOffset: unsafe.Offsetof(BE{}.prevExp),
+	hasExpLinks:    true,
 }
 
-func (n *BE[K, V]) Value() V {
-	return n.value
-}
-
-func (n *BE[K, V]) AsPointer() unsafe.Pointer {
+func (n *BE) AsPointer() unsafe.Pointer {
 	return unsafe.Pointer(n)
 }
 
-func (n *BE[K, V]) Prev() Node[K, V] {
+func (n *BE) Prev() Node {
 	panic("not implemented")
 }
 
-func (n *BE[K, V]) SetPrev(v Node[K, V]) {
+func (n *BE) SetPrev(v Node) {
 	panic("not implemented")
 }
 
-func (n *BE[K, V]) Next() Node[K, V] {
+func (n *BE) Next() Node {
 	panic("not implemented")
 }
 
-func (n *BE[K, V]) SetNext(v Node[K, V]) {
+func (n *BE) SetNext(v Node) {
 	panic("not implemented")
 }
 
-func (n *BE[K, V]) PrevExp() Node[K, V] {
-	return n.prevExp
-}
-
-func (n *BE[K, V]) SetPrevExp(v Node[K, V]) {
-	if v == nil {
-		n.prevExp = nil
-		return
-	}
-	n.prevExp = (*BE[K, V])(v.AsPointer())
-}
-
-func (n *BE[K, V]) NextExp() Node[K, V] {
-	return n.nextExp
-}
-
-func (n *BE[K, V]) SetNextExp(v Node[K, V]) {
-	if v == nil {
-		n.nextExp = nil
-		return
-	}
-	n.nextExp = (*BE[K, V])(v.AsPointer())
-}
-
-func (n *BE[K, V]) HasExpired(now int64) bool {
+func (n *BE) HasExpired(now int64) bool {
 	return n.ExpiresAt() <= now
 }
 
-func (n *BE[K, V]) ExpiresAt() int64 {
+func (n *BE) ExpiresAt() int64 {
 	return n.expiresAt.Load()
 }
 
-func (n *BE[K, V]) CASExpiresAt(old, new int64) bool {
+func (n *BE) CASExpiresAt(old, new int64) bool {
 	return n.expiresAt.CompareAndSwap(old, new)
 }
 
-func (n *BE[K, V]) SetExpiresAt(new int64) {
+func (n *BE) SetExpiresAt(new int64) {
 	n.expiresAt.Store(new)
 }
 
-func (n *BE[K, V]) RefreshableAt() int64 {
+func (n *BE) RefreshableAt() int64 {
 	panic("not implemented")
 }
 
-func (n *BE[K, V]) CASRefreshableAt(old, new int64) bool {
+func (n *BE) CASRefreshableAt(old, new int64) bool {
 	panic("not implemented")
 }
 
-func (n *BE[K, V]) SetRefreshableAt(new int64) {
+func (n *BE) SetRefreshableAt(new int64) {
 	panic("not implemented")
 }
 
-func (n *BE[K, V]) IsFresh(now int64) bool {
+func (n *BE) IsFresh(now int64) bool {
 	return true
 }
 
-func (n *BE[K, V]) Weight() uint32 {
+func (n *BE) Weight() uint32 {
 	return 1
 }
 
-func (n *BE[K, V]) IsAlive() bool {
+func (n *BE) SetWeight(weight uint32) {
+	panic("not implemented")
+}
+
+func (n *BE) PolicyWeight() uint32 {
+	return 1
+}
+
+func (n *BE) SetPolicyWeight(weight uint32) {
+}
+
+func (n *BE) IsAlive() bool {
 	return n.state.Load() == aliveState
 }
 
-func (n *BE[K, V]) IsRetired() bool {
+func (n *BE) IsRetired() bool {
 	return n.state.Load() == retiredState
 }
 
-func (n *BE[K, V]) Retire() {
+func (n *BE) Retire() {
 	n.state.Store(retiredState)
 }
 
-func (n *BE[K, V]) IsDead() bool {
+func (n *BE) IsDead() bool {
 	return n.state.Load() == deadState
 }
 
-func (n *BE[K, V]) Die() {
+func (n *BE) Die() {
 	n.state.Store(deadState)
 }
 
-func (n *BE[K, V]) GetQueueType() uint8 {
+func (n *BE) GetQueueType() uint8 {
 	panic("not implemented")
 }
 
-func (n *BE[K, V]) SetQueueType(queueType uint8) {
+func (n *BE) SetQueueType(queueType uint8) {
 	panic("not implemented")
 }
 
-func (n *BE[K, V]) InWindow() bool {
+func (n *BE) InWindow() bool {
 	return n.GetQueueType() == InWindowQueue
 }
 
-func (n *BE[K, V]) MakeWindow() {
+func (n *BE) MakeWindow() {
 	n.SetQueueType(InWindowQueue)
 }
 
-func (n *BE[K, V]) InMainProbation() bool {
+func (n *BE) InMainProbation() bool {
 	return n.GetQueueType() == InMainProbationQueue
 }
 
-func (n *BE[K, V]) MakeMainProbation() {
+func (n *BE) MakeMainProbation() {
 	n.SetQueueType(InMainProbationQueue)
 }
 
-func (n *BE[K, V]) InMainProtected() bool {
+func (n *BE) InMainProtected() bool {
 	return n.GetQueueType() == InMainProtectedQueue
 }
 
-func (n *BE[K, V]) MakeMainProtected() {
+func (n *BE) MakeMainProtected() {
 	n.SetQueueType(InMainProtectedQueue)
+}
+
+func (n *BE) CanSetValue() bool {
+	return n.variant != inlineVariant
 }

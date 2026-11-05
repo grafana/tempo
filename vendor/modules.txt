@@ -1068,7 +1068,7 @@ github.com/mattn/go-isatty
 # github.com/mattn/go-runewidth v0.0.30
 ## explicit; go 1.23
 github.com/mattn/go-runewidth
-# github.com/maypok86/otter/v2 v2.3.0
+# github.com/maypok86/otter/v2 v2.4.0
 ## explicit; go 1.24.0
 github.com/maypok86/otter/v2
 github.com/maypok86/otter/v2/internal/deque
