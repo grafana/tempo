@@ -8,7 +8,7 @@ change_type: bug_fix
 component: traceql
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: "Fix nil checks, `select()`, `by()` and tag autocomplete on attributes sent with another type than their dedicated column or vParquet4 well-known column, e.g. an int in a string column. `!= nil` missed these spans, `= nil` matched them, `select()` and `by()` returned nil, and autocomplete left out their values."
+note: "Fix nil checks, `select()`, `by()` and tag autocomplete on attributes sent with another type than their dedicated column or vParquet4 well-known column."
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
