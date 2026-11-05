@@ -175,9 +175,7 @@ dashboard_utils {
   local leadingColumns = [
     timeColumn,
     column($._config.per_cluster_label, 'cluster', width=100),
-    column('tenant', 'tenant id', width=90, links=if $._config.tenant_link_url != '' then [
-      { title: 'View tenant', url: $._config.tenant_link_url, targetBlank: true },
-    ] else []),
+    column('tenant', 'tenant id', width=90),
     column('query_kind', 'type', width=100),
   ],
   local traceIdColumn = column('traceID', 'trace id', width=250, links=if $._config.tempo_datasource_uid != '' then [
