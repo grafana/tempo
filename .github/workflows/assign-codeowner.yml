@@ -44,6 +44,13 @@ jobs:
           # assigned to a pull request and expanding their members needs an
           # org-scoped token. Leave empty to derive the pool from CODEOWNERS.
           ASSIGNEE_POOL: ${{ vars.CODEOWNER_ASSIGNEES }}
+          # Space or comma separated owners that are never assigned. Matching
+          # is case-insensitive and ignores a leading "@", so
+          # "grafana/docs-traces" and "@grafana/docs-traces" are the same
+          # entry; team entries must keep their org prefix. Excluded here
+          # rather than by relying on the intersection rule, so a team that
+          # happens to own every rule is still kept out of the pool.
+          EXCLUDED_OWNERS: 'grafana/docs-traces'
           # Caps a single run. The first run after merging would otherwise
           # assign every unassigned PR at once and notify each owner once per
           # PR. The remainder is picked up on later runs.
@@ -104,7 +111,15 @@ jobs:
           # Split CODEOWNERS owners into assignable individuals and team
           # handles. Each owner counts once per rule even if a line repeats it,
           # so a duplicated token cannot silently drop an owner from the pool.
-          awk '
+          awk -v exclude="${EXCLUDED_OWNERS:-}" '
+            BEGIN {
+              n = split(tolower(exclude), raw, /[ ,]+/)
+              for (i = 1; i <= n; i++) {
+                sub(/^@/, "", raw[i])
+                sub(/^\/+/, "", raw[i])
+                if (raw[i] != "") excl[raw[i]] = 1
+              }
+            }
             NF && $1 !~ /^#/ {
               rules++
               delete seen
@@ -119,16 +134,20 @@ jobs:
             }
             END {
               for (owner in count) {
+                # Excluded owners are dropped here, before the intersection
+                # rule, so the exclusion holds even when they own every rule.
+                if (owner in excl) print "excluded\t" owner
                 # An owner of only some rules is not treated as owning the
                 # files in an arbitrary PR, so the pool is the intersection.
-                if (count[owner] == rules) print "user\t" owner
+                else if (count[owner] == rules) print "user\t" owner
                 else print "partial\t" owner
               }
               for (owner in team) {
+                if (owner in excl) print "excluded\t" owner
                 # Teams get the same intersection rule. A team that owns only
                 # some paths is not a code owner of an arbitrary PR, and
                 # expanding it would hand unrelated PRs to its members.
-                if (team[owner] == rules) print "team\t" owner
+                else if (team[owner] == rules) print "team\t" owner
                 else print "partial\t" owner
               }
             }
@@ -137,6 +156,11 @@ jobs:
           awk -F'\t' '$1 == "user" { print $2 }' "$temp_dir/codeowners_owners" > "$temp_dir/owners_users"
           awk -F'\t' '$1 == "team" { print $2 }' "$temp_dir/codeowners_owners" > "$temp_dir/owners_teams"
           awk -F'\t' '$1 == "partial" { print $2 }' "$temp_dir/codeowners_owners" > "$temp_dir/owners_partial"
+          awk -F'\t' '$1 == "excluded" { print $2 }' "$temp_dir/codeowners_owners" > "$temp_dir/owners_excluded"
+
+          if [ -s "$temp_dir/owners_excluded" ]; then
+            echo "::notice::Excluded from the pool by EXCLUDED_OWNERS: $(tr '\n' ' ' < "$temp_dir/owners_excluded")"
+          fi
 
           if [ -s "$temp_dir/owners_partial" ]; then
             echo "::notice::These CODEOWNERS owners appear in only some rules and are excluded from the pool: $(tr '\n' ' ' < "$temp_dir/owners_partial")"
