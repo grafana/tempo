@@ -128,13 +128,16 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	}
 
 	spansetsEvaluated := 0
+	// Reused across calls: storage consumes the result, which may alias it, before calling again.
+	evalInput := make([]*Spanset, 1)
 	// set up the expression evaluation as a filter to reduce data pulled
 	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
 		if inSS == nil || len(inSS.Spans) == 0 {
 			return nil, nil
 		}
 
-		evalSS, err := eval([]*Spanset{inSS})
+		evalInput[0] = inSS
+		evalSS, err := eval(evalInput)
 		if err != nil {
 			span.RecordError(err, trace.WithAttributes(attribute.String("msg", "pipeline.evaluate")))
 			return nil, err

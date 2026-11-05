@@ -720,11 +720,14 @@ func redactionIDsFromQuery(ctx context.Context, block common.BackendBlock, query
 	// Request trace-level metadata in the second pass so each returned spanset carries its
 	// TraceID (the first pass only fetches the columns needed to satisfy the conditions).
 	req.SecondPassConditions = traceql.SearchMetaConditionsWithout(req.Conditions, req.AllConditions)
+	// Reused across calls: storage consumes the result, which may alias it, before calling again.
+	filterInput := make([]*traceql.Spanset, 1)
 	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) {
 		if inSS == nil || len(inSS.Spans) == 0 {
 			return nil, nil
 		}
-		return filter([]*traceql.Spanset{inSS})
+		filterInput[0] = inSS
+		return filter(filterInput)
 	}
 
 	resp, err := block.Fetch(ctx, *req, opts)
