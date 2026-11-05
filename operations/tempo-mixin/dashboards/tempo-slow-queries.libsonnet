@@ -9,8 +9,8 @@ dashboard_utils {
   // queries, including the "- no resp" and "- no metrics" variants. query_kind names the query type.
   // Trace by ID logs its error as err, the other query types as error. Copy err to error so the table shows one Error column.
   // A query without an error logs null, which is dropped.
-  // A query is slow when it is slower than $min_duration and its throughput is below $throughput, the same as
-  // the query SLO. Trace by ID has no throughput SLO. Lines without a throughput, such as failed queries, count as 0.
+  // A query is slow when it is slower than $min_duration and its throughput is below $throughput.
+  // The exception is Trace by ID queries which only consider duration.
   local responseLines = selector + ' |~ `msg="(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?"` | logfmt | tenant=~"${tenant_id}" | label_format query_kind=`{{ if hasPrefix "trace id" .msg }}id_lookup{{ else if hasPrefix "search tag" .msg }}metadata{{ else if hasPrefix "search" .msg }}search{{ else if hasPrefix "query range" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput "0" }}`, error=`{{ if ne .error "null" }}{{ .error }}{{ end }}{{ if ne .err "null" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~"${query_type}" | query_duration > ${min_duration} | query_kind="id_lookup" or request_throughput < ${throughput}',
 
   // Search logs its range in seconds, TraceQL metrics in nanoseconds. Normalize both to seconds.
