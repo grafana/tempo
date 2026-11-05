@@ -936,7 +936,10 @@ func TestRunCheckerSuccess(t *testing.T) {
 	selectPastTimestamp := func(_ time.Time) (newStart, ts time.Time, skip bool) {
 		return startTime, seed, false
 	}
-	runChecker(mockTicker, config, selectPastTimestamp, checker, newTraceWriteTracker(2*365*24*time.Hour), logger)
+	writes := newTraceWriteTracker(2 * 365 * 24 * time.Hour)
+	info := util.NewTraceInfoWithMaxLongWrites(seed, 0, config.tempoOrgID)
+	writeTrace(context.Background(), &MockReporter{}, info, config, writes, logger)
+	runChecker(mockTicker, config, selectPastTimestamp, checker, writes, logger)
 	time.Sleep(10 * time.Millisecond)
 
 	mx.Lock()

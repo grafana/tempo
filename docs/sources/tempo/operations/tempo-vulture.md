@@ -25,9 +25,10 @@ Tempo Vulture can run in two modes:
 - Continuous mode (default): Runs indefinitely, continuously writing and reading traces while exposing Prometheus metrics
 - Validation mode: Executes a fixed number of write/read cycles and exits with a status code indicating success or failure
 
-In continuous mode, Vulture skips read, search, and metrics checks for traces
-whose writes are still pending or whose initial or delayed batches failed.
-This prevents a failed write from also producing a data integrity error.
+In continuous mode, Vulture runs read, search, and metrics checks only for traces
+whose initial and delayed writes are recorded as completed successfully.
+Traces with no recorded write, pending batches, or failed batches are skipped.
+This prevents traces that were not fully written from producing false data integrity errors.
 Existing write-error reporting is preserved.
 Traces whose writes complete successfully continue to be checked for missing
 or incorrect data.

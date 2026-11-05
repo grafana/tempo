@@ -25,7 +25,7 @@ func TestTraceWriteTrackerLifecycle(t *testing.T) {
 			name:       "successful write is pending until completion",
 			operations: []string{"start", "finish"},
 			canCheck:   []bool{false, true},
-			entries:    0,
+			entries:    1,
 		},
 		{
 			name:       "failed write remains excluded after completion",
@@ -43,7 +43,7 @@ func TestTraceWriteTrackerLifecycle(t *testing.T) {
 			name:       "duplicate writers must both complete",
 			operations: []string{"start", "start", "finish", "finish"},
 			canCheck:   []bool{false, false, false, true},
-			entries:    0,
+			entries:    1,
 		},
 		{
 			name:       "one failed duplicate writer excludes the trace",
@@ -54,14 +54,14 @@ func TestTraceWriteTrackerLifecycle(t *testing.T) {
 		{
 			name:       "finishing unknown trace does not create state",
 			operations: []string{"finish"},
-			canCheck:   []bool{true},
+			canCheck:   []bool{false},
 			entries:    0,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tracker := newTraceWriteTracker(time.Hour)
-			require.True(t, tracker.canCheck("tenant", info), "unknown eligible traces must still be checked")
+			require.False(t, tracker.canCheck("tenant", info), "unregistered traces must not be checked")
 			for i, operation := range tt.operations {
 				switch operation {
 				case "start":
@@ -90,6 +90,13 @@ func TestTraceWriteTrackerIdentity(t *testing.T) {
 	tracker.finishWrite("tenant-a", info)
 
 	assert.False(t, tracker.canCheck("tenant-a", info))
+	require.False(t, tracker.canCheck("tenant-b", info))
+	require.False(t, tracker.canCheck("tenant-a", nextInfo))
+	tracker.startWrite("tenant-b", info)
+	tracker.finishWrite("tenant-b", info)
+	tracker.startWrite("tenant-a", nextInfo)
+	tracker.finishWrite("tenant-a", nextInfo)
+
 	assert.True(t, tracker.canCheck("tenant-b", info), "a different tenant can use the same trace ID")
 	assert.True(t, tracker.canCheck("tenant-a", nextInfo), "different seeds in the same second are independent")
 }
@@ -105,14 +112,19 @@ func TestTraceWriteTrackerPrune(t *testing.T) {
 		tracker.startWrite("tenant", info)
 		tracker.failWrite("tenant", info)
 		tracker.finishWrite("tenant", info)
+		tracker.startWrite("successful-tenant", info)
+		tracker.finishWrite("successful-tenant", info)
 	}
 
 	tracker.prune(seed.Add(age))
-	assert.Len(t, tracker.writes, 2, "the exact boundary is retained")
+	assert.Len(t, tracker.writes, 4, "successful and failed records at or after the boundary are retained")
 	assert.False(t, tracker.canCheck("tenant", expired), "a stale ticker event must not validate an expired failure")
 	assert.False(t, tracker.canCheck("tenant", boundary))
 	assert.False(t, tracker.canCheck("tenant", newer))
-	assert.True(t, tracker.canCheck("other-tenant", boundary), "an unknown trace at the exact boundary can be checked")
+	assert.False(t, tracker.canCheck("successful-tenant", expired))
+	assert.True(t, tracker.canCheck("successful-tenant", boundary), "a successful write at the exact boundary remains eligible")
+	assert.True(t, tracker.canCheck("successful-tenant", newer))
+	assert.False(t, tracker.canCheck("other-tenant", boundary), "an unregistered trace at the boundary must not be checked")
 
 	// Earlier checker timestamps must never move the expiry floor backwards.
 	tracker.prune(seed.Add(age - time.Second))

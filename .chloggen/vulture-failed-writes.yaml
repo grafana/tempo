@@ -8,7 +8,7 @@ change_type: bug_fix
 component: tempo-vulture
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Avoid false data integrity errors by skipping checks for traces with pending or failed writes.
+note: Avoid false data integrity errors by checking only traces with completed successful writes.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.

@@ -248,3 +248,30 @@ func TestCancelledDelayedWriteRemainsExcluded(t *testing.T) {
 		require.False(t, writes.canCheck(config.tempoOrgID, info))
 	})
 }
+
+func TestCheckTraceRequiresCompletedWrite(t *testing.T) {
+	seed := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	config := vultureConfiguration{
+		tempoOrgID:                "tenant",
+		tempoWriteBackoffDuration: time.Second,
+	}
+	writes := newTraceWriteTracker(time.Hour)
+	var checked int
+	check := func() {
+		checkTrace(seed.Add(time.Minute), config, func(_ time.Time) (time.Time, time.Time, bool) {
+			return seed.Add(-time.Hour), seed, false
+		}, func(_ *util.TraceInfo, _ *zap.Logger) {
+			checked++
+		}, writes, zap.NewNop())
+	}
+
+	check()
+	require.Zero(t, checked, "a selected timestamp must not be checked before its write is registered")
+
+	info := util.NewTraceInfoWithMaxLongWrites(seed, 0, config.tempoOrgID)
+	writeTrace(context.Background(), emitBatchFunc(func(_ context.Context, _ *jaeger.Batch) error {
+		return nil
+	}), info, config, writes, zap.NewNop())
+	check()
+	require.Equal(t, 1, checked, "a completed successful write must remain eligible for validation")
+}

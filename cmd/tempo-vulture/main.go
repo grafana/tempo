@@ -427,7 +427,7 @@ func checkTrace(
 		return
 	}
 	if !writes.canCheck(config.tempoOrgID, info) {
-		logger.Debug("skipping trace with incomplete or failed writes")
+		logger.Debug("skipping trace without a completed successful write")
 		return
 	}
 	checker(info, logger)

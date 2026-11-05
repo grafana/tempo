@@ -18,9 +18,9 @@ type traceWriteState struct {
 	failed    bool
 }
 
-// traceWriteTracker remembers incomplete or failed writes for the checker loops.
-// Successful writes need no entry, so unknown traces within the sampling window
-// remain eligible for validation.
+// traceWriteTracker remembers write outcomes within the checker sampling window.
+// Only registered traces whose write chains all completed without failure are
+// eligible for validation.
 type traceWriteTracker struct {
 	mu            sync.Mutex
 	writes        map[traceWriteKey]traceWriteState
@@ -81,10 +81,6 @@ func (t *traceWriteTracker) finishWrite(tenant string, info *util.TraceInfo) {
 	if state.pending > 0 {
 		state.pending--
 	}
-	if state.pending == 0 && !state.failed {
-		delete(t.writes, key)
-		return
-	}
 	t.writes[key] = state
 }
 
@@ -98,8 +94,8 @@ func (t *traceWriteTracker) canCheck(tenant string, info *util.TraceInfo) bool {
 		return false
 	}
 
-	state := t.writes[traceWriteKey{tenant: tenant, traceID: info.HexID()}]
-	return state.pending == 0 && !state.failed
+	state, ok := t.writes[traceWriteKey{tenant: tenant, traceID: info.HexID()}]
+	return ok && state.pending == 0 && !state.failed
 }
 
 func (t *traceWriteTracker) prune(now time.Time) {
