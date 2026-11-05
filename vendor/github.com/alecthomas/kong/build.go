@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"unicode/utf8"
 )
 
 // Plugins are dynamically embedded command-line structures.
@@ -177,6 +178,12 @@ MAIN:
 			}
 		}
 
+		if len(tag.LastWins) != 0 {
+			for i := range tag.LastWins {
+				tag.LastWins[i] = tag.XorPrefix + tag.LastWins[i]
+			}
+		}
+
 		if len(tag.And) != 0 {
 			for i := range tag.And {
 				tag.And[i] = tag.XorPrefix + tag.And[i]
@@ -213,7 +220,11 @@ MAIN:
 			delete(seenFlags, negFlag)
 		}
 		for _, aflag := range flag.Aliases {
-			delete(seenFlags, "--"+aflag)
+			if utf8.RuneCountInString(aflag) == 1 {
+				delete(seenFlags, "-"+aflag)
+			} else {
+				delete(seenFlags, "--"+aflag)
+			}
 		}
 	}
 
@@ -247,7 +258,9 @@ func validatePositionalArguments(node *Node) error {
 }
 
 func buildChild(k *Kong, node *Node, typ NodeType, v reflect.Value, ft reflect.StructField, fv reflect.Value, tag *Tag, name string, seenFlags map[string]bool) error {
-	child, err := buildNode(k, fv, typ, newEmptyTag(), seenFlags)
+	childTag := newEmptyTag()
+	childTag.EnvPrefix = tag.EnvPrefix
+	child, err := buildNode(k, fv, typ, childTag, seenFlags)
 	if err != nil {
 		return err
 	}
@@ -344,6 +357,9 @@ func buildField(k *Kong, node *Node, v reflect.Value, ft reflect.StructField, fv
 		seenFlags["--"+value.Name] = true
 		for _, alias := range tag.Aliases {
 			aliasFlag := "--" + alias
+			if utf8.RuneCountInString(alias) == 1 {
+				aliasFlag = "-" + alias
+			}
 			if seenFlags[aliasFlag] {
 				return failField(v, ft, "duplicate flag %s", aliasFlag)
 			}
@@ -356,6 +372,9 @@ func buildField(k *Kong, node *Node, v reflect.Value, ft reflect.StructField, fv
 			seenFlags["-"+string(tag.Short)] = true
 		}
 		if tag.Negatable != "" {
+			if !value.IsBool() {
+				return failField(v, ft, "negatable can only be set on booleans")
+			}
 			negFlag := negatableFlagName(value.Name, tag.Negatable)
 			if seenFlags[negFlag] {
 				return failField(v, ft, "duplicate negation flag %s", negFlag)
@@ -370,6 +389,7 @@ func buildField(k *Kong, node *Node, v reflect.Value, ft reflect.StructField, fv
 			Envs:        tag.Envs,
 			Group:       buildGroupForKey(k, tag.Group),
 			Xor:         tag.Xor,
+			LastWins:    tag.LastWins,
 			And:         tag.And,
 			Hidden:      tag.Hidden,
 		}

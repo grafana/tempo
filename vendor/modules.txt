@@ -150,7 +150,7 @@ github.com/Microsoft/go-winio/internal/fs
 github.com/Microsoft/go-winio/internal/socket
 github.com/Microsoft/go-winio/internal/stringbuffer
 github.com/Microsoft/go-winio/pkg/guid
-# github.com/alecthomas/kong v1.15.0
+# github.com/alecthomas/kong v1.17.0
 ## explicit; go 1.20
 github.com/alecthomas/kong
 # github.com/alecthomas/participle/v2 v2.1.4
