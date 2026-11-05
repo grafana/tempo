@@ -2147,6 +2147,113 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	}
 }
 
+// makeBackendBlockWithMixedTypes writes 2000 traces x 10 spans where mixedPct percent of the string dedicated column "mixed" values are ints.
+func makeBackendBlockWithMixedTypes(t testing.TB, mixedPct int) *backendBlock {
+	dc := backend.DedicatedColumns{
+		{Scope: backend.DedicatedColumnScopeSpan, Name: "mixed", Type: backend.DedicatedColumnTypeString},
+		{Scope: backend.DedicatedColumnScopeResource, Name: "mixed", Type: backend.DedicatedColumnTypeString},
+	}
+	rnd := rand.New(rand.NewSource(1))
+	mixedOf := func(s string) *v1_common.AnyValue {
+		if rnd.Intn(100) < mixedPct {
+			return &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: int64(rnd.Intn(10))}}
+		}
+		return &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: s}}
+	}
+
+	traces := make([]*Trace, 0, 2000)
+	for i := 0; i < 2000; i++ {
+		id := test.ValidTraceID(nil)
+		spans := make([]*v1.Span, 0, 10)
+		for j := 0; j < 10; j++ {
+			var attrs []*v1_common.KeyValue
+			// 10% of spans don't send the attribute.
+			if rnd.Intn(10) > 0 {
+				attrs = append(attrs, &v1_common.KeyValue{Key: "mixed", Value: mixedOf(fmt.Sprintf("v-%d", rnd.Intn(10)))})
+			}
+			spanID := make([]byte, 8)
+			rnd.Read(spanID)
+			spans = append(spans, &v1.Span{
+				TraceId:           id,
+				SpanId:            spanID,
+				Name:              fmt.Sprintf("op-%d", j%4),
+				StartTimeUnixNano: uint64(1000 + j),
+				EndTimeUnixNano:   uint64(2000 + j),
+				Attributes:        attrs,
+			})
+		}
+		tr := &tempopb.Trace{ResourceSpans: []*v1.ResourceSpans{{
+			Resource:   &v1_resource.Resource{Attributes: []*v1_common.KeyValue{{Key: "mixed", Value: mixedOf("r")}}},
+			ScopeSpans: []*v1.ScopeSpans{{Spans: spans}},
+		}}}
+		pt, _ := traceToParquet(&backend.BlockMeta{DedicatedColumns: dc}, id, tr, nil)
+		traces = append(traces, pt)
+	}
+	return makeBackendBlockWithTracesWithDedicatedColumns(t, traces, dc)
+}
+
+// BenchmarkBackendBlockTraceQLDedicatedColumnMixedType measures dedicated columns where some values are sent with another type and stored as generic attributes.
+func BenchmarkBackendBlockTraceQLDedicatedColumnMixedType(b *testing.B) {
+	queries := []struct{ name, query string }{
+		{"value", `{ span.mixed = "v-1" }`},
+		{"exists", `{ span.mixed != nil }`},
+		{"not exists", `{ span.mixed = nil }`},
+		{"select", `{ span.mixed }`},
+		{"resource exists", `{ resource.mixed != nil }`},
+	}
+
+	opts := common.DefaultSearchOptions()
+	for _, mixedPct := range []int{0, 10, 50} {
+		block := makeBackendBlockWithMixedTypes(b, mixedPct)
+		for _, q := range queries {
+			b.Run(fmt.Sprintf("mixed=%d/Fetch/%s", mixedPct, q.name), func(b *testing.B) {
+				b.ReportAllocs()
+				var bytesRead uint64
+				matches := 0
+				for b.Loop() {
+					resp, err := block.Fetch(b.Context(), traceql.MustExtractFetchSpansRequestWithMetadata(q.query), opts)
+					require.NoError(b, err)
+					for {
+						ss, err := resp.Results.Next(b.Context())
+						require.NoError(b, err)
+						if ss == nil {
+							break
+						}
+						matches += len(ss.Spans)
+					}
+					bytesRead += resp.Stats().Bytes
+				}
+				b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
+				b.ReportMetric(float64(matches)/float64(b.N), "spans/op")
+			})
+
+			b.Run(fmt.Sprintf("mixed=%d/FetchSpans/%s", mixedPct, q.name), func(b *testing.B) {
+				b.ReportAllocs()
+				var bytesRead uint64
+				matches := 0
+				for b.Loop() {
+					req := traceql.MustExtractFetchSpansRequestWithMetadata(q.query)
+					req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+					resp, err := block.FetchSpans(b.Context(), req, opts)
+					require.NoError(b, err)
+					for {
+						s, err := resp.Results.Next(b.Context())
+						require.NoError(b, err)
+						if s == nil {
+							break
+						}
+						matches++
+					}
+					resp.Results.Close()
+					bytesRead += resp.Stats().Bytes
+				}
+				b.ReportMetric(float64(bytesRead)/float64(b.N)/1000.0/1000.0, "MB_io/op")
+				b.ReportMetric(float64(matches)/float64(b.N), "spans/op")
+			})
+		}
+	}
+}
+
 // BenchmarkIterators is a convenient method to run benchmarks on various iterator constructions directly when working on optimizations.
 // Replace the iterator at the beginning of the benchmark loop with any combination desired.
 func BenchmarkIterators(b *testing.B) {

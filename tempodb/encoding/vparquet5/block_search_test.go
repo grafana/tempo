@@ -338,7 +338,7 @@ func makeBackendBlockWithFillers(t *testing.T, id []byte, tr *tempopb.Trace, dc 
 	return makeBackendBlockWithTracesWithDedicatedColumns(t, traces, dc)
 }
 
-func makeBackendBlockWithTracesWithDedicatedColumns(t *testing.T, trs []*Trace, dc backend.DedicatedColumns) *backendBlock {
+func makeBackendBlockWithTracesWithDedicatedColumns(t testing.TB, trs []*Trace, dc backend.DedicatedColumns) *backendBlock {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
