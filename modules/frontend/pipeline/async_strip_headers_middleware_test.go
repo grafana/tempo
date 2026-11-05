@@ -64,10 +64,13 @@ func TestStripHeaders(t *testing.T) {
 			stripHeaders := NewStripHeadersWare(tc.allow).Wrap(next)
 
 			req, _ := http.NewRequest(http.MethodGet, "http://localhost:8080", nil)
-			req.Header = tc.headers
+			req.Header = http.Header(tc.headers).Clone()
 
 			_, err := stripHeaders.RoundTrip(NewHTTPRequest(req))
 			require.NoError(t, err)
+
+			// the caller's request keeps every header, e.g. for log_query_request_headers
+			require.Equal(t, http.Header(tc.headers), req.Header)
 		})
 	}
 }
