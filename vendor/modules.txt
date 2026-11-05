@@ -181,8 +181,8 @@ github.com/antchfx/xmlquery
 # github.com/antchfx/xpath v1.3.8
 ## explicit; go 1.14
 github.com/antchfx/xpath
-# github.com/apache/thrift v0.24.0
-## explicit; go 1.25
+# github.com/apache/thrift v0.25.0
+## explicit; go 1.26
 github.com/apache/thrift/lib/go/thrift
 # github.com/aws/aws-msk-iam-sasl-signer-go v1.0.4
 ## explicit; go 1.21
