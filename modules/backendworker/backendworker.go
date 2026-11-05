@@ -305,19 +305,12 @@ func (w *BackendWorker) processCompactionJob(ctx context.Context, resp *tempopb.
 	}
 
 	// Mark job as complete
-	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
-		_, err = w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
-			JobId:  resp.JobId,
-			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
-			Compaction: &tempopb.CompactionDetail{
-				Output: newIDs,
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
-		}
-
-		return nil
+	err = w.updateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		JobId:  resp.JobId,
+		Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		Compaction: &tempopb.CompactionDetail{
+			Output: newIDs,
+		},
 	})
 	if err != nil {
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job as complete: %v", err))
@@ -339,16 +332,9 @@ func (w *BackendWorker) processRetentionJob(ctx context.Context, resp *tempopb.N
 		w.store.RetainWithConfig(ctx, &w.cfg.Compactor, ownsEverythingSharder{}, w)
 	}
 
-	err := w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
-		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
-			JobId:  resp.JobId,
-			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
-		})
-		if err != nil {
-			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
-		}
-
-		return nil
+	err := w.updateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		JobId:  resp.JobId,
+		Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
 	})
 	if err != nil {
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job as complete: %v", err))
@@ -419,19 +405,18 @@ func (w *BackendWorker) processRedactionJob(ctx context.Context, resp *tempopb.N
 }
 
 func (w *BackendWorker) completeRedactionJob(ctx context.Context, jobID string, tracesFound int) error {
-	return w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
-		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
-			JobId:  jobID,
-			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
-			Redaction: &tempopb.RedactionResult{
-				TracesFound: int32(tracesFound),
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("failed marking redaction job %q as complete: %w", jobID, err)
-		}
-		return nil
+	err := w.updateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		JobId:  jobID,
+		Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		Redaction: &tempopb.RedactionResult{
+			TracesFound: int32(tracesFound),
+		},
 	})
+	if err != nil {
+		return w.failJob(ctx, jobID, fmt.Sprintf("error marking job as complete: %v", err))
+	}
+
+	return nil
 }
 
 func (w *BackendWorker) stopping(_ error) error {
@@ -444,20 +429,30 @@ func (w *BackendWorker) stopping(_ error) error {
 	return nil
 }
 
+// updateJob handles a missing scheduler assignment for every job status.
+// The scheduler cannot accept another update for that job, so log the event
+// once and let the worker move on. Other errors retain the retry policy.
+func (w *BackendWorker) updateJob(ctx context.Context, req *tempopb.UpdateJobStatusRequest) error {
+	return w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
+		_, err := w.backendScheduler.UpdateJob(ctx, req)
+		if isNotFound(err) {
+			level.Warn(log.Logger).Log("msg", "job no longer known to scheduler, dropping update", "job_id", req.JobId, "status", req.Status.String(), "err", err)
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("failed updating job %q: %w", req.JobId, err)
+		}
+		return nil
+	})
+}
+
 func (w *BackendWorker) failJob(ctx context.Context, jobID string, errMsg string) error {
 	level.Error(log.Logger).Log("msg", "job failed", "job_id", jobID, "error", errMsg)
 
-	err := w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
-		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
-			JobId:  jobID,
-			Status: tempopb.JobStatus_JOB_STATUS_FAILED,
-			Error:  errMsg,
-		})
-		if err != nil {
-			return fmt.Errorf("failed marking job %q as failed: %w", jobID, err)
-		}
-
-		return nil
+	err := w.updateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		JobId:  jobID,
+		Status: tempopb.JobStatus_JOB_STATUS_FAILED,
+		Error:  errMsg,
 	})
 	if err != nil {
 		return fmt.Errorf("error marking job %q as failed: %w", jobID, err)
@@ -573,6 +568,11 @@ func isExpectedSchedulerError(err error, expectedErrors []codes.Code) bool {
 	}
 
 	return false
+}
+
+// isNotFound reports whether err is a gRPC status error with code codes.NotFound.
+func isNotFound(err error) bool {
+	return isExpectedSchedulerError(err, []codes.Code{codes.NotFound})
 }
 
 func (w *BackendWorker) isSharded() bool {
