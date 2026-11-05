@@ -1052,14 +1052,13 @@ github.com/lufia/plan9stats
 ## explicit; go 1.18
 github.com/magefile/mage/mg
 github.com/magefile/mage/sh
-# github.com/mark3labs/mcp-go v0.54.1
+# github.com/mark3labs/mcp-go v0.58.0
 ## explicit; go 1.25.5
 github.com/mark3labs/mcp-go/client
 github.com/mark3labs/mcp-go/client/transport
 github.com/mark3labs/mcp-go/mcp
 github.com/mark3labs/mcp-go/server
 github.com/mark3labs/mcp-go/tracing
-github.com/mark3labs/mcp-go/util
 # github.com/mattn/go-colorable v0.1.15
 ## explicit; go 1.18
 github.com/mattn/go-colorable
