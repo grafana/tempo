@@ -4301,7 +4301,7 @@
 
       ]
      },
-     "unit": "cores"
+     "unit": "none"
     },
     "overrides": [
      {
@@ -4386,9 +4386,9 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "min(kube_horizontalpodautoscaler_spec_target_metric{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
+     "expr": "min(kube_horizontalpodautoscaler_spec_target_metric{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"}) by (metric_name)",
      "format": "time_series",
-     "legendFormat": "Target Autoscaling Metric",
+     "legendFormat": "Target {{metric_name}}",
      "range": true,
      "refId": "A"
     },
@@ -4398,10 +4398,10 @@
       "uid": "${metrics}"
      },
      "editorMode": "code",
-     "expr": "min(kube_horizontalpodautoscaler_status_target_metric{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"})",
+     "expr": "min(kube_horizontalpodautoscaler_status_target_metric{cluster=~\"$cluster\", namespace=~\"$namespace\", horizontalpodautoscaler=\"keda-hpa-backend-worker\"}) by (metric_name)",
      "format": "time_series",
      "hide": false,
-     "legendFormat": "Actual Autoscaling Metric",
+     "legendFormat": "Actual {{metric_name}}",
      "range": true,
      "refId": "B"
     }
