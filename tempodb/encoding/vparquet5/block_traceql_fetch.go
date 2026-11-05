@@ -1313,28 +1313,11 @@ func detachScopedAttributeResult(res *parquetquery.IteratorResult, err error) (*
 	for _, e := range res.OtherEntries {
 		v := e.Value
 		if a, ok := v.(*attrVal); ok {
-			v = &attrVal{a: a.a, s: cloneStaticArray(a.s)}
+			v = &attrVal{a: a.a, s: a.s.Clone()}
 		}
 		out.AppendOtherValue(e.Key, v)
 	}
 	return out, nil
-}
-
-// cloneStaticArray copies int, float and bool arrays, which alias the collector's buffers.
-func cloneStaticArray(s traceql.Static) traceql.Static {
-	switch s.Type {
-	case traceql.TypeIntArray:
-		v, _ := s.IntArray()
-		return traceql.NewStaticIntArray(util.Clone(v))
-	case traceql.TypeFloatArray:
-		v, _ := s.FloatArray()
-		return traceql.NewStaticFloatArray(util.Clone(v))
-	case traceql.TypeBooleanArray:
-		v, _ := s.BooleanArray()
-		return traceql.NewStaticBooleanArray(util.Clone(v))
-	default:
-		return s
-	}
 }
 
 type spanCollector2 struct {
