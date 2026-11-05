@@ -198,6 +198,7 @@ jobs:
           # $n and $age are jq variables, not shell expansions.
           retry gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" \
             --jq '.[]
+              | select(.user.type != "Bot")
               | .number as $n
               | ((now - (.created_at | fromdate)) / 86400 | floor) as $age
               | .assignees[]?
@@ -216,6 +217,7 @@ jobs:
           retry gh api --paginate -X GET search/issues \
             -f "q=repo:$REPO is:pr is:closed closed:>=$since" -f per_page=100 \
             --jq '.items[]
+              | select(.user.type != "Bot")
               | .number as $n
               | .assignees[]?
               | [$n, (.login | ascii_downcase)] | @tsv' |
