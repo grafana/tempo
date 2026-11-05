@@ -113,7 +113,7 @@ jobs:
                 owner = tolower(substr($i, 2))
                 if (owner in seen) continue
                 seen[owner] = 1
-                if (index(owner, "/") > 0) team[owner] = 1
+                if (index(owner, "/") > 0) team[owner]++
                 else count[owner]++
               }
             }
@@ -124,7 +124,13 @@ jobs:
                 if (count[owner] == rules) print "user\t" owner
                 else print "partial\t" owner
               }
-              for (owner in team) print "team\t" owner
+              for (owner in team) {
+                # Teams get the same intersection rule. A team that owns only
+                # some paths is not a code owner of an arbitrary PR, and
+                # expanding it would hand unrelated PRs to its members.
+                if (team[owner] == rules) print "team\t" owner
+                else print "partial\t" owner
+              }
             }
           ' "$temp_dir/CODEOWNERS" | sort > "$temp_dir/codeowners_owners"
 
