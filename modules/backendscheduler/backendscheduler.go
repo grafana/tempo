@@ -183,7 +183,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 								return
 							}
 							if j != nil && j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-								s.work.ReleaseRedactionInFlight(j.Tenant())
+								s.work.ReleaseRedactionInFlight(j)
 							}
 						default:
 							return
@@ -199,7 +199,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 					// This job was received but not forwarded; if it's a redaction job it was
 					// counted in-flight at dequeue and will never reach Next(), so release it.
 					if job != nil && job.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-						s.work.ReleaseRedactionInFlight(job.Tenant())
+						s.work.ReleaseRedactionInFlight(job)
 					}
 					return
 				}
@@ -355,7 +355,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
 						// This job was counted in-flight when NextPendingJob dequeued it; since it is
 						// dropped rather than promoted via AddJob, release that count or it leaks.
-						s.work.ReleaseRedactionInFlight(j.Tenant())
+						s.work.ReleaseRedactionInFlight(j)
 						drop = true
 					} else if j.JobDetail.Redaction != nil {
 						// Inject the batch's selector (trace IDs or query) and mode so the
