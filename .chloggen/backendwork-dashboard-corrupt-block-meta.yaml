@@ -1,0 +1,7 @@
+change_type: enhancement
+component: operations
+note: "tempo-mixin: add a Corrupt Block Metas Skipped panel to the Backend Work dashboard, plotting tempodb_blocklist_corrupt_block_meta_total."
+issues: [8058]
+subtext: |
+  Surfaces the per-tenant counter added in #8058 for blocks the blocklist poller skips because their meta.json is invalid JSON. It counts read attempts rather than distinct blocks, so read it as "is anything being skipped".
+user: zalegrala

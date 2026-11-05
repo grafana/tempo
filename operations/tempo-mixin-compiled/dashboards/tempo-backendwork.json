@@ -654,6 +654,108 @@
     "type": "prometheus",
     "uid": "${metrics}"
    },
+   "description": "Blocks the blocklist poller skipped because their meta.json was invalid JSON (zero-byte or truncated). This counts read attempts, not distinct blocks: a tenant poll is retried up to blocklist_poll_tolerate_consecutive_errors times, so one corrupt block adds several increments per poll. Read it as \"is anything being skipped\", not \"how many blocks are corrupt\". If every block in a tenant is skipped the tenant poll fails instead of writing an empty index.",
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisBorderShow": false,
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "barWidthFactor": 0.6,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "insertNulls": false,
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 4,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [
+
+     ],
+     "min": 0,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green"
+       }
+      ]
+     },
+     "unit": "short"
+    },
+    "overrides": [
+
+    ]
+   },
+   "gridPos": {
+    "h": 7,
+    "w": 7,
+    "x": 17,
+    "y": 1
+   },
+   "id": 46,
+   "options": {
+    "legend": {
+     "calcs": [
+
+     ],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "hideZeros": false,
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "pluginVersion": "12.0.1",
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "sum by (tenant) (increase(tempodb_blocklist_corrupt_block_meta_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval]))",
+     "interval": "",
+     "legendFormat": "{{tenant}}",
+     "range": true,
+     "refId": "A"
+    }
+   ],
+   "title": "Corrupt Block Metas Skipped",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${metrics}"
+   },
    "fieldConfig": {
     "defaults": {
      "color": {
