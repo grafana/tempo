@@ -103,6 +103,9 @@ func (s Static) EncodeToString(quotes bool) string {
 		}
 		return str
 	case TypeBoolean:
+		if s.IsUnknown() {
+			return "nil"
+		}
 		b, _ := s.Bool()
 		return strconv.FormatBool(b)
 	case TypeDuration:

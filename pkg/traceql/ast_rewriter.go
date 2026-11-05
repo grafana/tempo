@@ -19,6 +19,7 @@ type namedTransformation struct {
 // defaultTransformations is the ordered list of all registered AST transformations.
 var defaultTransformations = []namedTransformation{
 	{TransformationOrToIn, newBinaryOpToArrayOpRewriter()},
+	{TransformationDeMorgan, newDeMorganRewriter()},
 }
 
 // knownTransformationNames is pre-computed at init time.
@@ -245,7 +246,7 @@ func (f *fieldExpressionRewriter) rewriteFieldExpression(fe FieldExpression) (Fi
 		rhs, n := f.rewriteFieldExpression(e.RHS)
 		rwCount += n
 		fe = newBinaryOperation(e.Op, lhs, rhs)
-	case *UnaryOperation:
+	case UnaryOperation:
 		exp, n := f.rewriteFieldExpression(e.Expression)
 		rwCount += n
 		fe = newUnaryOperation(e.Op, exp)

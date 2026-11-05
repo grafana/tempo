@@ -131,8 +131,6 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 }
 
 func (o UnaryOperation) extractConditions(request *FetchSpansRequest) {
-	// TODO when Op is Not we should just either negate all inner Operands or just fetch the columns with OpNone
-
 	switch expr := o.Expression.(type) {
 	case Attribute:
 		switch o.Op {
@@ -147,8 +145,40 @@ func (o UnaryOperation) extractConditions(request *FetchSpansRequest) {
 			expr.extractConditions(request)
 		}
 	default:
+		if o.Op == OpNot {
+			o.extractForcedOpNone(request)
+			return
+		}
 		expr.extractConditions(request)
 	}
+}
+
+// extractForcedOpNone extracts the conditions for a negation that the demorgan rewrite
+// could not eliminate. Pushing the inner predicates down as-is would return exactly the spans
+// that the negation excludes, so the columns are fetched without filtering and the engine
+// evaluates the negation itself. The negation is only true when the inner expression is false,
+// which needs either the attribute to be present, or for an exists check like !(.a != nil),
+// the attribute to be missing. So those get an OpNotExists condition too.
+func (o UnaryOperation) extractForcedOpNone(request *FetchSpansRequest) {
+	inner := &FetchSpansRequest{}
+	o.Expression.extractConditions(inner)
+
+	for _, c := range inner.Conditions {
+		// The operands aren't used to filter. They tell the fetch layer which value types the
+		// engine can compare, so it can skip the others.
+		request.appendCondition(Condition{
+			Attribute: c.Attribute,
+			Op:        OpNone,
+			Operands:  c.Operands,
+		})
+		if c.Op == OpExists && c.Attribute.Intrinsic == IntrinsicNone {
+			request.appendCondition(Condition{
+				Attribute: c.Attribute,
+				Op:        OpNotExists,
+			})
+		}
+	}
+	request.AllConditions = false
 }
 
 func (s Static) extractConditions(*FetchSpansRequest) {

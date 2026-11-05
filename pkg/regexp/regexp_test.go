@@ -24,6 +24,33 @@ func TestRegexpMatch(t *testing.T) {
 	require.True(t, r.MatchString("xyz"))
 }
 
+// Matches values that start with "a" or start with "b".
+// This is what { name =~ "^a.*" || name =~ "^b.*" } is rewritten to.
+func TestRegexpMatchAnyOfTwoPatterns(t *testing.T) {
+	r, err := NewRegexp([]string{"^a.*", "^b.*"}, true)
+	require.NoError(t, err)
+
+	require.True(t, r.MatchString("abc"))  // starts with a
+	require.True(t, r.MatchString("bcd"))  // starts with b
+	require.False(t, r.MatchString("xyz")) // starts with neither
+}
+
+// Matches values that start with neither "a" nor "b".
+// This is what { name !~ "^a.*" && name !~ "^b.*" } is rewritten to.
+func TestRegexpMatchNoneOfTwoPatterns(t *testing.T) {
+	r, err := NewRegexp([]string{"^a.*", "^b.*"}, false)
+	require.NoError(t, err)
+
+	require.False(t, r.MatchString("abc")) // starts with a
+	require.False(t, r.MatchString("bcd")) // starts with b
+	require.True(t, r.MatchString("xyz"))  // starts with neither
+
+	// Same results for the []byte variant.
+	require.False(t, r.Match([]byte("abc")))
+	require.False(t, r.Match([]byte("bcd")))
+	require.True(t, r.Match([]byte("xyz")))
+}
+
 func TestCheatToSeeInternalsSafety(t *testing.T) {
 	// This test checks that our cheatToSeeInternals struct has compatible memory layout
 	// with Prometheus labels.FastRegexMatcher, in case the latter changes in the future.

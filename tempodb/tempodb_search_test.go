@@ -52,6 +52,7 @@ func TestSearchCompleteBlock(t *testing.T) {
 				searchRunner,
 				traceQLRunner,
 				traceQLNilRunner,
+				traceQLNegationRunner,
 				advancedTraceQLRunner,
 				groupTraceQLRunner,
 				traceQLStructural,
@@ -389,6 +390,271 @@ func traceQLNilRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSea
 		require.NoError(t, err, "search request: %+v", req)
 		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
 	}
+}
+
+// traceQLNegationRunner checks that negated expressions return the right traces from storage. The expected
+// trace has 4 spans: MySpan and RootSpan have span.foo = "Bar", and all spans last 1s except RootSpan which
+// lasts 2s. Like NULL in SQL, a comparison with a missing attribute doesn't match, and neither does its
+// negation, except for nil checks.
+//
+// The demorgan rewrite is an optimization, so every search runs with and without it and must return the same.
+func traceQLNegationRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
+	var (
+		ctx     = context.Background()
+		e       = traceql.NewEngine()
+		opts    = common.DefaultSearchOptions()
+		fetcher = traceql.NewSpansetFetcherWrapperBoth(
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return r.Fetch(ctx, meta, req, opts)
+			},
+			func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansOnlyResponse, error) {
+				return r.FetchSpans(ctx, meta, req, opts)
+			},
+		)
+	)
+
+	searchesThatMatch := []*tempopb.SearchRequest{
+		// negations of intrinsics
+		{Query: `{ !(name = "MySpan") }`},
+		{Query: `{ !(name = "MySpan" || name = "RootSpan") }`},
+		{Query: `{ !(name =~ "My.*" || name =~ "Root.*") }`},
+		{Query: `{ !(duration > 1s) }`},
+		{Query: `{ !(resource.service.name = "MyService") }`},
+		{Query: `{ resource.service.name = "RootService" && !(name = "MySpan") }`},
+		// the negation and its flipped comparison are equal
+		{Query: `{ name = "MySpan" && !(name != "MySpan") }`},
+		{Query: `{ name = "MySpan" && !(name = "RootSpan") }`},
+		// negations of attributes. Spans without span.foo don't match, as for the comparison
+		{Query: `{ !(span.foo = "x") }`},
+		{Query: `{ !(span.foo != "Bar") }`},
+		{Query: `{ span.foo != "x" }`},
+		{Query: `{ !(span.foo > "x") }`},
+		{Query: `{ !(span.foo =~ "x.*") }`},
+		{Query: `{ !(span.foo = "x" && span.missing = "y") }`}, // false && unknown is false
+		{Query: `{ span.foo = "Bar" && !(span.foo = "x") }`},
+		// dedicated columns
+		{Query: `{ !(span.span-dedicated.01 = "does-not-exist") }`},
+		{Query: `{ !(resource.res-dedicated.01 = "does-not-exist") }`},
+		// or: true || unknown is true, so the other spans match too
+		{Query: `{ span.foo = "Bar" || !(span.foo = "Bar") }`},
+		{Query: `{ !(span.foo = "x") || span.missing = "y" }`},
+		{Query: `{ !(span.foo = "x") || !(span.foo = "y") }`},
+		{Query: `{ !(span.foo = "x" || span.foo = "y") }`},
+		{Query: `{ !(name = "MySpan") || !(name = "RootSpan") }`},
+		{Query: `{ !(span.foo = "Bar") || span.foo = nil }`},
+		// nil checks match missing attributes
+		{Query: `{ !(span.foo != nil) }`},
+		{Query: `{ !(span.foo = nil) }`},
+		{Query: `{ !(span.missing != nil) }`},
+		{Query: `{ span.foo = nil || span.foo != "x" }`},
+		// the nil check isn't lost when the same attribute is also fetched unfiltered
+		{Query: `{ span.foo = nil || span.foo = span.bar }`},
+		// not flippable, and neither attribute needs to exist for the negation to be true
+		{Query: `{ !(span.http.status_code > 1000 && span.missing != nil) }`},
+
+		{Query: `{ !(span.foo = nil || span.foo = "x") && span.foo != nil }`},
+
+		// negations that are equivalent to a comparison that matches
+		{Query: `{ !(span.http.status_code != 500) }`},
+		{Query: `{ !(span.foo = "x" || span.foo != "Bar") }`},
+		{Query: `{ !(kind = unspecified && kind != unspecified) }`},
+		{Query: `{ !(!(span.foo = "Bar") || !(span.foo = "Bar")) }`},
+
+		// every operator that is flipped
+		{Query: `{ !(span.http.status_code = 400) }`},
+		{Query: `{ !(span.foo !~ "Ba.*") }`},
+		{Query: `{ !(span.foo =~ "x.*" || span.foo =~ "y.*") }`},
+		{Query: `{ !(span.foo != "x" && span.foo != "Bar") }`},
+		// ordering operators of intrinsics that are flipped
+		{Query: `{ !(duration >= 2s) }`},
+		{Query: `{ !(duration > 2s) }`},
+		{Query: `{ !(duration < 1s) }`},
+		{Query: `{ !(duration <= 999ms) }`},
+		{Query: `{ !(duration != 1s) }`},
+		{Query: `{ !(kind = client) }`},
+		{Query: `{ !(status = error) }`},
+		{Query: `{ !(statusMessage = "x") }`},
+		{Query: `{ !(rootName = "x") }`},
+		{Query: `{ !(rootServiceName =~ "x.*") }`},
+		{Query: `{ !(traceDuration < 1s) }`},
+		{Query: `{ !(instrumentation:name = "scope-1") }`},
+		{Query: `{ !(instrumentation:name != "scope-1") }`},
+		// ordering operators of attributes, which may be arrays and aren't flipped
+		{Query: `{ !(span.http.status_code > 600) }`},
+		{Query: `{ !(span.http.status_code >= 501) }`},
+		{Query: `{ !(span.http.status_code < 500) }`},
+		{Query: `{ !(span.http.status_code <= 499) }`},
+		{Query: `{ !(span.foo > "Z") }`},
+		// the other types
+		{Query: `{ !(span.child = false) }`},
+		{Query: `{ !(resource.cluster = "x") }`},
+		{Query: `{ !(.foo = "x") }`},
+		{Query: `{ !(.cluster = "x") }`},
+		// not flippable: two attributes, expressions, events and links
+		{Query: `{ !(span.foo = span.http.method) }`},
+		{Query: `{ !(span.http.status_code * 2 > 5000) }`},
+		{Query: `{ !(event:name = "x") }`},
+		{Query: `{ !(event.exception.message = "x") }`},
+		{Query: `{ !(link.relation = "x") }`},
+		{Query: `{ !(event:name =~ "x.*") }`},
+		// double negation
+		{Query: `{ !(!(span.foo = "Bar")) }`},
+		{Query: `{ !(!(span.foo != "x")) }`},
+		{Query: `{ !(!(span.foo = "x") && !(span.foo = "Bar")) }`},
+		// nested, with some of the comparisons not flippable
+		{Query: `{ !(span.foo = "x" && (span.http.status_code > 1000 || name = "MySpan")) }`},
+		{Query: `{ !(name = "MySpan" || span.foo > "Z") }`},
+		{Query: `{ !(name = "MySpan" && span.http.status_code > 1000) }`},
+		{Query: `{ !(span.foo != nil && span.foo = "x") }`},
+		{Query: `{ !(span.foo != nil || span.http.status_code != nil) }`},
+		{Query: `{ !(span.foo = nil && span.http.status_code = nil) }`},
+		// the engine evaluates what is not pushed down, for a span that matches another condition
+		{Query: `{ (span.foo != "x" || span.http.status_code = 500) && name = "RootSpan" }`},
+		{Query: `{ (!(span.foo = "x") || span.http.status_code = 500) && name = "RootSpan" }`},
+		// aggregates
+		{Query: `{ !(span.foo = "x") } | count() = 2`},
+		{Query: `{ !(name = "MySpan") } | count() = 3`},
+		{Query: `{ !(span.http.status_code > 600) } | count() = 1`},
+		// the attribute has a different type than the value it's compared to
+		{Query: `{ !(span.foo = 5) || span.foo = "Bar" }`},
+	}
+	searchesThatDontMatch := []*tempopb.SearchRequest{
+		// a span can't both match and not match
+		{Query: `{ name = "MySpan" && !(name = "MySpan") }`},
+		{Query: `{ resource.service.name = "RootService" && !(name = "RootSpan") }`},
+		// spans without the attribute match neither the comparison nor its negation
+		{Query: `{ !(span.foo = "Bar") }`},
+		{Query: `{ !(span.foo != "x") }`},
+		{Query: `{ !(span.foo < "x") }`},
+		{Query: `{ !(span.foo =~ "Ba.*") }`},
+		{Query: `{ !(span.span-dedicated.01 =~ ".*") }`},
+		{Query: `{ !(resource.res-dedicated.01 =~ ".*") }`},
+		{Query: `{ !(span.missing = "x") }`},
+		{Query: `{ !(span.missing != "x") }`},
+		{Query: `{ !(span.foo = "x" || span.missing = "y") }`}, // unknown || false is unknown
+		{Query: `{ !(span.foo = "Bar" || span.missing = "y") }`},
+		{Query: `{ span.foo != nil && !(span.foo != nil) }`},
+		// or: unknown || false is unknown, and unknown || unknown too
+		{Query: `{ span.missing = "x" || !(span.missing = "x") }`},
+		{Query: `{ span.foo != "Bar" || !(span.foo = "Bar") }`},
+		{Query: `{ !(span.foo = "Bar" || span.foo = "x") }`},
+		{Query: `{ !(span.foo != "Bar" || span.missing = "y") }`},
+		{Query: `{ !(span.foo = "Bar" || span.foo = nil) }`},
+
+		// every operator that is flipped
+		{Query: `{ !(span.http.status_code = 500) }`},
+		{Query: `{ !(span.foo !~ "x.*") }`},
+		{Query: `{ !(span.foo !~ "x.*" && span.foo !~ "y.*") }`},
+		{Query: `{ !(duration <= 2s) }`},
+		{Query: `{ !(duration >= 1s) }`},
+		{Query: `{ !(traceDuration > 1s) }`},
+		{Query: `{ !(rootName = "RootSpan") }`},
+		{Query: `{ !(instrumentation:name = "scope-1") && instrumentation:name = "scope-1" }`},
+		// ordering operators of attributes
+		{Query: `{ !(span.http.status_code > 400) }`},
+		{Query: `{ !(span.http.status_code <= 500) }`},
+		{Query: `{ !(span.foo >= "Bar") }`},
+		// the other types
+		{Query: `{ !(span.child = true) }`},
+		{Query: `{ !(span.child != false) }`},
+		{Query: `{ !(resource.cluster = "MyCluster") }`},
+		{Query: `{ !(.foo = "Bar") }`},
+		// not flippable: two attributes, expressions, events and links
+		{Query: `{ !(span.foo = span.foo) }`},
+		{Query: `{ !(span.http.status_code + 1 > 100) }`},
+		{Query: `{ !(event.name = "x") }`}, // the event has no attribute name
+		{Query: `{ !(event.exception.message = "random error") }`},
+		{Query: `{ !(link.relation = "child-of") }`},
+		// double negation
+		{Query: `{ !(!(span.foo = "x")) }`},
+		{Query: `{ !(!(span.foo != "Bar")) }`},
+		// nested, with some of the comparisons not flippable
+		{Query: `{ !(name = "MySpan" || span.http.status_code > 1000) }`},
+		{Query: `{ !(span.foo = "Bar" && span.http.status_code > 400) }`},
+		{Query: `{ !(span.foo != nil && span.http.status_code != nil) && span.foo = "Bar" && span.http.status_code != nil }`},
+		// the engine evaluates what is not pushed down, for a span that matches another condition
+		{Query: `{ (span.foo != "x" || span.http.status_code = 500) && name = "BrokenSpan" }`},
+		{Query: `{ (!(span.foo = "x") || span.http.status_code = 500) && name = "BrokenSpan" }`},
+		{Query: `{ (span.foo != "x" || span.bar = "x") && name = "BrokenSpan" }`},
+		// aggregates
+		{Query: `{ !(span.foo = "x") } | count() = 3`},
+		{Query: `{ !(name = "MySpan") } | count() = 2`},
+		{Query: `{ !(span.http.status_code > 400) } | count() > 0`},
+		// the attribute has a different type than the value it's compared to. The comparison is unknown,
+		// and so is its negation.
+		{Query: `{ !(span.foo = 5) }`},
+		{Query: `{ !(span.foo != 5) }`},
+		{Query: `{ !(span.http.status_code = "500") }`},
+		{Query: `{ !(span.http.status_code != "500") }`},
+		{Query: `{ !(span.foo = "Bar" && span.foo = 5) }`},
+		{Query: `{ !(span.foo = 5 && span.foo = "Bar") }`},
+		{Query: `{ !(span.foo = 5 || span.foo = "x") }`},
+	}
+
+	modes := []struct {
+		name  string
+		copts []traceql.CompileOption
+	}{
+		{"demorgan", nil},
+		{"no demorgan", []traceql.CompileOption{traceql.WithSkipOptimization(traceql.TransformationDeMorgan)}},
+	}
+
+	// search returns the matching spans of every trace, so that the modes can be compared exactly. It
+	// returns nil if the query isn't supported.
+	search := func(req *tempopb.SearchRequest, copts []traceql.CompileOption) (spans []string, wantFound, ok bool) {
+		all := &tempopb.SearchRequest{Query: req.Query, Limit: 10_000, SpansPerSpanSet: 100}
+		res, err := e.ExecuteSearch(ctx, all, fetcher, copts...)
+		if errors.Is(err, util.ErrUnsupported) {
+			return nil, false, false
+		}
+		require.NoError(t, err, "search request: %+v", req)
+
+		for _, tr := range res.Traces {
+			for _, ss := range tr.SpanSets {
+				for _, sp := range ss.Spans {
+					spans = append(spans, tr.TraceID+"/"+sp.SpanID)
+				}
+			}
+		}
+		sort.Strings(spans)
+		return spans, actualForExpectedMeta(wantMeta, res) != nil, true
+	}
+
+	// the spans per mode and query
+	got := make(map[string]map[string][]string, len(modes))
+	for _, mode := range modes {
+		got[mode.name] = map[string][]string{}
+
+		t.Run(mode.name, func(t *testing.T) {
+			for _, req := range searchesThatMatch {
+				spans, found, ok := search(req, mode.copts)
+				if !ok {
+					continue
+				}
+				assert.True(t, found, "search request: %v", req)
+				got[mode.name][req.Query] = spans
+			}
+
+			for _, req := range searchesThatDontMatch {
+				spans, found, ok := search(req, mode.copts)
+				if !ok {
+					continue
+				}
+				assert.False(t, found, "search request: %v", req)
+				got[mode.name][req.Query] = spans
+			}
+		})
+	}
+
+	// The rewrite is an optimization, so it can't change the spans that are returned.
+	t.Run("same results", func(t *testing.T) {
+		base := modes[0].name
+		for _, mode := range modes[1:] {
+			for query, want := range got[base] {
+				require.Equal(t, want, got[mode.name][query], "%s and %s differ for %s", base, mode.name, query)
+			}
+		}
+	})
 }
 
 func sortSearchResultsForTesting(traces []*tempopb.TraceSearchMetadata) {

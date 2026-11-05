@@ -820,6 +820,24 @@ func NewStaticString(s string) Static {
 	}
 }
 
+// unknownBool is the value of a boolean Static that is neither true nor false.
+const unknownBool uint64 = 2
+
+// NewStaticUnknown returns the third value of SQL-like three-valued logic. It is the result of comparing
+// with a missing attribute (NULL in SQL), and of any logic operation that can't be decided without it.
+// It is a TypeBoolean, but [Static.Bool] reports it as not being a boolean value, so it never matches.
+func NewStaticUnknown() Static {
+	return Static{
+		Type:      TypeBoolean,
+		valScalar: unknownBool,
+	}
+}
+
+// IsUnknown returns true for the unknown boolean.
+func (s Static) IsUnknown() bool {
+	return s.Type == TypeBoolean && s.valScalar == unknownBool
+}
+
 func NewStaticBool(b bool) Static {
 	var val uint64
 	if b {
@@ -1114,8 +1132,10 @@ func (s Static) Float() float64 {
 	}
 }
 
+// Bool returns the value of a boolean. The second return value is false if s is not a boolean,
+// or if it is the unknown boolean, which is neither true nor false.
 func (s Static) Bool() (bool, bool) {
-	return s.valScalar != 0, s.Type == TypeBoolean
+	return s.valScalar == 1, s.Type == TypeBoolean && s.valScalar != unknownBool
 }
 
 func (s Static) Duration() (time.Duration, bool) {

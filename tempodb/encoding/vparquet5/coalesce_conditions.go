@@ -43,24 +43,31 @@ func coalesceConditions(f *traceql.FetchSpansRequest) {
 //   - they are exactly the same
 //   - they will pull every span anyway. example: { span.foo = "bar" } >> { span.foo != "bar" }
 func coalesce(c1, c2 traceql.Condition) (traceql.Condition, bool) {
+	if c1.Attribute != c2.Attribute {
+		return traceql.Condition{}, false
+	}
+
 	// if the conditions are exactly the same then we can just return one of them
-	if c1.Attribute == c2.Attribute &&
-		c1.Op == c2.Op &&
-		operandsEqual(c1, c2) {
+	if c1.Op == c2.Op && operandsEqual(c1, c2) {
+		return c1, true
+	}
+
+	// OpNone conditions don't filter. Their operands only limit the fetched types, so those of the same
+	// type are the same fetch. Different types fall through to be merged into OpNone for every type.
+	if c1.Op == traceql.OpNone && c2.Op == traceql.OpNone && operandType(c1.Operands) == operandType(c2.Operands) {
 		return c1, true
 	}
 
 	// if the operations are != and = and the operands are the same this is going to pull every row. let's
 	// collapse to one condition with OpNone and no operands
-	if c1.Attribute == c2.Attribute && // attributes equal
-		(c1.Op == traceql.OpEqual && c2.Op == traceql.OpNotEqual || c1.Op == traceql.OpNotEqual && c2.Op == traceql.OpEqual) && // operands are != and =
-		operandsEqual(c1, c2) { // operands equal
+	if (c1.Op == traceql.OpEqual && c2.Op == traceql.OpNotEqual || c1.Op == traceql.OpNotEqual && c2.Op == traceql.OpEqual) && // operands are != and =
+		operandsEqual(c1, c2) {
 		return traceql.Condition{Attribute: c1.Attribute, Op: traceql.OpNone, Operands: nil}, true
 	}
 
-	// if one of the operations is opnone we're already pulling every row. coalesce
-	if c1.Attribute == c2.Attribute && // attributes equal
-		(c1.Op == traceql.OpNone || c2.Op == traceql.OpNone) { // one operand is opnone
+	// Anything + OpNone can be coalesced into just OpNone, except for OpNotExists.
+	if (c1.Op == traceql.OpNone || c2.Op == traceql.OpNone) &&
+		c1.Op != traceql.OpNotExists && c2.Op != traceql.OpNotExists {
 		return traceql.Condition{Attribute: c1.Attribute, Op: traceql.OpNone, Operands: nil}, true
 	}
 

@@ -117,6 +117,77 @@ func TestCoalesceConditions(t *testing.T) {
 				},
 			},
 		},
+		{
+			// OpNone only pulls spans that have the attribute, so it can't replace OpNotExists
+			f: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNotExists},
+				},
+			},
+			expected: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNotExists},
+				},
+			},
+		},
+		{
+			f: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNotExists},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+				},
+			},
+			expected: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNotExists},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+				},
+			},
+		},
+		{
+			// OpNone conditions of the same type fetch the same columns
+			f: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone, Operands: []traceql.Static{traceql.NewStaticString("a")}},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone, Operands: []traceql.Static{traceql.NewStaticString("b")}},
+				},
+			},
+			expected: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone, Operands: []traceql.Static{traceql.NewStaticString("a")}},
+				},
+			},
+		},
+		{
+			// OpNone conditions of different types need the columns of both, so every type is fetched
+			f: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone, Operands: []traceql.Static{traceql.NewStaticString("a")}},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone, Operands: []traceql.Static{traceql.NewStaticInt(1)}},
+				},
+			},
+			expected: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+				},
+			},
+		},
+		{
+			// OpNone without operands fetches every type
+			f: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone, Operands: []traceql.Static{traceql.NewStaticString("a")}},
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+				},
+			},
+			expected: &traceql.FetchSpansRequest{
+				Conditions: []traceql.Condition{
+					{Attribute: traceql.NewAttribute("foo"), Op: traceql.OpNone},
+				},
+			},
+		},
 	}
 
 	for i, tc := range tcs {

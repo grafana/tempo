@@ -189,6 +189,24 @@ func TestStatic_Bool(t *testing.T) {
 	}
 }
 
+// StaticUnknown is the result of a comparison with a missing attribute. It has the boolean type but is neither true nor false.
+func TestStatic_Unknown(t *testing.T) {
+	var (
+		T = StaticTrue
+		F = StaticFalse
+		U = StaticUnknown
+	)
+
+	b, ok := U.Bool()
+	require.False(t, b)
+	require.False(t, ok)
+	require.True(t, U.IsUnknown())
+	require.False(t, T.IsUnknown())
+	require.False(t, F.IsUnknown())
+	require.False(t, U.Equals(&F))
+	require.Equal(t, "nil", U.String())
+}
+
 func TestStatic_Duration(t *testing.T) {
 	tests := []struct {
 		arg any
