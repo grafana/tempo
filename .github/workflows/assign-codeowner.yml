@@ -35,6 +35,9 @@ jobs:
       - name: Assign available code owners
         env:
           GH_TOKEN: ${{ github.token }}
+          # gh resolves the repository from a git remote, and this job never
+          # checks anything out, so porcelain commands need this explicitly.
+          GH_REPO: ${{ github.repository }}
           REPO: ${{ github.repository }}
           # Comma or space separated logins that override the code owner pool.
           # Set it when CODEOWNERS names teams only, since teams cannot be
@@ -382,14 +385,24 @@ jobs:
               continue
             fi
 
-            if ! response=$(jq -n --arg login "$assignee" '{assignees: [$login]}' |
-              retry gh api -X POST "repos/$REPO/issues/$number/assignees" --input -); then
+            if ! jq -n --arg login "$assignee" '{assignees: [$login]}' > "$temp_dir/body.json"; then
+              echo "::warning::Could not build the assignment payload for PR #$number."
+              failed=$((failed + 1))
+              continue
+            fi
+            # The payload is written to a file because retry re-invokes the
+            # command: a pipe would be drained by the first attempt and every
+            # retry would send an empty body.
+            if ! response=$(retry gh api -X POST "repos/$REPO/issues/$number/assignees" \
+              --input "$temp_dir/body.json"); then
               echo "::warning::Could not assign PR #$number to @$assignee."
               failed=$((failed + 1))
               continue
             fi
+            # GitHub returns the canonical .login casing, which need not match
+            # the lowercased pool entry, so compare case-insensitively.
             if ! printf '%s' "$response" | jq -e --arg login "$assignee" \
-              'any(.assignees[]?; .login == $login)' > /dev/null; then
+              'any(.assignees[]?; (.login | ascii_downcase) == $login)' > /dev/null; then
               echo "::warning::PR #$number assignment to @$assignee was not reflected in the response."
               failed=$((failed + 1))
               continue
@@ -424,6 +437,8 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
+          # The same no-checkout reason applies to gh issue create/comment.
+          GH_REPO: ${{ github.repository }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
