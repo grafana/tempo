@@ -118,6 +118,7 @@ This endpoint is useful for diagnosing stalled jobs, verifying that workers are 
 
 Most scheduler job metrics carry `tenant` and `job_type` labels; `tempo_backend_scheduler_job_duration_seconds` and the `last_successful_job_timestamp_seconds` gauges carry only `job_type`.
 The `job_type` label uses protobuf enum string values: `JOB_TYPE_COMPACTION`, `JOB_TYPE_RETENTION`, and `JOB_TYPE_REDACTION`.
+The `last_successful_job_timestamp_seconds` gauges report `0` for a job type that hasn't succeeded since the process started.
 The duration histogram measures elapsed time from job creation to completion, not execution time alone.
 
 ## Monitoring

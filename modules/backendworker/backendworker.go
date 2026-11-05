@@ -72,6 +72,15 @@ func New(cfg Config, schedulerClientCfg backendscheduler_client.Config, store st
 		overrides: overrides,
 	}
 
+	// Export every job type at 0 until its first success, so dashboards can show "Never"
+	// instead of no data for a worker that has not finished a job since startup.
+	for jobType := range tempopb.JobType_name {
+		if jobType == int32(tempopb.JobType_JOB_TYPE_UNSPECIFIED) {
+			continue
+		}
+		metricWorkerLastSuccessfulJobTimestamp.WithLabelValues(tempopb.JobType(jobType).String())
+	}
+
 	workerID, err := os.Hostname()
 	if err != nil {
 		return nil, err
