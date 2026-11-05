@@ -89,18 +89,6 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Compactor')
-        .addPanel(
-          cpuPanel($._config.jobs.compactor),
-        )
-        .addPanel(
-          memoryPanel($._config.jobs.compactor),
-        )
-        .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.compactor)),
-        )
-      )
-      .addRow(
         g.row('Memcached')
         .addPanel(
           cpuPanel($._config.jobs.memcached),

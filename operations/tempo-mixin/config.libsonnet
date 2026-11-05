@@ -11,7 +11,6 @@
       querier: 'querier',
       metrics_generator: 'metrics-generator',
       distributor: 'distributor',
-      compactor: 'compactor',
       block_builder: 'block-builder',
       backend_scheduler: 'backend-scheduler',
       backend_worker: 'backend-worker',
