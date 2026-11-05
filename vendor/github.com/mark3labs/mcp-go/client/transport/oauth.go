@@ -570,12 +570,31 @@ func (h *OAuthHandler) getServerMetadata(ctx context.Context) (*AuthServerMetada
 		if result.resourceURL != "" {
 			h.resourceURL = result.resourceURL
 		}
+		// Discovery completed without producing metadata or an error (e.g. a
+		// non-2xx response handled by fetchMetadataFromURL). Record an explicit
+		// error — including the discovery target — so callers receive a
+		// consistent cached failure instead of a nil *AuthServerMetadata, which
+		// they would dereference and panic on. Skip when serverMetadata is
+		// already populated: a no-op re-discovery preserves the prior value.
+		if h.serverMetadata == nil && h.metadataFetchErr == nil {
+			if h.config.AuthServerMetadataURL != "" {
+				h.metadataFetchErr = fmt.Errorf("authorization server metadata unavailable: discovery at %q returned no metadata", h.config.AuthServerMetadataURL)
+			} else {
+				h.metadataFetchErr = errors.New("authorization server metadata unavailable: auto-discovery from the server base URL returned no metadata")
+			}
+		}
 	})
 
 	h.metadataMu.Lock()
 	defer h.metadataMu.Unlock()
 	if h.metadataFetchErr != nil {
 		return nil, h.metadataFetchErr
+	}
+	// Defensive backstop: a concurrent SetProtectedResourceMetadataURL may have
+	// reset state after our once ran. Never return (nil, nil) — every caller
+	// dereferences the returned metadata.
+	if h.serverMetadata == nil {
+		return nil, errors.New("authorization server metadata unavailable")
 	}
 	return h.serverMetadata, nil
 }

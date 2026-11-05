@@ -167,8 +167,7 @@ func NewJSONRPCError(
 	}
 }
 
-// NewProgressNotification
-// Helper function for creating a progress notification
+// NewProgressNotification creates a progress notification.
 func NewProgressNotification(
 	token ProgressToken,
 	progress float64,
@@ -198,8 +197,7 @@ func NewProgressNotification(
 	return notification
 }
 
-// NewLoggingMessageNotification
-// Helper function for creating a logging message notification
+// NewLoggingMessageNotification creates a logging message notification.
 func NewLoggingMessageNotification(
 	level LoggingLevel,
 	logger string,
@@ -221,8 +219,7 @@ func NewLoggingMessageNotification(
 	}
 }
 
-// NewPromptMessage
-// Helper function to create a new PromptMessage
+// NewPromptMessage creates a prompt message.
 func NewPromptMessage(role Role, content Content) PromptMessage {
 	return PromptMessage{
 		Role:    role,
@@ -230,8 +227,7 @@ func NewPromptMessage(role Role, content Content) PromptMessage {
 	}
 }
 
-// NewTextContent
-// Helper function to create a new TextContent
+// NewTextContent creates text content.
 func NewTextContent(text string) TextContent {
 	return TextContent{
 		Type: ContentTypeText,
@@ -239,8 +235,7 @@ func NewTextContent(text string) TextContent {
 	}
 }
 
-// NewImageContent
-// Helper function to create a new ImageContent
+// NewImageContent creates image content.
 func NewImageContent(data, mimeType string) ImageContent {
 	return ImageContent{
 		Type:     ContentTypeImage,
@@ -249,7 +244,7 @@ func NewImageContent(data, mimeType string) ImageContent {
 	}
 }
 
-// Helper function to create a new AudioContent
+// NewAudioContent creates audio content.
 func NewAudioContent(data, mimeType string) AudioContent {
 	return AudioContent{
 		Type:     ContentTypeAudio,
@@ -258,7 +253,7 @@ func NewAudioContent(data, mimeType string) AudioContent {
 	}
 }
 
-// Helper function to create a new ResourceLink
+// NewResourceLink creates a resource link.
 func NewResourceLink(uri, name, description, mimeType string) ResourceLink {
 	return ResourceLink{
 		Type:        ContentTypeLink,
@@ -269,7 +264,7 @@ func NewResourceLink(uri, name, description, mimeType string) ResourceLink {
 	}
 }
 
-// Helper function to create a new EmbeddedResource
+// NewEmbeddedResource creates an embedded resource.
 func NewEmbeddedResource(resource ResourceContents) EmbeddedResource {
 	return EmbeddedResource{
 		Type:     ContentTypeResource,
@@ -551,8 +546,7 @@ func NewInitializeResult(
 	}
 }
 
-// FormatNumberResult
-// Helper for formatting numbers in tool results
+// FormatNumberResult formats a number as a tool result.
 func FormatNumberResult(value float64) *CallToolResult {
 	return NewToolResultText(fmt.Sprintf("%.2f", value))
 }
@@ -806,57 +800,19 @@ func ParseCallToolResult(rawMessage *json.RawMessage) (*CallToolResult, error) {
 		return nil, fmt.Errorf("response is nil")
 	}
 
-	var jsonContent map[string]any
-	if err := json.Unmarshal(*rawMessage, &jsonContent); err != nil {
+	var probe struct {
+		Content json.RawMessage `json:"content"`
+	}
+	if err := json.Unmarshal(*rawMessage, &probe); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-
-	var result CallToolResult
-
-	meta, ok := jsonContent["_meta"]
-	if ok {
-		if metaMap, ok := meta.(map[string]any); ok {
-			result.Meta = NewMetaFromMap(metaMap)
-		}
-	}
-
-	isError, ok := jsonContent["isError"]
-	if ok {
-		if isErrorBool, ok := isError.(bool); ok {
-			result.IsError = isErrorBool
-		}
-	}
-
-	contents, ok := jsonContent["content"]
-	if !ok {
+	if probe.Content == nil {
 		return nil, fmt.Errorf("content is missing")
 	}
 
-	contentArr, ok := contents.([]any)
-	if !ok {
-		return nil, fmt.Errorf("content is not an array")
-	}
-
-	for _, content := range contentArr {
-		// Extract content
-		contentMap, ok := content.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("content is not an object")
-		}
-
-		// Process content
-		content, err := ParseContent(contentMap)
-		if err != nil {
-			return nil, err
-		}
-
-		result.Content = append(result.Content, content)
-	}
-
-	// Handle structured content
-	structuredContent, ok := jsonContent["structuredContent"]
-	if ok {
-		result.StructuredContent = structuredContent
+	var result CallToolResult
+	if err := json.Unmarshal(*rawMessage, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	return &result, nil
