@@ -120,29 +120,48 @@ func spanAttr(key string, val any) (attribute.KeyValue, bool) {
 	}
 }
 
+type requestHeaderFieldsCtxKey struct{}
+
+func withRequestHeaderFields(ctx context.Context, fields []any) context.Context {
+	if len(fields) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, requestHeaderFieldsCtxKey{}, fields)
+}
+
+func requestHeaderFieldsFromContext(ctx context.Context) []any {
+	fields, _ := ctx.Value(requestHeaderFieldsCtxKey{}).([]any)
+	return fields
+}
+
 // logWithShape emits a per-query response log line with query-shape fields
-// appended when a shape is stamped on the context. The caller picks the level
+// appended when a shape is stamped on the context, followed by the request
+// header fields configured with log_query_request_headers. The caller picks the level
 // by wrapping the logger, e.g. logWithShape(level.Info(logger), ctx, ...).
 //
 //nolint:revive // logger comes first so callers can write logWithShape(level.Info(logger), ctx, ...).
 func logWithShape(logger log.Logger, ctx context.Context, fields ...any) {
-	qs, ok := pipeline.QueryShapeFromContext(ctx)
-	if !ok {
+	qs, hasShape := pipeline.QueryShapeFromContext(ctx)
+	headerFields := requestHeaderFieldsFromContext(ctx)
+	if !hasShape && len(headerFields) == 0 {
 		_ = logger.Log(fields...)
 		return
 	}
-	out := make([]any, 0, len(fields)+16)
+	out := make([]any, 0, len(fields)+16+len(headerFields))
 	out = append(out, fields...)
-	out = append(
-		out,
-		"query_type", qs.Type,
-		"query_weight", qs.Weight,
-		"query_sub_queries", qs.SubQueries,
-		"query_conditions", qs.Conditions,
-		"query_regex_conditions", qs.RegexConditions,
-		"query_has_or", qs.HasOr,
-		"query_needs_full_trace", qs.NeedsFullTrace,
-		"query_select_all", qs.SelectAll,
-	)
+	if hasShape {
+		out = append(
+			out,
+			"query_type", qs.Type,
+			"query_weight", qs.Weight,
+			"query_sub_queries", qs.SubQueries,
+			"query_conditions", qs.Conditions,
+			"query_regex_conditions", qs.RegexConditions,
+			"query_has_or", qs.HasOr,
+			"query_needs_full_trace", qs.NeedsFullTrace,
+			"query_select_all", qs.SelectAll,
+		)
+	}
+	out = append(out, headerFields...)
 	_ = logger.Log(out...)
 }
