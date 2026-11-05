@@ -1054,3 +1054,156 @@ func TestNewRuntimeConfigOverrides_ValidatesDefaults(t *testing.T) {
 	_, err := newRuntimeConfigOverrides(cfg, validator, prometheus.NewRegistry())
 	require.ErrorContains(t, err, "validating overrides defaults failed: invalid max_items")
 }
+
+func TestRuntimeConfigOverrides_IngestionLimitsForLimitsKey(t *testing.T) {
+	const withWildcard = `
+overrides:
+  t1:
+    ingestion:
+      rate_limit_bytes: 200
+      burst_size_bytes: 20
+      max_traces_per_user: 7
+  ":source=x":
+    ingestion:
+      rate_limit_bytes: 300
+  "t1:source=x":
+    ingestion:
+      burst_size_bytes: 30
+  "t1:env=prod:source=x":
+    ingestion:
+      rate_limit_bytes: 400
+  "*":
+    ingestion:
+      rate_limit_bytes: 500
+      burst_size_bytes: 50
+`
+	const withoutWildcard = `
+overrides:
+  t1:
+    ingestion:
+      rate_limit_bytes: 200
+      burst_size_bytes: 20
+  ":source=x":
+    ingestion:
+      rate_limit_bytes: 300
+`
+
+	tcs := []struct {
+		name      string
+		overrides string
+		limitsKey string
+		wantRate  float64
+		wantBurst int
+	}{
+		{name: "tenant", overrides: withWildcard, limitsKey: "t1", wantRate: 200, wantBurst: 20},
+		{name: "metadata without override inherits the tenant", overrides: withWildcard, limitsKey: "t1:source=y", wantRate: 200, wantBurst: 20},
+		{name: "placeholder and tenant metadata overlays", overrides: withWildcard, limitsKey: "t1:source=x", wantRate: 300, wantBurst: 30},
+		{name: "full key wins over single pair overlays", overrides: withWildcard, limitsKey: "t1:env=prod:source=x", wantRate: 400, wantBurst: 30},
+		{name: "wildcard is the base for unknown tenants", overrides: withWildcard, limitsKey: "t2:source=y", wantRate: 500, wantBurst: 50},
+		{name: "placeholder overlays the wildcard base", overrides: withWildcard, limitsKey: "t2:source=x", wantRate: 300, wantBurst: 50},
+		{name: "malformed metadata falls back to the tenant", overrides: withWildcard, limitsKey: "t1:garbage", wantRate: 200, wantBurst: 20},
+		{name: "defaults are the base without wildcard", overrides: withoutWildcard, limitsKey: "t2:source=y", wantRate: 100, wantBurst: 10},
+		{name: "placeholder overlays the defaults", overrides: withoutWildcard, limitsKey: "t2:source=x", wantRate: 300, wantBurst: 10},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			o := newTestRuntimeOverrides(t, tc.overrides)
+
+			assert.Equal(t, tc.wantRate, o.IngestionRateLimitBytes(tc.limitsKey))
+			assert.Equal(t, tc.wantBurst, o.IngestionBurstSizeBytes(tc.limitsKey))
+
+			// resolving a limits key must not modify the tenant's shared overrides
+			assert.Equal(t, float64(200), o.IngestionRateLimitBytes("t1"))
+			assert.Equal(t, 20, o.IngestionBurstSizeBytes("t1"))
+		})
+	}
+
+	t.Run("other getters ignore metadata", func(t *testing.T) {
+		o := newTestRuntimeOverrides(t, withWildcard)
+		assert.Equal(t, 7, o.MaxLocalTracesPerUser("t1"))
+		assert.Equal(t, 7, o.MaxLocalTracesPerUser("t1:source=x"))
+		assert.Equal(t, 7, o.MaxLocalTracesPerUser("t1:env=prod:source=x"))
+	})
+}
+
+// newTestRuntimeOverrides returns a running overrides service with defaults of 100 bytes/s and a 10 byte burst.
+func newTestRuntimeOverrides(t *testing.T, perTenantYAML string) Service {
+	t.Helper()
+
+	f := filepath.Join(t.TempDir(), "overrides.yaml")
+	require.NoError(t, os.WriteFile(f, []byte(perTenantYAML), 0o600))
+
+	cfg := Config{
+		Defaults: Overrides{
+			Ingestion: IngestionOverrides{
+				RateLimitBytes: 100,
+				BurstSizeBytes: 10,
+			},
+		},
+		PerTenantOverrideConfig: f,
+		PerTenantOverridePeriod: model.Duration(time.Hour),
+	}
+
+	o, err := newRuntimeConfigOverrides(cfg, &mockValidator{}, prometheus.NewRegistry())
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(context.Background(), o))
+	t.Cleanup(func() { require.NoError(t, services.StopAndAwaitTerminated(context.Background(), o)) })
+	return o
+}
+
+func TestMergeIngestionLimits(t *testing.T) {
+	base := func() *Overrides {
+		return &Overrides{Ingestion: IngestionOverrides{RateLimitBytes: 100, BurstSizeBytes: 10, MaxLocalTracesPerUser: 7}}
+	}
+
+	t.Run("nil overlay leaves dst unchanged", func(t *testing.T) {
+		dst := base()
+		assert.Equal(t, base(), mergeIngestionLimits(dst, nil))
+	})
+
+	t.Run("zero fields are not applied", func(t *testing.T) {
+		dst := base()
+		assert.Equal(t, base(), mergeIngestionLimits(dst, &Overrides{}))
+	})
+
+	t.Run("only ingestion rate limit fields are applied", func(t *testing.T) {
+		dst := mergeIngestionLimits(base(), &Overrides{Ingestion: IngestionOverrides{RateLimitBytes: 200, MaxLocalTracesPerUser: 99}})
+		assert.Equal(t, 200, dst.Ingestion.RateLimitBytes)
+		assert.Equal(t, 10, dst.Ingestion.BurstSizeBytes)
+		assert.Equal(t, 7, dst.Ingestion.MaxLocalTracesPerUser)
+
+		dst = mergeIngestionLimits(dst, &Overrides{Ingestion: IngestionOverrides{BurstSizeBytes: 30}})
+		assert.Equal(t, 200, dst.Ingestion.RateLimitBytes)
+		assert.Equal(t, 30, dst.Ingestion.BurstSizeBytes)
+	})
+
+	t.Run("copy does not alias the source", func(t *testing.T) {
+		src := base()
+		cp := copyOverridesForMerge(src)
+		mergeIngestionLimits(cp, &Overrides{Ingestion: IngestionOverrides{RateLimitBytes: 200}})
+		assert.Equal(t, 100, src.Ingestion.RateLimitBytes)
+	})
+}
+
+func TestLoadPerTenantOverrides_KeyValidation(t *testing.T) {
+	loader := loadPerTenantOverrides(nil, ConfigTypeNew, false, false)
+	load := func(key string) error {
+		yamlBytes := fmt.Sprintf("overrides:\n  %q:\n    ingestion:\n      rate_limit_bytes: 1\n", key)
+		_, err := loader(bytes.NewReader([]byte(yamlBytes)))
+		return err
+	}
+
+	for _, key := range []string{"foo", "*", ":source=x", "t:source=x", "t:a=1:b=2", "not a tenant id"} {
+		t.Run("accepts "+key, func(t *testing.T) {
+			require.NoError(t, load(key))
+		})
+	}
+
+	for _, key := range []string{"t:garbage", "t:b=1:a=2", "t:a=1:a=2", "t:source=a/b", "*:source=x"} {
+		t.Run("rejects "+key, func(t *testing.T) {
+			err := load(key)
+			require.ErrorContains(t, err, fmt.Sprintf("invalid per-tenant overrides key %q", key))
+		})
+	}
+}

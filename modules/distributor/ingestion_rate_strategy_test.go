@@ -264,3 +264,25 @@ func createMockRingWithHealthyInstances(count int) ReadLifecycler {
 	ring.On("HealthyInstancesCount").Return(count)
 	return ring
 }
+
+func TestIngestionRateStrategy_LimitsKey(t *testing.T) {
+	o, err := overrides.NewOverrides(overrides.Config{
+		Defaults: overrides.Overrides{
+			Ingestion: overrides.IngestionOverrides{
+				RateStrategy:   overrides.GlobalIngestionRateStrategy,
+				RateLimitBytes: 10,
+				BurstSizeBytes: 4,
+			},
+		},
+	}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	// a limits key with metadata but no override resolves to the tenant's limits
+	for _, strategy := range []limiter.RateLimiterStrategy{
+		newLocalIngestionRateStrategy(o),
+		newGlobalIngestionRateStrategy(o, createMockRingWithHealthyInstances(2)),
+	} {
+		assert.Equal(t, strategy.Limit("test"), strategy.Limit("test:source=x"))
+		assert.Equal(t, strategy.Burst("test"), strategy.Burst("test:source=x"))
+	}
+}

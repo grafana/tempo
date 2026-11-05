@@ -1,0 +1,4 @@
+multitenancy_enabled: true
+
+distributor:
+  retry_after_on_resource_exhausted: 1s

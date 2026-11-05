@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/pkg/validation"
 )
 
 var errEndMustBeGreaterThanStart = errors.New("end must be greater than start")
@@ -34,7 +34,7 @@ func validateQueryRangeReq(ctx context.Context, cfg Config, o overrides.Interfac
 }
 
 func validateMetricsQueryMaxDuration(ctx context.Context, o overrides.Interface, defaultMaxDuration time.Duration, req *tempopb.QueryRangeRequest) error {
-	tenantID, err := user.ExtractOrgID(ctx)
+	tenantID, err := validation.ExtractValidTenantIDs(ctx)
 	if err != nil {
 		return err
 	}
