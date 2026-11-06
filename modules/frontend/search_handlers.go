@@ -59,7 +59,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		tenant, _ := user.ExtractOrgID(ctx)
 		start := time.Now()
 
-		comb, err := newCombiner(req, cfg.Search.Sharder, api.MarshallingFormatProtobuf, o.LeftPadTraceIDs(tenant), inspectedBytesReporter(searchInspectedBytes, tenant))
+		comb, err := newCombiner(req, cfg.Search.Sharder, api.MarshallingFormatProtobuf, o.LeftPadTraceIDs(tenant), inspectedBytesReporter(searchInspectedBytes, searchJobInspectedBytes, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "search streaming: could not create combiner", "err", err)
 			return status.Error(codes.InvalidArgument, err.Error())
@@ -117,7 +117,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
-		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat, o.LeftPadTraceIDs(tenant), inspectedBytesReporter(searchInspectedBytes, tenant))
+		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat, o.LeftPadTraceIDs(tenant), inspectedBytesReporter(searchInspectedBytes, searchJobInspectedBytes, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "search: could not create combiner", "err", err)
 			return httpInvalidRequest(err), nil

@@ -9,9 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -391,4 +395,30 @@ func TestCanceledRequest(t *testing.T) {
 			require.Equal(t, tt.cancelledWithinSLO, cancelledWithInSLO)
 		})
 	}
+}
+
+type slosTestResponse struct{ header http.Header }
+
+func (r slosTestResponse) HTTPResponse() *http.Response { return &http.Response{Header: r.header} }
+func (r slosTestResponse) RequestData() any             { return nil }
+func (r slosTestResponse) IsMetadata() bool             { return false }
+
+func TestInspectedBytesReporter(t *testing.T) {
+	counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes_test"}, []string{"tenant"})
+	histogram := prometheus.NewHistogram(prometheus.HistogramOpts{Name: "job_inspected_bytes_test"})
+	cacheHit := slosTestResponse{header: http.Header{combiner.TempoCacheHeader: {combiner.TempoCacheHit}}}
+
+	c := combiner.NewTraceByIDMetricsCombiner(inspectedBytesReporter(counter, histogram, "tenant-a"))
+	c.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 100}, slosTestResponse{})
+	c.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 20}, slosTestResponse{})
+	c.Combine(&tempopb.TraceByIDMetrics{}, slosTestResponse{})
+	c.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 1000}, cacheHit)
+
+	// the counter has the bytes of every job, the histogram has every job
+	require.InDelta(t, 120, testutil.ToFloat64(counter.WithLabelValues("tenant-a")), 0)
+
+	var m dto.Metric
+	require.NoError(t, histogram.Write(&m))
+	require.Equal(t, uint64(3), m.GetHistogram().GetSampleCount())
+	require.InDelta(t, 120, m.GetHistogram().GetSampleSum(), 0)
 }
