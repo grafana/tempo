@@ -25,22 +25,10 @@ const (
 
 var (
 	scannedBytesLimitDerivedRange = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: metricNamespace,
-		Name:      "query_frontend_scanned_bytes_limit_derived_range_seconds",
-		Help:      "Query range the scanned bytes budget allows, before min_duration and max_duration apply, for queries within max_duration that are over the budget.",
-		Buckets: []float64{
-			time.Hour.Seconds(),
-			(6 * time.Hour).Seconds(),
-			(24 * time.Hour).Seconds(),
-			(2 * 24 * time.Hour).Seconds(),
-			(3 * 24 * time.Hour).Seconds(),
-			(5 * 24 * time.Hour).Seconds(),
-			(7 * 24 * time.Hour).Seconds(),
-			(14 * 24 * time.Hour).Seconds(),
-			(30 * 24 * time.Hour).Seconds(),
-			(60 * 24 * time.Hour).Seconds(),
-			(90 * 24 * time.Hour).Seconds(),
-		},
+		Namespace:                       metricNamespace,
+		Name:                            "query_frontend_scanned_bytes_limit_derived_range_seconds",
+		Help:                            "Query range the scanned bytes budget allows, before min_duration and max_duration apply, for queries within max_duration that are over the budget.",
+		Buckets:                         prometheus.ExponentialBuckets(time.Minute.Seconds(), 4, 10), // 1m to ~182d
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,

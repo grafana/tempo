@@ -1130,7 +1130,6 @@ query_frontend:
 
         # The maximum bytes of backend blocks a search may scan. The allowed range is the longest
         # range ending at the query end whose blocks fit, raised to min_duration and capped at max_duration.
-        # A search of min_duration or shorter is always allowed, and one longer than max_duration is always rejected.
         # Data newer than query_backend_after isn't counted. 0 disables this limit.
         [max_scanned_bytes: <int> | default = 0 ]
 
@@ -1230,7 +1229,6 @@ query_frontend:
 
         # The maximum bytes of backend blocks a metrics query may scan. The allowed range is the longest
         # range ending at the query end whose blocks fit, raised to min_duration and capped at max_duration.
-        # A metrics query of min_duration or shorter is always allowed, and one longer than max_duration is always rejected.
         # Data newer than query_backend_after isn't counted. 0 disables this limit.
         [max_scanned_bytes: <int> | default = 0 ]
 
@@ -2518,12 +2516,11 @@ overrides:
       #  in the front-end configuration is used.
       [max_search_duration: <duration> | default = 0s]
 
-      # Per-user search max_scanned_bytes. Replaces query_frontend.search.max_scanned_bytes for this tenant,
-      #  limiting the search range by the bytes of backend blocks it scans.
-      # 0 (default) uses the front-end configuration, so an override can't turn off a limit set there.
+      # Per-tenant search max_scanned_bytes. Limits the search range by the bytes of backend blocks it scans.
+      # A value of 0 (default) falls back to the value configured by query_frontend.search.max_scanned_bytes.
       [max_search_scanned_bytes: <int> | default = 0]
 
-      # Per-user search min_duration. Replaces query_frontend.search.min_duration for this tenant.
+      # Per-tenant search min_duration. Replaces query_frontend.search.min_duration for this tenant.
       #  A search of this range or shorter is always allowed, unless the tenant's max_duration is lower.
       #  Must not be above max_search_duration when both are set.
       # 0 (default) uses the front-end configuration.
@@ -2534,12 +2531,11 @@ overrides:
       #  not the post-alignment range. Queries whose entire window falls within query_end_cutoff are rejected.
       [max_metrics_duration: <duration> | default = 0s]
 
-      # Per-user metrics max_scanned_bytes. Replaces query_frontend.metrics.max_scanned_bytes for this tenant,
-      #  limiting the metrics query range by the bytes of backend blocks it scans.
-      # 0 (default) uses the front-end configuration, so an override can't turn off a limit set there.
+      # Per-tenant metrics max_scanned_bytes. Limits the metrics query range by the bytes of backend blocks it scans.
+      # A value of 0 (default) falls back to the value configured by query_frontend.metrics.max_scanned_bytes.
       [max_metrics_scanned_bytes: <int> | default = 0]
 
-      # Per-user metrics min_duration. Replaces query_frontend.metrics.min_duration for this tenant.
+      # Per-tenant metrics min_duration. Replaces query_frontend.metrics.min_duration for this tenant.
       #  A metrics query of this range or shorter is always allowed, unless the tenant's max_duration is lower.
       #  Must not be above max_metrics_duration when both are set.
       # 0 (default) uses the front-end configuration.

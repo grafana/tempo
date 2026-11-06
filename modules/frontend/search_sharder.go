@@ -285,16 +285,14 @@ var _ rangeLimiter = (*searchRangeLimiter)(nil)
 
 func newSearchRangeLimiter(cfg SearchSharderConfig, o overrides.Interface, reader tempodb.Reader, logger log.Logger) *searchRangeLimiter {
 	return &searchRangeLimiter{
-		scannedBytesLimit: scannedBytesLimit{
-			op:       searchOp,
-			kind:     "search",
-			reader:   reader,
-			filterFn: acceptAllBlocks,
-			maxErr: func(l rangeLimits, start, end time.Time) error {
-				return fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", l.maxDuration, start.Unix(), end.Unix())
-			},
-			logger: logger,
+		op:       searchOp,
+		kind:     "search",
+		reader:   reader,
+		filterFn: acceptAllBlocks,
+		maxErr: func(l rangeLimits, start, end time.Time) error {
+			return fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", l.maxDuration, start.Unix(), end.Unix())
 		},
+		logger:    logger,
 		cfg:       cfg,
 		overrides: o,
 	}

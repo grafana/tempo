@@ -55,16 +55,14 @@ var _ rangeLimiter = (*metricsRangeLimiter)(nil)
 
 func newMetricsRangeLimiter(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) *metricsRangeLimiter {
 	return &metricsRangeLimiter{
-		scannedBytesLimit: scannedBytesLimit{
-			op:       metricsOp,
-			kind:     "metrics query",
-			reader:   reader,
-			filterFn: isRF1Block,
-			maxErr: func(l rangeLimits, _, _ time.Time) error {
-				return fmt.Errorf("%w of %s", errMetricsMaxDuration, l.maxDuration)
-			},
-			logger: logger,
+		op:       metricsOp,
+		kind:     "metrics query",
+		reader:   reader,
+		filterFn: isRF1Block,
+		maxErr: func(l rangeLimits, _, _ time.Time) error {
+			return fmt.Errorf("%w of %s", errMetricsMaxDuration, l.maxDuration)
 		},
+		logger:    logger,
 		cfg:       cfg,
 		overrides: o,
 	}
@@ -81,8 +79,8 @@ func (l *metricsRangeLimiter) Limit(ctx context.Context, orgID string, start, en
 	if len(tenants) > 1 && !l.cfg.MultiTenantQueriesEnabled {
 		return nil
 	}
-	// NOTE - alignment scans up to 4 steps past this range, so a large step can exceed the budget, as with max_duration.
-	// NOTE - the sharder reads the clock again, so its cutoff is later by the handler-to-sharder latency.
+	// NOTE - AlignRequest, in the handler and again in the sharder, adds up to 3 steps before start and 1 after end,
+	// so a large step can exceed the budget, and same is with max_duration
 	cutoff := time.Now().Add(-l.cfg.Metrics.Sharder.QueryBackendAfter)
 
 	var (
