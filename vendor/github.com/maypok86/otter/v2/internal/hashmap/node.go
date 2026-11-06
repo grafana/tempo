@@ -16,13 +16,15 @@ package hashmap
 
 import "unsafe"
 
-type mapNode[K comparable, V any] interface {
-	Key() K
-	Value() V
+// mapNode is comparable so that the map can tell a missing node by comparing it with the zero
+// value of N. Every node type is a pointer or an interface holding one.
+type mapNode interface {
+	comparable
 	AsPointer() unsafe.Pointer
 }
 
-type mapNodeManager[K comparable, V any, N mapNode[K, V]] interface {
+type mapNodeManager[N mapNode] interface {
 	FromPointer(ptr unsafe.Pointer) N
-	IsNil(n N) bool
+	// KeyOffset returns the offset of the key in a node.
+	KeyOffset() uintptr
 }

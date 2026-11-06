@@ -19,6 +19,7 @@ import (
 	"math/rand/v2"
 	"runtime"
 	"time"
+	"unsafe"
 )
 
 const (
@@ -43,4 +44,23 @@ func Parallelism() uint32 {
 func Fastrand() uint32 {
 	//nolint:gosec // we don't need a cryptographically secure random number generator
 	return rand.Uint32()
+}
+
+// StackHash returns a hash of the calling goroutine's stack address.
+//
+// It stays the same while the goroutine runs and differs between goroutines that run at
+// the same time, so it can spread concurrent operations over stripes without any
+// per-goroutine state. A stack that grows is copied elsewhere and gets a new hash, which
+// only moves the goroutine to another stripe.
+func StackHash() uint32 {
+	var x byte
+	return hashStack(uintptr(unsafe.Pointer(&x)))
+}
+
+func hashStack(addr uintptr) uint32 {
+	// The bits below the minimum stack size (2 KiB) depend on the call depth rather than
+	// on the goroutine, so they are dropped. Stacks are aligned to their power-of-two
+	// size, so the addresses of neighboring stacks may differ only in their upper bits,
+	// and the hash has to mix those into the low bits that pick a stripe.
+	return uint32(hashUint64(0, uint64(addr)>>11))
 }

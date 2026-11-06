@@ -20,6 +20,10 @@ import (
 
 // ExpiryCalculator calculates when cache entries expire. A single expiration time is retained so that the lifetime
 // of an entry may be extended or reduced by subsequent evaluations.
+//
+// WARNING: Its methods may run under the lock of the entry's hash table bucket. They may only read entries
+// with [Cache.GetIfPresent], [Cache.GetEntry] or [Cache.GetEntryQuietly]. Any other call of the cache,
+// even a write of another key, may deadlock it: its locks are not reentrant.
 type ExpiryCalculator[K comparable, V any] interface {
 	// ExpireAfterCreate specifies that the entry should be automatically removed from the cache once the duration has
 	// elapsed after the entry's creation. To indicate no expiration, an entry may be given an
@@ -34,6 +38,12 @@ type ExpiryCalculator[K comparable, V any] interface {
 	// ExpireAfterRead specifies that the entry should be automatically removed from the cache once the duration has
 	// elapsed after its last read. To indicate no expiration, an entry may be given an excessively
 	// long period. The entry.ExpiresAfter() may be returned to not modify the expiration time.
+	//
+	// So that frequent reads of an entry don't write to it every time, a read that would move the
+	// expiration time by at most a second leaves it unchanged, as long as both the remaining and
+	// the returned duration are longer than a second. The entry may therefore expire up to a second
+	// earlier than the duration returned by its latest read, or up to a second later if that
+	// duration shortened its lifetime by less than a second.
 	ExpireAfterRead(entry Entry[K, V]) time.Duration
 }
 
@@ -123,7 +133,8 @@ func (a *varExpiryAccessing[K, V]) ExpireAfterRead(entry Entry[K, V]) time.Durat
 
 // ExpiryAccessing returns an [ExpiryCalculator] that specifies that the entry should be automatically deleted from
 // the cache once the duration has elapsed after the entry's creation, replacement of its value,
-// or after it was last read.
+// or after it was last read. A read may leave the expiration time up to a second off
+// (see [ExpiryCalculator]).
 func ExpiryAccessing[K comparable, V any](duration time.Duration) ExpiryCalculator[K, V] {
 	return ExpiryAccessingFunc(func(entry Entry[K, V]) time.Duration {
 		return duration
@@ -132,7 +143,8 @@ func ExpiryAccessing[K comparable, V any](duration time.Duration) ExpiryCalculat
 
 // ExpiryAccessingFunc returns an [ExpiryCalculator] that specifies that the entry should be automatically deleted from
 // the cache once the duration has elapsed after the entry's creation, replacement of its value,
-// or after it was last read.
+// or after it was last read. A read may leave the expiration time up to a second off
+// (see [ExpiryCalculator]).
 func ExpiryAccessingFunc[K comparable, V any](f func(entry Entry[K, V]) time.Duration) ExpiryCalculator[K, V] {
 	return &varExpiryAccessing[K, V]{
 		f: f,

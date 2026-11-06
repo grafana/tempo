@@ -18,8 +18,8 @@
 package lossy
 
 import (
-	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/maypok86/otter/v2/internal/generated/node"
 	"github.com/maypok86/otter/v2/internal/xruntime"
@@ -29,83 +29,82 @@ const (
 	attempts = 3
 )
 
-// pool for P tokens.
-var tokenPool sync.Pool
-
-// a P token is used to point at the current OS thread (P)
-// on which the goroutine is run; exact identity of the thread,
-// as well as P migration tolerance, is not important since
-// it's used to as a best effort mechanism for assigning
-// concurrent operations (goroutines) to different stripes of
-// the Adder.
-type token struct {
-	idx     uint32
-	padding [xruntime.CacheLineSize - 4]byte
+// striped is the table of stripes. Every Add reads it, so it is padded on both sides: otherwise
+// it would share a cache line with whatever the allocator put next to it, and a neighbor that is
+// written often would make every Add miss the cache.
+type striped struct {
+	_       [xruntime.CacheLineSize]byte
+	buffers []atomic.Pointer[ring]
+	len     int
+	_       [xruntime.CacheLineSize]byte
 }
 
-type striped[K comparable, V any] struct {
-	buffers []atomic.Pointer[ring[K, V]]
-	len     int
+// newBuffers returns the stripes of a table of length n. They are allocated with a cache line
+// of padding on each side for the same reason as the table itself.
+func newBuffers(n int) []atomic.Pointer[ring] {
+	pad := int(xruntime.CacheLineSize / unsafe.Sizeof(atomic.Pointer[ring]{}))
+	buffers := make([]atomic.Pointer[ring], n+2*pad)
+	return buffers[pad : pad+n : pad+n]
 }
 
 // Striped is a multiple-producer / single-consumer buffer that rejects new elements if it is full or
 // fails spuriously due to contention. Unlike a queue and stack, a buffer does not guarantee an
 // ordering of elements in either FIFO or LIFO order.
-type Striped[K comparable, V any] struct {
-	nodeManager *node.Manager[K, V]
-	maxLen      int
-	striped     atomic.Pointer[striped[K, V]]
-	busy        atomic.Uint32
+type Striped struct {
+	// Every Add loads the table, so the fields are padded like the table itself.
+	_       [xruntime.CacheLineSize]byte
+	kind    *node.Kind
+	maxLen  int
+	striped atomic.Pointer[striped]
+	busy    atomic.Uint32
+	_       [xruntime.CacheLineSize]byte
 }
 
-func NewStriped[K comparable, V any](maxLen int, nodeManager *node.Manager[K, V]) *Striped[K, V] {
-	return &Striped[K, V]{
-		nodeManager: nodeManager,
-		maxLen:      maxLen,
+func NewStriped(maxLen int, kind *node.Kind) *Striped {
+	return &Striped{
+		kind:   kind,
+		maxLen: maxLen,
 	}
 }
 
 // Add inserts the specified element into this buffer if it is possible to do so immediately without
 // violating capacity restrictions. The addition is allowed to fail spuriously if multiple
 // goroutines insert concurrently.
-func (s *Striped[K, V]) Add(n node.Node[K, V]) Status {
-	t, ok := tokenPool.Get().(*token)
-	if !ok {
-		t = &token{
-			idx: xruntime.Fastrand(),
-		}
-	}
-	defer tokenPool.Put(t)
+func (s *Striped) Add(n node.Node) Status {
+	// A goroutine keeps adding to the same stripe, while goroutines running at the same
+	// time mostly add to different ones.
+	h := xruntime.StackHash()
 
 	bs := s.striped.Load()
 	if bs == nil {
-		return s.expandOrRetry(n, t, true)
+		return s.expandOrRetry(n, h, true)
 	}
 
 	//nolint:gosec // len will never overflow uint32
-	buffer := bs.buffers[t.idx&uint32(bs.len-1)].Load()
+	buffer := bs.buffers[h&uint32(bs.len-1)].Load()
 	if buffer == nil {
-		return s.expandOrRetry(n, t, true)
+		return s.expandOrRetry(n, h, true)
 	}
 
 	result := buffer.add(n)
 	if result == Failed {
-		return s.expandOrRetry(n, t, false)
+		return s.expandOrRetry(n, h, false)
 	}
 
 	return result
 }
 
-func (s *Striped[K, V]) expandOrRetry(n node.Node[K, V], t *token, wasUncontended bool) Status {
+func (s *Striped) expandOrRetry(n node.Node, h uint32, wasUncontended bool) Status {
 	result := Failed
-	// True if last slot nonempty.
-	collide := true
+	// True if the CAS also failed on another stripe. It starts false, so the table grows
+	// only when the contention shows up again after a rehash, not on a single collision.
+	collide := false
 
 	for attempt := 0; attempt < attempts; attempt++ {
 		bs := s.striped.Load()
 		if bs != nil && bs.len > 0 {
 			//nolint:gosec // len will never overflow uint32
-			buffer := bs.buffers[t.idx&uint32(bs.len-1)].Load()
+			buffer := bs.buffers[h&uint32(bs.len-1)].Load()
 			//nolint:gocritic // the switch statement looks even worse here
 			if buffer == nil {
 				if s.busy.Load() == 0 && s.busy.CompareAndSwap(0, 1) {
@@ -115,9 +114,9 @@ func (s *Striped[K, V]) expandOrRetry(n node.Node[K, V], t *token, wasUncontende
 					if rs != nil && rs.len > 0 {
 						// Recheck under lock.
 						//nolint:gosec // len will never overflow uint32
-						j := t.idx & uint32(rs.len-1)
+						j := h & uint32(rs.len-1)
 						if rs.buffers[j].Load() == nil {
-							rs.buffers[j].Store(newRing(s.nodeManager, n))
+							rs.buffers[j].Store(newRing(s.kind, n))
 							created = true
 						}
 					}
@@ -147,8 +146,8 @@ func (s *Striped[K, V]) expandOrRetry(n node.Node[K, V], t *token, wasUncontende
 				} else if s.busy.Load() == 0 && s.busy.CompareAndSwap(0, 1) {
 					if s.striped.Load() == bs {
 						length := bs.len << 1
-						striped := &striped[K, V]{
-							buffers: make([]atomic.Pointer[ring[K, V]], length),
+						striped := &striped{
+							buffers: newBuffers(length),
 							len:     length,
 						}
 						for j := 0; j < bs.len; j++ {
@@ -161,15 +160,15 @@ func (s *Striped[K, V]) expandOrRetry(n node.Node[K, V], t *token, wasUncontende
 					continue
 				}
 			}
-			t.idx = xruntime.Fastrand()
+			h = xruntime.Fastrand()
 		} else if s.busy.Load() == 0 && s.striped.Load() == bs && s.busy.CompareAndSwap(0, 1) {
 			init := false
 			if s.striped.Load() == bs {
-				striped := &striped[K, V]{
-					buffers: make([]atomic.Pointer[ring[K, V]], 1),
+				striped := &striped{
+					buffers: newBuffers(1),
 					len:     1,
 				}
-				striped.buffers[0].Store(newRing(s.nodeManager, n))
+				striped.buffers[0].Store(newRing(s.kind, n))
 				s.striped.Store(striped)
 				init = true
 			}
@@ -186,7 +185,7 @@ func (s *Striped[K, V]) expandOrRetry(n node.Node[K, V], t *token, wasUncontende
 
 // DrainTo drains the buffer, sending each element to the consumer for processing. The caller must ensure
 // that a consumer has exclusive read access to the buffer.
-func (s *Striped[K, V]) DrainTo(consumer func(n node.Node[K, V])) {
+func (s *Striped) DrainTo(consumer func(n node.Node)) {
 	bs := s.striped.Load()
 	if bs == nil {
 		return
@@ -199,7 +198,7 @@ func (s *Striped[K, V]) DrainTo(consumer func(n node.Node[K, V])) {
 	}
 }
 
-func (s *Striped[K, V]) Len() int {
+func (s *Striped) Len() int {
 	result := 0
 	bs := s.striped.Load()
 	if bs == nil {
@@ -216,7 +215,7 @@ func (s *Striped[K, V]) Len() int {
 }
 
 /*
-func (s *Striped[K, V]) Clear() {
+func (s *Striped) Clear() {
 	bs := s.striped.Load()
 	if bs == nil {
 		return

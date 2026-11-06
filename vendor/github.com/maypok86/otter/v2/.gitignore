@@ -22,3 +22,6 @@
 *lint.txt
 **/bin/
 .DS_Store
+
+# agent audit reports, simulator runs and other machine-local scratch
+/.local/

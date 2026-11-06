@@ -8,161 +8,180 @@ import (
 	"unsafe"
 )
 
-// BR is a cache entry that provide the following features:
+// BR is the header of a cache entry that provide the following features:
 //
 // 1. Base
 //
 // 2. Refresh
-type BR[K comparable, V any] struct {
-	key           K
-	value         V
+//
+// A node is allocated as one of the layouts that follow the header with the key and the
+// value (BRInline...), so that a pointer to the header is a pointer to the whole node. The
+// header does not depend on the key and value types: its methods are compiled once,
+// whatever caches a program creates, and only the layouts are instantiated per cache type.
+type BR struct {
 	refreshableAt atomic.Int64
 }
 
-// NewBR creates a new BR.
-func NewBR[K comparable, V any](key K, value V, expiresAt, refreshableAt int64, weight uint32) Node[K, V] {
-	n := &BR[K, V]{
-		key:   key,
-		value: value,
-	}
-	n.refreshableAt.Store(refreshableAt)
+// BRInline is the layout of a BR, which is never updated in place.
+type BRInline[K comparable, V any] struct {
+	header BR
+	key    K
+	value  V
+}
 
+// allocBR allocates a node as the given variant's layout and returns its header; nodes
+// without state have a single layout and ignore the variant.
+func allocBR[K comparable, V any](variant uint8) unsafe.Pointer {
+	return unsafe.Pointer(new(BRInline[K, V]))
+}
+
+// layoutBR returns the offsets of the key and of the value of every variant's layout.
+func layoutBR[K comparable, V any]() (key uintptr, values [variantCount]uintptr) {
+	key = unsafe.Offsetof(BRInline[K, V]{}.key)
+	values[inlineVariant] = unsafe.Offsetof(BRInline[K, V]{}.value)
+	return key, values
+}
+
+// initBR initializes the header of a node allocated by allocBR.
+func initBR(ptr unsafe.Pointer, expiresAt, refreshableAt int64, weight uint32, variant uint8) Node {
+	n := (*BR)(ptr)
+	n.refreshableAt.Store(refreshableAt)
 	return n
 }
 
 // CastPointerToBR casts a pointer to BR.
-func CastPointerToBR[K comparable, V any](ptr unsafe.Pointer) Node[K, V] {
-	return (*BR[K, V])(ptr)
+func CastPointerToBR(ptr unsafe.Pointer) Node {
+	if ptr == nil {
+		return nil
+	}
+	return (*BR)(ptr)
 }
 
-func (n *BR[K, V]) Key() K {
-	return n.key
+var brKind = Kind{
+	fromPointer: CastPointerToBR,
+	init:        initBR,
+	newHeader:   func() unsafe.Pointer { return unsafe.Pointer(new(BR)) },
 }
 
-func (n *BR[K, V]) Value() V {
-	return n.value
-}
-
-func (n *BR[K, V]) AsPointer() unsafe.Pointer {
+func (n *BR) AsPointer() unsafe.Pointer {
 	return unsafe.Pointer(n)
 }
 
-func (n *BR[K, V]) Prev() Node[K, V] {
+func (n *BR) Prev() Node {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) SetPrev(v Node[K, V]) {
+func (n *BR) SetPrev(v Node) {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) Next() Node[K, V] {
+func (n *BR) Next() Node {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) SetNext(v Node[K, V]) {
+func (n *BR) SetNext(v Node) {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) PrevExp() Node[K, V] {
-	panic("not implemented")
-}
-
-func (n *BR[K, V]) SetPrevExp(v Node[K, V]) {
-	panic("not implemented")
-}
-
-func (n *BR[K, V]) NextExp() Node[K, V] {
-	panic("not implemented")
-}
-
-func (n *BR[K, V]) SetNextExp(v Node[K, V]) {
-	panic("not implemented")
-}
-
-func (n *BR[K, V]) HasExpired(now int64) bool {
+func (n *BR) HasExpired(now int64) bool {
 	return false
 }
 
-func (n *BR[K, V]) ExpiresAt() int64 {
+func (n *BR) ExpiresAt() int64 {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) CASExpiresAt(old, new int64) bool {
+func (n *BR) CASExpiresAt(old, new int64) bool {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) SetExpiresAt(new int64) {
+func (n *BR) SetExpiresAt(new int64) {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) RefreshableAt() int64 {
+func (n *BR) RefreshableAt() int64 {
 	return n.refreshableAt.Load()
 }
 
-func (n *BR[K, V]) CASRefreshableAt(old, new int64) bool {
+func (n *BR) CASRefreshableAt(old, new int64) bool {
 	return n.refreshableAt.CompareAndSwap(old, new)
 }
 
-func (n *BR[K, V]) SetRefreshableAt(new int64) {
+func (n *BR) SetRefreshableAt(new int64) {
 	n.refreshableAt.Store(new)
 }
 
-func (n *BR[K, V]) IsFresh(now int64) bool {
+func (n *BR) IsFresh(now int64) bool {
 	return n.IsAlive() && n.RefreshableAt() > now
 }
 
-func (n *BR[K, V]) Weight() uint32 {
+func (n *BR) Weight() uint32 {
 	return 1
 }
 
-func (n *BR[K, V]) IsAlive() bool {
+func (n *BR) SetWeight(weight uint32) {
+	panic("not implemented")
+}
+
+func (n *BR) PolicyWeight() uint32 {
+	return 1
+}
+
+func (n *BR) SetPolicyWeight(weight uint32) {
+}
+
+func (n *BR) IsAlive() bool {
 	return true
 }
 
-func (n *BR[K, V]) IsRetired() bool {
+func (n *BR) IsRetired() bool {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) Retire() {
+func (n *BR) Retire() {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) IsDead() bool {
+func (n *BR) IsDead() bool {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) Die() {
+func (n *BR) Die() {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) GetQueueType() uint8 {
+func (n *BR) GetQueueType() uint8 {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) SetQueueType(queueType uint8) {
+func (n *BR) SetQueueType(queueType uint8) {
 	panic("not implemented")
 }
 
-func (n *BR[K, V]) InWindow() bool {
+func (n *BR) InWindow() bool {
 	return n.GetQueueType() == InWindowQueue
 }
 
-func (n *BR[K, V]) MakeWindow() {
+func (n *BR) MakeWindow() {
 	n.SetQueueType(InWindowQueue)
 }
 
-func (n *BR[K, V]) InMainProbation() bool {
+func (n *BR) InMainProbation() bool {
 	return n.GetQueueType() == InMainProbationQueue
 }
 
-func (n *BR[K, V]) MakeMainProbation() {
+func (n *BR) MakeMainProbation() {
 	n.SetQueueType(InMainProbationQueue)
 }
 
-func (n *BR[K, V]) InMainProtected() bool {
+func (n *BR) InMainProtected() bool {
 	return n.GetQueueType() == InMainProtectedQueue
 }
 
-func (n *BR[K, V]) MakeMainProtected() {
+func (n *BR) MakeMainProtected() {
 	n.SetQueueType(InMainProtectedQueue)
+}
+
+func (n *BR) CanSetValue() bool {
+	return false
 }

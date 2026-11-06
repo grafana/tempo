@@ -1,3 +1,95 @@
+## 2.4.0 - 2026-10-20
+
+### 📝 Description
+
+This release is mostly about correctness. The fixes come from audits of races between loads, refreshes, writes and expiration, of how the cache handles panics and `runtime.Goexit` in user code, and of its lifecycle. A new test checks random concurrent histories of the cache for linearizability with [porcupine](https://github.com/anishathalye/porcupine). Loading and refresh are now linearizable: a load or refresh that started before a write no longer replaces the value the write stored ([comparison with other caches](https://maypok86.github.io/otter/performance/linearizability/)). Updates of live entries now happen in place, which makes them 2–19× faster depending on the value type and contention. Binaries are smaller too: a program with one cache is 3.15 MB instead of 4.41 MB, and each additional cache type adds about 160 KB instead of 350 KB.
+
+### ✨Features
+
+- Added `CoarseClock`, a `Clock` that reads the time once per resolution and can be shared by several caches. With expiration it makes `GetIfPresent` 26–57% faster ([#281](https://github.com/maypok86/otter/pull/281))
+- A `Get` or `BulkGet` that waits for another goroutine's load now follows its own context. It returns `ctx.Err()` when its context is done; the load keeps running and caches its value. If the load failed because the owner's context was done, a waiter with a live context loads the key again ([#237](https://github.com/maypok86/otter/pull/237))
+
+### 🚀 Improvements
+
+- Updates of live entries happen in place, without a new node or a write-buffer task, and values of at most one word are updated without allocating. With 12 goroutines an int update is 95% faster (399.8 → 21.1 ns) and a string update 93% faster ([#194](https://github.com/maypok86/otter/pull/194), [#195](https://github.com/maypok86/otter/pull/195), [#196](https://github.com/maypok86/otter/pull/196), [#197](https://github.com/maypok86/otter/pull/197), [#198](https://github.com/maypok86/otter/pull/198))
+- Reads with `ExpiryWriting` and `ExpiryCreating` no longer call `ExpireAfterRead` (up to 29% faster), and reads with access-based expiration don't write a deadline that moves by less than a second (37–48% faster from 4+ goroutines) ([#225](https://github.com/maypok86/otter/pull/225), [#226](https://github.com/maypok86/otter/pull/226))
+- The read buffer picks its stripe without `sync.Pool`, loses fewer reads and no longer shares cache lines with other objects. A mix of 75% reads on 8 threads is 55% faster ([#219](https://github.com/maypok86/otter/pull/219), [#236](https://github.com/maypok86/otter/pull/236))
+- The hash table hashes integer keys without `maphash` and unlinks empty overflow buckets, which saves ~34 MB per 1M entries and speeds up misses. Resizes and allocating a large `InitialCapacity` are faster too ([#211](https://github.com/maypok86/otter/pull/211), [#212](https://github.com/maypok86/otter/pull/212), [#213](https://github.com/maypok86/otter/pull/213), [#214](https://github.com/maypok86/otter/pull/214), [#224](https://github.com/maypok86/otter/pull/224))
+- Writes and evictions are faster: singleflight calls are looked up without locking, scheduling a drain doesn't allocate, and policy nodes are linked through raw pointers ([#221](https://github.com/maypok86/otter/pull/221), [#222](https://github.com/maypok86/otter/pull/222), [#246](https://github.com/maypok86/otter/pull/246), [#283](https://github.com/maypok86/otter/pull/283))
+- Write-buffer tasks are allocated instead of pooled. Inserts are up to 16% faster, but each insert, replacement or deletion now allocates 48 B ([#223](https://github.com/maypok86/otter/pull/223))
+- Node code is compiled once per program, so each additional cache type adds 154 KB to the binary instead of 476 KB ([#293](https://github.com/maypok86/otter/pull/293))
+- New benchmarks (eviction, expiration, loading, scaling), regenerated performance pages and a [comparison of the linearizability](https://maypok86.github.io/otter/performance/linearizability/) of the benchmarked caches ([#229](https://github.com/maypok86/otter/pull/229), [#238](https://github.com/maypok86/otter/pull/238), [#284](https://github.com/maypok86/otter/pull/284))
+- The documentation now says which cache methods a callback may call, what an `Executor` must not do and what `StopAllGoroutines` stops. Places where it disagreed with the code are fixed ([#258](https://github.com/maypok86/otter/pull/258), [#262](https://github.com/maypok86/otter/pull/262), [#266](https://github.com/maypok86/otter/pull/266), [#294](https://github.com/maypok86/otter/pull/294), [#295](https://github.com/maypok86/otter/pull/295))
+
+### ⚠️ Behavior changes
+
+- An `Executor` must not block the submitter. A bounded pool should run the task on the caller when it is full ([#263](https://github.com/maypok86/otter/issues/263))
+- Panics in `OnDeletion`, `OnAtomicDeletion`, the stats recorder and the logger are logged and dropped. Panics in `Compute`, the weigher and the calculators still reach the caller, but the entry is left unchanged ([#191](https://github.com/maypok86/otter/pull/191))
+- `SetExpiresAfter` and `SetRefreshableAfter` take the key's bucket lock, so calling them from `Compute*`, `OnAtomicDeletion`, a weigher or a calculator deadlocks ([#247](https://github.com/maypok86/otter/pull/247))
+- An expired entry that hasn't been removed yet is absent for every operation: `Set` returns `(value, true)`, `Invalidate` reports nothing invalidated, and a write over it is a creation (`ExpireAfterCreate`, `RefreshAfterCreate`) ([#208](https://github.com/maypok86/otter/pull/208), [#230](https://github.com/maypok86/otter/pull/230))
+- On a miss, `Get` and `BulkGet` with a context that is already done return `ctx.Err()` without calling the loader. The loader may be called more than once for one `Get` when the key is invalidated while it loads ([#288](https://github.com/maypok86/otter/pull/288), [#295](https://github.com/maypok86/otter/pull/295))
+- `BulkGet` no longer returns keys that the bulk loader leaves out, and extra keys returned by the bulk loader only fill gaps instead of overwriting values ([#202](https://github.com/maypok86/otter/pull/202), [#206](https://github.com/maypok86/otter/pull/206))
+- An expired entry removed by a write or by size eviction is reported as `CauseExpiration` and counted in `Evictions`; evictions are recorded before `OnDeletion` runs ([#235](https://github.com/maypok86/otter/pull/235), [#253](https://github.com/maypok86/otter/pull/253))
+- With access-based expiration, a deadline set by a read is accurate to within a second for lifetimes over a second ([#225](https://github.com/maypok86/otter/pull/225))
+- `OnAtomicDeletion` runs before the node is retired and may be called again for the same removal if it exits with `runtime.Goexit` ([#286](https://github.com/maypok86/otter/pull/286))
+- Iteration (`All`, `Keys`, `Values`, `Hottest`, `Coldest`) is weakly consistent rather than a snapshot ([#245](https://github.com/maypok86/otter/pull/245))
+- The cache no longer uses `runtime.AddCleanup`: the periodic clean-up goroutine holds a weak pointer and exits after the cache is collected ([#279](https://github.com/maypok86/otter/pull/279))
+- `New` panics when `InitialCapacity` is too large to allocate ([#252](https://github.com/maypok86/otter/pull/252))
+
+### 🐞 Bug Fixes
+
+Loading and refresh:
+
+- `Get` and `BulkGet` could call the loader more than once for one key ([#152](https://github.com/maypok86/otter/issues/152), [#184](https://github.com/maypok86/otter/pull/184), [#241](https://github.com/maypok86/otter/pull/241))
+- A load or a refresh could overwrite a value that `Set` or `Compute` wrote while it ran; with the default executor 970 of 1,000 `Set`s after a stale `Get` were lost ([#203](https://github.com/maypok86/otter/pull/203), [#240](https://github.com/maypok86/otter/pull/240), [#243](https://github.com/maypok86/otter/pull/243))
+- A key could be refreshed twice, a read racing `Invalidate` could bring the key back, and a `Get` that joined a discarded or failed refresh got that refresh's result instead of the key's value ([#243](https://github.com/maypok86/otter/pull/243), [#288](https://github.com/maypok86/otter/pull/288))
+- Stale reads could fill a bounded blocking executor with tasks that only waited for a refresh, and deadlock the cache ([#243](https://github.com/maypok86/otter/pull/243))
+- A refresh was dropped when an old node of its key was evicted or an expired entry was removed ([#200](https://github.com/maypok86/otter/pull/200), [#243](https://github.com/maypok86/otter/pull/243))
+- Eviction cancelled in-flight loads ([#188](https://github.com/maypok86/otter/issues/188), [#191](https://github.com/maypok86/otter/pull/191))
+- `Compute` returning `CancelOp` over an expired entry cancelled the key's in-flight load ([#210](https://github.com/maypok86/otter/pull/210))
+- `BulkGet` reported a key missing or lost the error of a load it joined when its own bulk loader also returned that key ([#288](https://github.com/maypok86/otter/pull/288))
+- A manual `Refresh` that joined a `Get` whose context was done reported that cancellation instead of loading the key ([#292](https://github.com/maypok86/otter/pull/292))
+- A nil loader or context left the key's load registered forever, so later `Get`s hung ([#257](https://github.com/maypok86/otter/pull/257))
+
+Expiration:
+
+- Durations of `math.MaxInt64` overflowed into a past deadline, so the entry expired at once and every `Get` reloaded it ([#204](https://github.com/maypok86/otter/pull/204))
+- An entry that expired while a write waited for the bucket lock was treated as live, and `SetExpiresAfter` could revive an expired entry ([#208](https://github.com/maypok86/otter/pull/208), [#249](https://github.com/maypok86/otter/pull/249))
+- `SetExpiresAfter` and `SetRefreshableAfter` were undone by a concurrent write or a failed reload ([#247](https://github.com/maypok86/otter/pull/247))
+- A deadline moved earlier by `SetExpiresAfter` could be ignored by the timer wheel until the old deadline ([#209](https://github.com/maypok86/otter/pull/209))
+- A deadline the timer wheel had already passed was put into a bucket ~6.5 days ahead ([#196](https://github.com/maypok86/otter/pull/196))
+- `RefreshCreating` reloaded a value written over an expired entry on its first read ([#230](https://github.com/maypok86/otter/pull/230))
+- `CleanUp`, `Entry.HasExpired` and `LoadCacheFrom` treated an entry as live at its exact deadline. A clock started before 1970 expired every entry at once, and one whose readings crossed zero left passed deadlines unexpired ([#234](https://github.com/maypok86/otter/pull/234), [#268](https://github.com/maypok86/otter/pull/268))
+
+Eviction and policy:
+
+- Setting a key twice before the first insert was applied left a node that was counted in the size but could never be evicted, so the cache grew without bound ([#189](https://github.com/maypok86/otter/pull/189))
+- Write-buffer tasks of one key replayed out of order left dead nodes and their weight in the policy ([#193](https://github.com/maypok86/otter/pull/193))
+- An idle cache without expiration stayed over its maximum after `Hottest`, `Coldest` or `InvalidateAll` ([#288](https://github.com/maypok86/otter/pull/288))
+- The hill climber kept a quota from the old maximum after `SetMaximum`, collapsed the window of a cache created with a small `InitialCapacity`, and counted a refresh as an access ([#260](https://github.com/maypok86/otter/pull/260), [#271](https://github.com/maypok86/otter/pull/271))
+- `ComputeIfPresent` recorded a hit and called `ExpireAfterRead` before running its function ([#271](https://github.com/maypok86/otter/pull/271))
+- An `InitialCapacity` above ~8e9 wrapped the table size to zero ([#252](https://github.com/maypok86/otter/pull/252))
+- `InvalidateAll` and iteration (including `SaveCacheTo`) skipped keys whose node was replaced meanwhile, and `Hottest`/`Coldest` merged the window and probation queues in the wrong order ([#205](https://github.com/maypok86/otter/pull/205), [#207](https://github.com/maypok86/otter/pull/207), [#245](https://github.com/maypok86/otter/pull/245))
+
+Listeners and stats:
+
+- `OnDeletion` and `OnAtomicDeletion` could get different causes for one removal ([#196](https://github.com/maypok86/otter/pull/196))
+- With a caller-runs executor, an eviction caused by a write was reported before the replacement that caused it ([#272](https://github.com/maypok86/otter/pull/272))
+- `Set` or `Compute` racing a read could report an entry as present and as expired at the same time ([#290](https://github.com/maypok86/otter/pull/290))
+- An expired entry evicted for size was reported as `CauseOverflow`, an expired entry removed by a write wasn't counted as an eviction, and a load whose result panicked wasn't counted at all ([#201](https://github.com/maypok86/otter/pull/201), [#235](https://github.com/maypok86/otter/pull/235), [#253](https://github.com/maypok86/otter/pull/253))
+
+Persistence:
+
+- `LoadCacheFrom` filled the cache in the snapshot's units instead of its own, moved restored deadlines later, recorded phantom hits, and lost its warm-up without `InitialCapacity` ([#259](https://github.com/maypok86/otter/pull/259), [#270](https://github.com/maypok86/otter/pull/270), [#274](https://github.com/maypok86/otter/pull/274))
+- `SaveCacheToFile` wasn't atomic ([#268](https://github.com/maypok86/otter/pull/268))
+
+Panics, `runtime.Goexit` and lifecycle:
+
+- A panic or `runtime.Goexit` in a callback, loader, clock, executor, logger or stats recorder could leave a bucket or the eviction lock held, waiters hanging, a write outside the policies or a refresh unreported ([#191](https://github.com/maypok86/otter/pull/191), [#264](https://github.com/maypok86/otter/pull/264), [#265](https://github.com/maypok86/otter/pull/265), [#268](https://github.com/maypok86/otter/pull/268), [#286](https://github.com/maypok86/otter/pull/286), [#287](https://github.com/maypok86/otter/pull/287), [#295](https://github.com/maypok86/otter/pull/295))
+- A cache whose callbacks referenced it was never garbage-collected, and collecting a cache created in a `testing/synctest` bubble crashed the program ([#279](https://github.com/maypok86/otter/pull/279))
+- `StopAllGoroutines` deadlocked when called from `Hottest`, `Coldest` or a `SaveCacheTo` writer; a closed `Tick` channel made the clean-up goroutine spin; the default clock leaked its ticker ([#294](https://github.com/maypok86/otter/pull/294))
+- `testing` and testify were compiled into every program that imported otter ([#185](https://github.com/maypok86/otter/issues/185), [#186](https://github.com/maypok86/otter/pull/186))
+
 ## 2.3.0 - 2025-12-22
 
 ### ✨Features
