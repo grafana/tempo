@@ -27,7 +27,6 @@ jobs:
           payload: |
             {
               "channel": ${{ toJSON(vars.TEMPO_DEV_SLACK_CHANNEL_ID) }},
-              "text": ${{ toJSON(format('PR merged: {0}', github.event.pull_request.title)) }},
               "blocks": [
                 {
                   "type": "header",
