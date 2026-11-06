@@ -12,6 +12,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,6 +45,13 @@ type taskEntry struct {
 	cancelFunc context.CancelFunc // Function to cancel the task
 	done       chan struct{}      // Channel to signal task completion
 	completed  bool               // Whether the task has been completed (guards done channel closure)
+	// createdHookDone, under tasksMu, says the created hook has returned;
+	// until then the hook of a completion or cancellation waits in
+	// pendingHooks, which createTask runs after the created hook. A task's
+	// hooks so keep their order with no lock held across hook code: a hook
+	// that cancels its own task does not wait for itself.
+	createdHookDone bool
+	pendingHooks    []func()
 }
 
 // ServerOption is a function that configures an MCPServer.
@@ -161,6 +169,10 @@ type requestError struct {
 	id   any
 	code int
 	err  error
+	// message, when set, is sent instead of err.Error().
+	message *string
+	// data, when set, is sent as the data member of the JSON-RPC error.
+	data any
 }
 
 func (e *requestError) Error() string {
@@ -168,10 +180,14 @@ func (e *requestError) Error() string {
 }
 
 func (e *requestError) ToJSONRPCError() mcp.JSONRPCError {
+	message := e.err.Error()
+	if e.message != nil {
+		message = *e.message
+	}
 	return mcp.JSONRPCError{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      mcp.NewRequestId(e.id),
-		Error:   mcp.NewJSONRPCErrorDetails(e.code, e.err.Error(), nil),
+		Error:   mcp.NewJSONRPCErrorDetails(e.code, message, e.data),
 	}
 }
 
@@ -198,6 +214,9 @@ type MCPServer struct {
 	promptFiltersMu        sync.RWMutex
 	tasksMu                sync.RWMutex
 
+	// Test-only checkpoint configured before the server is used concurrently.
+	beforeCapabilityRegistration func()
+
 	name                       string
 	version                    string
 	implementation             mcp.Implementation
@@ -217,28 +236,108 @@ type MCPServer struct {
 	promptCompletionProvider   PromptCompletionProvider
 	resourceCompletionProvider ResourceCompletionProvider
 	capabilities               serverCapabilities
-	paginationLimit            *int
-	sessions                   sync.Map
-	hooks                      *Hooks
-	taskHooks                  *TaskHooks
-	tasks                      map[string]*taskEntry
-	expiredTasks               map[string]time.Time // Tracks recently expired task IDs with expiration timestamp
-	maxConcurrentTasks         *int                 // Optional limit on concurrent running tasks
-	activeTasks                int                  // Current count of running (non-terminal) tasks
-	inflightCancels            sync.Map             // Maps request ID -> context.CancelFunc for in-flight requests
-	inputValidator             *inputSchemaValidator
-	outputValidator            *outputSchemaValidator
-	strictInputSchemaDefault   bool
-	tracer                     tracing.Tracer
-	propagator                 tracing.Propagator
-	metaPropagator             tracing.MetaPropagator
-	requestLogger              *slog.Logger
+	cacheHints                 map[mcp.MCPMethod]cacheHints
+	// toolHeaderBindings holds each registered tool's x-mcp-header bindings,
+	// extracted once at registration so a tools/call never re-reads the input
+	// schema. Keyed like tools and taskTools and kept in step with them under
+	// toolsMu; session tools are not cached here.
+	toolHeaderBindings map[string][]mcp.ParamHeaderBinding
+	// allowServerInitiatedRequests keeps RequestSampling, RequestElicitation,
+	// and RequestRoots usable against clients speaking protocol version
+	// 2026-07-28 or later. See WithLegacyServerInitiatedRequests.
+	allowServerInitiatedRequests bool
+	paginationLimit              *int
+	toolResultSizeLimit          int
+	sessions                     sync.Map
+	listenSessions               sync.Map // see registerListenSession
+	hooks                        *Hooks
+	taskHooks                    *TaskHooks
+	tasks                        map[string]*taskEntry
+	expiredTasks                 map[string]time.Time // Tracks recently expired task IDs with expiration timestamp
+	maxConcurrentTasks           *int                 // Optional limit on concurrent running tasks
+	activeTasks                  int                  // Current count of running (non-terminal) tasks
+	inflightCancels              sync.Map             // Maps request ID -> context.CancelFunc for in-flight requests
+	inputValidator               *inputSchemaValidator
+	outputValidator              *outputSchemaValidator
+	strictInputSchemaDefault     bool
+	tracer                       tracing.Tracer
+	propagator                   tracing.Propagator
+	metaPropagator               tracing.MetaPropagator
+	requestLogger                *slog.Logger
 }
 
-// WithPaginationLimit sets the pagination limit for the server.
+// WithCacheHints sets the default SEP-2549 caching hints advertised on
+// tools/list, prompts/list, resources/list, resources/templates/list,
+// resources/read, and server/discover results.
+//
+// ttlMs is a freshness hint in milliseconds: clients may reuse a cached
+// response for that long before re-fetching. Zero, the default, asks clients
+// to revalidate every time. scope controls whether shared intermediaries may
+// cache the response across authorization contexts.
+//
+// The hints are only emitted to clients using protocol version 2026-07-28 or
+// later, which is where the fields were introduced.
+func WithCacheHints(ttlMs int64, scope mcp.CacheScope) ServerOption {
+	return func(s *MCPServer) {
+		s.capabilitiesMu.Lock()
+		defer s.capabilitiesMu.Unlock()
+		if s.cacheHints == nil {
+			s.cacheHints = make(map[mcp.MCPMethod]cacheHints)
+		}
+		s.cacheHints[""] = cacheHints{ttlMs: ttlMs, scope: scope}
+	}
+}
+
+// WithMethodCacheHints sets the SEP-2549 caching hints advertised on the
+// result of a single method, overriding any default set by [WithCacheHints].
+func WithMethodCacheHints(method mcp.MCPMethod, ttlMs int64, scope mcp.CacheScope) ServerOption {
+	return func(s *MCPServer) {
+		s.capabilitiesMu.Lock()
+		defer s.capabilitiesMu.Unlock()
+		if s.cacheHints == nil {
+			s.cacheHints = make(map[mcp.MCPMethod]cacheHints)
+		}
+		s.cacheHints[method] = cacheHints{ttlMs: ttlMs, scope: scope}
+	}
+}
+
+// WithLegacyServerInitiatedRequests keeps [MCPServer.RequestSampling],
+// [MCPServer.RequestElicitation], and [MCPServer.RequestRoots] usable against
+// clients speaking protocol version 2026-07-28 or later.
+//
+// That revision replaced server-initiated requests with multi round-trip
+// requests (SEP-2322), so by default those methods return
+// [ErrServerInitiatedRequestUnsupported] rather than sending a request the
+// client is not obliged to answer. Enabling this option restores the old
+// behaviour, which still works over genuinely bidirectional transports such as
+// stdio and in-process, but not over stateless Streamable HTTP.
+//
+// Deprecated: server-initiated requests were removed in protocol version
+// 2026-07-28 (SEP-2322). Prefer [InputRequestBuilder], which produces handlers
+// that work against clients of either protocol era. This option exists to ease
+// migration and will be removed once the deprecation window closes.
+func WithLegacyServerInitiatedRequests() ServerOption {
+	return func(s *MCPServer) {
+		s.allowServerInitiatedRequests = true
+	}
+}
+
+// WithPaginationLimit sets the maximum page size for list results.
+// Zero and negative limits leave the list unpaged.
 func WithPaginationLimit(limit int) ServerOption {
 	return func(s *MCPServer) {
 		s.paginationLimit = &limit
+	}
+}
+
+// WithToolResultSizeLimit replaces a tool result whose JSON encoding is
+// larger than maxBytes with an error result. The oversized payload is not
+// sent. The same check runs for a synchronous call and for both task
+// execution paths, before the result is stored. Zero and negative limits
+// disable the check.
+func WithToolResultSizeLimit(maxBytes int) ServerOption {
+	return func(s *MCPServer) {
+		s.toolResultSizeLimit = maxBytes
 	}
 }
 
@@ -254,6 +353,7 @@ type serverCapabilities struct {
 	tasks        *taskCapabilities
 	completions  *bool
 	experimental map[string]any
+	extensions   map[string]any
 }
 
 // resourceCapabilities defines the supported resource-related features
@@ -598,6 +698,24 @@ func WithExperimental(experimental map[string]any) ServerOption {
 	}
 }
 
+// WithExtensions advertises support for optional MCP extensions beyond the
+// core protocol, as a map of extension identifier to that extension's settings
+// object. An empty object means the extension is supported with no additional
+// settings.
+//
+// Extension identifiers follow the _meta key naming rules, so they carry a
+// mandatory prefix - for example "io.modelcontextprotocol/tasks" for the Tasks
+// extension, or "io.modelcontextprotocol/ui" for MCP Apps.
+//
+// Extensions were formalized in protocol version 2026-07-28. When one party
+// supports an extension and the other does not, the supporting party must
+// either fall back to core protocol behaviour or reject the request.
+func WithExtensions(extensions map[string]any) ServerOption {
+	return func(s *MCPServer) {
+		s.capabilities.extensions = extensions
+	}
+}
+
 // WithIcons sets the server icons for the implementation metadata returned
 // during initialization. The icons slice and nested Sizes fields are defensively
 // copied to prevent external mutation.
@@ -648,6 +766,7 @@ func NewMCPServer(
 		promptHandlers:             make(map[string]PromptHandlerFunc),
 		tools:                      make(map[string]ServerTool),
 		taskTools:                  make(map[string]ServerTaskTool),
+		toolHeaderBindings:         make(map[string][]mcp.ParamHeaderBinding),
 		toolHandlerMiddlewares:     make([]ToolHandlerMiddleware, 0),
 		resourceHandlerMiddlewares: make([]ResourceHandlerMiddleware, 0),
 		promptHandlerMiddlewares:   make([]PromptHandlerMiddleware, 0),
@@ -707,10 +826,16 @@ func (s *MCPServer) AddResources(resources ...ServerResource) {
 
 // SetResources replaces all existing resources with the provided list
 func (s *MCPServer) SetResources(resources ...ServerResource) {
+	s.implicitlyRegisterResourceCapabilities()
 	s.resourcesMu.Lock()
 	s.resources = make(map[string]resourceEntry, len(resources))
+	for _, item := range resources {
+		s.resources[item.Resource.URI] = resourceEntry{resource: item.Resource, handler: item.Handler}
+	}
 	s.resourcesMu.Unlock()
-	s.AddResources(resources...)
+	if s.capabilities.resources.listChanged {
+		s.SendNotificationToAllClients(mcp.MethodNotificationResourcesListChanged, nil)
+	}
 }
 
 // AddResource registers a new resource and its handler
@@ -793,10 +918,16 @@ func (s *MCPServer) AddResourceTemplates(resourceTemplates ...ServerResourceTemp
 
 // SetResourceTemplates replaces all existing resource templates with the provided list
 func (s *MCPServer) SetResourceTemplates(templates ...ServerResourceTemplate) {
+	s.implicitlyRegisterResourceCapabilities()
 	s.resourcesMu.Lock()
 	s.resourceTemplates = make(map[string]resourceTemplateEntry, len(templates))
+	for _, item := range templates {
+		s.resourceTemplates[item.Template.URITemplate.Raw()] = resourceTemplateEntry{template: item.Template, handler: item.Handler}
+	}
 	s.resourcesMu.Unlock()
-	s.AddResourceTemplates(templates...)
+	if s.capabilities.resources.listChanged {
+		s.SendNotificationToAllClients(mcp.MethodNotificationResourcesListChanged, nil)
+	}
 }
 
 // AddResourceTemplate registers a new resource template and its handler
@@ -832,11 +963,18 @@ func (s *MCPServer) AddPrompt(prompt mcp.Prompt, handler PromptHandlerFunc) {
 
 // SetPrompts replaces all existing prompts with the provided list
 func (s *MCPServer) SetPrompts(prompts ...ServerPrompt) {
+	s.implicitlyRegisterPromptCapabilities()
 	s.promptsMu.Lock()
 	s.prompts = make(map[string]mcp.Prompt, len(prompts))
 	s.promptHandlers = make(map[string]PromptHandlerFunc, len(prompts))
+	for _, item := range prompts {
+		s.prompts[item.Prompt.Name] = item.Prompt
+		s.promptHandlers[item.Prompt.Name] = item.Handler
+	}
 	s.promptsMu.Unlock()
-	s.AddPrompts(prompts...)
+	if s.capabilities.prompts.listChanged {
+		s.SendNotificationToAllClients(mcp.MethodNotificationPromptsListChanged, nil)
+	}
 }
 
 // DeletePrompts removes prompts from the server
@@ -894,6 +1032,16 @@ func (s *MCPServer) applyStrictInputSchemaDefault(tool *mcp.Tool) {
 	tool.InputSchema.AdditionalProperties = false
 }
 
+// validateToolHeaderAnnotations rejects a tool definition whose x-mcp-header
+// annotations violate the SEP-2243 constraints, rather than emitting headers
+// that gateways cannot route on. Servers MUST refuse such definitions.
+func validateToolHeaderAnnotations(tool *mcp.Tool) error {
+	if err := mcp.ValidateParamHeaderAnnotations(tool); err != nil {
+		return fmt.Errorf("tool %q has invalid x-mcp-header annotations: %w", tool.Name, err)
+	}
+	return nil
+}
+
 // AddTool registers a new tool and its handler
 func (s *MCPServer) AddTool(tool mcp.Tool, handler ToolHandlerFunc) {
 	s.AddTools(ServerTool{Tool: tool, Handler: handler})
@@ -929,6 +1077,9 @@ func (s *MCPServer) implicitlyRegisterPromptCapabilities() {
 }
 
 func (s *MCPServer) implicitlyRegisterCapabilities(check func() bool, register func()) {
+	if s.beforeCapabilityRegistration != nil {
+		s.beforeCapabilityRegistration()
+	}
 	s.capabilitiesMu.RLock()
 	if check() {
 		s.capabilitiesMu.RUnlock()
@@ -948,6 +1099,9 @@ func (s *MCPServer) AddTools(tools ...ServerTool) {
 	s.implicitlyRegisterToolCapabilities()
 
 	s.toolsMu.Lock()
+	// Stage the whole batch before touching the registry so a rejected entry
+	// leaves earlier ones unregistered as well.
+	staged := make(map[string]ServerTool, len(tools))
 	for _, entry := range tools {
 		name := entry.Tool.Name
 		// Check for collision with task tools
@@ -956,7 +1110,15 @@ func (s *MCPServer) AddTools(tools ...ServerTool) {
 			panic(fmt.Sprintf("tool name '%s' already registered as task tool", name))
 		}
 		s.applyStrictInputSchemaDefault(&entry.Tool)
-		s.tools[name] = entry
+		if err := validateToolHeaderAnnotations(&entry.Tool); err != nil {
+			s.toolsMu.Unlock()
+			panic(err.Error())
+		}
+		staged[name] = entry
+	}
+	maps.Copy(s.tools, staged)
+	for name, entry := range staged {
+		s.toolHeaderBindings[name] = mcp.ExtractParamHeaderBindings(&entry.Tool)
 	}
 	s.toolsMu.Unlock()
 
@@ -972,6 +1134,7 @@ func (s *MCPServer) AddTaskTools(taskTools ...ServerTaskTool) {
 	s.implicitlyRegisterToolCapabilities()
 
 	s.toolsMu.Lock()
+	staged := make(map[string]ServerTaskTool, len(taskTools))
 	for _, entry := range taskTools {
 		name := entry.Tool.Name
 		// Check for collision with regular tools
@@ -980,7 +1143,15 @@ func (s *MCPServer) AddTaskTools(taskTools ...ServerTaskTool) {
 			panic(fmt.Sprintf("task tool name '%s' already registered as regular tool", name))
 		}
 		s.applyStrictInputSchemaDefault(&entry.Tool)
-		s.taskTools[name] = entry
+		if err := validateToolHeaderAnnotations(&entry.Tool); err != nil {
+			s.toolsMu.Unlock()
+			panic(err.Error())
+		}
+		staged[name] = entry
+	}
+	maps.Copy(s.taskTools, staged)
+	for name, entry := range staged {
+		s.toolHeaderBindings[name] = mcp.ExtractParamHeaderBindings(&entry.Tool)
 	}
 	s.toolsMu.Unlock()
 
@@ -1005,9 +1176,19 @@ func (s *MCPServer) SetTools(tools ...ServerTool) {
 			panic(fmt.Sprintf("tool name '%s' already registered as task tool", name))
 		}
 		s.applyStrictInputSchemaDefault(&entry.Tool)
+		if err := validateToolHeaderAnnotations(&entry.Tool); err != nil {
+			s.toolsMu.Unlock()
+			panic(err.Error())
+		}
 		newTools[name] = entry
 	}
+	for name := range s.tools {
+		delete(s.toolHeaderBindings, name)
+	}
 	s.tools = newTools
+	for name, entry := range newTools {
+		s.toolHeaderBindings[name] = mcp.ExtractParamHeaderBindings(&entry.Tool)
+	}
 	s.toolsMu.Unlock()
 	s.inputValidator.invalidateAll()
 	s.outputValidator.invalidateAll()
@@ -1053,6 +1234,7 @@ func (s *MCPServer) DeleteTools(names ...string) {
 	for _, name := range names {
 		if _, ok := s.tools[name]; ok {
 			delete(s.tools, name)
+			delete(s.toolHeaderBindings, name)
 			exists = true
 		}
 	}
@@ -1081,11 +1263,16 @@ func (s *MCPServer) AddNotificationHandler(
 	s.notificationHandlers[method] = handler
 }
 
-func (s *MCPServer) handleInitialize(
-	ctx context.Context,
-	_ any,
-	request mcp.InitializeRequest,
-) (*mcp.InitializeResult, *requestError) {
+// serverCapabilities builds the capability set advertised by this server.
+// It is shared by the legacy initialize handshake and the modern
+// server/discover RPC.
+func (s *MCPServer) serverCapabilitiesSnapshot() mcp.ServerCapabilities {
+	// Capabilities are registered at runtime - AddTool implicitly enables the
+	// tools capability, for example - so reads must be synchronized against
+	// those writers.
+	s.capabilitiesMu.RLock()
+	defer s.capabilitiesMu.RUnlock()
+
 	capabilities := mcp.ServerCapabilities{}
 
 	// Only add resource capabilities if they're configured
@@ -1166,18 +1353,37 @@ func (s *MCPServer) handleInitialize(
 		capabilities.Experimental = s.capabilities.experimental
 	}
 
+	if s.capabilities.extensions != nil {
+		capabilities.Extensions = s.capabilities.extensions
+	}
+
+	return capabilities
+}
+
+// serverImplementation returns the identity this server reports to clients.
+func (s *MCPServer) serverImplementation() mcp.Implementation {
+	return mcp.Implementation{
+		Name:        s.name,
+		Version:     s.version,
+		Title:       s.implementation.Title,
+		Description: s.implementation.Description,
+		WebsiteURL:  s.implementation.WebsiteURL,
+		Icons:       s.implementation.Icons,
+	}
+}
+
+func (s *MCPServer) handleInitialize(
+	ctx context.Context,
+	_ any,
+	request mcp.InitializeRequest,
+) (*mcp.InitializeResult, *requestError) {
+	capabilities := s.serverCapabilitiesSnapshot()
+
 	result := mcp.InitializeResult{
 		ProtocolVersion: s.protocolVersion(request.Params.ProtocolVersion),
-		ServerInfo: mcp.Implementation{
-			Name:        s.name,
-			Version:     s.version,
-			Title:       s.implementation.Title,
-			Description: s.implementation.Description,
-			WebsiteURL:  s.implementation.WebsiteURL,
-			Icons:       s.implementation.Icons,
-		},
-		Capabilities: capabilities,
-		Instructions: s.instructions,
+		ServerInfo:      s.serverImplementation(),
+		Capabilities:    capabilities,
+		Instructions:    s.instructions,
 	}
 
 	if session := ClientSessionFromContext(ctx); session != nil {
@@ -1188,25 +1394,22 @@ func (s *MCPServer) handleInitialize(
 			sessionWithClientInfo.SetClientInfo(request.Params.ClientInfo)
 			sessionWithClientInfo.SetClientCapabilities(request.Params.Capabilities)
 		}
+		if versioned, ok := session.(sessionProtocolVersionSetter); ok {
+			versioned.SetProtocolVersion(result.ProtocolVersion)
+		}
 	}
 
 	return &result, nil
 }
 
+// protocolVersion returns the protocol version to report in an
+// InitializeResult, given the version the client requested.
+//
+// The initialize handshake was removed in protocol version 2026-07-28, so the
+// negotiated version is always capped at [mcp.LATEST_LEGACY_PROTOCOL_VERSION].
+// Clients reach the modern, stateless protocol via server/discover instead.
 func (s *MCPServer) protocolVersion(clientVersion string) string {
-	// For backwards compatibility, if the server does not receive an MCP-Protocol-Version header,
-	// and has no other way to identify the version - for example, by relying on the protocol version negotiated
-	// during initialization - the server SHOULD assume protocol version 2025-03-26
-	// https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#protocol-version-header
-	if len(clientVersion) == 0 {
-		clientVersion = "2025-03-26"
-	}
-
-	if slices.Contains(mcp.ValidProtocolVersions, clientVersion) {
-		return clientVersion
-	}
-
-	return mcp.LATEST_PROTOCOL_VERSION
+	return mcp.NegotiateLegacyVersion(clientVersion)
 }
 
 func (s *MCPServer) handlePing(
@@ -1251,7 +1454,7 @@ func (s *MCPServer) handleSubscribe(
 			if err := subs.SubscribeToResourceErr(request.Params.URI); err != nil {
 				return nil, &requestError{
 					id:   id,
-					code: mcp.RESOURCE_NOT_FOUND,
+					code: resourceNotFoundCode(ctx),
 					err:  err,
 				}
 			}
@@ -1340,6 +1543,8 @@ func (s *MCPServer) handleSetLevel(
 	return &mcp.EmptyResult{}, nil
 }
 
+// listByPagination returns the page of allElements that follows cursor.
+// allElements must be sorted by name, then by pageTieBreak.
 func listByPagination[T mcp.Named](
 	_ context.Context,
 	s *MCPServer,
@@ -1348,32 +1553,89 @@ func listByPagination[T mcp.Named](
 ) ([]T, mcp.Cursor, error) {
 	startPos := 0
 	if cursor != "" {
-		c, err := base64.StdEncoding.DecodeString(string(cursor))
+		encodedName, encodedTieBreak, hasTieBreak := strings.Cut(string(cursor), ".")
+		c, err := base64.StdEncoding.DecodeString(encodedName)
 		if err != nil {
 			return nil, "", err
 		}
-		cString := string(c)
-		startPos = sort.Search(len(allElements), func(i int) bool {
-			return allElements[i].GetName() > cString
-		})
+		name := string(c)
+		if !hasTieBreak {
+			// Legacy cursors identify only a name. Preserve their continuation
+			// after the whole name group instead of restarting at its first URI.
+			startPos = sort.Search(len(allElements), func(i int) bool {
+				return allElements[i].GetName() > name
+			})
+		} else {
+			t, err := base64.StdEncoding.DecodeString(encodedTieBreak)
+			if err != nil {
+				return nil, "", err
+			}
+			tieBreak := string(t)
+			startPos = sort.Search(len(allElements), func(i int) bool {
+				return comparePageKey(&allElements[i], name, tieBreak) > 0
+			})
+		}
 	}
 	endPos := len(allElements)
-	if s.paginationLimit != nil {
-		if len(allElements) > startPos+*s.paginationLimit {
+	if s.paginationLimit != nil && *s.paginationLimit > 0 {
+		if len(allElements)-startPos > *s.paginationLimit {
 			endPos = startPos + *s.paginationLimit
 		}
 	}
 	elementsToReturn := allElements[startPos:endPos]
+	// Every list result holds its items in a required array. allElements can
+	// be nil: the resource and task lists start out that way, and a filter
+	// that hides every item may return nil. A nil slice would go out as null.
+	if elementsToReturn == nil {
+		elementsToReturn = []T{}
+	}
 	// set the next cursor
 	nextCursor := func() mcp.Cursor {
-		if s.paginationLimit != nil && len(elementsToReturn) >= *s.paginationLimit {
-			nc := elementsToReturn[len(elementsToReturn)-1].GetName()
-			toString := base64.StdEncoding.EncodeToString([]byte(nc))
-			return mcp.Cursor(toString)
+		if s.paginationLimit != nil && *s.paginationLimit > 0 && len(elementsToReturn) >= *s.paginationLimit {
+			return encodePageCursor(&elementsToReturn[len(elementsToReturn)-1])
 		}
 		return ""
 	}()
 	return elementsToReturn, nextCursor, nil
+}
+
+// pageTieBreak orders list elements that share a name. Tool, prompt and task
+// names are unique, but resource and resource template names need not be, so
+// those are ordered by URI or URI template within a name. Without it, the
+// cursor could not say where among equally named elements a page ended, and
+// the rest of them would be skipped.
+func pageTieBreak[T mcp.Named](element *T) string {
+	switch e := any(element).(type) {
+	case *mcp.Resource:
+		return e.URI
+	case *mcp.ResourceTemplate:
+		if e.URITemplate != nil {
+			return e.URITemplate.Raw()
+		}
+	}
+	return ""
+}
+
+// comparePageKey compares element with the position given by a name and a
+// tie-break. The tie-break is only looked at when the names are equal.
+func comparePageKey[T mcp.Named](element *T, name, tieBreak string) int {
+	if c := cmp.Compare((*element).GetName(), name); c != 0 {
+		return c
+	}
+	return cmp.Compare(pageTieBreak(element), tieBreak)
+}
+
+// encodePageCursor returns the cursor for the page after element: the base64
+// of its name, followed for resources and templates by a dot and the base64 of
+// their URI, even when empty. The dot distinguishes composite cursors from
+// legacy name-only cursors and is outside the base64 alphabet.
+func encodePageCursor[T mcp.Named](element *T) mcp.Cursor {
+	cursor := base64.StdEncoding.EncodeToString([]byte((*element).GetName()))
+	switch any(element).(type) {
+	case *mcp.Resource, *mcp.ResourceTemplate:
+		cursor += "." + base64.StdEncoding.EncodeToString([]byte(pageTieBreak(element)))
+	}
+	return mcp.Cursor(cursor)
 }
 
 func (s *MCPServer) handleListResources(
@@ -1401,9 +1663,12 @@ func (s *MCPServer) handleListResources(
 		}
 	}
 
-	// Sort the resources by name
+	// Sort the resources by name, then URI
 	resourcesList := slices.SortedFunc(maps.Values(resourceMap), func(a, b mcp.Resource) int {
-		return cmp.Compare(a.Name, b.Name)
+		if c := cmp.Compare(a.Name, b.Name); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.URI, b.URI)
 	})
 
 	// Apply pagination
@@ -1419,10 +1684,6 @@ func (s *MCPServer) handleListResources(
 			code: mcp.INVALID_PARAMS,
 			err:  err,
 		}
-	}
-
-	if resourcesToReturn == nil {
-		resourcesToReturn = []mcp.Resource{}
 	}
 
 	result := mcp.ListResourcesResult{
@@ -1468,7 +1729,10 @@ func (s *MCPServer) handleListResourceTemplates(
 	}
 
 	sort.Slice(templates, func(i, j int) bool {
-		return templates[i].Name < templates[j].Name
+		if c := strings.Compare(templates[i].Name, templates[j].Name); c != 0 {
+			return c < 0
+		}
+		return pageTieBreak(&templates[i]) < pageTieBreak(&templates[j])
 	})
 	templatesToReturn, nextCursor, err := listByPagination(
 		ctx,
@@ -1533,20 +1797,16 @@ func (s *MCPServer) handleReadResource(
 		s.resourceMiddlewareMu.RLock()
 		mw := s.resourceHandlerMiddlewares
 		// Apply middlewares in reverse order
-		for i := len(mw) - 1; i >= 0; i-- {
-			finalHandler = mw[i](finalHandler)
+		for _, m := range slices.Backward(mw) {
+			finalHandler = m(finalHandler)
 		}
 		s.resourceMiddlewareMu.RUnlock()
 
 		contents, err := finalHandler(ctx, request)
 		if err != nil {
-			return nil, &requestError{
-				id:   id,
-				code: mcp.INTERNAL_ERROR,
-				err:  err,
-			}
+			return nil, handlerError(ctx, id, err)
 		}
-		return &mcp.ReadResourceResult{Contents: contents}, nil
+		return readResourceResult(contents), nil
 	}
 
 	// If no direct handler found, try matching against templates
@@ -1605,30 +1865,36 @@ func (s *MCPServer) handleReadResource(
 		finalHandler := ResourceHandlerFunc(matchedHandler)
 		mw := s.resourceHandlerMiddlewares
 		// Apply middlewares in reverse order
-		for i := len(mw) - 1; i >= 0; i-- {
-			finalHandler = mw[i](finalHandler)
+		for _, m := range slices.Backward(mw) {
+			finalHandler = m(finalHandler)
 		}
 		s.resourceMiddlewareMu.RUnlock()
 		contents, err := finalHandler(ctx, request)
 		if err != nil {
-			return nil, &requestError{
-				id:   id,
-				code: mcp.INTERNAL_ERROR,
-				err:  err,
-			}
+			return nil, handlerError(ctx, id, err)
 		}
-		return &mcp.ReadResourceResult{Contents: contents}, nil
+		return readResourceResult(contents), nil
 	}
 
 	return nil, &requestError{
 		id:   id,
-		code: mcp.RESOURCE_NOT_FOUND,
+		code: resourceNotFoundCode(ctx),
 		err: fmt.Errorf(
 			"handler not found for resource URI '%s': %w",
 			request.Params.URI,
 			ErrResourceNotFound,
 		),
 	}
+}
+
+// readResourceResult wraps the contents a resource handler returned. contents
+// is a required array, so a handler that found nothing still sends [] rather
+// than null.
+func readResourceResult(contents []mcp.ResourceContents) *mcp.ReadResourceResult {
+	if contents == nil {
+		contents = []mcp.ResourceContents{}
+	}
+	return &mcp.ReadResourceResult{Contents: contents}
 }
 
 // matchesTemplate checks if a URI matches a URI template pattern
@@ -1752,17 +2018,45 @@ func (s *MCPServer) handleGetPrompt(
 	mw := s.promptHandlerMiddlewares
 
 	// Apply middlewares in reverse order
-	for i := len(mw) - 1; i >= 0; i-- {
-		finalHandler = mw[i](finalHandler)
+	for _, m := range slices.Backward(mw) {
+		finalHandler = m(finalHandler)
 	}
 	s.promptMiddlewareMu.RUnlock()
 
 	result, err := finalHandler(ctx, request)
 	if err != nil {
+		return nil, handlerError(ctx, id, err)
+	}
+
+	// Bridge a handler asking for more input to clients that predate the
+	// multi round-trip pattern (SEP-2322).
+	result, err = resolveMultiRoundTrip(ctx, s, result, getPromptResultNeedsInput,
+		func(ctx context.Context, roundTrip mcp.MultiRoundTripParams) (*mcp.GetPromptResult, error) {
+			retried := request
+			retried.Params.MultiRoundTripParams = roundTrip
+			return finalHandler(ctx, retried)
+		})
+	if err != nil {
+		return nil, handlerError(ctx, id, err)
+	}
+
+	// messages is a required array, so a prompt with no messages still sends
+	// [] rather than null. A result asking for input has no messages yet. The
+	// handler's result is copied rather than modified, as it may be shared.
+	if result != nil && result.Messages == nil && !result.NeedsInput() {
+		withMessages := *result
+		withMessages.Messages = []mcp.PromptMessage{}
+		result = &withMessages
+	}
+
+	// A handler that returns neither a result nor an error, on the first call
+	// or on a retry, must still produce a response. The dispatcher would
+	// otherwise dereference the nil result and panic.
+	if result == nil {
 		return nil, &requestError{
 			id:   id,
 			code: mcp.INTERNAL_ERROR,
-			err:  err,
+			err:  noResultError("prompt", request.Params.Name),
 		}
 	}
 
@@ -2005,20 +2299,42 @@ func (s *MCPServer) handleToolCall(
 	finalHandler := tool.Handler
 
 	s.toolMiddlewareMu.RLock()
-	mw := s.toolHandlerMiddlewares
+	mw := slices.Clone(s.toolHandlerMiddlewares)
+	s.toolMiddlewareMu.RUnlock()
 
 	// Apply middlewares in reverse order
-	for i := len(mw) - 1; i >= 0; i-- {
-		finalHandler = mw[i](finalHandler)
+	for _, m := range slices.Backward(mw) {
+		finalHandler = m(finalHandler)
 	}
-	s.toolMiddlewareMu.RUnlock()
 
 	result, err := finalHandler(ctx, request)
 	if err != nil {
+		return nil, handlerError(ctx, id, err)
+	}
+
+	// A handler may ask the client for more input before it can finish
+	// (SEP-2322). Clients using protocol version 2026-07-28 or later receive
+	// the request and retry; for older clients the requests are fulfilled here
+	// with the server-initiated calls they understand, and the handler is
+	// re-invoked with the answers.
+	result, err = resolveMultiRoundTrip(ctx, s, result, callToolResultNeedsInput,
+		func(ctx context.Context, roundTrip mcp.MultiRoundTripParams) (*mcp.CallToolResult, error) {
+			retried := request
+			retried.Params.MultiRoundTripParams = roundTrip
+			return finalHandler(ctx, retried)
+		})
+	if err != nil {
+		return nil, handlerError(ctx, id, err)
+	}
+
+	// Without this check a handler that returns neither a result nor an
+	// error, on the first call or on a retry, would be answered with a null
+	// result, which no client accepts.
+	if result == nil {
 		return nil, &requestError{
 			id:   id,
 			code: mcp.INTERNAL_ERROR,
-			err:  err,
+			err:  noResultError("tool", request.Params.Name),
 		}
 	}
 
@@ -2033,7 +2349,22 @@ func (s *MCPServer) handleToolCall(
 		}
 	}
 
-	return result, nil
+	return s.limitToolResult(result), nil
+}
+
+// limitToolResult returns result when it fits in the configured limit.
+// An oversized payload is replaced with an error result so those bytes are
+// not sent or stored. CreateTaskResult hides Content behind json:"-", so
+// callers that store one must measure a CallToolResult view of the same fields.
+func (s *MCPServer) limitToolResult(result *mcp.CallToolResult) *mcp.CallToolResult {
+	if result == nil || s.toolResultSizeLimit <= 0 {
+		return result
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil || len(encoded) <= s.toolResultSizeLimit {
+		return result
+	}
+	return mcp.NewToolResultError(fmt.Sprintf("tool result exceeds %d bytes", s.toolResultSizeLimit))
 }
 
 // handleTaskAugmentedToolCall handles tool calls that are executed as tasks.
@@ -2048,6 +2379,17 @@ func (s *MCPServer) handleTaskAugmentedToolCall(
 	taskTool, isTaskTool := s.taskTools[request.Params.Name]
 	regularTool, isRegularTool := s.tools[request.Params.Name]
 	s.toolsMu.RUnlock()
+
+	// A session's own tool takes precedence over the server's, as it does in
+	// handleToolCall, which routed this call here after finding it there.
+	if session := ClientSessionFromContext(ctx); session != nil {
+		if sessionWithTools, ok := session.(SessionWithTools); ok {
+			if sessionTool, ok := sessionWithTools.GetSessionTools()[request.Params.Name]; ok {
+				regularTool, isRegularTool = sessionTool, true
+				isTaskTool = false
+			}
+		}
+	}
 
 	// Determine which tool to use and validate task support
 	var toolToUse ServerTaskTool
@@ -2104,6 +2446,14 @@ func (s *MCPServer) handleTaskAugmentedToolCall(
 		}
 	}
 
+	// Snapshot the task as "working" before launching execution, so the
+	// CreateTaskResult reflects the just-created state even if the async
+	// handler completes before we read it back (a fast/synchronous handler
+	// can finish before this goroutine is scheduled).
+	s.tasksMu.RLock()
+	taskCopy := entry.task
+	s.tasksMu.RUnlock()
+
 	// Execute tool asynchronously
 	// For regular tools being used as tasks, we need different execution logic
 	if hasTaskHandler {
@@ -2114,11 +2464,6 @@ func (s *MCPServer) handleTaskAugmentedToolCall(
 	}
 
 	// Return CreateTaskResult immediately with task as top-level field
-	// Make a copy of the task to avoid data races with background goroutine
-	s.tasksMu.RLock()
-	taskCopy := entry.task
-	s.tasksMu.RUnlock()
-
 	return &mcp.CreateTaskResult{
 		Task: taskCopy,
 	}, nil
@@ -2143,10 +2488,16 @@ func (s *MCPServer) executeTaskTool(
 	taskCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Store cancel func in entry so it can be cancelled via tasks/cancel
+	// Register cancellation atomically with TTL cleanup, which may have
+	// already removed the task, and with tasks/cancel, which may have ended
+	// it while the created hook ran.
 	s.tasksMu.Lock()
 	entry.cancelFunc = cancel
+	ended := s.tasks[entry.task.TaskId] != entry || entry.completed
 	s.tasksMu.Unlock()
+	if ended {
+		cancel()
+	}
 
 	// Execute the task tool handler
 	result, err := taskTool.Handler(taskCtx, request)
@@ -2156,52 +2507,19 @@ func (s *MCPServer) executeTaskTool(
 		// The cancelTask method will handle setting the proper status.
 		// However, if cancelTask hasn't been called yet, we should still mark it.
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			// Check if task was already cancelled via tasks/cancel
-			s.tasksMu.Lock()
-			alreadyCancelled := entry.task.Status == mcp.TaskStatusCancelled
-			s.tasksMu.Unlock()
-
-			if !alreadyCancelled {
-				// Handler detected cancellation before tasks/cancel was called
-				// Mark as cancelled with the context error message
-				cancelledAt := time.Now()
-				duration := cancelledAt.Sub(entry.createdAt)
-
-				s.tasksMu.Lock()
-				if !entry.completed {
-					entry.task.Status = mcp.TaskStatusCancelled
-					entry.task.StatusMessage = err.Error()
-					entry.task.LastUpdatedAt = cancelledAt.UTC().Format(time.RFC3339)
-					entry.completed = true
-					close(entry.done)
-
-					// Decrement active tasks counter
-					s.activeTasks--
-
-					s.sendTaskStatusNotification(entry.task)
-
-					// Fire task cancellation hook
-					if s.taskHooks != nil {
-						metrics := TaskMetrics{
-							TaskID:        entry.task.TaskId,
-							ToolName:      entry.toolName,
-							Status:        entry.task.Status,
-							StatusMessage: entry.task.StatusMessage,
-							CreatedAt:     entry.createdAt,
-							CompletedAt:   &cancelledAt,
-							Duration:      duration,
-							SessionID:     entry.sessionID,
-						}
-						s.taskHooks.taskCancelled(ctx, metrics)
-					}
-				}
-				s.tasksMu.Unlock()
-			}
+			_ = s.cancelTaskEntry(ctx, entry, err.Error())
 			return
 		}
 
 		// Task failed - complete with error
 		s.completeTask(entry, nil, err)
+		return
+	}
+
+	// tasks/result has nothing to report for a handler that returned neither
+	// a result nor an error, so the task fails.
+	if result == nil {
+		s.completeTask(entry, nil, noResultError("tool", request.Params.Name))
 		return
 	}
 
@@ -2220,7 +2538,32 @@ func (s *MCPServer) executeTaskTool(
 			return
 		}
 	}
-	s.completeTask(entry, result, nil)
+	s.completeTask(entry, s.limitCreateTaskResult(result), nil)
+}
+
+// limitCreateTaskResult measures the payload tasks/result will copy out,
+// including the handler's _meta. The content fields are omitted from
+// CreateTaskResult's own JSON.
+func (s *MCPServer) limitCreateTaskResult(result *mcp.CreateTaskResult) *mcp.CreateTaskResult {
+	if result == nil {
+		return nil
+	}
+	view := &mcp.CallToolResult{
+		Result:            mcp.Result{Meta: result.Meta},
+		Content:           result.Content,
+		StructuredContent: result.StructuredContent,
+		IsError:           result.IsError,
+	}
+	limited := s.limitToolResult(view)
+	if limited == view {
+		return result
+	}
+	stored := *result
+	stored.Meta = nil
+	stored.Content = limited.Content
+	stored.StructuredContent = limited.StructuredContent
+	stored.IsError = limited.IsError
+	return &stored
 }
 
 // executeRegularToolAsTask executes a regular tool handler asynchronously as a task.
@@ -2235,20 +2578,26 @@ func (s *MCPServer) executeRegularToolAsTask(
 	taskCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Store cancel func in entry so it can be cancelled via tasks/cancel
+	// Register cancellation atomically with TTL cleanup, which may have
+	// already removed the task, and with tasks/cancel, which may have ended
+	// it while the created hook ran.
 	s.tasksMu.Lock()
 	entry.cancelFunc = cancel
+	ended := s.tasks[entry.task.TaskId] != entry || entry.completed
 	s.tasksMu.Unlock()
+	if ended {
+		cancel()
+	}
 
 	// Execute the regular tool handler with middleware applied
 	finalHandler := regularTool.Handler
 
 	s.toolMiddlewareMu.RLock()
-	mw := s.toolHandlerMiddlewares
-	for i := len(mw) - 1; i >= 0; i-- {
-		finalHandler = mw[i](finalHandler)
-	}
+	mw := slices.Clone(s.toolHandlerMiddlewares)
 	s.toolMiddlewareMu.RUnlock()
+	for _, m := range slices.Backward(mw) {
+		finalHandler = m(finalHandler)
+	}
 
 	result, err := finalHandler(taskCtx, request)
 
@@ -2257,52 +2606,19 @@ func (s *MCPServer) executeRegularToolAsTask(
 		// The cancelTask method will handle setting the proper status.
 		// However, if cancelTask hasn't been called yet, we should still mark it.
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			// Check if task was already cancelled via tasks/cancel
-			s.tasksMu.Lock()
-			alreadyCancelled := entry.task.Status == mcp.TaskStatusCancelled
-			s.tasksMu.Unlock()
-
-			if !alreadyCancelled {
-				// Handler detected cancellation before tasks/cancel was called
-				// Mark as cancelled with the context error message
-				cancelledAt := time.Now()
-				duration := cancelledAt.Sub(entry.createdAt)
-
-				s.tasksMu.Lock()
-				if !entry.completed {
-					entry.task.Status = mcp.TaskStatusCancelled
-					entry.task.StatusMessage = err.Error()
-					entry.task.LastUpdatedAt = cancelledAt.UTC().Format(time.RFC3339)
-					entry.completed = true
-					close(entry.done)
-
-					// Decrement active tasks counter
-					s.activeTasks--
-
-					s.sendTaskStatusNotification(entry.task)
-
-					// Fire task cancellation hook
-					if s.taskHooks != nil {
-						metrics := TaskMetrics{
-							TaskID:        entry.task.TaskId,
-							ToolName:      entry.toolName,
-							Status:        entry.task.Status,
-							StatusMessage: entry.task.StatusMessage,
-							CreatedAt:     entry.createdAt,
-							CompletedAt:   &cancelledAt,
-							Duration:      duration,
-							SessionID:     entry.sessionID,
-						}
-						s.taskHooks.taskCancelled(ctx, metrics)
-					}
-				}
-				s.tasksMu.Unlock()
-			}
+			_ = s.cancelTaskEntry(ctx, entry, err.Error())
 			return
 		}
 
 		// Task failed - complete with error
 		s.completeTask(entry, nil, err)
+		return
+	}
+
+	// tasks/result has nothing to report for a handler that returned neither
+	// a result nor an error, so the task fails.
+	if result == nil {
+		s.completeTask(entry, nil, noResultError("tool", request.Params.Name))
 		return
 	}
 
@@ -2320,7 +2636,7 @@ func (s *MCPServer) executeRegularToolAsTask(
 			return
 		}
 	}
-	s.completeTask(entry, result, nil)
+	s.completeTask(entry, s.limitToolResult(result), nil)
 }
 
 func (s *MCPServer) handleNotification(
@@ -2353,6 +2669,7 @@ func (s *MCPServer) handleNotification(
 // inflightKey returns a session-scoped key for the inflight cancellation map.
 // This prevents cross-session request ID collisions in multi-client scenarios.
 func inflightKey(ctx context.Context, requestID any) string {
+	requestID = mcp.NewRequestId(requestID).String()
 	if session := ClientSessionFromContext(ctx); session != nil {
 		return fmt.Sprintf("%s:%v", session.SessionID(), requestID)
 	}
@@ -2501,6 +2818,9 @@ func (s *MCPServer) handleTaskResult(
 	case *mcp.CallToolResult:
 		result.Content = taskResult.Content
 		result.StructuredContent = taskResult.StructuredContent
+		if len(taskResult.RawStructuredContent) > 0 {
+			result.StructuredContent = append(json.RawMessage(nil), taskResult.RawStructuredContent...)
+		}
 		result.IsError = taskResult.IsError
 		mergeTaskResultMeta(result, taskResult.Meta)
 	case *mcp.CreateTaskResult:
@@ -2598,12 +2918,18 @@ func (s *MCPServer) handleComplete(
 	// Defensive nil check: default providers always return non-nil completions,
 	// but custom providers might erroneously return nil. Treat as empty result.
 	if completion == nil {
-		return &mcp.CompleteResult{}, nil
+		completion = &mcp.Completion{}
 	}
 
-	return &mcp.CompleteResult{
+	result := &mcp.CompleteResult{
 		Completion: *completion,
-	}, nil
+	}
+	// values is a required array, so a provider with no matches still sends []
+	// rather than null.
+	if result.Completion.Values == nil {
+		result.Completion.Values = []string{}
+	}
+	return result, nil
 }
 
 //
@@ -2634,11 +2960,11 @@ func (s *MCPServer) createTask(ctx context.Context, taskID string, toolName stri
 
 	// Single critical section for check + increment + insert
 	s.tasksMu.Lock()
-	defer s.tasksMu.Unlock()
 
 	// Check concurrent task limit
 	if s.maxConcurrentTasks != nil && *s.maxConcurrentTasks > 0 {
 		if s.activeTasks >= *s.maxConcurrentTasks {
+			s.tasksMu.Unlock()
 			return nil, fmt.Errorf("max concurrent tasks limit reached (%d)", *s.maxConcurrentTasks)
 		}
 	}
@@ -2646,8 +2972,12 @@ func (s *MCPServer) createTask(ctx context.Context, taskID string, toolName stri
 	// Increment active task counter and insert task atomically
 	s.activeTasks++
 	s.tasks[taskID] = entry
+	// With no hooks there is nothing to wait for.
+	entry.createdHookDone = s.taskHooks == nil
+	s.tasksMu.Unlock()
 
-	// Fire task created hook
+	// Fire task created hook, outside the lock: a hook may take time, or
+	// read task state through the server.
 	if s.taskHooks != nil {
 		metrics := TaskMetrics{
 			TaskID:    taskID,
@@ -2656,15 +2986,49 @@ func (s *MCPServer) createTask(ctx context.Context, taskID string, toolName stri
 			CreatedAt: createdAt,
 			SessionID: getSessionID(ctx),
 		}
-		s.taskHooks.taskCreated(ctx, metrics)
+		func() {
+			// However the hook ends: one that panics must not leave the
+			// task's later hooks waiting.
+			defer s.finishCreatedHook(entry)
+			s.taskHooks.taskCreated(ctx, metrics)
+		}()
 	}
 
 	// Start TTL cleanup if specified
 	if ttl != nil && *ttl > 0 {
-		go s.scheduleTaskCleanup(taskID, *ttl)
+		go s.scheduleTaskCleanup(taskID, entry, *ttl)
 	}
 
 	return entry, nil
+}
+
+// finishCreatedHook records that entry's created hook has returned and runs
+// the hooks that waited for it, in the order they arrived.
+func (s *MCPServer) finishCreatedHook(entry *taskEntry) {
+	s.tasksMu.Lock()
+	entry.createdHookDone = true
+	pending := entry.pendingHooks
+	entry.pendingHooks = nil
+	s.tasksMu.Unlock()
+	for _, fire := range pending {
+		fire()
+	}
+}
+
+// fireTaskHook runs fire, a hook of entry, with ctx now, or after the
+// created hook when that is still running. A hook that waits runs once
+// the request that raised it may have ended, so it gets ctx's values
+// without its cancellation. Never under tasksMu.
+func (s *MCPServer) fireTaskHook(ctx context.Context, entry *taskEntry, fire func(context.Context)) {
+	s.tasksMu.Lock()
+	if !entry.createdHookDone {
+		later := context.WithoutCancel(ctx)
+		entry.pendingHooks = append(entry.pendingHooks, func() { fire(later) })
+		s.tasksMu.Unlock()
+		return
+	}
+	s.tasksMu.Unlock()
+	fire(ctx)
 }
 
 // getTask retrieves a task by ID, checking session isolation if applicable.
@@ -2742,10 +3106,10 @@ func (s *MCPServer) listTasks(ctx context.Context) []mcp.Task {
 // completeTask marks a task as completed with the given result.
 func (s *MCPServer) completeTask(entry *taskEntry, result any, err error) {
 	s.tasksMu.Lock()
-	defer s.tasksMu.Unlock()
 
 	// Guard against double completion
 	if entry.completed {
+		s.tasksMu.Unlock()
 		return
 	}
 
@@ -2770,29 +3134,32 @@ func (s *MCPServer) completeTask(entry *taskEntry, result any, err error) {
 
 	// Decrement active tasks counter
 	s.activeTasks--
+	task := entry.task
+	metrics := TaskMetrics{
+		TaskID:        task.TaskId,
+		ToolName:      entry.toolName,
+		Status:        task.Status,
+		StatusMessage: task.StatusMessage,
+		CreatedAt:     entry.createdAt,
+		CompletedAt:   &completedAt,
+		Duration:      duration,
+		SessionID:     entry.sessionID,
+		Error:         err,
+	}
+	s.tasksMu.Unlock()
 
 	// Send task status notification
-	s.sendTaskStatusNotification(entry.task)
+	s.sendTaskStatusNotification(task)
 
-	// Fire task hooks
+	// Fire task hooks, after the created hook if it is still running
 	if s.taskHooks != nil {
-		metrics := TaskMetrics{
-			TaskID:        entry.task.TaskId,
-			ToolName:      entry.toolName,
-			Status:        entry.task.Status,
-			StatusMessage: entry.task.StatusMessage,
-			CreatedAt:     entry.createdAt,
-			CompletedAt:   &completedAt,
-			Duration:      duration,
-			SessionID:     entry.sessionID,
-			Error:         err,
-		}
-
-		if err != nil {
-			s.taskHooks.taskFailed(context.Background(), metrics)
-		} else {
-			s.taskHooks.taskCompleted(context.Background(), metrics)
-		}
+		s.fireTaskHook(context.Background(), entry, func(ctx context.Context) {
+			if err != nil {
+				s.taskHooks.taskFailed(ctx, metrics)
+			} else {
+				s.taskHooks.taskCompleted(ctx, metrics)
+			}
+		})
 	}
 }
 
@@ -2802,65 +3169,71 @@ func (s *MCPServer) cancelTask(ctx context.Context, taskID string) error {
 	if err != nil {
 		return err
 	}
+	return s.cancelTaskEntry(ctx, entry, "Task cancelled by request")
+}
 
+// cancelTaskEntry records a cancellation and invokes observers after unlocking.
+func (s *MCPServer) cancelTaskEntry(ctx context.Context, entry *taskEntry, message string) error {
 	s.tasksMu.Lock()
-	defer s.tasksMu.Unlock()
-
-	// Don't allow cancelling already completed tasks
 	if entry.completed {
-		return fmt.Errorf("cannot cancel task in terminal status: %s", entry.task.Status)
+		status := entry.task.Status
+		s.tasksMu.Unlock()
+		return fmt.Errorf("cannot cancel task in terminal status: %s", status)
 	}
-
-	// Cancel the context if available
-	if entry.cancelFunc != nil {
-		entry.cancelFunc()
-	}
-
+	cancel := entry.cancelFunc
 	cancelledAt := time.Now()
-	duration := cancelledAt.Sub(entry.createdAt)
-
 	entry.task.Status = mcp.TaskStatusCancelled
-	entry.task.StatusMessage = "Task cancelled by request"
-	// Update the lastUpdatedAt timestamp
+	entry.task.StatusMessage = message
 	entry.task.LastUpdatedAt = cancelledAt.UTC().Format(time.RFC3339)
-
-	// Mark as completed and signal
 	entry.completed = true
 	close(entry.done)
-
-	// Decrement active tasks counter
 	s.activeTasks--
-
-	// Send task status notification
-	s.sendTaskStatusNotification(entry.task)
-
-	// Fire task cancellation hook
-	if s.taskHooks != nil {
-		metrics := TaskMetrics{
-			TaskID:        entry.task.TaskId,
-			ToolName:      entry.toolName,
-			Status:        entry.task.Status,
-			StatusMessage: entry.task.StatusMessage,
-			CreatedAt:     entry.createdAt,
-			CompletedAt:   &cancelledAt,
-			Duration:      duration,
-			SessionID:     entry.sessionID,
-		}
-		s.taskHooks.taskCancelled(ctx, metrics)
+	task := entry.task
+	metrics := TaskMetrics{
+		TaskID:        task.TaskId,
+		ToolName:      entry.toolName,
+		Status:        task.Status,
+		StatusMessage: task.StatusMessage,
+		CreatedAt:     entry.createdAt,
+		CompletedAt:   &cancelledAt,
+		Duration:      cancelledAt.Sub(entry.createdAt),
+		SessionID:     entry.sessionID,
 	}
-
+	s.tasksMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	s.sendTaskStatusNotification(task)
+	if s.taskHooks != nil {
+		// After the created hook, if it is still running.
+		s.fireTaskHook(ctx, entry, func(ctx context.Context) { s.taskHooks.taskCancelled(ctx, metrics) })
+	}
 	return nil
 }
 
-// scheduleTaskCleanup removes the task from storage after its TTL expires so
-// clients have the full TTL window to retrieve results.
-func (s *MCPServer) scheduleTaskCleanup(taskID string, ttlMs int64) {
+// scheduleTaskCleanup cancels unfinished task execution and removes the task from
+// storage after its TTL expires so clients have the full TTL window to retrieve results.
+// It only performs cleanup if the stored task entry matches expected.
+func (s *MCPServer) scheduleTaskCleanup(taskID string, expected *taskEntry, ttlMs int64) {
 	time.Sleep(time.Duration(ttlMs) * time.Millisecond)
 
+	var cancel context.CancelFunc
 	s.tasksMu.Lock()
+	entry, ok := s.tasks[taskID]
+	if !ok || entry != expected {
+		s.tasksMu.Unlock()
+		return
+	}
+	if !entry.completed {
+		cancel = entry.cancelFunc
+	}
 	delete(s.tasks, taskID)
 	s.expiredTasks[taskID] = time.Now()
 	s.tasksMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
 
 	// Remove tombstone after 5 minutes.
 	time.AfterFunc(5*time.Minute, func() {
