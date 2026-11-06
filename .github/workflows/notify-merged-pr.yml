@@ -1,0 +1,31 @@
+# Notify #tempo-dev when a non-dependency-bot PR is merged to main.
+name: Notify Merged PRs
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  notify:
+    name: Notify tempo-dev
+    if: >-
+      github.repository == 'grafana/tempo' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'renovate-sh-app[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # send-slack-message fetches a secret from Vault
+    steps:
+      - name: Send Slack notification
+        uses: grafana/shared-workflows/actions/send-slack-message@551bc8d50017d3e95d5da3f8a4826e733a208dc0 # send-slack-message/v3.0.2
+        with:
+          method: chat.postMessage
+          payload: |
+            {
+              "channel": ${{ toJSON(vars.TEMPO_DEV_SLACK_CHANNEL_ID) }},
+              "text": ${{ toJSON(format('PR merged: "{0}" - {1}', github.event.pull_request.title, github.event.pull_request.html_url)) }}
+            }
