@@ -145,13 +145,16 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 	if err != nil {
 		return found, bufs, keys
 	}
+	sp := trace.SpanFromContext(ctx)
 	for _, key := range keys {
 		item, ok := items[key]
 		if ok {
 			found = append(found, key)
 			bufs = append(bufs, item.Value)
+			sp.AddEvent("cache.key.found", trace.WithAttributes(attribute.String("key", key)))
 		} else {
 			missed = append(missed, key)
+			sp.AddEvent("cache.key.missed", trace.WithAttributes(attribute.String("key", key)))
 		}
 	}
 	return
@@ -167,15 +170,18 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) ([]byte, bool) {
 
 	const method = "Memcache.Get"
 	var item *memcache.Item
-	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
+	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(ctx context.Context) error {
 		var err error
 		item, err = c.memcache.Get(key, memcache.WithAllocator(cacheBufAllocator))
 		if err != nil {
 			if errors.Is(err, memcache.ErrCacheMiss) {
 				level.Debug(c.logger).Log("msg", "Failed to get key from memcached", "err", err, "key", key)
+				trace.SpanFromContext(ctx).AddEvent("cache.key.missed", trace.WithAttributes(attribute.String("key", key)))
 			} else {
 				level.Error(c.logger).Log("msg", "Error getting key from memcached", "err", err, "key", key)
 			}
+		} else {
+			trace.SpanFromContext(ctx).AddEvent("cache.key.found", trace.WithAttributes(attribute.String("key", key)))
 		}
 		return err
 	})
