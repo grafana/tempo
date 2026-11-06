@@ -155,3 +155,100 @@ func TestTraceByIDHTTPFinalJSONMatchesJsonpb(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, strings.Replace(want, `"resourceSpans":`, `"batches":`, 1), string(final(api.MarshallingFormatJSON)))
 }
+
+// Jobs that find nothing still report the bytes they read.
+func TestTraceByIDCombinesMetricsOfNotFoundResponses(t *testing.T) {
+	notFoundWithMetrics := func(t *testing.T, bytes uint64) PipelineResponse {
+		return toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: bytes}}, http.StatusNotFound)
+	}
+	cacheHit := func(r PipelineResponse) PipelineResponse {
+		r.HTTPResponse().Header = http.Header{TempoCacheHeader: {TempoCacheHit}}
+		return r
+	}
+
+	tests := []struct {
+		name          string
+		responses     []PipelineResponse
+		expectedBytes uint64
+		expectedCode  int
+	}{
+		{
+			name:          "not found with metrics",
+			responses:     []PipelineResponse{notFoundWithMetrics(t, 100)},
+			expectedBytes: 100,
+			expectedCode:  http.StatusNotFound,
+		},
+		{
+			name:          "multiple not found are summed",
+			responses:     []PipelineResponse{notFoundWithMetrics(t, 100), notFoundWithMetrics(t, 23)},
+			expectedBytes: 123,
+			expectedCode:  http.StatusNotFound,
+		},
+		{
+			name: "not found next to a found trace",
+			responses: []PipelineResponse{
+				notFoundWithMetrics(t, 100),
+				toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: test.MakeTrace(1, nil), Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 20}}, http.StatusOK),
+			},
+			expectedBytes: 120,
+			expectedCode:  http.StatusOK,
+		},
+		{
+			name:          "not found cache hit is not counted",
+			responses:     []PipelineResponse{cacheHit(notFoundWithMetrics(t, 100))},
+			expectedBytes: 0,
+			expectedCode:  http.StatusNotFound,
+		},
+		{
+			name:          "not found without body",
+			responses:     []PipelineResponse{toHTTPProtoResponse(t, nil, http.StatusNotFound)},
+			expectedBytes: 0,
+			expectedCode:  http.StatusNotFound,
+		},
+		{
+			name:          "not found with a body that is not a trace by id response",
+			responses:     []PipelineResponse{&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("404 page not found\n")), StatusCode: http.StatusNotFound}}},
+			expectedBytes: 0,
+			expectedCode:  http.StatusNotFound,
+		},
+		{
+			name:          "not found with nil body",
+			responses:     []PipelineResponse{&testPipelineResponse{r: &http.Response{StatusCode: http.StatusNotFound}}},
+			expectedBytes: 0,
+			expectedCode:  http.StatusNotFound,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var reported uint64
+			c := NewTypedTraceByID(0, api.HeaderAcceptProtobuf, nil, WithInspectedBytesReporter(func(b uint64) { reported += b }))
+
+			for _, r := range tc.responses {
+				require.NoError(t, c.AddResponse(r))
+				require.False(t, c.ShouldQuit())
+			}
+
+			require.Equal(t, tc.expectedBytes, c.MetricsCombiner.Metrics.InspectedBytes)
+			require.Equal(t, tc.expectedBytes, reported)
+			require.Equal(t, tc.expectedCode, c.StatusCode())
+		})
+	}
+}
+
+// The bytes of a response whose trace is too large were still read.
+func TestTraceByIDCombinesMetricsOfTooLargeResponses(t *testing.T) {
+	var reported uint64
+	c := NewTypedTraceByID(1, api.HeaderAcceptProtobuf, nil, WithInspectedBytesReporter(func(b uint64) { reported += b }))
+
+	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(1, nil),
+		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100},
+	}, http.StatusOK))
+	require.NoError(t, err)
+
+	require.True(t, c.ShouldQuit())
+	require.Equal(t, http.StatusUnprocessableEntity, c.StatusCode())
+	require.Equal(t, uint64(100), c.MetricsCombiner.Metrics.InspectedBytes)
+	require.Equal(t, uint64(100), reported)
+}

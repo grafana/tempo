@@ -66,7 +66,9 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 
 	res := r.HTTPResponse()
 	if res.StatusCode == http.StatusNotFound {
-		// 404s are not considered errors, so we don't need to do anything.
+		// 404s are not considered errors, but the querier still reports the bytes it read
+		// while finding nothing.
+		c.combineNotFoundMetrics(r)
 		return nil
 	}
 	c.code = res.StatusCode
@@ -96,6 +98,9 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 		return fmt.Errorf("error unmarshalling response body: %w", err)
 	}
 
+	// Combine the metrics first, the bytes were read even if the trace can't be consumed
+	c.MetricsCombiner.Combine(resp.Metrics, r)
+
 	// Consume the trace
 	_, err = c.c.Consume(resp.Trace)
 	if errors.Is(err, trace.ErrTraceTooLarge) {
@@ -103,9 +108,30 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 		c.statusMessage = fmt.Sprint(err)
 		return nil
 	}
-	c.MetricsCombiner.Combine(resp.Metrics, r)
 
 	return err
+}
+
+// combineNotFoundMetrics adds the metrics carried by a 404 response, if any. Queriers answer
+// 404 with an encoded TraceByIDResponse that has no trace but still has metrics. A missing or
+// undecodable body is ignored because 404s are not errors.
+func (c *TraceByIDCombiner) combineNotFoundMetrics(r PipelineResponse) {
+	res := r.HTTPResponse()
+	if res.Body == nil {
+		return
+	}
+
+	buff, err := tempo_io.ReadAllWithEstimate(res.Body, res.ContentLength)
+	_ = res.Body.Close()
+	if err != nil || len(buff) == 0 {
+		return
+	}
+
+	resp := &tempopb.TraceByIDResponse{}
+	if err = resp.Unmarshal(buff); err != nil {
+		return
+	}
+	c.MetricsCombiner.Combine(resp.Metrics, r)
 }
 
 // Result returns the combined trace, or nil if none was found.

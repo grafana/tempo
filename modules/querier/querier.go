@@ -228,25 +228,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, fmt.Errorf("error querying live-stores in Querier.FindTraceByID: %w", err)
 		}
 
-		var spanCountTotal, traceCountTotal int64
-		found := false
-
-		for _, partialTrace := range partialTraces {
-			resp := partialTrace.(*tempopb.TraceByIDResponse)
-			if resp.Trace == nil {
-				continue
-			}
-
-			found = true
-
-			spanCount, err := combiner.Consume(resp.Trace)
-			if err != nil {
-				return nil, fmt.Errorf("error combining live-store results in Querier.FindTraceByID: %w", err)
-			}
-
-			spanCountTotal += int64(spanCount)
-			traceCountTotal++
-			tempopb.MergeTraceByIDMetrics(metrics, resp.Metrics)
+		found, spanCountTotal, traceCountTotal, err := combineLiveStoreResponses(partialTraces, combiner, metrics)
+		if err != nil {
+			return nil, fmt.Errorf("error combining live-store results in Querier.FindTraceByID: %w", err)
 		}
 
 		span.AddEvent("done searching live-stores", oteltrace.WithAttributes(
@@ -326,6 +310,32 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	return resp, nil
+}
+
+// combineLiveStoreResponses consumes the traces returned by the live-stores into combiner and
+// merges their metrics into metrics. Metrics are merged for every response, including those
+// without a trace, because the live-stores also report the bytes read while looking for it.
+func combineLiveStoreResponses(partialTraces []any, combiner *trace.Combiner, metrics *tempopb.TraceByIDMetrics) (found bool, spanCountTotal, traceCountTotal int64, err error) {
+	for _, partialTrace := range partialTraces {
+		resp := partialTrace.(*tempopb.TraceByIDResponse)
+		tempopb.MergeTraceByIDMetrics(metrics, resp.GetMetrics())
+
+		if resp.GetTrace() == nil {
+			continue
+		}
+
+		found = true
+
+		spanCount, err := combiner.Consume(resp.Trace)
+		if err != nil {
+			return found, spanCountTotal, traceCountTotal, err
+		}
+
+		spanCountTotal += int64(spanCount)
+		traceCountTotal++
+	}
+
+	return found, spanCountTotal, traceCountTotal, nil
 }
 
 // forLiveStoreRing runs f, in parallel, for instances selected from the live-store ring.
