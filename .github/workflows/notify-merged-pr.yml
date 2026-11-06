@@ -2,8 +2,7 @@
 name: Notify Merged PRs
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches: [main]
 
 permissions: {}
@@ -11,58 +10,85 @@ permissions: {}
 jobs:
   notify:
     name: Notify tempo-dev
-    if: >-
-      github.repository == 'grafana/tempo' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.user.login != 'dependabot[bot]' &&
-      github.event.pull_request.user.login != 'renovate-sh-app[bot]'
+    if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
+      pull-requests: read
       id-token: write
     steps:
+      - name: Find merged PR and prepare Slack payload
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          SLACK_CHANNEL_ID: ${{ vars.TEMPO_DEV_SLACK_CHANNEL_ID }}
+        run: |
+          set -euo pipefail
+
+          : "${SLACK_CHANNEL_ID:?Set the TEMPO_DEV_SLACK_CHANNEL_ID repository variable}"
+
+          # The association may not be indexed immediately after the push.
+          for attempt in 1 2 3 4 5; do
+            gh api "repos/${REPO}/commits/${SHA}/pulls" \
+              --jq 'map(select(.merged_at != null)) | .[0] // empty' > pr.json
+            if [ -s pr.json ]; then
+              break
+            fi
+            if [ "$attempt" -lt 5 ]; then
+              echo "Attempt ${attempt}: no merged PR found yet, retrying in 10s..."
+              sleep 10
+            fi
+          done
+
+          if [ ! -s pr.json ]; then
+            echo "No merged PR found for commit ${SHA}."
+            exit 1
+          fi
+
+          AUTHOR=$(jq -r '.user.login' pr.json)
+          case "$AUTHOR" in
+            dependabot\[bot\]|renovate-sh-app\[bot\])
+              echo "Skipping dependency bot PR by ${AUTHOR}."
+              exit 0
+              ;;
+          esac
+
+          jq --arg channel "$SLACK_CHANNEL_ID" '{
+            channel: $channel,
+            blocks: [
+              {
+                type: "header",
+                text: {type: "plain_text", text: ":pr-merged: PR merged", emoji: true}
+              },
+              {
+                type: "section",
+                text: {type: "plain_text", text: .title, emoji: true},
+                accessory: {
+                  type: "button",
+                  text: {type: "plain_text", text: "View PR", emoji: true},
+                  url: .html_url,
+                  action_id: "view_pr"
+                }
+              },
+              {
+                type: "context",
+                elements: [
+                  {type: "plain_text", text: ("Author: " + .user.login), emoji: true}
+                ]
+              }
+            ]
+          }' pr.json > payload.json
+
+          {
+            echo 'should_notify=true'
+            echo "payload=$(jq -c . payload.json)"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Send Slack notification
+        if: steps.prepare.outputs.should_notify == 'true'
         uses: grafana/shared-workflows/actions/send-slack-message@551bc8d50017d3e95d5da3f8a4826e733a208dc0 # send-slack-message/v3.0.2
         with:
           method: chat.postMessage
-          payload: |
-            {
-              "channel": ${{ toJSON(vars.TEMPO_DEV_SLACK_CHANNEL_ID) }},
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": ":pr-merged: PR merged",
-                    "emoji": true
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "plain_text",
-                    "text": ${{ toJSON(github.event.pull_request.title) }},
-                    "emoji": true
-                  },
-                  "accessory": {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "View PR",
-                      "emoji": true
-                    },
-                    "url": ${{ toJSON(github.event.pull_request.html_url) }},
-                    "action_id": "view_pr"
-                  }
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    {
-                      "type": "plain_text",
-                      "text": ${{ toJSON(format('Author: {0}', github.event.pull_request.user.login)) }},
-                      "emoji": true
-                    }
-                  ]
-                }
-              ]
-            }
+          payload: ${{ steps.prepare.outputs.payload }}
