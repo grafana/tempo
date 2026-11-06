@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
 	"github.com/grafana/tempo/v3/pkg/util/log"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"go.opentelemetry.io/otel"
@@ -536,80 +537,63 @@ func (rw *Azure) writer(ctx context.Context, src io.Reader, name string) error {
 }
 
 func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destBuffer []byte) error {
-	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
-
-	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
-	if err != nil {
-		return err
+	if len(destBuffer) == 0 {
+		return nil
 	}
 
-	length := int64(len(destBuffer))
-	var size int64
+	blobClient := rw.hedgedContainerClient.NewBlobClient(name)
 
-	if props.ContentLength == nil {
-		return fmt.Errorf("expected content length but got none for blob %s: %w", name, err)
-	}
-
-	if length > 0 && length <= *props.ContentLength-offset {
-		size = length
-	} else {
-		size = *props.ContentLength - offset
-	}
-
-	if _, err := blobClient.DownloadBuffer(ctx, destBuffer, &blob.DownloadBufferOptions{
+	resp, err := blobClient.DownloadStream(ctx, &blob.DownloadStreamOptions{
 		Range: blob.HTTPRange{
 			Offset: offset,
-			Count:  size,
+			Count:  int64(len(destBuffer)),
 		},
-		BlockSize:   blob.DefaultDownloadBlockSize,
-		Concurrency: maxParallelism,
-		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
-			MaxRetries: maxRetries,
-		},
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
-	_, err = bytes.NewReader(destBuffer).Read(destBuffer)
-	if err != nil {
-		return err
+	// A reconnect re-requests with If-Match pinned to the ETag of the response
+	// above, so it cannot continue against a different generation of the blob.
+	body := resp.NewRetryReader(ctx, &blob.RetryReaderOptions{
+		MaxRetries: maxRetries,
+	})
+	defer body.Close()
+
+	if _, err := io.ReadFull(body, destBuffer); err != nil {
+		return fmt.Errorf("reading range from blob %s: %w", name, err)
 	}
 
 	return nil
 }
 
 func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag, error) {
-	blobClient := rw.hedgedContainerClient.NewBlockBlobClient(name)
+	blobClient := rw.hedgedContainerClient.NewBlobClient(name)
 
-	props, err := blobClient.GetProperties(ctx, &blob.GetPropertiesOptions{})
+	resp, err := blobClient.DownloadStream(ctx, &blob.DownloadStreamOptions{})
 	if err != nil {
 		return nil, "", err
 	}
 
-	if props.ContentLength == nil {
-		return nil, "", fmt.Errorf("expected content length but got none for blob %s: %w", name, err)
+	body := resp.NewRetryReader(ctx, &blob.RetryReaderOptions{
+		MaxRetries: maxRetries,
+	})
+	defer body.Close()
+
+	var size int64
+	if resp.ContentLength != nil {
+		size = *resp.ContentLength
 	}
 
-	destBuffer := make([]byte, *props.ContentLength)
-
-	if _, err := blobClient.DownloadBuffer(ctx, destBuffer, &blob.DownloadBufferOptions{
-		Range: blob.HTTPRange{
-			Offset: 0,
-			Count:  *props.ContentLength,
-		},
-		BlockSize:   blob.DefaultDownloadBlockSize,
-		Concurrency: maxParallelism,
-		RetryReaderOptionsPerBlock: blob.RetryReaderOptions{
-			MaxRetries: maxRetries,
-		},
-	}); err != nil {
-		return nil, "", err
+	buf, err := tempo_io.ReadAllWithEstimate(body, size)
+	if err != nil {
+		return nil, "", fmt.Errorf("reading blob %s: %w", name, err)
 	}
 
 	var etag azcore.ETag
-	if props.ETag != nil {
-		etag = *props.ETag
+	if resp.ETag != nil {
+		etag = *resp.ETag
 	}
 
-	return destBuffer, etag, nil
+	return buf, etag, nil
 }
