@@ -99,7 +99,7 @@ func TestHedge(t *testing.T) {
 			// calls that should hedge
 			_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), nil)
 			time.Sleep(tc.returnIn)
-			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count)) // reads are a single GET
+			assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
 			atomic.StoreInt32(&count, 0)
 
 			// this panics with the garbage test setup. todo: make it not panic
@@ -654,9 +654,6 @@ func TestDeleteVersioned_DoesNotDoublePrefix(t *testing.T) {
 		"DELETE key path must contain the configured prefix exactly once")
 }
 
-// TestReadsIssueOneRequest pins the property that makes these reads safe: the
-// bytes and the length describing them come from the same response, so they
-// cannot belong to different generations of the blob.
 func TestReadsIssueOneRequest(t *testing.T) {
 	const body = "some-blob-contents"
 
@@ -705,15 +702,12 @@ func TestReadsIssueOneRequest(t *testing.T) {
 
 				w.Header().Set("ETag", `"etag123"`)
 
-				// Answer a GetProperties truthfully, so an implementation that
-				// makes one fails on the assertion below, not on a missing header.
 				if r.Method != http.MethodGet {
 					w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 					w.WriteHeader(http.StatusOK)
 					return
 				}
 
-				// Azure sends the range in x-ms-range, ie: "bytes=2-5".
 				content := []byte(body)
 				if rng := r.Header.Get("x-ms-range"); rng != "" {
 					var start, end int
@@ -747,13 +741,9 @@ func TestReadsIssueOneRequest(t *testing.T) {
 	}
 }
 
-// TestReadRangeShortRead asserts a range that cannot be filled is an error
-// rather than a buffer with zeros in the tail.
 func TestReadRangeShortRead(t *testing.T) {
 	const body = "short"
 
-	// The HEAD answers truthfully: an implementation that sizes the read from
-	// GetProperties clamps to the real length and reports success.
 	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("ETag", `"etag123"`)
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))

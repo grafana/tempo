@@ -13,13 +13,7 @@ note: Fix corrupt reads from Azure blob storage when an object is overwritten mi
 issues: []
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
-subtext: |
-  Azure reads asked the service for an object's length and then downloaded into a buffer sized from that
-  answer, as two separate requests, discarding the number of bytes actually written. An overwrite in
-  between returned corrupt data as a success: zero padding when the new object was smaller, truncation
-  when it was larger. Reads are now a single GET whose response carries the content, its length and its
-  ETag together, matching the GCS and S3 backends. Range reads additionally require the buffer to be
-  filled exactly, and no longer pay for a GetProperties request before every read.
+subtext:
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: zhxiaogg

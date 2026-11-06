@@ -536,8 +536,6 @@ func (rw *Azure) writer(ctx context.Context, src io.Reader, name string) error {
 	return nil
 }
 
-// readRange downloads a byte range in a single ranged GET and requires
-// destBuffer to be filled exactly, as the GCS and S3 backends do.
 func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destBuffer []byte) error {
 	if len(destBuffer) == 0 {
 		return nil
@@ -562,7 +560,6 @@ func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destB
 	})
 	defer body.Close()
 
-	/* bytes read == len(destBuffer) if and only if err == nil */
 	if _, err := io.ReadFull(body, destBuffer); err != nil {
 		return fmt.Errorf("reading range from blob %s: %w", name, err)
 	}
@@ -570,9 +567,6 @@ func (rw *Azure) readRange(ctx context.Context, name string, offset int64, destB
 	return nil
 }
 
-// readAll downloads a whole blob in a single GET. The response carries the
-// content, its length and its ETag together, so the returned bytes and ETag
-// always describe the same generation of the blob.
 func (rw *Azure) readAll(ctx context.Context, name string) ([]byte, azcore.ETag, error) {
 	blobClient := rw.hedgedContainerClient.NewBlobClient(name)
 
