@@ -10,13 +10,50 @@ aliases:
 
 # Enable multi-tenancy
 
-Tempo is a multi-tenant distributed tracing backend.
+Multi-tenancy lets multiple teams or customers share a Tempo cluster while keeping their trace data separate.
+A tenant is a group of users or services whose traces are stored and queried together.
 Tempo uses the `X-Scope-OrgID` header to enforce multi-tenancy in Tempo and Grafana Enterprise Traces.
 It is set to the tenant (or "organization") name.
 It is used for scoped writes (ingest) so that each span is stored under its specified tenant, and scoped reads so that queries return only that tenant's data.
 
-If you're interested in setting up multi-tenancy, consult the [multi-tenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/multitenant)
-in the repository. This example uses the following settings to achieve multi-tenancy in Tempo.
+For a working configuration, consult the [multi-tenant example](https://github.com/grafana/tempo/tree/main/example/docker-compose/multitenant)
+in the repository.
+
+## When to use multi-tenancy
+
+Use multitenancy to separate teams within an organization or to separate customers of a service.
+
+For either use case, [per-tenant settings](#configure-per-tenant-settings) let you set different ingestion limits or block retention periods for each tenant.
+
+### Separate teams within an organization
+
+A platform team can run one Tempo cluster for multiple teams instead of maintaining a cluster for each team.
+Assign each team a tenant to keep its traces separate.
+Configure each team's collector to send its tenant ID in the `X-Scope-OrgID` header when exporting traces.
+Configure each team's Grafana Tempo data source to send the same tenant ID in the `X-Scope-OrgID` header when querying.
+Queries from that data source return only that tenant's traces.
+
+For example, use `team-payments` for the payments team's traces and `team-checkout` for the checkout team's traces.
+Both the payments collector and the payments data source use `X-Scope-OrgID: team-payments`.
+The checkout collector and data source use `X-Scope-OrgID: team-checkout`.
+
+Choose tenant boundaries to match how you troubleshoot services.
+Services whose spans need to be queried together as one trace should send those spans to the same tenant.
+For queries across several tenants, refer to [Cross-tenant query federation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/cross_tenant_query/).
+
+### Separate customers of a service
+
+A SaaS provider can use a tenant for each customer.
+The provider can operate one Tempo cluster while keeping each customer's traces separate.
+Use the same tenant ID in the `X-Scope-OrgID` header for each customer's ingestion and queries.
+Queries return only that customer's traces.
+
+For example, send Customer 1's traces with `X-Scope-OrgID: customer-1` and use the same header for Customer 1's queries.
+Use `X-Scope-OrgID: customer-2` for Customer 2's ingestion and queries.
+
+Tempo doesn't include an authentication layer.
+Use an authenticating reverse proxy to set the tenant header based on the customer's identity and permissions, rather than accepting a tenant ID chosen by the customer.
+For more information, refer to [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/).
 
 ## Tenant IDs
 
@@ -56,6 +93,8 @@ otelcol.exporter.otlphttp "tempo" {
 ```
 
 ## Configure multi-tenancy
+
+Enable multi-tenancy on Tempo and configure tenant headers as follows.
 
 1. Configure the OpenTelemetry Collector to attach the `X-Scope-OrgID` header on push:
 
