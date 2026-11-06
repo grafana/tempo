@@ -26,4 +26,4 @@ You can instrument your code using one or more of the methods described in the t
 
 ## Next steps
 
-After you choose your instrumentation method, refer to [Set up instrumentation](/docs/tempo/<TEMPO_VERSION>/instrument-send/set-up-instrumentation/).
+After you choose your instrumentation method, refer to [Set up instrumentation](/docs/tempo/<TEMPO_VERSION>/set-up-for-tracing/instrument-send/set-up-instrumentation/).
