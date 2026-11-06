@@ -104,6 +104,10 @@ func (e *permanent) Is(target error) bool { return target == ErrPermanent }
 // that duration before the next attempt and resets the backoff policy, so the
 // backoff sequence restarts afterward.
 //
+// The backoff policy still decides whether to retry at all.
+// If its NextBackOff returns Stop, Retry stops with ErrExhausted and the requested delay is ignored.
+// Limits set with WithMaxTries and WithMaxElapsedTime apply as usual.
+//
 // The error that triggered the wait (passed to RetryAfter) is available via
 // Unwrap, so errors.Is and errors.As see through the RetryAfterError. If
 // retrying later stops because a limit is reached or the context ends, Retry
@@ -134,4 +138,9 @@ func (e *RetryAfterError) Error() string {
 }
 
 // Unwrap returns the error that triggered the retry, if one was provided.
-func (e *RetryAfterError) Unwrap() error { return e.err }
+func (e *RetryAfterError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}

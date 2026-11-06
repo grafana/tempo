@@ -5,21 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.1] - 2026-09-30
+
+### Fixed
+
+- `WithMaxElapsedTime` no longer lets a delay near the maximum `time.Duration` overflow past the limit, and a negative `RetryAfter` delay is treated as zero instead of extending it. ([#191](https://github.com/cenkalti/backoff/pull/191))
+- `ExponentialBackOff` no longer returns a negative delay when a randomized interval exceeds the maximum `time.Duration`.
+- `Retry` no longer panics when the operation returns a typed-nil `*RetryAfterError`. It is retried like any other error.
+- The `RetryAfterError` docs now state that the backoff policy's `Stop` takes precedence over the requested delay. ([#192](https://github.com/cenkalti/backoff/issues/192))
+- The `WithMaxElapsedTime` docs now state that the limit includes the runtime of the attempts, so an operation that fails after running past it is not retried. ([#188](https://github.com/cenkalti/backoff/issues/188))
+
 ## [7.0.0] - 2026-06-30
 
 ### Changed
 
-- `RetryAfter` now takes a `time.Duration` and a required cause error: `RetryAfter(d time.Duration, cause error)`. The cause is preserved as `RetryError.LastErr` when retrying stops. (#184)
+- `RetryAfter` now takes a `time.Duration` and a required cause error: `RetryAfter(d time.Duration, cause error)`. The cause is preserved as `RetryError.LastErr` when retrying stops. ([#184](https://github.com/cenkalti/backoff/issues/184))
 
 ### Added
 
-- `RetryAfterError.Err`, exposed via `Unwrap`.
+- `RetryAfterError` carries the cause passed to `RetryAfter`, exposed via `Unwrap`.
 
 ## [6.0.0] - 2026-06-16
 
 ### Added
 
-- `RetryError`, returned by `Retry` on every failure, exposing the last operation error (`LastErr`) and the reason it stopped (`Cause`). (#181)
+- `RetryError`, returned by `Retry` on every failure, exposing the last operation error (`LastErr`) and the reason it stopped (`Cause`). ([#181](https://github.com/cenkalti/backoff/issues/181))
 - `ErrPermanent`, `ErrExhausted`, and `ErrMaxElapsedTime` cause sentinels, plus `AsRetryError` to extract a `*RetryError` from an error chain.
 
 ### Changed
@@ -53,5 +63,5 @@ See [`ExampleRetry_outcomes`](example_test.go) for how to inspect error outcomes
 
 ### Fixed
 
-- The original error is returned from Retry if there's a PermanentError. (#144)
-- The Retry function respects the wrapped PermanentError. (#140)
+- The original error is returned from Retry if there's a PermanentError. ([#144](https://github.com/cenkalti/backoff/issues/144))
+- The Retry function respects the wrapped PermanentError. ([#140](https://github.com/cenkalti/backoff/issues/140))
