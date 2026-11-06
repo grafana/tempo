@@ -21,15 +21,21 @@ in the repository.
 
 ## When to use multi-tenancy
 
+Use multitenancy to separate teams within an organization or to separate customers of a service.
+
+For either use case, [per-tenant settings](#configure-per-tenant-settings) let you set different ingestion limits or block retention periods for each tenant.
+
 ### Separate teams within an organization
 
-A platform team can run one Tempo cluster for the payments and checkout teams instead of maintaining a cluster for each team.
-Use a tenant ID such as `team-payments` for the payments team's traces and `team-checkout` for the checkout team's traces.
-
+A platform team can run one Tempo cluster for multiple teams instead of maintaining a cluster for each team.
+Assign each team a tenant to keep its traces separate.
 Configure each team's collector to send its tenant ID in the `X-Scope-OrgID` header when exporting traces.
-Configure each team's Grafana Tempo data source to send the same tenant ID when querying.
-For example, both the payments collector and the payments data source use `X-Scope-OrgID: team-payments`.
-Queries from that data source return the payments tenant's traces.
+Configure each team's Grafana Tempo data source to send the same tenant ID in the `X-Scope-OrgID` header when querying.
+Queries from that data source return only that tenant's traces.
+
+For example, use `team-payments` for the payments team's traces and `team-checkout` for the checkout team's traces.
+Both the payments collector and the payments data source use `X-Scope-OrgID: team-payments`.
+The checkout collector and data source use `X-Scope-OrgID: team-checkout`.
 
 Choose tenant boundaries to match how you troubleshoot services.
 Services whose spans need to be queried together as one trace should send those spans to the same tenant.
@@ -37,17 +43,17 @@ For queries across several tenants, refer to [Cross-tenant query federation](htt
 
 ### Separate customers of a service
 
-A SaaS provider can use a tenant for each customer, such as `customer-acme` and `customer-contoso`.
+A SaaS provider can use a tenant for each customer.
 The provider can operate one Tempo cluster while keeping each customer's traces separate.
-Send Acme's traces with `X-Scope-OrgID: customer-acme` and use the same header for Acme's queries.
-Use `customer-contoso` for Contoso's ingestion and queries.
+Use the same tenant ID in the `X-Scope-OrgID` header for each customer's ingestion and queries.
+Queries return only that customer's traces.
+
+For example, send Customer 1's traces with `X-Scope-OrgID: customer-1` and use the same header for Customer 1's queries.
+Use `X-Scope-OrgID: customer-2` for Customer 2's ingestion and queries.
 
 Tempo doesn't include an authentication layer.
 Use an authenticating reverse proxy to set the tenant header based on the customer's identity and permissions, rather than accepting a tenant ID chosen by the customer.
 For more information, refer to [Manage authentication](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/authentication/).
-
-For either use case, [per-tenant settings](#configure-per-tenant-settings) let you set different ingestion limits or block retention periods for each tenant.
-Enable multi-tenancy on Tempo and configure tenant headers as described in the following sections.
 
 ## Tenant IDs
 
@@ -87,6 +93,8 @@ otelcol.exporter.otlphttp "tempo" {
 ```
 
 ## Configure multi-tenancy
+
+Enable multi-tenancy on Tempo and configure tenant headers as follows.
 
 1. Configure the OpenTelemetry Collector to attach the `X-Scope-OrgID` header on push:
 
