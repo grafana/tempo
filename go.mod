@@ -13,7 +13,7 @@ require (
 	github.com/alecthomas/kong v1.17.0
 	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/apache/thrift v0.25.0
-	github.com/axiomhq/hyperloglog v0.2.6
+	github.com/axiomhq/hyperloglog v0.3.0
 	github.com/bits-and-blooms/bloom/v3 v3.7.1
 	github.com/bytedance/sonic v1.15.4
 	github.com/cespare/xxhash/v2 v2.3.0
