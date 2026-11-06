@@ -27,7 +27,7 @@ spec:
         - -I 5m
         - -c 4096
         - -v
-        image: memcached:1.6.45-alpine@sha256:c29847751abb41f4c268c84fb3087fee05d4edcbda44409ccb5086e26148e8a7
+        image: memcached:1.6.45-alpine@sha256:6a089e37cbb8acd75c80c6c0667fe57ec54db68782fb1b3afb1d0eb265e50070
         imagePullPolicy: IfNotPresent
         name: memcached
         ports:
