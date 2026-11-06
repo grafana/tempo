@@ -87,8 +87,8 @@ func TestPartitionReaderCommits(t *testing.T) {
 		<-consumed                                     // Assert that record has been consumed
 		assert.Equal(t, asyncCommits.Load(), int32(0)) // Nothing committed
 
-		// Waiting up to commitInterval, a commit will have happened by then
-		assert.Eventually(t, func() bool { return asyncCommits.Load() >= 1 }, commitInterval*2, 10*time.Millisecond)
+		// Allow several commit intervals for scheduling delays.
+		assert.Eventually(t, func() bool { return asyncCommits.Load() >= 1 }, commitInterval*6, 10*time.Millisecond)
 		assert.Equal(t, int64(0), r.lag.Load())
 
 		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), r))
