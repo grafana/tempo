@@ -23,7 +23,7 @@ grafana {
               keepTime: true,
               tags: ['tempo'],
               targetBlank: false,
-              title: 'Tempo dashboards',
+              title: 'Tempo Dashboards',
               type: 'dashboards',
             },
           ],
