@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/prometheus/prometheus/model/exemplar"
@@ -57,6 +58,19 @@ func (n noopAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ labels.
 func (n noopAppender) AppendHistogramSTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return 0, nil
 }
+
+type errorAppender struct {
+	noopAppender
+}
+
+func (n errorAppender) Append(storage.SeriesRef, labels.Labels, int64, float64) (storage.SeriesRef, error) {
+	return 0, errors.New("append error")
+}
+
+var (
+	_ storage.Appendable = (*errorAppender)(nil)
+	_ storage.Appender   = (*errorAppender)(nil)
+)
 
 type capturingAppender struct {
 	samples      []sample

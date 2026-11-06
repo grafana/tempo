@@ -9,6 +9,7 @@ import (
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
 
@@ -122,6 +123,7 @@ func Test_gaugeSetBorrowed_refreshesExistingSeries(t *testing.T) {
 			seriesDeleted++
 		},
 	}
+	appender := noopAppender{}
 	g := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
 	lbls := buildTestLabels([]string{"label"}, []string{"value"})
 	hash := lbls.Hash()
@@ -137,11 +139,11 @@ func Test_gaugeSetBorrowed_refreshesExistingSeries(t *testing.T) {
 	assert.Equal(t, int64(200), g.series[hash].lastUpdated.Load())
 	assert.Equal(t, 1, seriesUpdated)
 
-	g.removeStaleSeries(150)
+	require.NoError(t, g.removeStaleSeries(appender, time.Now().UnixMilli(), 150))
 	assert.Len(t, g.series, 1)
 	assert.Equal(t, 0, seriesDeleted)
 
-	g.removeStaleSeries(201)
+	require.NoError(t, g.removeStaleSeries(appender, time.Now().UnixMilli(), 201))
 	assert.Empty(t, g.series)
 	assert.Equal(t, 1, seriesDeleted)
 }
@@ -205,7 +207,8 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
-	c.removeStaleSeries(timeMs)
+	appender := noopAppender{}
+	_ = c.removeStaleSeries(appender, 0, timeMs)
 
 	assert.Equal(t, 0, removedSeries)
 
@@ -222,7 +225,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 	// update value-2 series
 	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
 
-	c.removeStaleSeries(timeMs)
+	_ = c.removeStaleSeries(appender, 0, timeMs)
 
 	assert.Equal(t, 1, removedSeries)
 
@@ -231,6 +234,28 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-2"}, collectionTimeMs, 4),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
+}
+
+func Test_gauge_removeStaleSeries_appenderError(t *testing.T) {
+	var removedSeries int
+	lifecycler := &mockLimiter{
+		onDeleteFunc: func(_ uint64, count uint32) {
+			assert.Equal(t, uint32(1), count)
+			removedSeries++
+		},
+	}
+
+	c := newGauge("my_gauge", lifecycler, map[string]string{}, 15*time.Minute)
+
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0)
+	c.Inc(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.0)
+
+	appender := errorAppender{}
+	timeMs := time.Now().Add(1 * time.Hour).UnixMilli()
+	err := c.removeStaleSeries(appender, 0, timeMs)
+
+	assert.Error(t, err)
+	assert.Equal(t, removedSeries, 2)
 }
 
 func Test_gauge_externalLabels(t *testing.T) {
@@ -286,7 +311,8 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 	})
 
 	go accessor(func() {
-		c.removeStaleSeries(time.Now().UnixMilli())
+		appender := noopAppender{}
+		_ = c.removeStaleSeries(appender, 0, time.Now().UnixMilli())
 	})
 
 	time.Sleep(200 * time.Millisecond)
@@ -405,8 +431,9 @@ func Test_gauge_demandDecay(t *testing.T) {
 	assert.Greater(t, initialDemand, 0)
 
 	// Advance the cardinality tracker enough times to clear the window
+	appender := noopAppender{}
 	for i := 0; i < 5; i++ {
-		g.removeStaleSeries(time.Now().Add(time.Hour).UnixMilli())
+		_ = g.removeStaleSeries(appender, 0, time.Now().Add(time.Hour).UnixMilli())
 	}
 
 	// Demand should have decreased or be zero
