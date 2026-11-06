@@ -56,13 +56,46 @@ func attributeCases(prof *profile.BlockProfile) []benchCase {
 	return cases
 }
 
+// existenceCases generates exists, select and by cases per attribute. They read
+// the rows without a value too, which = value cases skip. The filtered by case
+// mirrors { span.http.status_code != 200 } | rate() by (span.http.status_code).
+func existenceCases(prof *profile.BlockProfile) []benchCase {
+	if prof.Attributes == nil {
+		return nil
+	}
+
+	ranked := pickAttributes(prof.Attributes, rankedAttributesPerGroup, hasValues)
+	rankedIDs := attributeIDs(ranked)
+
+	var cases []benchCase
+	for i, p := range ranked {
+		attr, ok := traceqlAttribute(p)
+		if !ok || p.Scope == attributes.ScopeIntrinsic {
+			continue
+		}
+		group := rankedGroup(p)
+		cases = append(cases,
+			searchCase("search/"+group+"/exists/"+rankedIDs[i], fmt.Sprintf("{ %s != nil }", attr)),
+			searchCase("search/"+group+"/select/"+rankedIDs[i], fmt.Sprintf("{ } | select(%s)", attr)),
+			metricsCase("metrics/"+group+"/rate-by/"+rankedIDs[i], fmt.Sprintf("{ } | rate() by (%s)", attr)),
+		)
+		// != the most common value matches nothing when it is the only one.
+		if vs := bandValues(p); len(vs) > 1 {
+			filter := strings.Replace(valueFilter(p, vs[0].value.Value), " = ", " != ", 1)
+			cases = append(cases, metricsCase("metrics/"+group+"/filtered-rate-by/"+rankedIDs[i],
+				fmt.Sprintf("%s | rate() by (%s)", filter, attr)))
+		}
+	}
+	return cases
+}
+
 // allCases is every case a run measures: the fixed set with the profile's
 // generated cases, the cases of each API kept together, so a comparison
 // lists one group per API rather than one per phase. The fixed set fixes
 // the order the groups come in; generated cases of an API it lacks come
 // after, as a group of their own.
 func allCases(prof *profile.BlockProfile) []benchCase {
-	all := slices.Concat(fixedCases(), attributeCases(prof))
+	all := slices.Concat(fixedCases(), attributeCases(prof), existenceCases(prof))
 
 	// The cases of an API stay together, in the order the APIs first appear
 	// in the list above — the fixed set's order — and, within an API, as given.
