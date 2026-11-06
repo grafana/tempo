@@ -1,0 +1,11 @@
+change_type: change
+
+component: backend-scheduler
+
+note: 'An empty job queue is answered with an OK response carrying no job instead of `codes.NotFound`, so polling an idle cluster no longer goes through the gRPC error path. Workers read the empty `JobId` as "nothing to do", and `tempo_backend_scheduler_jobs_not_found_total` still counts it.'
+
+issues: [7403]
+
+subtext: 'Removes the warn-level gRPC request log that an idle deployment emitted on every poll, which the worker-side fix could not reach. Rolling upgrades are covered in both directions. This worker still treats `codes.NotFound` from an older scheduler as an empty queue, and an older worker reads the new empty response through its existing `JobId == ""` check.'
+
+user: robinbowes

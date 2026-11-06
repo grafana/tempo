@@ -2,6 +2,7 @@ package backendworker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"math/rand"
@@ -25,6 +26,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/codes"
 )
+
+// errNoJobsAvailable is how the worker says "the scheduler had nothing to hand out" to its
+// own poll loop. It is not a failure: an idle cluster produces it on every poll, so the loop
+// paces itself on it rather than reporting it. A codes.NotFound from a scheduler older than
+// this worker never reaches here: processJobs passes it to callSchedulerWithBackoff as an
+// expected code, which keeps polling inside the backoff loop.
+var errNoJobsAvailable = errors.New("no jobs available")
 
 const (
 	// ringAutoForgetUnhealthyPeriods is how many consecutive timeout periods an unhealthy instance
@@ -180,6 +188,19 @@ func (w *BackendWorker) starting(ctx context.Context) (err error) {
 	return nil
 }
 
+// logPollFailure reports what a poll of the scheduler returned. An empty queue is the
+// expected state of an idle cluster and is logged at debug; everything else is an error.
+// Shared by the two poll loops in running() so they cannot drift apart.
+func logPollFailure(err error, next time.Duration) {
+	if errors.Is(err, errNoJobsAvailable) {
+		level.Debug(log.Logger).Log("msg", "no jobs available from scheduler", "backoff", next)
+
+		return
+	}
+
+	level.Error(log.Logger).Log("msg", "error processing jobs", "err", err, "backoff", next)
+}
+
 func (w *BackendWorker) running(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend worker running")
 
@@ -201,7 +222,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 				return fmt.Errorf("worker subservices failed: %w", err)
 			default:
 				if err := w.processJobs(jobCtx); err != nil {
-					level.Error(log.Logger).Log("msg", "error processing jobs", "err", err, "backoff", b.NextDelay())
+					logPollFailure(err, b.NextDelay())
 					b.Wait()
 					continue
 				}
@@ -216,7 +237,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 				return nil
 			default:
 				if err := w.processJobs(jobCtx); err != nil {
-					level.Error(log.Logger).Log("msg", "error processing jobs", "err", err, "backoff", b.NextDelay())
+					logPollFailure(err, b.NextDelay())
 					b.Wait()
 					continue
 				}
@@ -256,7 +277,7 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 	}
 
 	if resp == nil || resp.JobId == "" {
-		return fmt.Errorf("no jobs available")
+		return errNoJobsAvailable
 	}
 
 	metricWorkerJobsTotal.WithLabelValues().Inc()
