@@ -27,5 +27,43 @@ jobs:
           payload: |
             {
               "channel": ${{ toJSON(vars.TEMPO_DEV_SLACK_CHANNEL_ID) }},
-              "text": ${{ toJSON(format('PR merged: "{0}" - {1}', github.event.pull_request.title, github.event.pull_request.html_url)) }}
+              "text": ${{ toJSON(format('PR merged: {0}', github.event.pull_request.title)) }},
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": ":pr-merged: PR merged",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "plain_text",
+                    "text": ${{ toJSON(github.event.pull_request.title) }},
+                    "emoji": true
+                  },
+                  "accessory": {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View PR",
+                      "emoji": true
+                    },
+                    "url": ${{ toJSON(github.event.pull_request.html_url) }},
+                    "action_id": "view_pr"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "plain_text",
+                      "text": ${{ toJSON(format('Author: {0}', github.event.pull_request.user.login)) }},
+                      "emoji": true
+                    }
+                  ]
+                }
+              ]
             }
