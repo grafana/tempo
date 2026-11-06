@@ -259,8 +259,16 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, errors.Join(blockErrs...)
 		}
 
+		// blocks without the trace respond with metrics only
+		foundPartialTraces := 0
+		for _, partialTrace := range partialTraces {
+			if partialTrace.GetTrace() != nil {
+				foundPartialTraces++
+			}
+		}
 		span.AddEvent("done searching store", oteltrace.WithAttributes(
-			attribute.Int("foundPartialTraces", len(partialTraces)),
+			attribute.Int("foundPartialTraces", foundPartialTraces),
+			attribute.Int("blockResponses", len(partialTraces)),
 		))
 
 		for _, partialTrace := range partialTraces {

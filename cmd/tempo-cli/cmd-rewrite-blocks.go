@@ -253,7 +253,8 @@ func isInBlock(ctx context.Context, r backend.Reader, background bool, blockNum 
 			return nil, err
 		}
 
-		if trace == nil {
+		// blocks ruled out by the bloom filter or index respond without a trace
+		if trace == nil || trace.Trace == nil {
 			continue
 		}
 
