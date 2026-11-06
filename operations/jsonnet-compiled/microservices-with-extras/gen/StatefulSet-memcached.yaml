@@ -42,7 +42,7 @@ spec:
       - args:
         - --memcached.address=localhost:11211
         - --web.listen-address=0.0.0.0:9150
-        image: prom/memcached-exporter:v0.16.0@sha256:fa03aba2f2aa6f572bf56ba07dd2960c62433805427be0fddc8b21b8074c1728
+        image: prom/memcached-exporter:v0.18.0@sha256:1458b31d4cae1a6618e85c8d31ecc49c4ebdcee3c8530be8d80d93e8792c4a58
         imagePullPolicy: IfNotPresent
         name: exporter
         ports:
