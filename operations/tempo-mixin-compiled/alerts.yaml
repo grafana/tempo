@@ -239,9 +239,9 @@
       "message": "Tempo block-builder partitions mismatch in {{ $labels.cluster }}/{{ $labels.namespace }}."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBlockBuildersPartitionsMismatch"
     "expr": |
-      max(tempo_partition_ring_partitions{name=~"livestore-partitions", state=~"Active|Inactive"}) by (namespace,cluster)
+      max(tempo_partition_ring_partitions{name=~"livestore-partitions", state=~"Active|Inactive"}) by (cluster, namespace)
       >
-      sum(tempo_block_builder_owned_partitions) by(namespace,cluster)
+      sum(tempo_block_builder_owned_partitions) by (cluster, namespace)
     "for": "10m"
     "labels":
       "severity": "critical"
@@ -250,13 +250,13 @@
       "message": "Some live-store partitions are unowned in {{ $labels.cluster }}/{{ $labels.namespace }}."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoLiveStoresPartitionsUnowned"
     "expr": |
-      max by(namespace, cluster) (
+      max by (cluster, namespace) (
         tempo_partition_ring_partitions{name=~"livestore-partitions", state=~"Active|Inactive"}
       )
       >
-      count(count by (partition,namespace,cluster) (
+      count(count by (partition, cluster, namespace) (
         tempo_live_store_partition_owned{}
-      )) by (namespace, cluster)
+      )) by (cluster, namespace)
     "for": "10m"
     "labels":
       "severity": "critical"
@@ -267,11 +267,11 @@
     "expr": |
       abs(
         (
-          count by (namespace, cluster, zone) (tempo_live_store_partition_owned)
+          count by (cluster, namespace, zone) (tempo_live_store_partition_owned)
           /
-          on(namespace, cluster)
+          on (cluster, namespace)
           group_left()
-          max by (namespace, cluster) (count by (namespace, cluster, zone) (tempo_live_store_partition_owned))
+          max by (cluster, namespace) (count by (cluster, namespace, zone) (tempo_live_store_partition_owned))
          ) - 1
        ) > 0.6
     "for": "10m"
