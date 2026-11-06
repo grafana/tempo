@@ -29,7 +29,7 @@ func (r ResolverFunc) Validate(app *Application) error { return nil } //nolint: 
 
 // JSON returns a Resolver that retrieves values from a JSON source.
 //
-// Flag names are used as JSON keys indirectly, by tring snake_case and camelCase variants.
+// Flag names are used as JSON keys indirectly, by trying snake_case and camelCase variants.
 func JSON(r io.Reader) (Resolver, error) {
 	values := map[string]any{}
 	err := json.NewDecoder(r).Decode(&values)

@@ -529,6 +529,7 @@ func DefaultEnvars(prefix string) Option {
 			return
 		case len(env) == 1 && env[0] == "-":
 			flag.Envs = nil
+			flag.Value.Tag.Envs = nil
 			return
 		case len(env) > 0:
 			return
