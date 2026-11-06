@@ -38,9 +38,9 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			maxDuration:     6 * time.Hour,
 			maxIntervals:    10,
 			wantErr:         "metrics query time range exceeds the maximum allowed duration of 6h0m0s",
-			wantResult:      queryRangeResultRejectedMaxDuration,
+			wantResult:      queryRejectedMaxDuration,
 			wantCalls:       1,
-			wantLog: `level=info msg="scanned bytes limit" tenant=foo op=metrics requested_seconds=28800 estimated_scanned_bytes=900 max_scanned_bytes=350 within_budget=false budget_range_seconds=10799 allowed_range_seconds=10799 min_seconds=0 max_seconds=21600 result=rejected_max_duration passes_scanned_bytes=false
+			wantLog: `level=info msg="scanned bytes limit" tenant=foo op=metrics max_duration=21600 min_duration=0 max_scanned_bytes=350 requested_seconds=28800 estimated_scanned_bytes=900 estimated_range_seconds=0 result=rejected_max_duration
 `,
 		},
 		{
@@ -50,9 +50,9 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			maxScannedBytes: 350,
 			maxIntervals:    10,
 			wantErr:         "step of 1m0s is too small, minimum step for given range is 12m0s",
-			wantResult:      queryRangeResultAllowed,
+			wantResult:      queryAllowed,
 			wantCalls:       1,
-			wantLog: `level=info msg="scanned bytes limit" tenant=foo op=metrics requested_seconds=7200 estimated_scanned_bytes=300 max_scanned_bytes=350 within_budget=true budget_range_seconds=0 allowed_range_seconds=0 min_seconds=0 max_seconds=0 result=allowed passes_scanned_bytes=true
+			wantLog: `level=info msg="scanned bytes limit" tenant=foo op=metrics max_duration=0 min_duration=0 max_scanned_bytes=350 requested_seconds=7200 estimated_scanned_bytes=300 estimated_range_seconds=0 result=allowed
 `,
 		},
 	}
@@ -66,7 +66,7 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			rdr := &countingMockReader{mockReader: mockReader{metas: hourlyMetricsBlocks(scannedBytesTestEnd)}}
 			rl := newMetricsRangeLimiter(cfg, newTestOverrides(t, overrides.ReadOverrides{}), rdr)
 
-			countBefore := resultCount("foo", metricsOp, tc.wantResult)
+			countBefore := queriesCount(metricsOp, tc.wantResult, "true")
 			err := validateQueryRangeReq(user.InjectOrgID(context.Background(), "foo"), cfg, rl, log.NewLogfmtLogger(&buf), &tempopb.QueryRangeRequest{
 				Start: uint64(tc.start.UnixNano()),
 				End:   uint64(scannedBytesTestEnd.UnixNano()),
@@ -84,7 +84,7 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 			require.Equal(t, tc.wantCalls, rdr.callCount())
 			require.Equal(t, tc.wantLog, buf.String())
 			if tc.wantResult != "" {
-				require.Equal(t, 1.0, resultCount("foo", metricsOp, tc.wantResult)-countBefore)
+				require.Equal(t, 1.0, queriesCount(metricsOp, tc.wantResult, "true")-countBefore)
 			}
 		})
 	}
@@ -152,25 +152,25 @@ func TestMetricsRangeLimiter(t *testing.T) {
 		wantSpans map[string]string
 	}{
 		{
-			// tenant.TenantIDs sorts, so the over-budget tenant comes first and the fitting one is checked after the rejection.
+			// tenant.TenantIDs sorts, so the over-limit tenant comes first and the fitting one is checked after the rejection.
 			name:    "every tenant is logged",
 			orgID:   "b-fits|a-over",
 			cfg:     QueryRangeSharderConfig{MaxScannedBytes: 350},
 			wantErr: "metrics query time range of 4h0m0s reads too much data, the allowed range for tenant a-over is 2h59m59s",
-			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics requested_seconds=14400 estimated_scanned_bytes=500 max_scanned_bytes=350 within_budget=false budget_range_seconds=10799 allowed_range_seconds=10799 min_seconds=0 max_seconds=0 result=rejected_scanned_bytes passes_scanned_bytes=false
-level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=14400 estimated_scanned_bytes=0 max_scanned_bytes=350 within_budget=true budget_range_seconds=0 allowed_range_seconds=0 min_seconds=0 max_seconds=0 result=allowed passes_scanned_bytes=true
+			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics max_duration=0 min_duration=0 max_scanned_bytes=350 requested_seconds=14400 estimated_scanned_bytes=500 estimated_range_seconds=10799 result=rejected_scanned_bytes
+level=info msg="scanned bytes limit" tenant=b-fits op=metrics max_duration=0 min_duration=0 max_scanned_bytes=350 requested_seconds=14400 estimated_scanned_bytes=0 estimated_range_seconds=0 result=allowed
 `,
-			wantSpans: map[string]string{"a-over": queryRangeResultRejectedScannedBytes, "b-fits": queryRangeResultAllowed},
+			wantSpans: map[string]string{"a-over": queryRejectedBytes, "b-fits": queryAllowed},
 		},
 		{
 			name:    "every tenant over its max_duration is logged",
 			orgID:   "b-fits|a-over",
 			cfg:     QueryRangeSharderConfig{MaxScannedBytes: 350, MaxDuration: time.Hour},
-			wantErr: "metrics query time range exceeds the maximum allowed duration of 1h0m0s",
-			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics requested_seconds=14400 estimated_scanned_bytes=500 max_scanned_bytes=350 within_budget=false budget_range_seconds=10799 allowed_range_seconds=3600 min_seconds=0 max_seconds=3600 result=rejected_max_duration passes_scanned_bytes=false
-level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=14400 estimated_scanned_bytes=0 max_scanned_bytes=350 within_budget=true budget_range_seconds=0 allowed_range_seconds=0 min_seconds=0 max_seconds=3600 result=rejected_max_duration passes_scanned_bytes=true
+			wantErr: "metrics query time range exceeds the maximum allowed duration of 1h0m0s\nmetrics query time range exceeds the maximum allowed duration of 1h0m0s",
+			wantLog: `level=info msg="scanned bytes limit" tenant=a-over op=metrics max_duration=3600 min_duration=0 max_scanned_bytes=350 requested_seconds=14400 estimated_scanned_bytes=500 estimated_range_seconds=0 result=rejected_max_duration
+level=info msg="scanned bytes limit" tenant=b-fits op=metrics max_duration=3600 min_duration=0 max_scanned_bytes=350 requested_seconds=14400 estimated_scanned_bytes=0 estimated_range_seconds=0 result=rejected_max_duration
 `,
-			wantSpans: map[string]string{"a-over": queryRangeResultRejectedMaxDuration, "b-fits": queryRangeResultRejectedMaxDuration},
+			wantSpans: map[string]string{"a-over": queryRejectedMaxDuration, "b-fits": queryRejectedMaxDuration},
 		},
 		{
 			name:  "each tenant gets its own max_duration override",
@@ -184,39 +184,40 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
     read:
       max_metrics_duration: 1h
 `,
-			wantErr: "metrics query time range exceeds the maximum allowed duration of 1h0m0s",
+			wantErr:   "metrics query time range exceeds the maximum allowed duration of 1h0m0s",
+			wantSpans: map[string]string{"a": "", "b": ""},
 		},
 		{
-			name:      "of 2 equal rejections the first wins",
+			name:      "every rejection is returned",
 			orgID:     "c-over|a-over",
 			cfg:       QueryRangeSharderConfig{MaxScannedBytes: 350},
-			wantErr:   "metrics query time range of 4h0m0s reads too much data, the allowed range for tenant a-over is 2h59m59s",
-			wantSpans: map[string]string{"a-over": queryRangeResultRejectedScannedBytes, "c-over": queryRangeResultRejectedScannedBytes},
+			wantErr:   "metrics query time range of 4h0m0s reads too much data, the allowed range for tenant a-over is 2h59m59s\nmetrics query time range of 4h0m0s reads too much data, the allowed range for tenant c-over is 2h59m59s",
+			wantSpans: map[string]string{"a-over": queryRejectedBytes, "c-over": queryRejectedBytes},
 		},
 		{
 			name:      "a rejection after a fit is returned",
 			orgID:     "c-over|b-fits",
 			cfg:       QueryRangeSharderConfig{MaxScannedBytes: 350},
 			wantErr:   "metrics query time range of 4h0m0s reads too much data, the allowed range for tenant c-over is 2h59m59s",
-			wantSpans: map[string]string{"b-fits": queryRangeResultAllowed, "c-over": queryRangeResultRejectedScannedBytes},
+			wantSpans: map[string]string{"b-fits": queryAllowed, "c-over": queryRejectedBytes},
 		},
 		{
-			// a-over is checked first and allows 2h59m59s, which e-dense would reject on retry.
-			name:      "the rejection with the shortest retry range wins",
+			// a-over allows 2h59m59s, which e-dense would reject, so both ranges are reported.
+			name:      "each tenant's allowed range is returned",
 			orgID:     "e-dense|a-over",
 			cfg:       QueryRangeSharderConfig{MaxScannedBytes: 350},
-			wantErr:   "metrics query time range of 4h0m0s reads too much data, the allowed range for tenant e-dense is 59m59s",
-			wantSpans: map[string]string{"a-over": queryRangeResultRejectedScannedBytes, "e-dense": queryRangeResultRejectedScannedBytes},
+			wantErr:   "metrics query time range of 4h0m0s reads too much data, the allowed range for tenant a-over is 2h59m59s\nmetrics query time range of 4h0m0s reads too much data, the allowed range for tenant e-dense is 59m59s",
+			wantSpans: map[string]string{"a-over": queryRejectedBytes, "e-dense": queryRejectedBytes},
 		},
 		{
 			name:      "a retry with the reported range passes every tenant",
 			orgID:     "e-dense|a-over",
 			cfg:       QueryRangeSharderConfig{MaxScannedBytes: 350},
 			start:     uint64(scannedBytesTestEnd.Add(-(time.Hour - time.Second)).UnixNano()),
-			wantSpans: map[string]string{"a-over": queryRangeResultAllowed, "e-dense": queryRangeResultAllowed},
+			wantSpans: map[string]string{"a-over": queryAllowed, "e-dense": queryAllowed},
 		},
 		{
-			name:  "a max_duration below the other tenant's allowed range wins",
+			name:  "a max_duration rejection and a scanned bytes rejection are both returned",
 			orgID: "b-fits|a-over",
 			cfg:   QueryRangeSharderConfig{MaxScannedBytes: 350},
 			perTenant: `overrides:
@@ -224,11 +225,11 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
     read:
       max_metrics_duration: 1h
 `,
-			wantErr:   "metrics query time range exceeds the maximum allowed duration of 1h0m0s",
-			wantSpans: map[string]string{"a-over": queryRangeResultRejectedScannedBytes, "b-fits": queryRangeResultRejectedMaxDuration},
+			wantErr:   "metrics query time range of 4h0m0s reads too much data, the allowed range for tenant a-over is 2h59m59s\nmetrics query time range exceeds the maximum allowed duration of 1h0m0s",
+			wantSpans: map[string]string{"a-over": queryRejectedBytes, "b-fits": queryRejectedMaxDuration},
 		},
 		{
-			name:  "an allowed range below the other tenant's max_duration wins",
+			name:  "a scanned bytes rejection after a max_duration rejection is returned too",
 			orgID: "b-fits|e-dense",
 			cfg:   QueryRangeSharderConfig{MaxScannedBytes: 350},
 			perTenant: `overrides:
@@ -236,12 +237,12 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
     read:
       max_metrics_duration: 2h
 `,
-			wantErr:   "metrics query time range of 4h0m0s reads too much data, the allowed range for tenant e-dense is 59m59s",
-			wantSpans: map[string]string{"b-fits": queryRangeResultRejectedMaxDuration, "e-dense": queryRangeResultRejectedScannedBytes},
+			wantErr:   "metrics query time range exceeds the maximum allowed duration of 2h0m0s\nmetrics query time range of 4h0m0s reads too much data, the allowed range for tenant e-dense is 59m59s",
+			wantSpans: map[string]string{"b-fits": queryRejectedMaxDuration, "e-dense": queryRejectedBytes},
 		},
 		{
-			// a-over is rejected without a check, so only b-fits gets a span.
-			name:  "a max_duration rejection without a check has no span",
+			// a-over is rejected without a check, so its span has no result.
+			name:  "a max_duration rejection without a check has a span without a result",
 			orgID: "b-fits|a-over",
 			perTenant: `overrides:
   a-over:
@@ -252,13 +253,13 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
       max_metrics_scanned_bytes: 350
 `,
 			wantErr:   "metrics query time range exceeds the maximum allowed duration of 1h0m0s",
-			wantSpans: map[string]string{"b-fits": queryRangeResultAllowed},
+			wantSpans: map[string]string{"a-over": "", "b-fits": queryAllowed},
 		},
 		{
 			name:      "every checked tenant gets a span",
 			orgID:     "b-fits|d-fits",
 			cfg:       QueryRangeSharderConfig{MaxScannedBytes: 350},
-			wantSpans: map[string]string{"b-fits": queryRangeResultAllowed, "d-fits": queryRangeResultAllowed},
+			wantSpans: map[string]string{"b-fits": queryAllowed, "d-fits": queryAllowed},
 		},
 		{
 			name:    "invalid org ID",
@@ -277,9 +278,11 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			name:      "max_duration override above the range allows it",
 			cfg:       QueryRangeSharderConfig{MaxDuration: time.Hour},
 			overrides: overrides.ReadOverrides{MaxMetricsDuration: model.Duration(48 * time.Hour)},
+			wantSpans: map[string]string{"foo": ""},
 		},
 		{
-			name: "no limits allow any range",
+			name:      "no limits allow any range",
+			wantSpans: map[string]string{"foo": ""},
 		},
 		{
 			// Each override must replace its config value.
@@ -291,8 +294,8 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			},
 			start:     uint64(hoursAgo(6).UnixNano()),
 			wantErr:   "metrics query time range of 6h0m0s reads too much data, the allowed range for tenant mixed is 5h0m0s",
-			wantSpans: map[string]string{"mixed": queryRangeResultRejectedScannedBytes},
-			wantLog: `level=info msg="scanned bytes limit" tenant=mixed op=metrics requested_seconds=21600 estimated_scanned_bytes=700 max_scanned_bytes=150 within_budget=false budget_range_seconds=3599 allowed_range_seconds=18000 min_seconds=18000 max_seconds=21600 result=rejected_scanned_bytes passes_scanned_bytes=false
+			wantSpans: map[string]string{"mixed": queryRejectedBytes},
+			wantLog: `level=info msg="scanned bytes limit" tenant=mixed op=metrics max_duration=21600 min_duration=18000 max_scanned_bytes=150 requested_seconds=21600 estimated_scanned_bytes=700 estimated_range_seconds=18000 result=rejected_scanned_bytes
 `,
 		},
 		{
@@ -302,7 +305,7 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics requested_seconds=
 			start:     1,
 			end:       math.MaxUint64,
 			wantErr:   "metrics query time range of 2562047h47m16s reads too much data, the allowed range for tenant foo is 2562047h47m16s",
-			wantSpans: map[string]string{"foo": queryRangeResultRejectedScannedBytes},
+			wantSpans: map[string]string{"foo": queryRejectedBytes},
 		},
 	}
 

@@ -92,10 +92,10 @@ To turn the limit on without rejecting any query allowed today, set `min_duratio
 With that setting, only queries over `max_duration` are logged. The LogQL query below reads those lines.
 A tenant with a `max_search_duration` or `max_metrics_duration` override also needs `min_search_duration` or `min_metrics_duration` set to the same value.
 Otherwise, ranges between the config `min_duration` and the tenant's `max_duration` are limited by `max_scanned_bytes`.
-This LogQL query finds queries that a `max_duration` of 7 days would newly allow:
+This LogQL query lists queries of 7 days or less that `max_duration` rejects, but whose estimated bytes fit a `max_scanned_bytes` of 200 GB:
 
 ```logql
-{namespace="tempo", container="query-frontend"} |= "scanned bytes limit" | logfmt | result="rejected_max_duration" | passes_scanned_bytes="true" | requested_seconds <= 604800
+{namespace="tempo", container="query-frontend"} |= "scanned bytes limit" | logfmt | result="rejected_max_duration" | requested_seconds <= 604800 | estimated_scanned_bytes <= 200000000000
 ```
 
 ## Querier connections

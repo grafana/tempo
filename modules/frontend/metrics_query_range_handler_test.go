@@ -1647,7 +1647,7 @@ func TestQueryRangeScannedBytesLimit(t *testing.T) {
 		wantErr         string
 	}{
 		{
-			name:            "range over the budget is rejected",
+			name:            "range over max_scanned_bytes is rejected",
 			entryPoints:     []string{"http range", "http instant", "grpc range", "grpc instant"},
 			start:           hoursAgo(4),
 			end:             scannedBytesTestEnd,

@@ -41,9 +41,9 @@ type SearchSharderConfig struct {
 	DefaultLimit          uint32        `yaml:"default_result_limit"`
 	MaxLimit              uint32        `yaml:"max_result_limit"`
 	MaxDuration           time.Duration `yaml:"max_duration"`
-	// MaxScannedBytes is the byte budget of backend blocks a search range may overlap. 0 disables the limit.
+	// MaxScannedBytes is the most bytes of backend blocks a search range may overlap. 0 disables the limit.
 	MaxScannedBytes uint64 `yaml:"max_scanned_bytes,omitempty"`
-	// MinDuration is the range always allowed when MaxScannedBytes is set, even if it is over the budget.
+	// MinDuration is the range always allowed when MaxScannedBytes is set, even if it is over MaxScannedBytes.
 	MinDuration time.Duration `yaml:"min_duration,omitempty"`
 	// QueryBackendAfter determines when to query backend storage vs ingesters only.
 	QueryBackendAfter      time.Duration `yaml:"query_backend_after,omitempty"`
@@ -124,37 +124,37 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	if searchReq.Start == 0 {
 		limits.maxScannedBytes = 0
 	}
+	spanCtx, span := tracer.Start(ctx, "frontend.CheckRange", trace.WithAttributes(attribute.String("tenant", tenantID)))
+
 	result, est := s.limiter.CheckRange(tenantID, limits, start, end)
-	recordRangeCheck(searchRangeLimitMetrics, tenantID, end.Sub(start), result, est)
 	if est != nil {
 		//nolint:goconst // logfmt keys match the other query log lines.
 		kv := []any{
 			"msg", "scanned bytes limit",
 			"tenant", tenantID,
 			"op", searchOp,
+			"max_duration", int64(limits.maxDuration / time.Second),
+			"min_duration", int64(limits.minDuration / time.Second),
+			"max_scanned_bytes", limits.maxScannedBytes,
 			// Rounded like the rejection error: requested up, limits down.
 			"requested_seconds", int64(ceilSeconds(end.Sub(start)) / time.Second),
 			"estimated_scanned_bytes", est.estimatedBytes,
-			"max_scanned_bytes", limits.maxScannedBytes,
-			"within_budget", est.withinBudget,
-			"budget_range_seconds", int64(est.budgetRange / time.Second),
-			"allowed_range_seconds", int64(est.allowedRange / time.Second),
-			"min_seconds", int64(limits.minDuration / time.Second),
-			"max_seconds", int64(limits.maxDuration / time.Second),
+			"estimated_range_seconds", int64(est.estimatedAllowedRange / time.Second),
 			"result", result,
-			// Whether max_scanned_bytes and min_duration alone allow the query, to size a max_duration raise.
-			"passes_scanned_bytes", est.withinBudget || end.Sub(start) <= max(est.budgetRange, limits.minDuration),
 		}
 		logWithShape(level.Info(s.logger), ctx, kv...)
-		spanCtx, span := tracer.Start(ctx, "frontend.CheckRange", trace.WithAttributes(attribute.String("tenant", tenantID)))
 		setSpanAttrsWithShape(spanCtx, kv...)
-		span.End()
 	}
+	span.End()
+
 	switch result {
-	case queryRangeResultRejectedMaxDuration:
+	case queryRejectedMaxDuration:
 		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", limits.maxDuration, searchReq.Start, searchReq.End)), nil
-	case queryRangeResultRejectedScannedBytes:
-		return pipeline.NewBadRequest(scannedBytesErr(searchOp, tenantID, end.Sub(start), est.allowedRange)), nil
+	case queryRejectedBytes:
+		// Rounding in opposite directions keeps the two values distinct. Under 1s it stays exact.
+		allowed := cmp.Or(est.estimatedAllowedRange.Truncate(time.Second), est.estimatedAllowedRange)
+		return pipeline.NewBadRequest(fmt.Errorf("search query time range of %s reads too much data, the allowed range for tenant %s is %s",
+			ceilSeconds(end.Sub(start)), tenantID, allowed)), nil
 	}
 
 	// buffer of shards+1 allows us to insert ingestReq and metrics
@@ -326,12 +326,13 @@ func newSearchRangeLimiter(cfg SearchSharderConfig, o overrides.Interface, reade
 		op:        searchOp,
 		reader:    reader,
 		filterFn:  acceptAllBlocks,
+		metrics:   searchRangeLimitMetrics,
 		cfg:       cfg,
 		overrides: o,
 	}
 }
 
-func (l *searchRangeLimiter) CheckRange(tenantID string, limits rangeLimits, start, end time.Time) (string, *scannedBytesCheck) {
+func (l *searchRangeLimiter) CheckRange(tenantID string, limits rangeLimits, start, end time.Time) (string, *checkResult) {
 	// Whole seconds, like backendRange, so both backendAfter values match unless a second passes in between.
 	backendAfter := time.Unix(time.Now().Add(-l.cfg.QueryBackendAfter).Unix(), 0)
 	return l.checkTenantRange(tenantID, limits, start, end, backendAfter)

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -110,14 +111,14 @@ func newTestPerTenantOverrides(t testing.TB, perTenant string) overrides.Interfa
 	return o
 }
 
-func histogramCount(t *testing.T, tenant, op string) uint64 {
+func estimatedBytesCount(t *testing.T, op, result string) uint64 {
 	m := &dto.Metric{}
-	require.NoError(t, scannedBytesLimitBudgetRange.WithLabelValues(tenant, op).(prometheus.Histogram).Write(m))
+	require.NoError(t, queryRangeEstimatedBytes.WithLabelValues(op, result).(prometheus.Histogram).Write(m))
 	return m.GetHistogram().GetSampleCount()
 }
 
-func resultCount(tenant, op, result string) float64 {
-	return testutil.ToFloat64(scannedBytesLimitTotal.WithLabelValues(tenant, op, result))
+func queriesCount(op, result, bytesEstimated string) float64 {
+	return testutil.ToFloat64(queryRangeQueries.WithLabelValues(op, result, bytesEstimated))
 }
 
 func TestEstimateBackendBytes(t *testing.T) {
@@ -130,60 +131,55 @@ func TestEstimateBackendBytes(t *testing.T) {
 		requested time.Duration
 		// start defaults to scannedBytesTestEnd minus requested. backendAfter defaults to scannedBytesTestEnd.
 		start, backendAfter time.Time
-		want                scannedBytesCheck
-		wantErr             string
+		want                checkResult
 	}{
 		{
 			name:      "fits",
 			metas:     hourly,
 			limits:    rangeLimits{maxDuration: 24 * time.Hour, maxScannedBytes: 1000},
 			requested: 10 * time.Hour,
-			want:      scannedBytesCheck{withinBudget: true, estimatedBytes: 1000},
+			want:      checkResult{estimatedBytes: 1000},
 		},
 		{
 			name:      "data starting mid-range fits",
 			metas:     hourly[:3],
 			limits:    rangeLimits{maxDuration: 7 * 24 * time.Hour, maxScannedBytes: 1000},
 			requested: 7 * 24 * time.Hour,
-			want:      scannedBytesCheck{withinBudget: true, estimatedBytes: 300},
+			want:      checkResult{estimatedBytes: 300},
 		},
 		{
 			name:      "no blocks overlap",
 			limits:    rangeLimits{maxScannedBytes: 1},
 			requested: 10 * time.Hour,
-			want:      scannedBytesCheck{withinBudget: true},
+			want:      checkResult{},
 		},
 		{
-			name:      "over the budget",
+			name:      "over max_scanned_bytes",
 			metas:     hourly,
 			limits:    rangeLimits{maxDuration: 24 * time.Hour, maxScannedBytes: 450},
 			requested: 6 * time.Hour,
-			want:      scannedBytesCheck{budgetRange: 4*time.Hour - time.Nanosecond, estimatedBytes: 700, allowedRange: 4*time.Hour - time.Nanosecond},
-			wantErr:   "metrics query time range of 6h0m0s reads too much data, the allowed range for tenant foo is 3h59m59s",
+			want:      checkResult{estimatedBytes: 700, estimatedAllowedRange: 4*time.Hour - time.Nanosecond},
 		},
 		{
 			name:      "requested rounds up and allowed rounds down in the error",
 			metas:     hourly,
 			limits:    rangeLimits{maxScannedBytes: 450},
 			requested: 4*time.Hour + 500*time.Millisecond,
-			want:      scannedBytesCheck{budgetRange: 4*time.Hour - time.Nanosecond, estimatedBytes: 500, allowedRange: 4*time.Hour - time.Nanosecond},
-			wantErr:   "metrics query time range of 4h0m1s reads too much data, the allowed range for tenant foo is 3h59m59s",
+			want:      checkResult{estimatedBytes: 500, estimatedAllowedRange: 4*time.Hour - time.Nanosecond},
 		},
 		{
 			name:      "over min_duration",
 			metas:     hourly,
 			limits:    rangeLimits{maxDuration: 24 * time.Hour, minDuration: 6 * time.Hour, maxScannedBytes: 150},
 			requested: 7 * time.Hour,
-			want:      scannedBytesCheck{budgetRange: time.Hour - time.Nanosecond, estimatedBytes: 800, allowedRange: 6 * time.Hour},
-			wantErr:   "metrics query time range of 7h0m0s reads too much data, the allowed range for tenant foo is 6h0m0s",
+			want:      checkResult{estimatedBytes: 800, estimatedAllowedRange: 6 * time.Hour},
 		},
 		{
 			name:      "max_duration caps min_duration",
 			metas:     hourly,
 			limits:    rangeLimits{maxDuration: 5 * time.Hour, minDuration: 8 * time.Hour, maxScannedBytes: 150},
 			requested: 6 * time.Hour,
-			want:      scannedBytesCheck{budgetRange: time.Hour - time.Nanosecond, estimatedBytes: 700, allowedRange: 5 * time.Hour},
-			wantErr:   "metrics query time range of 6h0m0s reads too much data, the allowed range for tenant foo is 5h0m0s",
+			want:      checkResult{estimatedBytes: 700, estimatedAllowedRange: 5 * time.Hour},
 		},
 		{
 			name:      "end before start fits",
@@ -191,7 +187,7 @@ func TestEstimateBackendBytes(t *testing.T) {
 			limits:    rangeLimits{maxScannedBytes: 1},
 			start:     scannedBytesTestEnd.Add(time.Hour),
 			requested: time.Hour,
-			want:      scannedBytesCheck{withinBudget: true},
+			want:      checkResult{},
 		},
 		{
 			name:         "a block starting at backendAfter counts",
@@ -199,32 +195,28 @@ func TestEstimateBackendBytes(t *testing.T) {
 			limits:       rangeLimits{maxScannedBytes: 250},
 			backendAfter: hoursAgo(1),
 			requested:    2 * time.Hour,
-			want:         scannedBytesCheck{budgetRange: time.Hour, estimatedBytes: 300, allowedRange: time.Hour},
-			wantErr:      "metrics query time range of 2h0m0s reads too much data, the allowed range for tenant foo is 1h0m0s",
+			want:         checkResult{estimatedBytes: 300, estimatedAllowedRange: time.Hour},
 		},
 		{
-			name:      "a prefix of blocks equal to the budget fits",
+			name:      "a prefix of blocks equal to max_scanned_bytes fits",
 			metas:     []*backend.BlockMeta{testBlock(1, 0, 100), testBlock(2, 1, 150)},
 			limits:    rangeLimits{maxScannedBytes: 100},
 			requested: 2 * time.Hour,
-			want:      scannedBytesCheck{budgetRange: time.Hour - time.Nanosecond, estimatedBytes: 250, allowedRange: time.Hour - time.Nanosecond},
-			wantErr:   "metrics query time range of 2h0m0s reads too much data, the allowed range for tenant foo is 59m59s",
+			want:      checkResult{estimatedBytes: 250, estimatedAllowedRange: time.Hour - time.Nanosecond},
 		},
 		{
-			name:      "one byte over the budget",
+			name:      "one byte over max_scanned_bytes",
 			metas:     []*backend.BlockMeta{testBlock(1, 0, 100), testBlock(2, 1, 151)},
 			limits:    rangeLimits{maxScannedBytes: 250},
 			requested: 2 * time.Hour,
-			want:      scannedBytesCheck{budgetRange: time.Hour - time.Nanosecond, estimatedBytes: 251, allowedRange: time.Hour - time.Nanosecond},
-			wantErr:   "metrics query time range of 2h0m0s reads too much data, the allowed range for tenant foo is 59m59s",
+			want:      checkResult{estimatedBytes: 251, estimatedAllowedRange: time.Hour - time.Nanosecond},
 		},
 		{
-			name:      "one block larger than the budget",
+			name:      "one block larger than max_scanned_bytes",
 			metas:     []*backend.BlockMeta{testBlock(1, 0, 1000)},
 			limits:    rangeLimits{maxDuration: 24 * time.Hour, maxScannedBytes: 500},
 			requested: time.Hour,
-			want:      scannedBytesCheck{estimatedBytes: 1000},
-			wantErr:   "metrics query time range of 1h0m0s reads too much data, the allowed range for tenant foo is 0s",
+			want:      checkResult{estimatedBytes: 1000},
 		},
 		{
 			name:         "range after backendAfter is free",
@@ -232,8 +224,7 @@ func TestEstimateBackendBytes(t *testing.T) {
 			limits:       rangeLimits{maxScannedBytes: 250},
 			backendAfter: hoursAgo(1),
 			requested:    3 * time.Hour,
-			want:         scannedBytesCheck{budgetRange: time.Hour, estimatedBytes: 300, allowedRange: time.Hour},
-			wantErr:      "metrics query time range of 3h0m0s reads too much data, the allowed range for tenant foo is 1h0m0s",
+			want:         checkResult{estimatedBytes: 300, estimatedAllowedRange: time.Hour},
 		},
 		{
 			// Search start and backendAfter are both whole seconds, so this edge is reachable.
@@ -242,7 +233,7 @@ func TestEstimateBackendBytes(t *testing.T) {
 			limits:       rangeLimits{maxScannedBytes: 250},
 			backendAfter: hoursAgo(1),
 			requested:    time.Hour,
-			want:         scannedBytesCheck{withinBudget: true},
+			want:         checkResult{},
 		},
 		{
 			name:         "blocks starting after backendAfter are free",
@@ -250,7 +241,7 @@ func TestEstimateBackendBytes(t *testing.T) {
 			limits:       rangeLimits{maxScannedBytes: 250},
 			backendAfter: hoursAgo(1),
 			requested:    3 * time.Hour,
-			want:         scannedBytesCheck{withinBudget: true, estimatedBytes: 100},
+			want:         checkResult{estimatedBytes: 100},
 		},
 		{
 			name:         "range wholly after backendAfter fits",
@@ -258,7 +249,7 @@ func TestEstimateBackendBytes(t *testing.T) {
 			limits:       rangeLimits{maxScannedBytes: 250},
 			backendAfter: hoursAgo(2),
 			requested:    time.Hour,
-			want:         scannedBytesCheck{withinBudget: true},
+			want:         checkResult{},
 		},
 		{
 			// A long compacted block starts before the fitting blocks but ends inside the range. Input order is shuffled.
@@ -266,25 +257,22 @@ func TestEstimateBackendBytes(t *testing.T) {
 			metas:     []*backend.BlockMeta{testBlock(3, 2, 100), testBlock(1, 0, 100), testBlock(10, 1, 100)},
 			limits:    rangeLimits{maxScannedBytes: 250},
 			requested: 10 * time.Hour,
-			want:      scannedBytesCheck{budgetRange: 2*time.Hour - time.Nanosecond, estimatedBytes: 300, allowedRange: 2*time.Hour - time.Nanosecond},
-			wantErr:   "metrics query time range of 10h0m0s reads too much data, the allowed range for tenant foo is 1h59m59s",
+			want:      checkResult{estimatedBytes: 300, estimatedAllowedRange: 2*time.Hour - time.Nanosecond},
 		},
 		{
 			name:      "blocks with the same end time enter together",
 			metas:     []*backend.BlockMeta{testBlock(1, 0, 100), testBlock(2, 1, 100), testBlock(2, 1, 100)},
 			limits:    rangeLimits{maxScannedBytes: 250},
 			requested: 2 * time.Hour,
-			want:      scannedBytesCheck{budgetRange: time.Hour - time.Nanosecond, estimatedBytes: 300, allowedRange: time.Hour - time.Nanosecond},
-			wantErr:   "metrics query time range of 2h0m0s reads too much data, the allowed range for tenant foo is 59m59s",
+			want:      checkResult{estimatedBytes: 300, estimatedAllowedRange: time.Hour - time.Nanosecond},
 		},
 		{
-			name:         "blocks after backendAfter stay out of the budget range",
+			name:         "blocks after backendAfter stay out of the estimated range",
 			metas:        []*backend.BlockMeta{{StartTime: scannedBytesTestEnd.Add(-30 * time.Minute), EndTime: scannedBytesTestEnd.Add(-10 * time.Minute), Size_: 1000, ReplicationFactor: backend.MetricsGeneratorReplicationFactor}, testBlock(3, 2, 100), testBlock(5, 4, 200)},
 			limits:       rangeLimits{maxScannedBytes: 250},
 			backendAfter: hoursAgo(1),
 			requested:    5 * time.Hour,
-			want:         scannedBytesCheck{budgetRange: 4*time.Hour - time.Nanosecond, estimatedBytes: 300, allowedRange: 4*time.Hour - time.Nanosecond},
-			wantErr:      "metrics query time range of 5h0m0s reads too much data, the allowed range for tenant foo is 3h59m59s",
+			want:         checkResult{estimatedBytes: 300, estimatedAllowedRange: 4*time.Hour - time.Nanosecond},
 		},
 		{
 			// A metrics backendAfter is in nanoseconds, so it can land under 1s before the end.
@@ -293,8 +281,7 @@ func TestEstimateBackendBytes(t *testing.T) {
 			limits:       rangeLimits{maxScannedBytes: 250},
 			backendAfter: scannedBytesTestEnd.Add(-500 * time.Millisecond),
 			requested:    time.Hour,
-			want:         scannedBytesCheck{budgetRange: 500 * time.Millisecond, estimatedBytes: 300, allowedRange: 500 * time.Millisecond},
-			wantErr:      "metrics query time range of 1h0m0s reads too much data, the allowed range for tenant foo is 500ms",
+			want:         checkResult{estimatedBytes: 300, estimatedAllowedRange: 500 * time.Millisecond},
 		},
 	}
 
@@ -310,12 +297,12 @@ func TestEstimateBackendBytes(t *testing.T) {
 			}
 
 			s := scannedBytesLimit{op: metricsOp, reader: &mockReader{metas: tc.metas}, filterFn: isRF1Block}
-			got := s.estimateBackendBytes("foo", tc.limits, start, scannedBytesTestEnd, backendAfter)
+			got := checkResult{estimatedBytes: s.estimateBackendBytes(tc.metas, start, scannedBytesTestEnd, backendAfter)}
+			if got.estimatedBytes > tc.limits.maxScannedBytes {
+				got.estimatedAllowedRange = s.estimateAllowedRange(tc.metas, tc.limits, start, scannedBytesTestEnd, backendAfter)
+			}
 
 			require.Equal(t, tc.want, got)
-			if tc.wantErr != "" {
-				require.EqualError(t, scannedBytesErr(metricsOp, "foo", scannedBytesTestEnd.Sub(start), got.allowedRange), tc.wantErr)
-			}
 		})
 	}
 }
@@ -329,55 +316,52 @@ func TestScannedBytesLimitOrder(t *testing.T) {
 		wantCheck string
 		// wantRange is the query range histogram result.
 		wantRange string
-		// wantBudgetRange is how many budget ranges the histogram records.
-		wantBudgetRange uint64
 	}{
 		{
 			name:      "over max_duration without max_scanned_bytes reads nothing",
-			wantRange: queryRangeResultRejectedMaxDuration,
+			wantRange: queryRejectedMaxDuration,
 			limits:    rangeLimits{maxDuration: 5 * time.Hour},
 			requested: 6 * time.Hour,
 		},
 		{
 			name:      "over max_duration is still logged",
-			wantRange: queryRangeResultRejectedMaxDuration,
+			wantRange: queryRejectedMaxDuration,
 			limits:    rangeLimits{maxDuration: 5 * time.Hour, maxScannedBytes: 150},
 			requested: 6 * time.Hour,
-			wantCheck: queryRangeResultRejectedMaxDuration,
+			wantCheck: queryRejectedMaxDuration,
 		},
 		{
 			name:      "max_duration wins over min_duration",
-			wantRange: queryRangeResultRejectedMaxDuration,
+			wantRange: queryRejectedMaxDuration,
 			limits:    rangeLimits{maxDuration: 5 * time.Hour, minDuration: 8 * time.Hour, maxScannedBytes: 150},
 			requested: 6 * time.Hour,
-			wantCheck: queryRangeResultRejectedMaxDuration,
+			wantCheck: queryRejectedMaxDuration,
 		},
 		{
 			name:      "within min_duration reads nothing",
-			wantRange: queryRangeResultAllowed,
+			wantRange: queryAllowed,
 			limits:    rangeLimits{maxDuration: 24 * time.Hour, minDuration: 6 * time.Hour, maxScannedBytes: 150},
 			requested: 6 * time.Hour,
 		},
 		{
 			name:      "max_scanned_bytes off reads nothing",
-			wantRange: queryRangeResultAllowed,
+			wantRange: queryAllowed,
 			limits:    rangeLimits{maxDuration: 24 * time.Hour},
 			requested: 6 * time.Hour,
 		},
 		{
 			name:      "fits",
-			wantRange: queryRangeResultAllowed,
+			wantRange: queryAllowed,
 			limits:    rangeLimits{maxScannedBytes: 1000},
 			requested: 10 * time.Hour,
-			wantCheck: queryRangeResultAllowed,
+			wantCheck: queryAllowed,
 		},
 		{
-			name:            "over the budget",
-			wantRange:       queryRangeResultRejectedScannedBytes,
-			wantBudgetRange: 1,
-			limits:          rangeLimits{maxScannedBytes: 150},
-			requested:       6 * time.Hour,
-			wantCheck:       queryRangeResultRejectedScannedBytes,
+			name:      "over max_scanned_bytes",
+			wantRange: queryRejectedBytes,
+			limits:    rangeLimits{maxScannedBytes: 150},
+			requested: 6 * time.Hour,
+			wantCheck: queryRejectedBytes,
 		},
 	}
 
@@ -388,23 +372,24 @@ func TestScannedBytesLimitOrder(t *testing.T) {
 				op:       metricsOp,
 				reader:   rdr,
 				filterFn: isRF1Block,
+				metrics:  metricsRangeLimitMetrics,
 			}
 
 			rangeBefore := queryRangeCount(t, metricsOp, tc.wantRange)
-			countBefore, derivedBefore := resultCount("foo", metricsOp, tc.wantRange), histogramCount(t, "foo", metricsOp)
+			countBefore, bytesBefore := queriesCount(metricsOp, tc.wantRange, strconv.FormatBool(tc.wantCheck != "")), estimatedBytesCount(t, metricsOp, tc.wantRange)
 			result, est := s.checkTenantRange("foo", tc.limits, scannedBytesTestEnd.Add(-tc.requested), scannedBytesTestEnd, scannedBytesTestEnd)
-			recordRangeCheck(metricsRangeLimitMetrics, "foo", tc.requested, result, est)
 			require.Equal(t, tc.wantRange, result)
 			require.Equal(t, rangeBefore+1, queryRangeCount(t, metricsOp, tc.wantRange))
-			require.Equal(t, tc.wantBudgetRange, histogramCount(t, "foo", metricsOp)-derivedBefore)
+			require.Equal(t, countBefore+1, queriesCount(metricsOp, tc.wantRange, strconv.FormatBool(tc.wantCheck != "")))
 			if tc.wantCheck == "" {
+				require.Equal(t, bytesBefore, estimatedBytesCount(t, metricsOp, tc.wantRange))
 				require.Nil(t, est)
 				require.Zero(t, rdr.callCount())
 			} else {
 				require.NotNil(t, est)
+				require.Equal(t, bytesBefore+1, estimatedBytesCount(t, metricsOp, tc.wantRange))
 				require.Equal(t, tc.wantCheck, result)
 				require.Equal(t, 1, rdr.callCount())
-				require.Equal(t, countBefore+1, resultCount("foo", metricsOp, tc.wantRange))
 			}
 		})
 	}
@@ -447,7 +432,7 @@ func recordCheckRangeSpans() (context.Context, func() map[string]string) {
 
 func queryRangeCount(t *testing.T, op, result string) uint64 {
 	m := &dto.Metric{}
-	require.NoError(t, requestQueryRange.WithLabelValues(op, result).(prometheus.Histogram).Write(m))
+	require.NoError(t, queryRangeSeconds.WithLabelValues(op, result).(prometheus.Histogram).Write(m))
 	return m.GetHistogram().GetSampleCount()
 }
 
@@ -459,11 +444,11 @@ func TestRangeLimitersRecordQueryRange(t *testing.T) {
 		cfg := Config{}
 		cfg.Metrics.Sharder.MaxDuration = time.Hour
 		l := newMetricsRangeLimiter(cfg, o, &mockReader{})
-		allowed, overMax := queryRangeCount(t, metricsOp, queryRangeResultAllowed), queryRangeCount(t, metricsOp, queryRangeResultRejectedMaxDuration)
+		allowed, overMax := queryRangeCount(t, metricsOp, queryAllowed), queryRangeCount(t, metricsOp, queryRejectedMaxDuration)
 		require.NoError(t, checkMetricsRange(context.Background(), cfg, l, log.NewNopLogger(), "foo", hoursAgo(1), scannedBytesTestEnd))
 		require.Error(t, checkMetricsRange(context.Background(), cfg, l, log.NewNopLogger(), "foo", hoursAgo(2), scannedBytesTestEnd))
-		require.Equal(t, allowed+1, queryRangeCount(t, metricsOp, queryRangeResultAllowed))
-		require.Equal(t, overMax+1, queryRangeCount(t, metricsOp, queryRangeResultRejectedMaxDuration))
+		require.Equal(t, allowed+1, queryRangeCount(t, metricsOp, queryAllowed))
+		require.Equal(t, overMax+1, queryRangeCount(t, metricsOp, queryRejectedMaxDuration))
 	})
 
 	t.Run(searchOp, func(t *testing.T) {
@@ -481,11 +466,11 @@ func TestRangeLimitersRecordQueryRange(t *testing.T) {
 			_, err := sharder.Wrap(nopNext).RoundTrip(pipeline.NewHTTPRequest(req.WithContext(ctx)))
 			require.NoError(t, err)
 		}
-		allowed, overMax := queryRangeCount(t, searchOp, queryRangeResultAllowed), queryRangeCount(t, searchOp, queryRangeResultRejectedMaxDuration)
+		allowed, overMax := queryRangeCount(t, searchOp, queryAllowed), queryRangeCount(t, searchOp, queryRejectedMaxDuration)
 		roundTrip("/?start=1&end=3600")
 		roundTrip("/?start=1&end=8200")
-		require.Equal(t, allowed+1, queryRangeCount(t, searchOp, queryRangeResultAllowed))
-		require.Equal(t, overMax+1, queryRangeCount(t, searchOp, queryRangeResultRejectedMaxDuration))
+		require.Equal(t, allowed+1, queryRangeCount(t, searchOp, queryAllowed))
+		require.Equal(t, overMax+1, queryRangeCount(t, searchOp, queryRejectedMaxDuration))
 	})
 }
 
@@ -499,7 +484,7 @@ func (r *blocklistReader) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return r.list.Metas(tenantID)
 }
 
-func BenchmarkEstimateBackendBytes(b *testing.B) {
+func BenchmarkDecideTenantRange(b *testing.B) {
 	const (
 		retention = 14 * 24 * time.Hour
 		blockSize = 100 * 1024 * 1024
@@ -518,14 +503,14 @@ func BenchmarkEstimateBackendBytes(b *testing.B) {
 			maxScannedBytes uint64
 		}{
 			{name: "fits", maxScannedBytes: math.MaxUint64},
-			{name: "over_budget", maxScannedBytes: uint64(n) * blockSize / 4},
+			{name: "over_limit", maxScannedBytes: uint64(n) * blockSize / 4},
 		} {
 			l := rangeLimits{maxDuration: 14 * 24 * time.Hour, maxScannedBytes: bc.maxScannedBytes}
 			s := scannedBytesLimit{op: metricsOp, reader: &blocklistReader{list: list}, filterFn: isRF1Block}
 			b.Run(fmt.Sprintf("blocks=%d/%s", n, bc.name), func(b *testing.B) {
 				b.ReportAllocs()
 				for b.Loop() {
-					s.estimateBackendBytes("foo", l, scannedBytesTestEnd.Add(-7*24*time.Hour), scannedBytesTestEnd, scannedBytesTestEnd)
+					s.decideTenantRange("foo", l, scannedBytesTestEnd.Add(-7*24*time.Hour), scannedBytesTestEnd, scannedBytesTestEnd)
 				}
 			})
 		}

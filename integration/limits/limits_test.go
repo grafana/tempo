@@ -339,7 +339,7 @@ func TestQueryRateLimits(t *testing.T) {
 func TestQueryScannedBytesLimits(t *testing.T) {
 	util.RunIntegrationTests(t, util.TestHarnessConfig{
 		ConfigOverlay: configQueryScannedBytes,
-		// The block-builder writes the backend blocks the budget counts.
+		// The block-builder writes the backend blocks max_scanned_bytes counts.
 		Components: util.ComponentsBackendQuerying,
 	}, func(h *util.TempoHarness) {
 		h.WaitTracesWritable(t)
@@ -351,7 +351,7 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 		end := time.Now().Unix()
 		ago := func(d time.Duration) int64 { return end - int64(d/time.Second) }
 
-		// One byte of budget makes every backend block overflow, so the 10m min_duration sets the allowed range.
+		// A max_scanned_bytes of 1 makes every backend block overflow, so the 10m min_duration sets the allowed range.
 		_, err := apiClient.MetricsQueryRange("{} | rate()", ago(time.Hour), end, "60s", 0)
 		require.ErrorContains(t, err, "failed with response: 400")
 		require.ErrorContains(t, err, "metrics query time range of 1h0m0s reads too much data, the allowed range for tenant single-tenant is 10m0s")
@@ -376,7 +376,7 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 		waitResult := func(op, result string) {
 			require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(
 				e2e.GreaterOrEqual(1),
-				[]string{"tempo_query_frontend_scanned_bytes_limit_total"},
+				[]string{"tempo_query_frontend_query_range_queries_total"},
 				e2e.WithLabelMatchers(
 					labels.MustNewMatcher(labels.MatchEqual, "op", op),
 					labels.MustNewMatcher(labels.MatchEqual, "result", result),
@@ -413,7 +413,7 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 			require.Less(t, allowed, 10*time.Minute)
 		}
 
-		// A per-tenant budget, reloaded at runtime, lets a query at max_duration through.
+		// A per-tenant max_scanned_bytes, reloaded at runtime, lets a query at max_duration through.
 		require.NoError(t, h.UpdateOverrides(map[string]*overrides.Overrides{
 			"single-tenant": {
 				Read: overrides.ReadOverrides{
