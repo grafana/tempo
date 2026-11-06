@@ -1657,6 +1657,11 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 				}
 			}
 
+			// A dedicated column nil must not hide a value of another type read from generic attributes.
+			if kv.Value.IsNull() && (hasAttr(sp.spanAttrs, x.a) || hasAttr(sp.resourceAttrs, x.a) || hasAttr(sp.eventAttrs, x.a)) {
+				return
+			}
+
 			switch scope {
 			case traceql.AttributeScopeTrace:
 				sp.traceAttrs = append(sp.traceAttrs, x)
