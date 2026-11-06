@@ -43,15 +43,15 @@ require (
 	github.com/maypok86/otter/v2 v2.4.0
 	github.com/minio/minio-go/v7 v7.4.1
 	github.com/olekukonko/tablewriter v1.1.4
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.161.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.161.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.161.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.161.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.161.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor v0.161.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.161.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.161.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.161.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.164.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.3.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.164.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.164.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.164.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor v0.164.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.164.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.164.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.164.1
 	github.com/parquet-go/parquet-go v0.32.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
@@ -284,15 +284,17 @@ require (
 	github.com/olekukonko/cat v0.0.0-20250911104152-50322a0618f6 // indirect
 	github.com/olekukonko/errors v1.3.0 // indirect
 	github.com/olekukonko/ll v0.1.6 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.161.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.161.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.161.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.161.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.161.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.161.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.164.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.164.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.164.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.164.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/xprofile v0.164.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/xottl v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.161.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.161.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.161.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure v0.164.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.161.0 // indirect
 	github.com/opentracing-contrib/go-grpc v0.1.4 // indirect
 	github.com/opentracing-contrib/go-stdlib v1.1.1 // indirect
@@ -389,8 +391,8 @@ require (
 	go.opentelemetry.io/collector/pdata/pprofile v0.164.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.70.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.164.0 // indirect
-	go.opentelemetry.io/collector/processor/processorhelper v0.161.0 // indirect
-	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.161.0 // indirect
+	go.opentelemetry.io/collector/processor/processorhelper v0.164.0 // indirect
+	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.164.0 // indirect
 	go.opentelemetry.io/collector/processor/processortest v0.164.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.164.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.164.0 // indirect

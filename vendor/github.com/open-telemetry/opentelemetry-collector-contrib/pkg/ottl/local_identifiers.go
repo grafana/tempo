@@ -7,49 +7,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/lambda"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlerror"
 )
-
-// LocalIdentifierDecl represents a named or blank parameter in a local scope.
-//
-// Experimental: *NOTE* this API is subject to change or removal in the future.
-type LocalIdentifierDecl interface {
-	// Name returns the identifier's name as a string.
-	Name() string
-	// IsBlank indicates whether the identifier is a blank ("_") placeholder.
-	IsBlank() bool
-}
-
-// localBindingsKey is a [context.Context] key used for storing the active *localActivation
-// in the context during evaluation.
-type localActivationKey struct{}
-
-// localActivation is a runtime scope frame. Frames link to their parent to support nested scopes
-// without copying bindings on each entry.
-type localActivation struct {
-	parent   *localActivation
-	bindings map[string]any
-}
-
-// resolve retrieves a local identifier value from the current or parent activation bindings.
-func (a *localActivation) resolve(binding string) (any, bool) {
-	for cur := a; cur != nil; cur = cur.parent {
-		if v, ok := cur.bindings[binding]; ok {
-			return v, true
-		}
-	}
-	return nil, false
-}
-
-// pushLocalActivation pushes a new localActivation onto the context stack.
-// If an existing activation is present, it sets it as the parent of the new activation.
-func pushLocalActivation(ctx context.Context, activation *localActivation) context.Context {
-	if parent, ok := ctx.Value(localActivationKey{}).(*localActivation); ok {
-		activation.parent = parent
-	} else {
-		activation.parent = nil
-	}
-	return context.WithValue(ctx, localActivationKey{}, activation)
-}
 
 // localScopeFrame is the set of local identifier lexemes declared in one scope frame. (parse time only)
 type localScopeFrame map[string]struct{}
@@ -108,19 +69,19 @@ type localIdentifierGetter[K any] struct {
 
 func (p *parseContext[K]) newLocalIdentifierGetter(identifier *basePath[K]) (GetSetter[K], error) {
 	if !identifier.localIdentifier {
-		return nil, fmt.Errorf("%q is not a valid local identifier", identifier.originalText)
+		return nil, ottlerror.Errorf(identifier.pos, "%q is not a valid local identifier", identifier.originalText)
 	}
 	if p.localScopes.empty() {
-		return nil, fmt.Errorf("local identifier %q is only valid inside a scoped context", identifier.name)
+		return nil, ottlerror.Errorf(identifier.pos, "local identifier %q is only valid inside a scoped context", identifier.name)
 	}
 	if !p.localScopes.inScope(identifier.name) {
-		return nil, fmt.Errorf("local identifier %q is not defined in the local scope", identifier.name)
+		return nil, ottlerror.Errorf(identifier.pos, "local identifier %q is not defined in the local scope", identifier.name)
 	}
 	return &localIdentifierGetter[K]{identifier: identifier}, nil
 }
 
 func (g *localIdentifierGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
-	v, err := resolveLocalIdentifierBinding(ctx, g.identifier.name)
+	v, err := lambda.ResolveBinding(ctx, g.identifier.name)
 	if err != nil {
 		return nil, err
 	}
@@ -136,35 +97,4 @@ func (g *localIdentifierGetter[K]) Get(ctx context.Context, tCtx K) (any, error)
 
 func (g *localIdentifierGetter[K]) Set(context.Context, K, any) error {
 	return fmt.Errorf("local identifier %q cannot be set", g.identifier.originalText)
-}
-
-func countNonBlankIdentifiers(params []LocalIdentifierDecl) int {
-	count := 0
-	for _, param := range params {
-		if !param.IsBlank() {
-			count++
-		}
-	}
-	return count
-}
-
-func resolveLocalIdentifierBinding(ctx context.Context, name string) (any, error) {
-	activation, ok := ctx.Value(localActivationKey{}).(*localActivation)
-	if !ok {
-		return nil, fmt.Errorf("local identifier %q evaluated outside of an active local scope", name)
-	}
-	v, ok := activation.resolve(name)
-	if !ok {
-		return nil, fmt.Errorf("missing value for local identifier %q", name)
-	}
-	return v, nil
-}
-
-func makeLocalIdentifiers(args ...string) []LocalIdentifierDecl {
-	res := make([]LocalIdentifierDecl, len(args))
-	for i, v := range args {
-		lid := localIdentifierDecl(v)
-		res[i] = &lid
-	}
-	return res
 }

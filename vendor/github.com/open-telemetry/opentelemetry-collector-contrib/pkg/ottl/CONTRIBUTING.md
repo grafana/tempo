@@ -37,9 +37,15 @@ As with code, OTTL aims for readability first. This means:
 
 ### Implementation guidelines
 
-All new functions must be added via a new file.  Function files must start with `func_`.  Functions must be placed in `ottlfuncs`.
+All new functions are experimental. They are not covered by OTTL's stability guarantees until they are promoted (see [Promoting Experimental Functions](#promoting-experimental-functions)).
 
-Unit tests must be added for all new functions.  Unit test files must start with `func_` and end in `_test`.  Unit tests must be placed in the same directory as the function.  Functions that are not specific to a pipeline should be tested independently of any specific pipeline. Functions that are specific to a pipeline should be tests against that pipeline. End-to-end tests must be added in the `e2e` directory.
+All new functions must be added via a new file.  Function files must start with `func_`.  Functions must be placed in `xottl/ottlfuncs`.  A new function must:
+
+- Be marked experimental by passing `ottl.WithExperimental[K]()` to `ottl.NewFactory`. The parser rejects experimental functions unless the `pkg.ottl.functions.enableExperimental` feature gate is enabled.
+- Be added to `ExperimentalConverters` in `xottl/ottlfuncs/functions.go` if it is a Converter.
+- Be documented in the [experimental functions README](./xottl/ottlfuncs/README.md), including a note that it is experimental and requires the [`pkg.ottl.functions.enableExperimental`](./documentation.md#feature-gates) feature gate.
+
+Unit tests must be added for all new functions.  Unit test files must start with `func_` and end in `_test`.  Unit tests must be placed in the same directory as the function. Functions that are not specific to a context should be tested independently of any specific context. Functions that are specific to a context, such as `IsRootSpan`, should be tested against that context. End-to-end tests must be added in the `xottl/e2e` directory and must enable the `pkg.ottl.functions.enableExperimental` feature gate, for example with `testutil.SetFeatureGateForTest(t, metadata.PkgOttlFunctionsEnableExperimentalFeatureGate, true)`.
 
 #### Naming and Parameter Guidelines
 
@@ -51,6 +57,16 @@ Functions should be named and formatted according to the following standards.
 - Functions that interact with multiple items MUST have plurality in the name. Ex: `truncate_all`, `keep_keys`, `replace_all_matches`.
 - Functions that interact with a single item MUST NOT have plurality in the name. If a function would interact with multiple items due to a condition, like `where`, it is still considered singular. Ex: `set`, `delete`, `replace_match`.
 - Functions that change a specific target MUST set the target as the first parameter.
+
+### Promoting Experimental Functions
+
+An experimental function may be promoted once it meets the [promotion criteria](./ottlfuncs/README.md#promotion-to-standard). Promotion freezes the function's signature for the life of OTTL `1.x`, so any signature changes must be made before it is promoted. To promote a function:
+
+1. Move its `func_` file and unit tests from `xottl/ottlfuncs` to `ottlfuncs`, and its end-to-end tests from `xottl/e2e` to `e2e`.
+2. Remove `ottl.WithExperimental[K]()` from its factory.
+3. Remove it from `ExperimentalConverters` and add it to `ottlfuncs/functions.go`: Editors go in `StandardFuncs` and Converters go in `converters`.
+4. Move its documentation to the [standard functions README](./ottlfuncs/README.md) and remove the experimental note.
+5. Run `make update-ottl-signatures` from `pkg/ottl` and commit the updated golden file.
 
 ## New Values
 

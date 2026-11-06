@@ -259,7 +259,7 @@ type MetricParserCollectionOption ottl.ParserCollectionOption[parsedMetricCondit
 
 func WithMetricParser(functions map[string]ottl.Factory[*ottlmetric.TransformContext]) MetricParserCollectionOption {
 	return func(pc *ottl.ParserCollection[parsedMetricConditions]) error {
-		metricParser, err := ottlmetric.NewParser(functions, pc.Settings, ottlmetric.EnablePathContextNames())
+		metricParser, err := ottlmetric.NewParser(functions, pc.Settings(), ottlmetric.EnablePathContextNames())
 		if err != nil {
 			return err
 		}
@@ -269,7 +269,7 @@ func WithMetricParser(functions map[string]ottl.Factory[*ottlmetric.TransformCon
 
 func WithDataPointParser(functions map[string]ottl.Factory[*ottldatapoint.TransformContext]) MetricParserCollectionOption {
 	return func(pc *ottl.ParserCollection[parsedMetricConditions]) error {
-		dataPointParser, err := ottldatapoint.NewParser(functions, pc.Settings, ottldatapoint.EnablePathContextNames())
+		dataPointParser, err := ottldatapoint.NewParser(functions, pc.Settings(), ottldatapoint.EnablePathContextNames())
 		if err != nil {
 			return err
 		}
@@ -312,7 +312,7 @@ func convertMetricConditions(pc *ottl.ParserCollection[parsedMetricConditions], 
 	errorMode := getErrorMode(pc, contextConditions)
 	return parsedMetricConditions{
 		metricConditions:  parsedConditions,
-		telemetrySettings: pc.Settings,
+		telemetrySettings: pc.Settings(),
 		errorMode:         errorMode,
 	}, nil
 }
@@ -326,7 +326,7 @@ func convertDataPointConditions(pc *ottl.ParserCollection[parsedMetricConditions
 	errorMode := getErrorMode(pc, contextConditions)
 	return parsedMetricConditions{
 		dataPointConditions: parsedConditions,
-		telemetrySettings:   pc.Settings,
+		telemetrySettings:   pc.Settings(),
 		errorMode:           errorMode,
 	}, nil
 }
@@ -371,7 +371,7 @@ func (mpc *MetricParserCollection) ParseContextConditions(contextConditions Cont
 		scopeConditions:     sConditions,
 		metricConditions:    mConditions,
 		dataPointConditions: dConditions,
-		telemetrySettings:   pc.Settings,
+		telemetrySettings:   pc.Settings(),
 		errorMode:           getErrorMode[parsedMetricConditions](&pc, &contextConditions),
 	}
 

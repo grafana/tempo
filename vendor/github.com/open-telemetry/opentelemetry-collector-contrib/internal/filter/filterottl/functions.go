@@ -14,27 +14,29 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlexemplar"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlmetric"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlprofile"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlresource"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlscope"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspan"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspanevent"
+	xprofilefuncs "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/xprofile/ottlfuncs"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/xprofile/ottlprofile"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs"
+	xottlfuncs "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/xottl/ottlfuncs"
 )
 
 func StandardSpanFuncs() map[string]ottl.Factory[*ottlspan.TransformContext] {
-	m := ottlfuncs.StandardConverters[*ottlspan.TransformContext]()
+	m := xottlfuncs.WithExperimentalConverters(xprofilefuncs.WithProfileConverters(ottlfuncs.StandardConverters[*ottlspan.TransformContext]()))
 	isRootSpanFactory := ottlfuncs.NewIsRootSpanFactory()
 	m[isRootSpanFactory.Name()] = isRootSpanFactory
 	return m
 }
 
 func StandardSpanEventFuncs() map[string]ottl.Factory[*ottlspanevent.TransformContext] {
-	return ottlfuncs.StandardConverters[*ottlspanevent.TransformContext]()
+	return xottlfuncs.WithExperimentalConverters(xprofilefuncs.WithProfileConverters(ottlfuncs.StandardConverters[*ottlspanevent.TransformContext]()))
 }
 
 func StandardMetricFuncs() map[string]ottl.Factory[*ottlmetric.TransformContext] {
-	m := ottlfuncs.StandardConverters[*ottlmetric.TransformContext]()
+	m := xottlfuncs.WithExperimentalConverters(xprofilefuncs.WithProfileConverters(ottlfuncs.StandardConverters[*ottlmetric.TransformContext]()))
 	hasAttributeOnDatapointFactory := newHasAttributeOnDatapointFactory()
 	hasAttributeKeyOnDatapointFactory := newHasAttributeKeyOnDatapointFactory()
 	m[hasAttributeOnDatapointFactory.Name()] = hasAttributeOnDatapointFactory
@@ -43,27 +45,27 @@ func StandardMetricFuncs() map[string]ottl.Factory[*ottlmetric.TransformContext]
 }
 
 func StandardDataPointFuncs() map[string]ottl.Factory[*ottldatapoint.TransformContext] {
-	return ottlfuncs.StandardConverters[*ottldatapoint.TransformContext]()
+	return xottlfuncs.WithExperimentalConverters(xprofilefuncs.WithProfileConverters(ottlfuncs.StandardConverters[*ottldatapoint.TransformContext]()))
 }
 
 func StandardExemplarFuncs() map[string]ottl.Factory[*ottlexemplar.TransformContext] {
-	return ottlfuncs.StandardConverters[*ottlexemplar.TransformContext]()
+	return xottlfuncs.WithExperimentalConverters(xprofilefuncs.WithProfileConverters(ottlfuncs.StandardConverters[*ottlexemplar.TransformContext]()))
 }
 
 func StandardScopeFuncs() map[string]ottl.Factory[*ottlscope.TransformContext] {
-	return ottlfuncs.StandardConverters[*ottlscope.TransformContext]()
+	return xottlfuncs.WithExperimentalConverters(xprofilefuncs.WithProfileConverters(ottlfuncs.StandardConverters[*ottlscope.TransformContext]()))
 }
 
 func StandardLogFuncs() map[string]ottl.Factory[*ottllog.TransformContext] {
-	return ottlfuncs.StandardConverters[*ottllog.TransformContext]()
+	return xottlfuncs.WithExperimentalConverters(xprofilefuncs.WithProfileConverters(ottlfuncs.StandardConverters[*ottllog.TransformContext]()))
 }
 
 func StandardProfileFuncs() map[string]ottl.Factory[*ottlprofile.TransformContext] {
-	return ottlfuncs.StandardConverters[*ottlprofile.TransformContext]()
+	return xottlfuncs.WithExperimentalConverters(xprofilefuncs.WithProfileConverters(ottlfuncs.StandardConverters[*ottlprofile.TransformContext]()))
 }
 
 func StandardResourceFuncs() map[string]ottl.Factory[*ottlresource.TransformContext] {
-	return ottlfuncs.StandardConverters[*ottlresource.TransformContext]()
+	return xottlfuncs.WithExperimentalConverters(xprofilefuncs.WithProfileConverters(ottlfuncs.StandardConverters[*ottlresource.TransformContext]()))
 }
 
 type hasAttributeOnDatapointArguments struct {

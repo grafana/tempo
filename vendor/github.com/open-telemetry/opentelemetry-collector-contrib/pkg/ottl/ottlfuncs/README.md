@@ -8,6 +8,18 @@ This document contains documentation for both types of OTTL functions:
 - [Editors](#editors) that transform telemetry.
 - [Converters](#converters) that provide utilities for transforming telemetry.
 
+Profiles converters that fall outside of OTTL's stability guarantees are documented separately. See the [`xprofile` module](../contexts/xprofile/README.md) for the profiles converters, including `ProfileID`.
+
+Experimental converters that fall outside of OTTL's stability guarantees, including `All`, `Any`, `Filter`, `Find`, `MapEach`, `MapKeys`, `Reduce`, and `When`, are documented separately. See the [`xottl` module](../xottl/ottlfuncs/README.md) for the experimental converters.
+
+## Contents
+
+- [Design principles](#design-principles)
+- [Working with functions](#working-with-functions)
+- [Editors](#editors)
+- [Converters](#converters)
+- [Function stability](#function-stability)
+
 ## Design principles
 
 For the standard OTTL functions described in this document, we specify design principles to ensure they are always
@@ -312,7 +324,7 @@ Examples:
 
 The `keep_keys` function removes all keys from the `pcommon.Map` that do not match one of the supplied keys.
 
-`target` is a path expression to a `pcommon.Map` type field. `keys` is a slice of one or more strings.
+`target` is a path expression to a `pcommon.Map` type field. The `keys` argument accepts a list of strings or an expression/path that resolves to a slice. Each slice element must be a string. Passing an expression/path requires the [`pkg.ottl.functions.enableDynamicSliceArguments`](../README.md#pkgottlfunctionsenabledynamicslicearguments) feature gate. The gate allows dynamic slice arguments by default.
 
 The map will be changed to only contain the keys specified by the list of strings.
 
@@ -322,6 +334,10 @@ Examples:
 
 
 - `keep_keys(resource.attributes, ["http.method", "http.route", "http.url"])`
+
+- `keep_keys(log.attributes, Split(log.attributes["keys"], ","))`
+
+- `keep_keys(log.attributes, cache["keys"])`
 
 ### limit
 
@@ -390,15 +406,15 @@ Examples:
 
 ### replace_all_patterns
 
-`replace_all_patterns(target, mode, regex, replacement, Optional[function], Optional[replacementFormat])`
+`replace_all_patterns(target, mode, regex_pattern, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_all_patterns` function replaces any segments in a string value or key that match the regex pattern with the replacement string.
 
-`target` is a path expression to a `pcommon.Map` type field. `regex` is a regex string indicating a segment to replace. `replacement` is either a path expression to a string telemetry field or a literal string.
+`target` is a path expression to a `pcommon.Map` type field. `regex_pattern` is a regex string indicating a segment to replace. `replacement` is either a path expression to a string telemetry field or a literal string.
 
 `mode` determines whether the match and replace will occur on the map's value or key. Valid values are `key` and `value`.
 
-If one or more sections of `target` match `regex` they will get replaced with `replacement`.
+If one or more sections of `target` match `regex_pattern` they will get replaced with `replacement`.
 
 The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand). `replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported.
 
@@ -436,13 +452,13 @@ Examples:
 
 ### replace_pattern
 
-`replace_pattern(target, regex, replacement, Optional[function], Optional[replacementFormat])`
+`replace_pattern(target, regex_pattern, replacement, Optional[function], Optional[replacementFormat])`
 
 The `replace_pattern` function allows replacing all string sections that match a regex pattern with a new value.
 
-`target` is a path expression to a telemetry field. `regex` is a regex string indicating a segment to replace. `replacement` is either a path expression to a string telemetry field or a literal string.
+`target` is a path expression to a telemetry field. `regex_pattern` is a regex string indicating a segment to replace. `replacement` is either a path expression to a string telemetry field or a literal string.
 
-If one or more sections of `target` match `regex` they will get replaced with `replacement`.
+If one or more sections of `target` match `regex_pattern` they will get replaced with `replacement`.
 
 The `replacement` string can refer to matched groups using [regexp.Expand syntax](https://pkg.go.dev/regexp#Regexp.Expand). `replacementFormat` is an optional string argument that specifies the format of the replacement. It must contain exactly one `%s` format specifier as shown in the example below. No other format specifiers are supported
 
@@ -462,14 +478,11 @@ If using OTTL outside of collector configuration, `$` should not be escaped and 
 
 `set(target, value)`
 
-> [!NOTE]
-> The [`ottl.set.allowNil`](../documentation.md#feature-gates) feature gate changes the behavior of `set` when a `nil` value is passed. Prior to this gate, passing `nil` was a no-op. When enabled, `set` will pass the `nil` value directly to the target, which may result in an error or an empty value depending on the target's underlying type.
-
 The `set` function allows users to set a telemetry field using a value.
 
-`target` is a path expression to a telemetry field. `value` is any value type. If `value` resolves to `nil`, e.g. it references an unset map value, there will be no action.
+`target` is a path expression to a telemetry field. `value` is any value type, including `nil`.
 
-How the underlying telemetry field is updated is decided by the path expression implementation provided by the user to the `ottl.ParseStatements`.
+How the underlying telemetry field is updated is decided by the path expression.
 
 Examples:
 
@@ -535,8 +548,6 @@ Unlike functions, they do not modify any input telemetry and always return a val
 
 Available Converters:
 
-- [All](#all)
-- [Any](#any)
 - [Base64Encode](#base64encode)
 - [Bool](#bool)
 - [Decode](#decode)
@@ -552,8 +563,6 @@ Available Converters:
 - [Duration](#duration)
 - [ExtractPatterns](#extractpatterns)
 - [ExtractGrokPatterns](#extractgrokpatterns)
-- [Filter](#filter)
-- [Find](#find)
 - [FNV](#fnv)
 - [Format](#format)
 - [FormatTime](#formattime)
@@ -580,8 +589,6 @@ Available Converters:
 - [Len](#len)
 - [Log](#log)
 - [IsValidLuhn](#isvalidluhn)
-- [MapEach](#mapeach)
-- [MapKeys](#mapkeys)
 - [MD5](#md5)
 - [Microseconds](#microseconds)
 - [Milliseconds](#milliseconds)
@@ -600,8 +607,6 @@ Available Converters:
 - [ParseSeverity](#parseseverity)
 - [ParseSimplifiedXML](#parsesimplifiedxml)
 - [ParseXML](#parsexml)
-- [ProfileID](#profileid)
-- [Reduce](#reduce)
 - [RemoveXML](#removexml)
 - [Second](#second)
 - [Seconds](#seconds)
@@ -636,86 +641,17 @@ Available Converters:
 - [UUIDv7](#UUIDv7)
 - [Values](#values)
 - [Weekday](#weekday)
-- [When](#when)
 - [XXH3](#xxh3)
 - [XXH128](#xxh128)
 - [Year](#year)
 
-### All
-
-> [!IMPORTANT]
-> This function is alpha and may change in future releases. It requires the [`ottl.functions.enableLambda`](../documentation.md#feature-gates) feature gate to be enabled.
-
-`All(source, predicate)`
-
-The `All` converter returns `true` if `predicate` evaluates to `true` for every element in `source`.
-
-`source` is a path expression or another getter that resolves to a slice or map.
-
-`predicate` is a lambda expression with exactly two parameters and a boolean result. 
-The first parameter is the element index when evaluating a slice (`int64`), or the element 
-key when evaluating a map (`string`). The second parameter is the element value.
-Use `_` as a parameter name to ignore unused parameters.
-
-An empty slice or map returns `true`.
-
-If `source` is not a slice or map, or if `predicate` does not return a boolean, it returns an error.
-
-Examples:
-
-Check that every slice element matches:
-
-- `All(log.attributes["tags"], (_, v) => v == "prod")`
-
-Check that every map key matches:
-
-- `All(log.attributes, (k, _) => HasPrefix(k, "http."))`
-
-Use in a condition:
-
-- `set(log.attributes["all_prod"], true) where All(log.attributes["tags"], (_, v) => v == "prod")`
-
-### Any
-
-> [!IMPORTANT]
-> This function is alpha and may change in future releases. It requires the [`ottl.functions.enableLambda`](../documentation.md#feature-gates) feature gate to be enabled.
-
-`Any(source, predicate)`
-
-The `Any` converter returns `true` if `predicate` evaluates to `true` for at least one element in `source`.
-
-`source` is a path expression or another getter that resolves to a slice or map.
-
-`predicate` is a lambda expression with exactly two parameters and a boolean result. 
-The first parameter is the element index when evaluating a slice (`int64`), or the element 
-key when evaluating a map (`string`). The second parameter is the element value.
-Use `_` as a parameter name to ignore unused parameters.
-
-An empty slice or map returns `false`.
-
-If `source` is not a slice or map, or if `predicate` does not return a boolean, it returns an error.
-
-Examples:
-
-Check whether any slice element matches:
-
-- `Any(log.attributes["tags"], (_, v) => v == "prod")`
-
-Check whether any map key matches:
-
-- `Any(log.attributes, (k, _) => HasPrefix(k, "http."))`
-
-Use in a condition:
-
-- `set(log.attributes["has_prod"], true) where Any(log.attributes["tags"], (_, v) => v == "prod")`
-
 ### Base64Encode
 
-`Base64Encode(value, Optional[variant])`
+`Base64Encode(target, Optional[variant])`
 
 The `Base64Encode` Converter takes a string and returns a base64 encoded string.
 
-`value` is a string to encode.
+`target` is a string to encode.
 `variant` (optional) is the base64 encoding variant to use. Valid values are `base64` (standard, with padding), `base64-raw` (standard, no padding), `base64-url` (URL-safe, with padding), or `base64-raw-url` (URL-safe, no padding). Defaults to `base64` if not specified.
 
 Examples:
@@ -733,13 +669,13 @@ Examples:
 
 ### Bool
 
-`Bool(value)`
+`Bool(target)`
 
-The `Bool` Converter converts the `value` to a bool type.
+The `Bool` Converter converts the `target` to a bool type.
 
 The returned type is `bool`.
 
-The accepted input `value` types are:
+The accepted input `target` types are:
 
 - `bool`: Returns the value without changes.
 - `float64`: Returns `true` if non-zero, otherwise `false`.
@@ -747,9 +683,9 @@ The accepted input `value` types are:
 - `string`: Tries to parse a boolean from the string. It returns `true` for "1", "t", "T", "true", "TRUE", or "True"; returns `false` for "0", "f", "F", "false", "FALSE" or "False".
 - `nil`: Returns `nil`.
 
-If `value` is another type or parsing failed, `nil` is always returned.
+If `target` is another type or parsing fails, an error is returned.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
 Examples:
 
@@ -763,11 +699,11 @@ Examples:
 
 ### Decode
 
-`Decode(value, encoding)`
+`Decode(target, encoding)`
 
 The `Decode` Converter takes a string or byte array encoded with the specified encoding and returns the decoded string.
 
-`value` is a valid encoded string or byte array.
+`target` is a valid encoded string or byte array.
 `encoding` is a valid encoding name included in the [IANA encoding index](https://www.iana.org/assignments/character-sets/character-sets.xhtml) or one of `base64`, `base64-raw`, `base64-url` or `base64-raw-url`.
 
 Examples:
@@ -796,15 +732,15 @@ Examples:
 
 ### CommunityID
 
-`CommunityID(sourceIP, sourcePort, destinationIP, destinationPort, Optional[protocol], Optional[seed])`
+`CommunityID(source_i_p, source_port, destination_i_p, destination_port, Optional[protocol], Optional[seed])`
 
 The `CommunityID` converter generates a network hash flow. Community ID is a standardized flow hashing algorithm that produces consistent hash values for network connections, useful when correlating network traffic across different monitoring systems.
 The output format is base64 encoding string of <2-byte-seed><source-IP-bytes><destination-IP-bytes><1-byte-protocol><2-byte-source-port><2-byte-destination-port>.
 
-`sourceIP` is a source IP address (IPv4 or IPv6).
-`sourcePort` is a source port (must be between 0 and 65535).
-`destinationIP` is a destination IP address (IPv4 or IPv6).
-`destinationPort` is a destination port (must be between 0 and 65535).
+`source_i_p` is a source IP address (IPv4 or IPv6).
+`source_port` is a source port (must be between 0 and 65535).
+`destination_i_p` is a destination IP address (IPv4 or IPv6).
+`destination_port` is a destination port (must be between 0 and 65535).
 `protocol` (optional) is a protocol, one of `ICMP`, `TCP`, `UDP`, `RSVP`, `ICMP6` or `SCTP`. Defaults to `TCP` if not specified.
 `seed` (optional) is seed value (must be between 0 and 65535). Defaults to `0` if not specified.
 
@@ -818,11 +754,11 @@ Examples:
 
 ### Concat
 
-`Concat(values[], delimiter)`
+`Concat(vals[], delimiter)`
 
-The `Concat` Converter takes a sequence of values and a delimiter and concatenates their string representation. Unsupported values, such as lists or maps that may substantially increase payload size, are not added to the resulting string.
+The `Concat` Converter takes a sequence of values and a delimiter and concatenates their string representation.
 
-`values` can be a list of values or an expression/path that resolves to a slice. Its values support paths, primitive values, and byte slices (such as trace IDs or span IDs).
+`vals` can be a list of values or an expression/path that resolves to a slice. Its values support paths, primitive values, and byte slices (such as trace IDs or span IDs). Passing an expression/path requires the [`pkg.ottl.functions.enableDynamicSliceArguments`](../README.md#pkgottlfunctionsenabledynamicslicearguments) feature gate, which is enabled by default.
 
 `delimiter` is a string value that is placed between strings during concatenation. If no delimiter is desired, then simply pass an empty string.
 
@@ -882,14 +818,14 @@ Examples:
 
 ### ConvertAttributesToElementsXML
 
-`ConvertAttributesToElementsXML(target, Optional[xpath])`
+`ConvertAttributesToElementsXML(target, Optional[x_path])`
 
 The `ConvertAttributesToElementsXML` Converter returns an edited version of an XML string where attributes are converted into child elements.
 
 `target` is a Getter that returns a string. This string should be in XML format.
 If `target` is not a string, nil, or cannot be parsed as XML, `ConvertAttributesToElementsXML` will return an error.
 
-`xpath` (optional) is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
+`x_path` (optional) is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
 selects one or more elements. Attributes will only be converted within the result(s) of the xpath.
 
 For example, `<a foo="bar"><b>baz</b></a>` will be converted to `<a><b>baz</b><foo>bar</foo></a>`.
@@ -906,7 +842,7 @@ Convert only attributes within "Record" elements
 
 ### ConvertTextToElementsXML
 
-`ConvertTextToElementsXML(target, Optional[xpath], Optional[elementName])`
+`ConvertTextToElementsXML(target, Optional[x_path], Optional[elementName])`
 
 The `ConvertTextToElementsXML` Converter returns an edited version of an XML string where all text belongs to a dedicated element.
 
@@ -914,7 +850,7 @@ The `ConvertTextToElementsXML` Converter returns an edited version of an XML str
 If `target` is not a string, nil, or cannot be parsed as XML, `ConvertTextToElementsXML` will return an error.
 Conversion is bounded by a maximum XML nesting depth of 10,000 levels; deeper documents return an error.
 
-`xpath` (optional) is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
+`x_path` (optional) is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
 selects one or more elements. Content will only be converted within the result(s) of the xpath. The default is `/`.
 
 `elementName` (optional) is a string that is used for any element tags that are created to wrap content.
@@ -938,11 +874,11 @@ Convert only part of the document
 
 ### Day
 
-`Day(value)`
+`Day(time)`
 
 The `Day` Converter returns the day component from the specified time using the Go stdlib [`time.Day` function](https://pkg.go.dev/time#Time.Day).
 
-`value` is a `time.Time`. If `value` is another type, an error is returned.
+`time` is a `time.Time`. If `time` is another type, an error is returned.
 
 The returned type is `int64`.
 
@@ -952,19 +888,21 @@ Examples:
 
 ### Double
 
-The `Double` Converter converts an inputted `value` into a double.
+`Double(target)`
+
+The `Double` Converter converts an inputted `target` into a double.
 
 The returned type is float64.
 
-The input `value` types:
-* float64. returns the `value` without changes.
-* string. Tries to parse a double from string. If it fails then nil will be returned.
-* bool. If `value` is true, then the function will return 1 otherwise 0.
+The input `target` types:
+* float64. returns the `target` without changes.
+* string. Tries to parse a double from string. If it fails then an error is returned.
+* bool. If `target` is true, then the function will return 1 otherwise 0.
 * int64. The function converts the integer to a double.
 
-If `value` is another type or parsing failed nil is always returned.
+If `target` is `nil`, `nil` is returned. If `target` is another type or parsing fails, an error is returned.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
 Examples:
 
@@ -1095,93 +1033,15 @@ Examples:
      - `user.name`: smith
      - `user.password`: pass123
 
-### Filter
-
-> [!IMPORTANT]
-> This function is alpha and may change in future releases. It requires the [`ottl.functions.enableLambda`](../documentation.md#feature-gates) feature gate to be enabled.
-
-`Filter(source, predicate)`
-
-The `Filter` converter returns a new `pcommon.Slice` or `pcommon.Map` containing only the elements for which
-`predicate` evaluates to `true`.
-
-`source` is a path expression or another getter that resolves to a slice or map.
-
-`predicate` is a lambda expression with exactly two parameters and a boolean result. The first parameter is
-the element index when filtering a slice (`int64`), or the element key when filtering a map (`string`). The
-second parameter is the element value. Use `_` as a parameter name to ignore unused parameters.
-
-If `source` is not a slice or map, or if `predicate` does not return a boolean, it returns an error.
-
-Examples:
-
-Filter a slice by value:
-
-- `Filter(log.attributes["tags"], (_, v) => v == "prod")`
-
-Filter a map by key:
-
-- `Filter(log.attributes, (k, _) => HasPrefix(k, "http."))`
-
-Store the filtered result:
-
-- `set(log.attributes["prod_tags"], Filter(log.attributes["tags"], (_, v) => v == "prod"))`
-
-### Find
-
-> [!IMPORTANT]
-> This function is alpha and may change in future releases. It requires the [`ottl.functions.enableLambda`](../documentation.md#feature-gates) feature gate to be enabled.
-
-`Find(source, predicate, Optional[mapper])`
-
-The `Find` converter returns the value of the first element in `source` for which `predicate` evaluates to `true`. 
-If no element matches, it returns `nil`.
-
-`source` is a path expression or another getter that resolves to a slice or map.
-
-`predicate` is a lambda expression with exactly two parameters and a boolean result. 
-The first parameter is the element index when searching a slice (`int64`), or the element 
-key when searching a map (`string`). The second parameter is the element value.
-Use `_` as a parameter name to ignore unused parameters.
-
-`mapper` is an optional lambda expression with exactly two parameters. When provided, 
-it transforms the matched element before returning it. The first parameter is the found element 
-index or key, and the second parameter is the element value. When omitted, the matched value 
-is returned as-is.
-
-If `source` is not a slice or map, or if `predicate` does not return a boolean, it returns an error.
-
-Examples:
-
-Find a slice element by value:
-
-- `Find(log.attributes["tags"], (_, v) => v == "prod")`
-
-Find a map element by key:
-
-- `Find(log.attributes, (k, _) => k == "http.method")`
-
-Find a map element key instead of value:
-
-- `Find(log.attributes, (_, v) => v == "prod", (k, _) => k)`
-
-Transform the found element:
-
-- `Find(log.attributes, (_, v) => v == "prod", (_, v) => String(v))`
-
-Store the found value:
-
-- `set(log.attributes["first_prod"], Find(log.attributes["tags"], (_, v) => v == "prod"))`
-
 ### FNV
 
-`FNV(value)`
+`FNV(target)`
 
-The `FNV` Converter converts the `value` to an FNV hash/digest.
+The `FNV` Converter converts the `target` to an FNV hash/digest.
 
 The returned type is int64.
 
-`value` is either a path expression to a string telemetry field or a literal string. If `value` is another type an error is returned.
+`target` is either a path expression to a string telemetry field or a literal string. If `target` is another type an error is returned.
 
 If an error occurs during hashing it will be returned.
 
@@ -1194,16 +1054,16 @@ Examples:
 
 ### Format
 
-```Format(formatString, []formatArguments)```
+```Format(format, []vals)```
 
 The `Format` Converter takes the given format string and formats it using `fmt.Sprintf` and the given arguments.
 
-`formatString` is a string. `formatArguments` is an array of values.
+`format` is a string. `vals` is an array of values.
 
-If the `formatString` is not a string or does not exist, the `Format` Converter will return an error.
-If any of the `formatArgs` are incorrect (e.g. missing, or an incorrect type for the corresponding format specifier), then a string will still be returned, but with Go's default error handling for `fmt.Sprintf`.
+If the `format` is not a string or does not exist, the `Format` Converter will return an error.
+If any of the `vals` are incorrect (e.g. missing, or an incorrect type for the corresponding format specifier), then a string will still be returned, but with Go's default error handling for `fmt.Sprintf`.
 
-Format specifiers that can be used in `formatString` are documented in Go's [fmt package documentation](https://pkg.go.dev/fmt#hdr-Printing)
+Format specifiers that can be used in `format` are documented in Go's [fmt package documentation](https://pkg.go.dev/fmt#hdr-Printing)
 
 Examples:
 
@@ -1270,14 +1130,14 @@ Examples:
 
 ### GetXML
 
-`GetXML(target, xpath)`
+`GetXML(target, x_path)`
 
 The `GetXML` Converter returns an XML string with selected elements.
 
 `target` is a Getter that returns a string. This string should be in XML format.
 If `target` is not a string, nil, or is not valid xml, `GetXML` will return an error.
 
-`xpath` is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
+`x_path` is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
 selects one or more elements. Currently, this converter only supports selecting elements.
 
 Examples:
@@ -1312,15 +1172,15 @@ Get `bar` from `<a foo="bar"/>`
 
 ### HasPrefix
 
-`HasPrefix(value, prefix)`
+`HasPrefix(target, prefix)`
 
-The `HasPrefix` function returns a boolean value indicating whether a given string `value` begins with a given `prefix`.
+The `HasPrefix` function returns a boolean value indicating whether a given string `target` begins with a given `prefix`.
 
 The returned type is `bool`.
 
-If the `value` is not a string or does not exist, the `HasPrefix` converter will return an error.
+If the `target` is not a string or does not exist, the `HasPrefix` converter will return an error.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
 Examples:
 
@@ -1331,15 +1191,15 @@ Examples:
 
 ### HasSuffix
 
-`HasSuffix(value, suffix)`
+`HasSuffix(target, suffix)`
 
-The `HasSuffix` function returns a boolean value indicating whether a given string `value` ends with a given `suffix`.
+The `HasSuffix` function returns a boolean value indicating whether a given string `target` ends with a given `suffix`.
 
 The returned type is `bool`.
 
-If the `value` is not a string or does not exist, the `HasSuffix` converter will return an error.
+If the `target` is not a string or does not exist, the `HasSuffix` converter will return an error.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
 Examples:
 
@@ -1350,23 +1210,23 @@ Examples:
 
 ### Hex
 
-`Hex(value)`
+`Hex(target)`
 
-The `Hex` converter converts the `value` to its hexadecimal representation.
+The `Hex` converter converts the `target` to its hexadecimal representation.
 
 The returned type is string representation of the hexadecimal value.
 
-The input `value` types:
+The input `target` types:
 
-- float64 (`1.1` will result to `0x3ff199999999999a`)
-- string (`"1"` will result in `0x31`)
-- bool (`true` will result in `0x01`; `false` to `0x00`)
-- int64 (`12` will result in `0xC`)
-- []byte (without any changes - `0x02` will result to `0x02`)
+- float64 (`1.1` will result in `3ff199999999999a`)
+- string (`"1"` will result in `31`)
+- bool (`true` will result in `01`; `false` to `00`)
+- int64 (`12` will result in `000000000000000c`)
+- []byte (without any changes - `0x02` will result in `02`)
 
-If `value` is another type or parsing failed nil is always returned.
+If `target` is `nil`, an empty string is returned. If `target` is another type, an error is returned.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
 Examples:
 
@@ -1377,11 +1237,11 @@ Examples:
 
 ### Hour
 
-`Hour(value)`
+`Hour(time)`
 
 The `Hour` Converter returns the hour from the specified time.  The Converter [uses the `time.Hour` function](https://pkg.go.dev/time#Time.Hour).
 
-`value` is a `time.Time`. If `value` is another type an error is returned.
+`time` is a `time.Time`. If `time` is another type an error is returned.
 
 The returned type is `int64`.
 
@@ -1391,11 +1251,11 @@ Examples:
 
 ### Hours
 
-`Hours(value)`
+`Hours(duration)`
 
 The `Hours` Converter returns the duration as a floating point number of hours.
 
-`value` is a `time.Duration`. If `value` is another type an error is returned.
+`duration` is a `time.Duration`. If `duration` is another type an error is returned.
 
 The returned type is `float64`.
 
@@ -1423,18 +1283,18 @@ The returned type is `int64`.
 
 ### InsertXML
 
-`InsertXML(target, xpath, value)`
+`InsertXML(target, x_path, sub_document)`
 
 The `InsertXML` Converter returns an edited version of an XML string with child elements added to selected elements.
 
 `target` is a Getter that returns a string. This string should be in XML format and represents the document which will
 be modified. If `target` is not a string, nil, or is not valid xml, `InsertXML` will return an error.
 
-`xpath` is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
+`x_path` is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
 selects one or more elements.
 
-`value` is a Getter that returns a string. This string should be in XML format and represents the document which will
-be inserted into `target`. If `value` is not a string, nil, or is not valid xml, `InsertXML` will return an error.
+`sub_document` is a Getter that returns a string. This string should be in XML format and represents the document which will
+be inserted into `target`. If `sub_document` is not a string, nil, or is not valid xml, `InsertXML` will return an error.
 
 Examples:
 
@@ -1452,22 +1312,22 @@ Fetch and insert an xml document into another
 
 ### Int
 
-`Int(value)`
+`Int(target)`
 
-The `Int` Converter converts the `value` to int type.
+The `Int` Converter converts the `target` to int type.
 
 The returned type is int64.
 
-The input `value` types:
+The input `target` types:
 
 - float64. Fraction is discharged (truncation towards zero).
 - string. Trying to parse an integer from string. If parsing fails, an error is returned.
-- bool. If `value` is true, then the function will return 1 otherwise 0.
-- int64. The function returns the `value` without changes.
+- bool. If `target` is true, then the function will return 1 otherwise 0.
+- int64. The function returns the `target` without changes.
 
-If `value` is `nil`, `nil` is returned. If `value` is an unsupported type or a string that cannot be parsed as an integer, an error is returned.
+If `target` is `nil`, `nil` is returned. If `target` is an unsupported type or a string that cannot be parsed as an integer, an error is returned.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
 Examples:
 
@@ -1478,11 +1338,11 @@ Examples:
 
 ### IsBool
 
-`IsBool(value)`
+`IsBool(target)`
 
-The `IsBool` Converter evaluates whether the given `value` is a boolean or not.
+The `IsBool` Converter evaluates whether the given `target` is a boolean or not.
 
-Specifically, it will return `true` if the provided `value` is one of the following:
+Specifically, it will return `true` if the provided `target` is one of the following:
 
 1. A Go's native `bool` type.
 2. A `pcommon.ValueTypeBool`.
@@ -1504,13 +1364,13 @@ Examples:
 
 ### IsDouble
 
-`IsDouble(value)`
+`IsDouble(target)`
 
 The `IsDouble` Converter returns true if the given value is a double.
 
-The `value` is either a path expression to a telemetry field to retrieve, or a literal.
+The `target` is either a path expression to a telemetry field to retrieve, or a literal.
 
-If `value` is a `float64` or a `pcommon.ValueTypeDouble` then returns `true`, otherwise returns `false`.
+If `target` is a `float64` or a `pcommon.ValueTypeDouble` then returns `true`, otherwise returns `false`.
 
 Examples:
 
@@ -1520,13 +1380,13 @@ Examples:
 
 ### IsEmpty
 
-`IsEmpty(value)`
+`IsEmpty(target)`
 
-The `IsEmpty` Converter returns `true` if the given `value` is considered empty.
+The `IsEmpty` Converter returns `true` if the given `target` is considered empty.
 
-The `value` is either a path expression to a telemetry field to retrieve, or a literal.
+The `target` is either a path expression to a telemetry field to retrieve, or a literal.
 
-Specifically, it will return `true` if the provided `value` is one of the following:
+Specifically, it will return `true` if the provided `target` is one of the following:
 
 1. `nil`.
 2. An empty `pcommon.Value` (`pcommon.ValueTypeEmpty`).
@@ -1560,13 +1420,13 @@ Examples:
 
 ### IsInt
 
-`IsInt(value)`
+`IsInt(target)`
 
 The `IsInt` Converter returns true if the given value is a int.
 
-The `value` is either a path expression to a telemetry field to retrieve, or a literal.
+The `target` is either a path expression to a telemetry field to retrieve, or a literal.
 
-If `value` is a `int64` or a `pcommon.ValueTypeInt` then returns `true`, otherwise returns `false`.
+If `target` is a `int64` or a `pcommon.ValueTypeInt` then returns `true`, otherwise returns `false`.
 
 Examples:
 
@@ -1593,13 +1453,13 @@ Examples:
 
 ### IsMap
 
-`IsMap(value)`
+`IsMap(target)`
 
 The `IsMap` Converter returns true if the given value is a map.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
-If `value` is a `map[string]any` or a `pcommon.ValueTypeMap` then returns `true`, otherwise returns `false`.
+If `target` is a `map[string]any` or a `pcommon.ValueTypeMap` then returns `true`, otherwise returns `false`.
 
 Examples:
 
@@ -1636,13 +1496,13 @@ Examples:
 
 ### IsList
 
-`IsList(value)`
+`IsList(target)`
 
 The `IsList` Converter returns true if the given value is a list.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
-If `value` is a `list`, `pcommon.ValueTypeSlice`. `pcommon.Slice`, or any other list type, then returns `true`, otherwise returns `false`.
+If `target` is a `list`, `pcommon.ValueTypeSlice`. `pcommon.Slice`, or any other list type, then returns `true`, otherwise returns `false`.
 
 Examples:
 
@@ -1652,13 +1512,13 @@ Examples:
 
 ### IsString
 
-`IsString(value)`
+`IsString(target)`
 
 The `IsString` Converter returns true if the given value is a string.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
-If `value` is a `string` or a `pcommon.ValueTypeStr` then returns `true`, otherwise returns `false`.
+If `target` is a `string` or a `pcommon.ValueTypeStr` then returns `true`, otherwise returns `false`.
 
 Examples:
 
@@ -1697,7 +1557,7 @@ Examples:
 
 ### Log
 
-`Log(value)`
+`Log(target)`
 
 The `Log` Converter returns a `float64` that is the logarithm of the `target`.
 
@@ -1723,7 +1583,7 @@ Examples:
 
 ### IsValidLuhn
 
-`IsValidLuhn(value)`
+`IsValidLuhn(target)`
 
 The `IsValidLuhn` converter returns a `boolean` value that indicates whether the value is a valid identification number,
 such as a credit card number according to the [Luhn algorithm](https://en.wikipedia.org/wiki/Luhn_algorithm).
@@ -1736,81 +1596,15 @@ Examples:
 
 - `IsValidLuhn("17893729974")`
 
-### MapEach
-
-> [!IMPORTANT]
-> This function is alpha and may change in future releases. It requires the [`ottl.functions.enableLambda`](../documentation.md#feature-gates) feature gate to be enabled.
-
-`MapEach(source, mapper)`
-
-The `MapEach` converter returns a new `pcommon.Slice` or `pcommon.Map` with each element value 
-transformed by `mapper`.
-
-`source` is a path expression or another getter that resolves to a slice or map.
-
-`mapper` is a lambda expression with exactly two parameters. The first parameter is the element
-index when mapping a slice (`int64`), or the element key when mapping a map (`string`). The
-second parameter is the element value. Use `_` as a parameter name to ignore unused parameters.
-
-If `source` is not a slice or map, it returns an error.
-
-Examples:
-
-Mapping slice values:
-
-- `MapEach(log.attributes["counts"], (_, v) => Int(v) * 2)`
-
-Stringify map values:
-
-- `MapEach(log.attributes, (_, v) => String(v))`
-
-Store the mapped result:
-
-- `set(log.attributes["doubled"], MapEach(log.attributes["counts"], (_, v) => Int(v)))`
-
-### MapKeys
-
-> [!IMPORTANT]
-> This function is alpha and may change in future releases. It requires the [`ottl.functions.enableLambda`](../documentation.md#feature-gates) feature gate to be enabled.
-
-`MapKeys(source, keyMapper)`
-
-The `MapKeys` converter returns a new `pcommon.Map` with each key transformed by `keyMapper`. Values are unchanged.
-
-`source` is a path expression or another getter that resolves to a map.
-
-`keyMapper` is a lambda expression with exactly two parameters that returns a `string`.
-The first parameter is the element key (`string`). The second parameter is the element value.
-Use `_` as a parameter name to ignore unused parameters.
-
-If `keyMapper` produces duplicate keys, only one value is retained and which one is unspecified. 
-Keys are processed in the order they appear in the `source` map, though this is not guaranteed.
-
-If `source` is not a map, or if `keyMapper` does not return a `string`, it returns an error.
-
-Examples:
-
-Prefix map keys:
-
-- `MapKeys(log.attributes, (k, _) => Concat(["http.", k], ""))`
-
-Derive keys from key and value:
-
-- `MapKeys(log.attributes, (k, v) => Concat([k, ":", String(v)], ""))`
-
-Store the result:
-
-- `set(log.attributes["prefixed"], MapKeys(log.attributes, (k, _) => Concat(["http.", k], "")))`
-
 ### MD5
 
-`MD5(value)`
+`MD5(target)`
 
-The `MD5` Converter converts the `value` to a md5 hash/digest.
+The `MD5` Converter converts the `target` to a md5 hash/digest.
 
 The returned type is string.
 
-`value` is either a path expression to a string telemetry field or a literal string. If `value` is another type an error is returned.
+`target` is either a path expression to a string telemetry field or a literal string. If `target` is another type an error is returned.
 
 If an error occurs during hashing it will be returned.
 
@@ -1824,11 +1618,11 @@ Examples:
 
 ### Microseconds
 
-`Microseconds(value)`
+`Microseconds(duration)`
 
 The `Microseconds` Converter returns the duration as an integer millisecond count.
 
-`value` is a `time.Duration`. If `value` is another type an error is returned.
+`duration` is a `time.Duration`. If `duration` is another type an error is returned.
 
 The returned type is `int64`.
 
@@ -1838,11 +1632,11 @@ Examples:
 
 ### Milliseconds
 
-`Milliseconds(value)`
+`Milliseconds(duration)`
 
 The `Milliseconds` Converter returns the duration as an integer millisecond count.
 
-`value` is a `time.Duration`. If `value` is another type an error is returned.
+`duration` is a `time.Duration`. If `duration` is another type an error is returned.
 
 The returned type is `int64`.
 
@@ -1852,11 +1646,11 @@ Examples:
 
 ### Minute
 
-`Minute(value)`
+`Minute(time)`
 
 The `Minute` Converter returns the minute component from the specified time using the Go stdlib [`time.Minute` function](https://pkg.go.dev/time#Time.Minute).
 
-`value` is a `time.Time`. If `value` is another type, an error is returned.
+`time` is a `time.Time`. If `time` is another type, an error is returned.
 
 The returned type is `int64`.
 
@@ -1866,11 +1660,11 @@ Examples:
 
 ### Minutes
 
-`Minutes(value)`
+`Minutes(duration)`
 
 The `Minutes` Converter returns the duration as a floating point number of minutes.
 
-`value` is a `time.Duration`. If `value` is another type an error is returned.
+`duration` is a `time.Duration`. If `duration` is another type an error is returned.
 
 The returned type is `float64`.
 
@@ -1880,11 +1674,11 @@ Examples:
 
 ### Month
 
-`Month(value)`
+`Month(time)`
 
 The `Month` Converter returns the month component from the specified time using the Go stdlib [`time.Month` function](https://pkg.go.dev/time#Time.Month).
 
-`value` is a `time.Time`. If `value` is another type, an error is returned.
+`time` is a `time.Time`. If `time` is another type, an error is returned.
 
 The returned type is `int64`.
 
@@ -1922,11 +1716,11 @@ Examples:
 
 ### Nanosecond
 
-`Nanosecond(value)`
+`Nanosecond(time)`
 
 The `Nanosecond` Converter returns the nanosecond component from the specified time using the Go stdlib [`time.Nanosecond` function](https://pkg.go.dev/time#Time.Nanosecond).
 
-`value` is a `time.Time`. If `value` is another type, an error is returned.
+`time` is a `time.Time`. If `time` is another type, an error is returned.
 
 The returned type is `int64`.
 
@@ -1936,11 +1730,11 @@ Examples:
 
 ### Nanoseconds
 
-`Nanoseconds(value)`
+`Nanoseconds(duration)`
 
 The `Nanoseconds` Converter returns the duration as an integer nanosecond count.
 
-`value` is a `time.Duration`. If `value` is another type an error is returned.
+`duration` is a `time.Duration`. If `duration` is another type an error is returned.
 
 The returned type is `int64`.
 
@@ -1963,17 +1757,17 @@ Examples:
 
 ### ParseCSV
 
-`ParseCSV(target, headers, Optional[delimiter], Optional[headerDelimiter], Optional[mode])`
+`ParseCSV(target, header, Optional[delimiter], Optional[headerDelimiter], Optional[mode])`
 
 The `ParseCSV` Converter returns a `pcommon.Map` struct that contains the result of parsing the `target` string as CSV. The resultant map is structured such that it is a mapping of field name -> field value.
 
-`target` is a Getter that returns a string. This string should be a CSV row. if `target` is not a properly formatted CSV row, or if the number of fields in `target` does not match the number of fields in `headers`, `ParseCSV` will return an error. Leading and trailing newlines in `target` will be stripped. Newlines elswhere in `target` are not treated as row delimiters during parsing, and will be treated as though they are part of the field that are placed in.
+`target` is a Getter that returns a string. This string should be a CSV row. if `target` is not a properly formatted CSV row, or if the number of fields in `target` does not match the number of fields in `header`, `ParseCSV` will return an error. Leading and trailing newlines in `target` will be stripped. Newlines elswhere in `target` are not treated as row delimiters during parsing, and will be treated as though they are part of the field that are placed in.
 
-`headers` is a Getter that returns a string. This string should be a CSV header, specifying the names of the CSV fields.
+`header` is a Getter that returns a string. This string should be a CSV header, specifying the names of the CSV fields.
 
 `delimiter` is an optional string parameter that specifies the delimiter used to split `target` into fields. By default, it is set to `,`.
 
-`headerDelimiter` is an optional string parameter that specified the delimiter used to split `headers` into fields. By default, it is set to the value of `delimiter`.
+`headerDelimiter` is an optional string parameter that specified the delimiter used to split `header` into fields. By default, it is set to the value of `delimiter`.
 
 `mode` is an optional string paramater that specifies the parsing mode. Valid values are `strict`, `lazyQuotes`, and `ignoreQuotes`. By default, it is set to `strict`.
 - The `strict` mode provides typical CSV parsing.
@@ -2078,12 +1872,12 @@ Examples:
 
 ### ParseSeverity
 
-`ParseSeverity(target, severityMapping)`
+`ParseSeverity(target, mapping)`
 
-The `ParseSeverity` converter returns a `string` that represents one of the log levels defined by `severityMapping`.
+The `ParseSeverity` converter returns a `string` that represents one of the log levels defined by `mapping`.
 
 `target` is a Getter that returns a string or an integer.
-`severityMapping` is a map containing the log levels, and a list of values they are mapped from. These values can be either
+`mapping` is a map containing the log levels, and a list of values they are mapped from. These values can be either
 strings, or map items containing a numeric range, defined by a `min` and `max` key (inclusive bounds), for the given log level.
 A value will be mapped to the given log level if any of these conditions are true. 
 For example, the following mapping will map to the `info` level, if the `target` is either a string with the value `inf`,
@@ -2100,9 +1894,9 @@ There is also support for expressing certain status code ranges via a placeholde
 
 Examples:
 
-- `ParseSeverity(attributes["log-level"] {"info":[{"equals": ["inf"]}, {"range":{"min":200, "max":299}}]})`
-- `ParseSeverity(attributes["log-level"] {"info":[{"range":"2xx""}]})`
-- `ParseSeverity(severity_number {"info":[{"equals": ["inf"]}, {"range":{"min":200, "max":299}}], "error":[{"range":{"min":400, "max":499}}]})`
+- `ParseSeverity(attributes["log-level"], {"info":[{"equals": ["inf"]}, {"range":{"min":200, "max":299}}]})`
+- `ParseSeverity(attributes["log-level"], {"info":[{"range":"2xx"}]})`
+- `ParseSeverity(severity_number, {"info":[{"equals": ["inf"]}, {"range":{"min":200, "max":299}}], "error":[{"range":{"min":400, "max":499}}]})`
 
 ### ParseSimplifiedXML
 
@@ -2305,70 +2099,16 @@ Examples:
 
 - `ParseXML("<HostInfo hostname=\"example.com\" zone=\"east-1\" cloudprovider=\"aws\" />")`
 
-### ProfileID
-
-`ProfileID(bytes|string)`
-
-The `ProfileID` Converter returns a `pprofile.ProfileID` struct from the given byte slice OR hex string.
-
-`bytes`  byte slice of exactly 16 bytes.
-`string` is a string of exactly 32 hex characters solely composed of valid hexadecimal chars.
-
-Examples:
-
-- `ProfileID(0x00112233445566778899aabbccddeeff)`
-- `ProfileID("a389023abaa839283293ed323892389d")`
-
-### Reduce
-
-> [!IMPORTANT]
-> This function is alpha and may change in future releases. It requires the [`ottl.functions.enableLambda`](../documentation.md#feature-gates) feature gate to be enabled.
-
-`Reduce(source, seed, accumulator)`
-
-The `Reduce` converter folds `source` into a single value, starting from `seed` and applying `accumulator` to each element.
-
-`source` is a path expression or another getter that resolves to a slice or map.
-
-`seed` is the initial accumulator value.
-
-`accumulator` is a lambda expression with exactly three parameters. 
-The first parameter is the current accumulator value. 
-The second parameter is the element index when reducing a slice (`int64`), or the element 
-key when reducing a map (`string`). The third parameter is the element value.
-Use `_` as a parameter name to ignore unused parameters.
-
-An empty slice or map returns `seed` unchanged.
-
-For maps, element processing order follows map iteration and is not guaranteed to be stable. 
-This matters when `accumulator` is not commutative.
-
-If `source` is not a slice or map, it returns an error.
-
-Examples:
-
-Sum a slice of numbers:
-
-- `Reduce(log.attributes["counts"], 0, (acc, _, v) => acc + Int(v))`
-
-Build a semicolon-separated key=value string:
-
-- `Reduce(log.attributes["labels"], "", (acc, k, v) => Concat([acc, k, "=", String(v), ";"], ""))`
-
-Store the result:
-
-- `set(log.attributes["total"], Reduce(log.attributes["counts"], 0, (acc, _, v) => acc + Int(v)))`
-
 ### RemoveXML
 
-`RemoveXML(target, xpath)`
+`RemoveXML(target, x_path)`
 
 The `RemoveXML` Converter returns an edited version of an XML string with selected elements removed.
 
 `target` is a Getter that returns a string. This string should be in XML format.
 If `target` is not a string, nil, or is not valid xml, `RemoveXML` will return an error.
 
-`xpath` is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
+`x_path` is a string that specifies an [XPath](https://www.w3.org/TR/1999/REC-xpath-19991116/) expression that
 selects one or more elements to remove from the XML document.
 
 For example, the XPath `/Log/Record[./Name/@type="archive"]` applied to the following XML document:
@@ -2426,11 +2166,11 @@ Delete text from nodes that contain the word "sensitive"
 
 ### Second
 
-`Second(value)`
+`Second(time)`
 
 The `Second` Converter returns the second component from the specified time using the Go stdlib [`time.Second` function](https://pkg.go.dev/time#Time.Second).
 
-`value` is a `time.Time`. If `value` is another type, an error is returned.
+`time` is a `time.Time`. If `time` is another type, an error is returned.
 
 The returned type is `int64`.
 
@@ -2440,11 +2180,11 @@ Examples:
 
 ### Seconds
 
-`Seconds(value)`
+`Seconds(duration)`
 
 The `Seconds` Converter returns the duration as a floating point number of seconds.
 
-`value` is a `time.Duration`. If `value` is another type an error is returned.
+`duration` is a `time.Duration`. If `duration` is another type an error is returned.
 
 The returned type is `float64`.
 
@@ -2454,13 +2194,13 @@ Examples:
 
 ### SHA1
 
-`SHA1(value)`
+`SHA1(target)`
 
-The `SHA1` Converter converts the `value` to a sha1 hash/digest.
+The `SHA1` Converter converts the `target` to a sha1 hash/digest.
 
 The returned type is string.
 
-`value` is either a path expression to a string telemetry field or a literal string. If `value` is another type an error is returned.
+`target` is either a path expression to a string telemetry field or a literal string. If `target` is another type an error is returned.
 
 If an error occurs during hashing it will be returned.
 
@@ -2475,13 +2215,13 @@ Examples:
 
 ### SHA256
 
-`SHA256(value)`
+`SHA256(target)`
 
-The `SHA256` Converter converts the `value` to a sha256 hash/digest.
+The `SHA256` Converter converts the `target` to a sha256 hash/digest.
 
 The returned type is string.
 
-`value` is either a path expression to a string telemetry field or a literal string. If `value` is another type an error is returned.
+`target` is either a path expression to a string telemetry field or a literal string. If `target` is another type an error is returned.
 
 If an error occurs during hashing it will be returned.
 
@@ -2493,13 +2233,13 @@ Examples:
 
 ### SHA512
 
-`SHA512(input)`
+`SHA512(target)`
 
-The `SHA512` converter calculates sha512 hash value/digest of the `input`.
+The `SHA512` converter calculates sha512 hash value/digest of the `target`.
 
 The returned type is string.
 
-`input` is either a path expression to a string telemetry field or a literal string. If `input` is another type, converter raises an error.
+`target` is either a path expression to a string telemetry field or a literal string. If `target` is another type, converter raises an error.
 If an error occurs during hashing, the error will be returned.
 
 Examples:
@@ -2615,12 +2355,11 @@ Examples:
 
 ### SpanID
 
-`SpanID(bytes|string)`
+`SpanID(target)`
 
 The `SpanID` Converter returns a `pdata.SpanID` struct from the given byte slice OR hex string.
 
-`bytes`  byte slice of exactly 8 bytes.
-`string` is a string of exactly 16 hex characters solely composed of valid hexadecimal chars.
+`target` is a byte slice or string. Exactly 8 bytes are used as the raw ID, exactly 16 bytes are decoded as hexadecimal, and any other length returns an error.
 
 Examples:
 
@@ -2655,15 +2394,15 @@ Examples:
 
 ### TrimPrefix
 
-`TrimPrefix(value, prefix)`
+`TrimPrefix(target, prefix)`
 
-The `TrimPrefix` function returns the `value` without the provided leading `prefix` string. If `value` doesn't start with `prefix`, `value` is returned unchanged.
+The `TrimPrefix` function returns the `target` without the provided leading `prefix` string. If `target` doesn't start with `prefix`, `target` is returned unchanged.
 
 The returned type is `string`.
 
-If the `value` is not a string or does not exist, the `TrimPrefix` converter will return an error.
+If the `target` is not a string or does not exist, the `TrimPrefix` converter will return an error.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
 Examples:
 
@@ -2674,15 +2413,15 @@ Examples:
 
 ### TrimSuffix
 
-`TrimSuffix(value, suffix)`
+`TrimSuffix(target, suffix)`
 
-The `TrimSuffix` function returns the `value` without the provided trailing `suffix` string. If `value` doesn't start with `suffix`, `value` is returned unchanged.
+The `TrimSuffix` function returns the `target` without the provided trailing `suffix` string. If `target` doesn't start with `suffix`, `target` is returned unchanged.
 
 The returned type is `string`.
 
-If the `value` is not a string or does not exist, the `TrimSuffix` converter will return an error.
+If the `target` is not a string or does not exist, the `TrimSuffix` converter will return an error.
 
-The `value` is either a path expression to a telemetry field to retrieve or a literal.
+The `target` is either a path expression to a telemetry field to retrieve or a literal.
 
 Examples:
 
@@ -2693,22 +2432,22 @@ Examples:
 
 ### String
 
-`String(value)`
+`String(target)`
 
-The `String` Converter converts the `value` to string type.
+The `String` Converter converts the `target` to string type.
 
 The returned type is `string`.
 
-- string. The function returns the `value` without changes.
-- []byte. The function returns the `value` as a string encoded in hexadecimal.
-- map. The function returns the `value` as a key-value-pair of type string.
-- slice. The function returns the `value` as a list formatted string.
-- pcommon.Value. The function returns the `value` as a string type.
+- string. The function returns the `target` without changes.
+- []byte. The function returns the `target` as a string encoded in hexadecimal.
+- map. The function returns the `target` as a JSON object string.
+- slice. The function returns the `target` as a JSON array string.
+- pcommon.Value. The function returns the `target` as a string type.
 
-If `value` is of another type it gets marshalled to string type.
-If `value` is empty, or parsing failed, nil is always returned.
+If `target` is of another type it gets marshalled to a JSON string.
+If `target` is `nil`, `nil` is returned. If `target` cannot be marshalled, an error is returned.
 
-The `value` is either a path expression to a telemetry field to retrieve, or a literal.
+The `target` is either a path expression to a telemetry field to retrieve, or a literal.
 
 Examples:
 
@@ -2736,13 +2475,13 @@ Examples:
 
 ### Time
 
-`Time(target, format, Optional[location], Optional[locale])`
+`Time(time, format, Optional[location], Optional[locale])`
 
 The `Time` Converter takes a string representation of a time and converts it to a Golang `time.Time`.
 
-`target` is a string. `format` is a string, `location` is an optional string, `locale` is an optional string.
+`time` is a string. `format` is a string, `location` is an optional string, `locale` is an optional string.
 
-If either `target` or `format` are nil, an error is returned. The parser used is the parser at [internal/coreinternal/parser](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/internal/coreinternal/timeutils). If the `target` and `format` do not follow the parsing rules used by this parser, an error is returned.
+If either `time` or `format` are nil, an error is returned. The parser used is the parser at [internal/coreinternal/parser](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/internal/coreinternal/timeutils). If the `time` and `format` do not follow the parsing rules used by this parser, an error is returned.
 
 `format` denotes a textual representation of the time value formatted according to ctime-like format string. It follows [standard Go Layout formatting](https://pkg.go.dev/time#pkg-constants) with few additional substitutes:
 | substitution | description | examples |
@@ -2804,7 +2543,7 @@ Examples:
 - `Time("2012-11-01T22:08:41+0000 EST", "%Y-%m-%dT%H:%M:%S%z %Z")`
 - `Time("2023-05-26 12:34:56", "%Y-%m-%d %H:%M:%S", "America/New_York")`
 
-`locale` specifies the input language of the `target` value. It is used to interpret timestamp values written in a specific language, 
+`locale` specifies the input language of the `time` value. It is used to interpret timestamp values written in a specific language, 
 ensuring that the function can correctly parse the localized month names, day names, and periods of the day based on the provided language.
 
 The value must be a well-formed BCP 47 language tag, and a known [CLDR](https://cldr.unicode.org) v45 locale.
@@ -2903,12 +2642,11 @@ Examples:
 
 ### TraceID
 
-`TraceID(bytes|string)`
+`TraceID(target)`
 
 The `TraceID` Converter returns a `pdata.TraceID` struct from the given byte slice OR hex string.
 
-`bytes`  byte slice of exactly 16 bytes.
-`string` is a string of exactly 16 bytes solely composed of valid hexadecimal chars.
+`target` is a byte slice or string. Exactly 16 bytes are used as the raw ID, exactly 32 bytes are decoded as hexadecimal, and any other length returns an error.
 
 Examples:
 
@@ -2947,11 +2685,11 @@ Examples:
 
 ### UnixMicro
 
-`UnixMicro(value)`
+`UnixMicro(time)`
 
 The `UnixMicro` Converter returns the time as a Unix time, the number of microseconds elapsed since January 1, 1970 UTC.
 
-`value` is a `time.Time`. If `value` is another type an error is returned.
+`time` is a `time.Time`. If `time` is another type an error is returned.
 
 The returned type is `int64`.
 
@@ -2961,11 +2699,11 @@ Examples:
 
 ### UnixMilli
 
-`UnixMilli(value)`
+`UnixMilli(time)`
 
 The `UnixMilli` Converter returns the time as a Unix time, the number of milliseconds elapsed since January 1, 1970 UTC.
 
-`value` is a `time.Time`. If `value` is another type an error is returned.
+`time` is a `time.Time`. If `time` is another type an error is returned.
 
 The returned type is `int64`.
 
@@ -2975,11 +2713,11 @@ Examples:
 
 ### UnixNano
 
-`UnixNano(value)`
+`UnixNano(time)`
 
 The `UnixNano` Converter returns the time as a Unix time, the number of nanoseconds elapsed since January 1, 1970 UTC.
 
-`value` is a `time.Time`. If `value` is another type an error is returned.
+`time` is a `time.Time`. If `time` is another type an error is returned.
 
 The returned type is `int64`.
 
@@ -2989,11 +2727,11 @@ Examples:
 
 ### UnixSeconds
 
-`UnixSeconds(value)`
+`UnixSeconds(time)`
 
 The `UnixSeconds` Converter returns the time as a Unix time, the number of seconds elapsed since January 1, 1970 UTC.
 
-`value` is a `time.Time`. If `value` is another type an error is returned.
+`time` is a `time.Time`. If `time` is another type an error is returned.
 
 The returned type is `int64`.
 
@@ -3003,11 +2741,11 @@ Examples:
 
 ### UserAgent
 
-`UserAgent(value)`
+`UserAgent(user_agent)`
 
 The `UserAgent` Converter parses the string argument trying to match it against well-known user-agent strings.
 
-`value` is a string or a path to a string.  If `value` is not a string an error is returned.
+`user_agent` is a string or a path to a string.  If `user_agent` is not a string an error is returned.
 
 The results of the parsing are returned as a map containing `user_agent.name`, `user_agent.version`, `user_agent.original`, `os.name`, and `os.version` as defined in semconv v1.34.0. `os.name` and `os.version` are omitted if empty.
 
@@ -3041,14 +2779,14 @@ Examples:
 
 ### URL
 
-`URL(url_string)`
+`URL(u_r_i)`
 
 Parses a Uniform Resource Locator (URL) string and extracts its components as an object.
 This URL object includes properties for the URL’s domain, path, fragment, port, query, scheme, user info, username, and password.
 
 `original`, `domain`, `scheme`, and `path` are always present. Other properties are present only if they have corresponding values.
 
-`url_string` is a `string`.
+`u_r_i` is a `string`.
 
 - `URL("http://www.example.com")`
 
@@ -3105,11 +2843,11 @@ Examples:
 
 ### Weekday
 
-`Weekday(value)`
+`Weekday(time)`
 
 The `Weekday` Converter returns the day of the week component from the specified time using the Go stdlib [`time.Weekday` function](https://pkg.go.dev/time#Time.Weekday).
 
-`value` is a `time.Time`. If `value` is another type, an error is returned.
+`time` is a `time.Time`. If `time` is another type, an error is returned.
 
 The returned type is `int64`.
 
@@ -3119,44 +2857,15 @@ Examples:
 
 - `Weekday(Now())`
 
-### When
-
-> [!IMPORTANT]
-> This function is alpha and may change in future releases. It requires the [`ottl.functions.enableLambda`](../documentation.md#feature-gates) feature gate to be enabled.
-
-`When(condition, trueValue, falseValue)`
-
-The `When` converter returns `trueValue` when `condition` evaluates to true, otherwise it returns `falseValue`.
-
-`condition` is a lambda expression with no parameters that returns a `boolean`.
-
-`trueValue` and `falseValue` are OTTL expressions or literal values.
-
-If `condition` does not return a `boolean`, it returns an error.
-
-Examples:
-
-Select a value based on a type check:
-
-- `When(() => IsMap(log.attributes), "map", "not map")`
-
-Select a value based on a comparison:
-
-- `When(() => attributes["int_value"] > 0, "positive", "negative")`
-
-Store the result:
-
-- `set(log.attributes["result"], When(() => IsMap(log.attributes), "yes", "no"))`
-
 ### XXH3
 
-`XXH3(value)`
+`XXH3(target)`
 
-The `XXH3` Converter generates a 64-bit xxHash digest from the input `value` using the XXH3 hash algorithm.
+The `XXH3` Converter generates a 64-bit xxHash digest from the input `target` using the XXH3 hash algorithm.
 
 The returned type is string.
 
-`value` is either a path expression to a string telemetry field or a literal string. If `value` is another type an error is returned.
+`target` is either a path expression to a string telemetry field or a literal string. If `target` is another type an error is returned.
 
 If an error occurs during hashing, it is returned.
 
@@ -3167,13 +2876,13 @@ Examples:
 
 ### XXH128
 
-`XXH128(value)`
+`XXH128(target)`
 
-The `XXH128` Converter generates a 128-bit xxHash digest from the input `value` using the XXH128 hash algorithm.
+The `XXH128` Converter generates a 128-bit xxHash digest from the input `target` using the XXH128 hash algorithm.
 
 The returned type is string.
 
-`value` is either a path expression to a string telemetry field or a literal string. If `value` is another type an error is returned.
+`target` is either a path expression to a string telemetry field or a literal string. If `target` is another type an error is returned.
 
 If an error occurs during hashing, it is returned.
 
@@ -3184,14 +2893,54 @@ Examples:
 
 ### Year
 
-`Year(value)`
+`Year(time)`
 
 The `Year` Converter returns the year component from the specified time using the Go stdlib [`time.Year` function](https://pkg.go.dev/time#Time.Year).
 
-`value` is a `time.Time`. If `value` is another type, an error is returned.
+`time` is a `time.Time`. If `time` is another type, an error is returned.
 
 The returned type is `int64`.
 
 Examples:
 
 - `Year(Now())`
+
+## Function stability
+
+Once OTTL is `1.0`, the standard functions returned by `StandardFuncs` and `StandardConverters` are **frozen**.
+For the life of `1.x` no standard function will be removed and no existing signature will change in a
+backward-incompatible way.
+
+Because the standard set is frozen, new functions are introduced as experimental functions first, and become
+part of the frozen standard set only after they have proven stable.
+
+### Experimental functions
+
+New functions are introduced as experimental functions. While a function is experimental, it is **not covered by
+the stability guarantee**: its name, signature, and behavior may change in a backward-incompatible way, and the
+function may be removed entirely, in any `1.x` release without a major version bump. Experimental functions are
+not part of `StandardFuncs` or `StandardConverters`; they live in the `xottl` module and are documented in its
+[functions README](../xottl/ottlfuncs/README.md). Each component decides whether to make them available, and
+statements that use them only parse when the [`pkg.ottl.functions.enableExperimental`](../documentation.md#feature-gates)
+feature gate is enabled. The existing lambda functions instead require the `ottl.functions.enableLambda` feature gate.
+
+### Promotion to standard
+
+Promotion moves the function out of the experimental set and into the frozen standard set. This is an additive,
+backward-compatible change and ships in a **minor** release (never a patch). Promotion also **freezes the
+function's signature**: the signature a function has at promotion is the signature it keeps for the life of
+`1.x`, so any desired signature change must be made while the function is still experimental.
+
+A function may be promoted only when all of the following hold:
+
+1. It has been available as an experimental function for at least two minor releases, giving users time to try
+   it and give feedback.
+2. It has complete tests that validate its behavior and complete documentation in this README.
+3. Its name, arguments, and behavior are settled — there are no open issues or pull requests proposing changes
+   to them.
+4. It adheres to the [design principles](#design-principles) for standard functions (no I/O, no infinite loops,
+   communicates only through parameters and results).
+5. There is demonstrated user demand for the function to be part of the standard set.
+6. It has sign-off from the OTTL code owners.
+
+A function that cannot meet these criteria stays experimental; there is no obligation to promote it.
