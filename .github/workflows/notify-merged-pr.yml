@@ -18,7 +18,7 @@ jobs:
       github.event.pull_request.user.login != 'renovate-sh-app[bot]'
     runs-on: ubuntu-latest
     permissions:
-      id-token: write # send-slack-message fetches a secret from Vault
+      id-token: write
     steps:
       - name: Send Slack notification
         uses: grafana/shared-workflows/actions/send-slack-message@551bc8d50017d3e95d5da3f8a4826e733a208dc0 # send-slack-message/v3.0.2
