@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -78,7 +79,7 @@ func NewMemcached(cfg MemcachedConfig, client MemcachedClient, name string, maxI
 		requestErrors: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Namespace:   "tempo",
 			Name:        "memcache_request_errors_total",
-			Help:        "Memcache requests that failed with an error other than a miss, by reason.",
+			Help:        "Memcache requests that failed with an error other than a miss, by reason (timeout_value is a timeout while reading an item's value).",
 			ConstLabels: prometheus.Labels{"name": name},
 		}, []string{"method", "reason"}),
 	}
@@ -100,18 +101,28 @@ func memcacheStatusCode(err error) string {
 }
 
 // memcacheErrorReason classifies an error from the memcached client. Misses are not errors.
+//
+// A timeout is "timeout_value" when it hit while reading the value of an item, which the client wraps
+// as a corrupt get result: the response had started and the transfer was too slow. Any other timeout
+// is "timeout": connecting, sending the request, or waiting for the first line of the response.
 func memcacheErrorReason(err error) string {
-	var netErr net.Error
-	var connectTimeout *memcache.ConnectTimeoutError
 	switch {
 	case errors.Is(err, gobreaker.ErrOpenState), errors.Is(err, gobreaker.ErrTooManyRequests):
 		return "circuit_breaker_open"
-	case errors.Is(err, os.ErrDeadlineExceeded), errors.As(err, &connectTimeout),
-		errors.As(err, &netErr) && netErr.Timeout():
+	case isTimeout(err) && strings.Contains(err.Error(), "corrupt get result"):
+		return "timeout_value"
+	case isTimeout(err):
 		return "timeout"
 	default:
 		return "other"
 	}
+}
+
+func isTimeout(err error) bool {
+	var netErr net.Error
+	var connectTimeout *memcache.ConnectTimeoutError
+	return errors.Is(err, os.ErrDeadlineExceeded) || errors.As(err, &connectTimeout) ||
+		(errors.As(err, &netErr) && netErr.Timeout())
 }
 
 func (c *Memcached) countError(method string, err error) {
