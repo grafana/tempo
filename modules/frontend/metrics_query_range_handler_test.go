@@ -1560,7 +1560,7 @@ func TestQueryRangeHandlerLogsErrorReason(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := &recordingLogger{}
-	handler := newMetricsQueryRangeHTTPHandler(cfg, next, newMetricsRangeLimiter(cfg, o, nil, logger), logger, nil)
+	handler := newMetricsQueryRangeHTTPHandler(cfg, next, newMetricsRangeLimiter(cfg, o, nil), logger, nil)
 
 	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
 	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
@@ -1652,7 +1652,7 @@ func TestQueryRangeScannedBytesLimit(t *testing.T) {
 			start:           hoursAgo(4),
 			end:             scannedBytesTestEnd,
 			maxScannedBytes: 350,
-			wantErr:         "metrics query time range of 4h0m0s exceeds the maximum allowed range of 2h59m59s for tenant foo (limited by scanned bytes), reduce the time range to 2h59m59s or less",
+			wantErr:         "metrics query time range of 4h0m0s reads too much data, the allowed range for tenant foo is 2h59m59s",
 		},
 		{
 			// Unaligned start and end would push the aligned range past min_duration.

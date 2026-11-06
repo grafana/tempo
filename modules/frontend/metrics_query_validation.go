@@ -8,11 +8,14 @@ import (
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
+	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -22,7 +25,7 @@ var (
 
 // validateQueryRangeReq must run before traceql.AlignRequest, which inflates
 // the range by up to 3 steps and would cause valid requests to fail the cap.
-func validateQueryRangeReq(ctx context.Context, cfg Config, rl rangeLimiter, req *tempopb.QueryRangeRequest) error {
+func validateQueryRangeReq(ctx context.Context, cfg Config, rl rangeLimiter, logger log.Logger, req *tempopb.QueryRangeRequest) error {
 	if req.Start >= req.End {
 		return errEndMustBeGreaterThanStart
 	}
@@ -30,7 +33,7 @@ func validateQueryRangeReq(ctx context.Context, cfg Config, rl rangeLimiter, req
 	if err != nil {
 		return err
 	}
-	if err := rl.Limit(ctx, orgID, unixNanoTime(req.Start), unixNanoTime(req.End)); err != nil {
+	if err := checkMetricsRange(ctx, cfg, rl, logger, orgID, unixNanoTime(req.Start), unixNanoTime(req.End)); err != nil {
 		return err
 	}
 	if cfg.Metrics.MaxIntervals != 0 && (req.Step == 0 || (req.End-req.Start)/req.Step > cfg.Metrics.MaxIntervals) {
@@ -44,78 +47,106 @@ func validateQueryRangeReq(ctx context.Context, cfg Config, rl rangeLimiter, req
 	return nil
 }
 
-// metricsRangeLimiter checks metrics queries in the handlers, before traceql.AlignRequest widens the range.
-type metricsRangeLimiter struct {
-	scannedBytesLimit
-	cfg       Config
-	overrides overrides.Interface
-}
-
-var _ rangeLimiter = (*metricsRangeLimiter)(nil)
-
-func newMetricsRangeLimiter(cfg Config, o overrides.Interface, reader tempodb.Reader, logger log.Logger) *metricsRangeLimiter {
-	return &metricsRangeLimiter{
-		op:       metricsOp,
-		kind:     "metrics query",
-		reader:   reader,
-		filterFn: isRF1Block,
-		maxErr: func(l rangeLimits, _, _ time.Time) error {
-			return fmt.Errorf("%w of %s", errMetricsMaxDuration, l.maxDuration)
-		},
-		logger:    logger,
-		cfg:       cfg,
-		overrides: o,
-	}
-}
-
-// Limit checks every tenant of the request against its own limits, and returns the rejection with the shortest retry range.
-func (l *metricsRangeLimiter) Limit(ctx context.Context, orgID string, start, end time.Time) error {
+// checkMetricsRange checks every tenant of the request against its own limits, and returns the rejection with the shortest retry range.
+func checkMetricsRange(ctx context.Context, cfg Config, rl rangeLimiter, logger log.Logger, orgID string, start, end time.Time) error {
 	// Runs before the multi-tenant split, so each tenant gets its own limits.
 	tenants, err := tenant.TenantIDsFromOrgID(orgID)
 	if err != nil {
 		return err
 	}
 	// Without multi-tenant queries the tenant validator rejects a|b later, so there is no tenant to check here.
-	if len(tenants) > 1 && !l.cfg.MultiTenantQueriesEnabled {
+	if len(tenants) > 1 && !cfg.MultiTenantQueriesEnabled {
 		return nil
 	}
-	// NOTE - AlignRequest, in the handler and again in the sharder, adds up to 3 steps before start and 1 after end,
-	// so a large step can exceed the budget, and same is with max_duration
-	cutoff := time.Now().Add(-l.cfg.Metrics.Sharder.QueryBackendAfter)
 
 	var (
-		rejection error
-		retry     time.Duration
-		decided   *scannedBytesCheck
+		// rejected is the result of the rejection with the shortest retry range, empty when none.
+		rejected       string
+		rejectedTenant string
+		retry          time.Duration
 	)
 	for _, tenantID := range tenants {
-		limits := l.rangeLimits(tenantID)
 		// TODO: the sharder lists this tenant's blocks again. Passing these on would walk the blocklist once.
-		c, err := l.limit(ctx, tenantID, limits, start, end, cutoff)
-		if err != nil {
-			r := limits.maxDuration
-			if c != nil && c.result == scannedBytesResultRejected {
-				r = c.allowed
+		limits := rl.TenantLimits(tenantID)
+		result, est := rl.CheckRange(tenantID, limits, start, end)
+		recordRangeCheck(metricsRangeLimitMetrics, tenantID, end.Sub(start), result, est)
+		if est != nil {
+			//nolint:goconst // logfmt keys match the other query log lines.
+			kv := []any{
+				"msg", "scanned bytes limit",
+				"tenant", tenantID,
+				"op", metricsOp,
+				// Rounded like the rejection error: requested up, limits down.
+				"requested_seconds", int64(ceilSeconds(end.Sub(start)) / time.Second),
+				"estimated_scanned_bytes", est.estimatedBytes,
+				"max_scanned_bytes", limits.maxScannedBytes,
+				"within_budget", est.withinBudget,
+				"budget_range_seconds", int64(est.budgetRange / time.Second),
+				"allowed_range_seconds", int64(est.allowedRange / time.Second),
+				"min_seconds", int64(limits.minDuration / time.Second),
+				"max_seconds", int64(limits.maxDuration / time.Second),
+				"result", result,
+				// Whether max_scanned_bytes and min_duration alone allow the query, to size a max_duration raise.
+				"passes_scanned_bytes", est.withinBudget || end.Sub(start) <= max(est.budgetRange, limits.minDuration),
 			}
-			// Only the shortest retry range passes every tenant.
-			if rejection == nil || r < retry {
-				rejection, retry, decided = err, r, c
-			}
+			logWithShape(level.Info(logger), ctx, kv...)
+			// The shared helper leaves tenant off, but a multi-tenant query has a span per tenant.
+			spanCtx, span := tracer.Start(ctx, "frontend.CheckRange", trace.WithAttributes(attribute.String("tenant", tenantID)))
+			setSpanAttrsWithShape(spanCtx, kv...)
+			span.End()
+		}
+		if result == queryRangeResultAllowed {
 			continue
 		}
-		// Tenants share span keys, so the span shows only the check behind the final result.
-		if rejection == nil && decided == nil {
-			decided = c
+		r := limits.maxDuration
+		if result == queryRangeResultRejectedScannedBytes {
+			r = est.allowedRange
+		}
+		// Only the shortest retry range passes every tenant.
+		if rejected == "" || r < retry {
+			rejected, rejectedTenant, retry = result, tenantID, r
 		}
 	}
-	if decided != nil {
-		setSpanAttrsWithShape(ctx, decided.fields()...)
+	switch rejected {
+	case "":
+		return nil
+	case queryRangeResultRejectedMaxDuration:
+		return fmt.Errorf("%w of %s", errMetricsMaxDuration, retry)
+	default:
+		return scannedBytesErr(metricsOp, rejectedTenant, end.Sub(start), retry)
 	}
-	return rejection
 }
 
-// rangeLimits returns the metrics range limits for this tenant. A non-zero override wins over the config.
-func (l *metricsRangeLimiter) rangeLimits(tenantID string) rangeLimits {
+// metricsRangeLimiter checks metrics queries in the handlers, before traceql.AlignRequest widens the range.
+type metricsRangeLimiter struct {
+	cfg       Config
+	overrides overrides.Interface
+
+	scannedBytesLimit
+}
+
+var _ rangeLimiter = (*metricsRangeLimiter)(nil)
+
+func newMetricsRangeLimiter(cfg Config, o overrides.Interface, reader tempodb.Reader) *metricsRangeLimiter {
+	return &metricsRangeLimiter{
+		cfg:       cfg,
+		overrides: o,
+
+		op:       metricsOp,
+		reader:   reader,
+		filterFn: isRF1Block,
+	}
+}
+
+func (l *metricsRangeLimiter) CheckRange(tenantID string, limits rangeLimits, start, end time.Time) (string, *scannedBytesCheck) {
+	// NOTE - AlignRequest, in the handler and again in the sharder, adds up to 3 steps before start and 1 after end,
+	// so a large step can exceed the budget but that's by design.
+	backendAfter := time.Now().Add(-l.cfg.Metrics.Sharder.QueryBackendAfter)
+	return l.checkTenantRange(tenantID, limits, start, end, backendAfter)
+}
+
+// TenantLimits returns the metrics range limits for this tenant. A non-zero override wins over the config.
+func (l *metricsRangeLimiter) TenantLimits(tenantID string) rangeLimits {
 	return rangeLimits{
 		minDuration:     cmp.Or(l.overrides.MinMetricsDuration(tenantID), l.cfg.Metrics.Sharder.MinDuration),
 		maxDuration:     cmp.Or(l.overrides.MaxMetricsDuration(tenantID), l.cfg.Metrics.Sharder.MaxDuration),

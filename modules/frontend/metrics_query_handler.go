@@ -64,7 +64,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}
 		qr.Step = qr.End - qr.Start // keep Step == End-Start for instant
 
-		if err := validateQueryRangeReq(ctx, cfg, rl, qr); err != nil {
+		if err := validateQueryRangeReq(ctx, cfg, rl, logger, qr); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
@@ -149,7 +149,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		qr.Step = qr.End - qr.Start // keep Step == End-Start for instant
 
-		if err := validateQueryRangeReq(req.Context(), cfg, rl, qr); err != nil {
+		if err := validateQueryRangeReq(req.Context(), cfg, rl, logger, qr); err != nil {
 			return httpInvalidRequest(err), nil
 		}
 

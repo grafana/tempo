@@ -59,7 +59,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
-		if err := validateQueryRangeReq(ctx, cfg, rl, req); err != nil {
+		if err := validateQueryRangeReq(ctx, cfg, rl, logger, req); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
@@ -145,7 +145,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 			return httpInvalidRequest(err), nil
 		}
 
-		if err := validateQueryRangeReq(req.Context(), cfg, rl, queryRangeReq); err != nil {
+		if err := validateQueryRangeReq(req.Context(), cfg, rl, logger, queryRangeReq); err != nil {
 			return httpInvalidRequest(err), nil
 		}
 

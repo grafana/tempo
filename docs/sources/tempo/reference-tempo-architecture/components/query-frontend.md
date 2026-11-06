@@ -47,8 +47,7 @@ In shared clusters, keeping this value lower ensures fair scheduling across tena
 `max_scanned_bytes`, under `query_frontend.search` or `query_frontend.metrics`, limits the range by the bytes of the backend blocks it scans.
 The allowed range is the longest window ending at the query end whose backend blocks fit in `max_scanned_bytes`.
 It's then raised to `min_duration` and capped at `max_duration`.
-Longer queries are rejected with a 400 error that reports the allowed range and asks the user to reduce the time range.
-If the newest data in the range is already over the limit, `min_duration` is `0`, and the query ends more than `query_backend_after` ago, no shorter range fits, so the error reports that and gives no range to retry with.
+Longer queries are rejected with a 400 error that reports the allowed range.
 A query of `min_duration` or less is always allowed. A query longer than `max_duration` is always rejected with the `max_duration` error, before `max_scanned_bytes` is checked.
 Tempo fails to start if `min_duration` is above `max_duration`. A per-tenant overrides reload fails if a tenant sets `min_search_duration` above `max_search_duration`, or `min_metrics_duration` above `max_metrics_duration`, and Tempo keeps the last valid overrides. If the overrides are invalid at startup, Tempo fails to start. If a tenant override and the `query_frontend` value give a `min_duration` above `max_duration`, `max_duration` wins.
 Data newer than `query_backend_after` isn't counted.

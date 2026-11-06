@@ -354,11 +354,11 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 		// One byte of budget makes every backend block overflow, so the 10m min_duration sets the allowed range.
 		_, err := apiClient.MetricsQueryRange("{} | rate()", ago(time.Hour), end, "60s", 0)
 		require.ErrorContains(t, err, "failed with response: 400")
-		require.ErrorContains(t, err, "metrics query time range of 1h0m0s exceeds the maximum allowed range of 10m0s for tenant single-tenant (limited by scanned bytes), reduce the time range to 10m0s or less")
+		require.ErrorContains(t, err, "metrics query time range of 1h0m0s reads too much data, the allowed range for tenant single-tenant is 10m0s")
 
 		_, err = apiClient.SearchTraceQLWithRange("{}", ago(time.Hour), end)
 		require.ErrorContains(t, err, "failed with response: 400")
-		require.ErrorContains(t, err, "search time range of 1h0m0s exceeds the maximum allowed range of 10m0s for tenant single-tenant (limited by scanned bytes), reduce the time range to 10m0s or less")
+		require.ErrorContains(t, err, "search query time range of 1h0m0s reads too much data, the allowed range for tenant single-tenant is 10m0s")
 
 		// A query at min_duration passes.
 		_, err = apiClient.MetricsQueryRange("{} | rate()", ago(10*time.Minute), end, "60s", 0)
@@ -385,7 +385,7 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 			), "op=%s result=%s", op, result)
 		}
 		for _, op := range []string{"metrics", "search"} {
-			for _, result := range []string{"rejected", "rejected_max_duration"} {
+			for _, result := range []string{"rejected_scanned_bytes", "rejected_max_duration"} {
 				waitResult(op, result)
 			}
 		}
@@ -399,12 +399,12 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 				},
 			},
 		}))
-		allowedRange := regexp.MustCompile(`maximum allowed range of (\S+) for tenant`)
+		allowedRange := regexp.MustCompile(`the allowed range for tenant \S+ is (\S+)`)
 		end = time.Now().Unix()
 		_, metricsErr := apiClient.MetricsQueryRange("{} | rate()", ago(time.Hour), end, "60s", 0)
 		_, searchErr := apiClient.SearchTraceQLWithRange("{}", ago(time.Hour), end)
 		for _, err := range []error{metricsErr, searchErr} {
-			require.ErrorContains(t, err, "(limited by scanned bytes)")
+			require.ErrorContains(t, err, "reads too much data")
 			m := allowedRange.FindStringSubmatch(err.Error())
 			require.Len(t, m, 2, err.Error())
 			allowed, parseErr := time.ParseDuration(m[1])
@@ -429,7 +429,7 @@ func TestQueryScannedBytesLimits(t *testing.T) {
 		_, err = apiClient.SearchTraceQLWithRange("{}", ago(2*time.Hour), end)
 		require.NoError(t, err)
 
-		waitResult("metrics", "within")
-		waitResult("search", "within")
+		waitResult("metrics", "allowed")
+		waitResult("search", "allowed")
 	})
 }

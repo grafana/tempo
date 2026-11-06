@@ -25,9 +25,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/attribute"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
@@ -1541,9 +1538,9 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			maxScannedBytes: 150,
 			maxDuration:     time.Hour,
 			wantErr:         "range specified by start and end exceeds 1h0m0s. received start=1 end=8200",
-			wantResult:      scannedBytesResultRejectedMaxDuration,
+			wantResult:      queryRangeResultRejectedMaxDuration,
 			wantCalls:       1,
-			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search requested_seconds=8199 estimated_scanned_bytes=200 max_scanned_bytes=150 derived_seconds=6199 allowed_seconds=3600 min_seconds=0 max_seconds=3600 result=rejected_max_duration passes_scanned_bytes=false
+			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search requested_seconds=8199 estimated_scanned_bytes=200 max_scanned_bytes=150 within_budget=false budget_range_seconds=6199 allowed_range_seconds=3600 min_seconds=0 max_seconds=3600 result=rejected_max_duration passes_scanned_bytes=false
 `,
 		},
 		{
@@ -1553,10 +1550,10 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			maxDuration:     168 * time.Hour,
 			// min_duration applies above the 1h43m19s the budget allows, so the config value must reach the decision.
 			minDuration: 2 * time.Hour,
-			wantErr:     "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes), reduce the time range to 2h0m0s or less",
-			wantResult:  scannedBytesResultRejected,
+			wantErr:     "search query time range of 2h16m39s reads too much data, the allowed range for tenant blerg is 2h0m0s",
+			wantResult:  queryRangeResultRejectedScannedBytes,
 			wantCalls:   1,
-			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search requested_seconds=8199 estimated_scanned_bytes=200 max_scanned_bytes=150 derived_seconds=6199 allowed_seconds=7200 min_seconds=7200 max_seconds=604800 result=rejected passes_scanned_bytes=false
+			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search requested_seconds=8199 estimated_scanned_bytes=200 max_scanned_bytes=150 within_budget=false budget_range_seconds=6199 allowed_range_seconds=7200 min_seconds=7200 max_seconds=604800 result=rejected_scanned_bytes passes_scanned_bytes=false
 `,
 		},
 		{
@@ -1574,10 +1571,10 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			maxDuration:     168 * time.Hour,
 			minDuration:     time.Hour,
 			overrides:       overrides.ReadOverrides{MaxSearchScannedBytes: 150, MinSearchDuration: model.Duration(2 * time.Hour)},
-			wantErr:         "search time range of 2h16m39s exceeds the maximum allowed range of 2h0m0s for tenant blerg (limited by scanned bytes), reduce the time range to 2h0m0s or less",
-			wantResult:      scannedBytesResultRejected,
+			wantErr:         "search query time range of 2h16m39s reads too much data, the allowed range for tenant blerg is 2h0m0s",
+			wantResult:      queryRangeResultRejectedScannedBytes,
 			wantCalls:       1,
-			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search requested_seconds=8199 estimated_scanned_bytes=200 max_scanned_bytes=150 derived_seconds=6199 allowed_seconds=7200 min_seconds=7200 max_seconds=604800 result=rejected passes_scanned_bytes=false
+			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search requested_seconds=8199 estimated_scanned_bytes=200 max_scanned_bytes=150 within_budget=false budget_range_seconds=6199 allowed_range_seconds=7200 min_seconds=7200 max_seconds=604800 result=rejected_scanned_bytes passes_scanned_bytes=false
 `,
 		},
 		{
@@ -1587,9 +1584,9 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			maxDuration:     168 * time.Hour,
 			overrides:       overrides.ReadOverrides{MaxSearchDuration: model.Duration(time.Hour)},
 			wantErr:         "range specified by start and end exceeds 1h0m0s. received start=1 end=8200",
-			wantResult:      scannedBytesResultRejectedMaxDuration,
+			wantResult:      queryRangeResultRejectedMaxDuration,
 			wantCalls:       1,
-			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search requested_seconds=8199 estimated_scanned_bytes=200 max_scanned_bytes=150 derived_seconds=6199 allowed_seconds=3600 min_seconds=0 max_seconds=3600 result=rejected_max_duration passes_scanned_bytes=false
+			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search requested_seconds=8199 estimated_scanned_bytes=200 max_scanned_bytes=150 within_budget=false budget_range_seconds=6199 allowed_range_seconds=3600 min_seconds=0 max_seconds=3600 result=rejected_max_duration passes_scanned_bytes=false
 `,
 		},
 		{
@@ -1598,9 +1595,9 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 			query:           "/?start=1&end=8200",
 			maxScannedBytes: 10_000,
 			maxDuration:     168 * time.Hour,
-			wantResult:      scannedBytesResultWithin,
+			wantResult:      queryRangeResultAllowed,
 			wantCalls:       2,
-			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search requested_seconds=8199 estimated_scanned_bytes=200 max_scanned_bytes=10000 fits=true min_seconds=0 max_seconds=604800 result=within passes_scanned_bytes=true
+			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search requested_seconds=8199 estimated_scanned_bytes=200 max_scanned_bytes=10000 within_budget=true budget_range_seconds=0 allowed_range_seconds=0 min_seconds=0 max_seconds=604800 result=allowed passes_scanned_bytes=true
 `,
 		},
 		{
@@ -1658,25 +1655,41 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 	}
 }
 
-func TestSearchRangeLimiterSpan(t *testing.T) {
-	rec := tracetest.NewSpanRecorder()
-	ctx, span := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec)).Tracer("test").Start(context.Background(), "test")
-	l := newSearchRangeLimiter(SearchSharderConfig{MaxScannedBytes: 250}, newTestOverrides(t, overrides.ReadOverrides{}), &mockReader{metas: hourlyMetricsBlocks(scannedBytesTestEnd)}, log.NewNopLogger())
+func TestSearchSharderCheckRangeSpan(t *testing.T) {
+	metas := []*backend.BlockMeta{
+		{StartTime: time.Unix(3000, 0), EndTime: time.Unix(4000, 0), Size_: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")},
+		{StartTime: time.Unix(1000, 0), EndTime: time.Unix(2000, 0), Size_: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002")},
+	}
+	sharder := newAsyncSearchSharder(&mockReader{metas: metas}, newTestOverrides(t, overrides.ReadOverrides{}), SearchSharderConfig{
+		ConcurrentRequests:    defaultConcurrentRequests,
+		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MostRecentShards:      defaultMostRecentShards,
+		MaxScannedBytes:       150,
+	}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
+	ctx, spans := recordCheckRangeSpans()
+	req := httptest.NewRequest("GET", "/?start=1&end=8200", nil).WithContext(user.InjectOrgID(ctx, "blerg"))
 
-	err := l.Limit(ctx, "foo", scannedBytesTestEnd.Add(-4*time.Hour), scannedBytesTestEnd)
-	span.End()
+	_, err := sharder.Wrap(nopNext).RoundTrip(pipeline.NewHTTPRequest(req))
 
-	require.EqualError(t, err, "search time range of 4h0m0s exceeds the maximum allowed range of 1h59m59s for tenant foo (limited by scanned bytes), reduce the time range to 1h59m59s or less")
-	require.Contains(t, rec.Ended()[0].Attributes(), attribute.String("result", scannedBytesResultRejected))
-	require.Contains(t, rec.Ended()[0].Attributes(), attribute.Int64("allowed_seconds", 7199))
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"blerg": queryRangeResultRejectedScannedBytes}, spans())
+}
+
+func TestSearchRangeLimiterCheckRange(t *testing.T) {
+	l := newSearchRangeLimiter(SearchSharderConfig{MaxScannedBytes: 250}, newTestOverrides(t, overrides.ReadOverrides{}), &mockReader{metas: hourlyMetricsBlocks(scannedBytesTestEnd)})
+
+	result, est := l.CheckRange("foo", l.TenantLimits("foo"), scannedBytesTestEnd.Add(-4*time.Hour), scannedBytesTestEnd)
+
+	require.Equal(t, queryRangeResultRejectedScannedBytes, result)
+	require.Equal(t, 2*time.Hour-time.Nanosecond, est.allowedRange)
 }
 
 func TestSearchSharderScannedBytesLimitCutoff(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		// A half second past the boundary, so the cutoff's truncation to whole seconds shows in the allowed range.
+		// A half second past the boundary, so backendAfter's truncation to whole seconds shows in the allowed range.
 		time.Sleep(500 * time.Millisecond)
 		now := time.Now()
-		// One large block straddles the cutoff at now-30m. The 28m after it reach no backend block.
+		// One large block straddles backendAfter at now-30m. The 28m after it reach no backend block.
 		reader := &mockReader{metas: []*backend.BlockMeta{{
 			StartTime: now.Add(-40 * time.Minute),
 			EndTime:   now.Add(-time.Minute),
@@ -1694,6 +1707,6 @@ func TestSearchSharderScannedBytesLimitCutoff(t *testing.T) {
 		req := httptest.NewRequest("GET", fmt.Sprintf("/?start=%d&end=%d", now.Add(-time.Hour).Unix(), now.Add(-2*time.Minute).Unix()), nil)
 		req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 		resp, err := sharder.Wrap(nopNext).RoundTrip(pipeline.NewHTTPRequest(req))
-		testBadRequestFromResponses(t, resp, err, "search time range of 58m0s exceeds the maximum allowed range of 28m0s for tenant blerg (limited by scanned bytes), reduce the time range to 28m0s or less")
+		testBadRequestFromResponses(t, resp, err, "search query time range of 58m0s reads too much data, the allowed range for tenant blerg is 28m0s")
 	})
 }
