@@ -45,7 +45,7 @@ jobs:
         run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
 
       - name: cache golangci
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .cache/golangci-lint
           key: golangci-lint-${{ runner.os }}-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.mod', '.golangci.yml') }}
@@ -97,13 +97,13 @@ jobs:
         run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
 
       - name: Cache Go modules
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/go/pkg/mod
           key: gomod-${{ runner.os }}-${{ hashFiles('go.sum', 'tools/go.sum') }}
 
       - name: Cache Go build output
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           # one cache shared by the whole matrix: a -race build cache is ~1.1GB per target, so
           # per-target caches would blow the 10GB repo limit. Targets overlap heavily anyway.
@@ -242,12 +242,12 @@ jobs:
         id: get-year-week-number
         run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
       - name: Cache Go modules
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/go/pkg/mod
           key: gomod-${{ runner.os }}-${{ hashFiles('go.sum', 'tools/go.sum') }}
       - name: Cache Go build output
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/go-build
           key: gobuild-${{ runner.os }}-e2e-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.sum') }}
