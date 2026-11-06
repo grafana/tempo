@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           TITLE=${COMMIT_MESSAGE%%$'\n'*}
-          [[ "$TITLE" =~ \(#([0-9]+)\) ]]
+          [[ "$TITLE" =~ \(#([0-9]+)\)$ ]]
           {
             echo "title=${TITLE}"
             echo "url=${SERVER_URL}/${REPO}/pull/${BASH_REMATCH[1]}"
