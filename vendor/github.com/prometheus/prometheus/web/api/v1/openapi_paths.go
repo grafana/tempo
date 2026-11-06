@@ -32,7 +32,7 @@ func (*OpenAPIBuilder) queryPath() *v3.PathItem {
 		queryParamWithExample("query", "The PromQL query to execute.", true, stringSchema(), []example{{"example", "up"}}),
 		queryParamWithExample("timeout", "Evaluation timeout. Optional. Defaults to and is capped by the value of the -query.timeout flag.", false, durationSchema(), []example{{"duration", "1m30s"}, {"number", "90"}}),
 		queryParamWithExample("lookback_delta", "Override the lookback period for this query. Optional.", false, durationSchema(), []example{{"duration", "5m"}, {"number", "300"}}),
-		queryParamWithExample("stats", "When provided, include query statistics in the response. The special value 'all' enables more comprehensive statistics.", false, stringSchema(), []example{{"example", "all"}}),
+		queryParamWithExample("stats", "Include query statistics in the response. Supported values: 'true' (basic statistics) and 'all' (basic plus per-step statistics). Other non-empty values are deprecated (they behave like 'true') and will be rejected in the next major release.", false, stringSchema(), []example{{"example", "all"}}),
 	}
 	return &v3.PathItem{
 		Get: &v3.Operation{
@@ -61,7 +61,7 @@ func (*OpenAPIBuilder) queryRangePath() *v3.PathItem {
 		queryParamWithExample("query", "The query to execute.", true, stringSchema(), []example{{"example", "rate(prometheus_http_requests_total{handler=\"/api/v1/query\"}[5m])"}}),
 		queryParamWithExample("timeout", "Evaluation timeout. Optional. Defaults to and is capped by the value of the -query.timeout flag.", false, durationSchema(), []example{{"duration", "1m30s"}, {"number", "90"}}),
 		queryParamWithExample("lookback_delta", "Override the lookback period for this query. Optional.", false, durationSchema(), []example{{"duration", "5m"}, {"number", "300"}}),
-		queryParamWithExample("stats", "When provided, include query statistics in the response. The special value 'all' enables more comprehensive statistics.", false, stringSchema(), []example{{"example", "all"}}),
+		queryParamWithExample("stats", "Include query statistics in the response. Supported values: 'true' (basic statistics) and 'all' (basic plus per-step statistics). Other non-empty values are deprecated (they behave like 'true') and will be rejected in the next major release.", false, stringSchema(), []example{{"example", "all"}}),
 	}
 	return &v3.PathItem{
 		Get: &v3.Operation{
@@ -199,6 +199,125 @@ func (*OpenAPIBuilder) labelValuesPath() *v3.PathItem {
 	}
 }
 
+// commonSearchParams returns the query parameters shared by all three search endpoints.
+func commonSearchParams() []*v3.Parameter {
+	return []*v3.Parameter{
+		queryParamWithExample("fuzz_threshold", "Fuzzy threshold in the range 0-100. A value of 0 is the lowest fuzzy threshold.", false, integerSchema(), []example{{"example", 80}}),
+		queryParamWithExample("fuzz_alg", "Fuzzy algorithm. Supported values are subsequence (default) and jarowinkler.", false, enumStringSchema(FuzzAlgorithms()...), nil),
+		queryParamWithExample("case_sensitive", "Whether matching is case-sensitive.", false, booleanSchema(), []example{{"example", true}}),
+		queryParamWithExample("sort_by", "Sort mode. Supported values are alpha and score.", false, enumStringSchema("alpha", "score"), nil),
+		queryParamWithExample("sort_dir", "Sort direction. Only valid with sort_by=alpha. Supported values are asc and dsc.", false, enumStringSchema("asc", "dsc"), nil),
+		queryParamWithExample("include_score", "Include the relevance score in each result.", false, booleanSchema(), []example{{"example", true}}),
+	}
+}
+
+func (b *OpenAPIBuilder) searchMetricNamesPath() *v3.PathItem {
+	params := append([]*v3.Parameter{
+		queryParamWithExample("match[]", "Series selector argument used to scope metric discovery.", false, base.CreateSchemaProxy(&base.Schema{
+			Type:  []string{"array"},
+			Items: &base.DynamicValue[*base.SchemaProxy, bool]{A: stringSchema()},
+		}), []example{{"example", []string{"{job=\"prometheus\"}"}}}),
+		queryParamWithExample("search[]", "One or more search terms matched against metric names (OR logic).", false, base.CreateSchemaProxy(&base.Schema{
+			Type:  []string{"array"},
+			Items: &base.DynamicValue[*base.SchemaProxy, bool]{A: stringSchema()},
+		}), []example{{"example", []string{"http_req"}}}),
+	}, commonSearchParams()...)
+	params = append(params,
+		queryParamWithExample("include_metadata", "Include metric metadata in each result.", false, booleanSchema(), []example{{"example", true}}),
+		queryParamWithExample("start", "Start timestamp for metric name search.", false, timestampSchema(), timestampExamples(exampleTime.Add(-1*time.Hour))),
+		queryParamWithExample("end", "End timestamp for metric name search.", false, timestampSchema(), timestampExamples(exampleTime)),
+		queryParamWithExample("limit", "Maximum number of metric names to return.", false, integerSchemaWithDefault(b.searchDefaultLimit()), []example{{"example", 20}}),
+		queryParamWithExample("batch_size", "Preferred number of results per NDJSON batch.", false, integerSchemaWithDefault(defaultSearchBatchSize), []example{{"example", 20}}),
+	)
+	return &v3.PathItem{
+		Get: &v3.Operation{
+			OperationId: "search-metric-names",
+			Summary:     "Search metric names",
+			Tags:        []string{"metadata"},
+			Parameters:  params,
+			Responses:   ndjsonResponsesWithErrorExamples(searchMetricNamesResponseExamples(), errorResponseExamples(), "Metric names streamed successfully.", "Error searching metric names."),
+		},
+		Post: &v3.Operation{
+			OperationId: "search-metric-names-post",
+			Summary:     "Search metric names",
+			Tags:        []string{"metadata"},
+			RequestBody: formRequestBodyWithExamples("SearchMetricNamesPostInputBody", searchMetricNamesPostExamples(), "Submit a metric name search. This endpoint accepts the same parameters as the GET version."),
+			Responses:   ndjsonResponsesWithErrorExamples(searchMetricNamesResponseExamples(), errorResponseExamples(), "Metric names streamed successfully via POST.", "Error searching metric names via POST."),
+		},
+	}
+}
+
+func (b *OpenAPIBuilder) searchLabelNamesPath() *v3.PathItem {
+	params := append([]*v3.Parameter{
+		queryParamWithExample("match[]", "Series selector argument used to scope label discovery.", false, base.CreateSchemaProxy(&base.Schema{
+			Type:  []string{"array"},
+			Items: &base.DynamicValue[*base.SchemaProxy, bool]{A: stringSchema()},
+		}), []example{{"example", []string{"{__name__=\"up\"}"}}}),
+		queryParamWithExample("search[]", "One or more search terms matched against label names (OR logic).", false, base.CreateSchemaProxy(&base.Schema{
+			Type:  []string{"array"},
+			Items: &base.DynamicValue[*base.SchemaProxy, bool]{A: stringSchema()},
+		}), []example{{"example", []string{"inst"}}}),
+	}, commonSearchParams()...)
+	params = append(params,
+		queryParamWithExample("start", "Start timestamp for label name search.", false, timestampSchema(), timestampExamples(exampleTime.Add(-1*time.Hour))),
+		queryParamWithExample("end", "End timestamp for label name search.", false, timestampSchema(), timestampExamples(exampleTime)),
+		queryParamWithExample("limit", "Maximum number of label names to return.", false, integerSchemaWithDefault(b.searchDefaultLimit()), []example{{"example", 20}}),
+		queryParamWithExample("batch_size", "Preferred number of results per NDJSON batch.", false, integerSchemaWithDefault(defaultSearchBatchSize), []example{{"example", 20}}),
+	)
+	return &v3.PathItem{
+		Get: &v3.Operation{
+			OperationId: "search-label-names",
+			Summary:     "Search label names",
+			Tags:        []string{"labels"},
+			Parameters:  params,
+			Responses:   ndjsonResponsesWithErrorExamples(searchLabelNamesResponseExamples(), errorResponseExamples(), "Label names streamed successfully.", "Error searching label names."),
+		},
+		Post: &v3.Operation{
+			OperationId: "search-label-names-post",
+			Summary:     "Search label names",
+			Tags:        []string{"labels"},
+			RequestBody: formRequestBodyWithExamples("SearchLabelNamesPostInputBody", searchLabelNamesPostExamples(), "Submit a label name search. This endpoint accepts the same parameters as the GET version."),
+			Responses:   ndjsonResponsesWithErrorExamples(searchLabelNamesResponseExamples(), errorResponseExamples(), "Label names streamed successfully via POST.", "Error searching label names via POST."),
+		},
+	}
+}
+
+func (b *OpenAPIBuilder) searchLabelValuesPath() *v3.PathItem {
+	params := append([]*v3.Parameter{
+		queryParamWithExample("label", "Label name whose values should be searched.", true, stringSchema(), []example{{"example", "instance"}}),
+		queryParamWithExample("match[]", "Series selector argument used to scope label value discovery.", false, base.CreateSchemaProxy(&base.Schema{
+			Type:  []string{"array"},
+			Items: &base.DynamicValue[*base.SchemaProxy, bool]{A: stringSchema()},
+		}), []example{{"example", []string{"up"}}}),
+		queryParamWithExample("search[]", "One or more search terms matched against label values (OR logic).", false, base.CreateSchemaProxy(&base.Schema{
+			Type:  []string{"array"},
+			Items: &base.DynamicValue[*base.SchemaProxy, bool]{A: stringSchema()},
+		}), []example{{"example", []string{"909"}}}),
+	}, commonSearchParams()...)
+	params = append(params,
+		queryParamWithExample("start", "Start timestamp for label value search.", false, timestampSchema(), timestampExamples(exampleTime.Add(-1*time.Hour))),
+		queryParamWithExample("end", "End timestamp for label value search.", false, timestampSchema(), timestampExamples(exampleTime)),
+		queryParamWithExample("limit", "Maximum number of label values to return.", false, integerSchemaWithDefault(b.searchDefaultLimit()), []example{{"example", 10}}),
+		queryParamWithExample("batch_size", "Preferred number of results per NDJSON batch.", false, integerSchemaWithDefault(defaultSearchBatchSize), []example{{"example", 10}}),
+	)
+	return &v3.PathItem{
+		Get: &v3.Operation{
+			OperationId: "search-label-values",
+			Summary:     "Search label values",
+			Tags:        []string{"labels"},
+			Parameters:  params,
+			Responses:   ndjsonResponsesWithErrorExamples(searchLabelValuesResponseExamples(), errorResponseExamples(), "Label values streamed successfully.", "Error searching label values."),
+		},
+		Post: &v3.Operation{
+			OperationId: "search-label-values-post",
+			Summary:     "Search label values",
+			Tags:        []string{"labels"},
+			RequestBody: formRequestBodyWithExamples("SearchLabelValuesPostInputBody", searchLabelValuesPostExamples(), "Submit a label value search. This endpoint accepts the same parameters as the GET version."),
+			Responses:   ndjsonResponsesWithErrorExamples(searchLabelValuesResponseExamples(), errorResponseExamples(), "Label values streamed successfully via POST.", "Error searching label values via POST."),
+		},
+	}
+}
+
 func (*OpenAPIBuilder) seriesPath() *v3.PathItem {
 	params := []*v3.Parameter{
 		queryParamWithExample("start", "Start timestamp for series query.", false, timestampSchema(), timestampExamples(exampleTime.Add(-1*time.Hour))),
@@ -251,6 +370,21 @@ func (*OpenAPIBuilder) scrapePoolsPath() *v3.PathItem {
 			Summary:     "Get scrape pools",
 			Tags:        []string{"targets"},
 			Responses:   responsesWithErrorExamples("ScrapePoolsOutputBody", scrapePoolsResponseExamples(), errorResponseExamples(), "Scrape pools retrieved successfully.", "Error retrieving scrape pools."),
+		},
+	}
+}
+
+func (*OpenAPIBuilder) scrapePoolConfigPath() *v3.PathItem {
+	params := []*v3.Parameter{
+		queryParamWithExample("scrapePool", "Name of the scrape pool.", true, stringSchema(), []example{{"example", "prometheus"}}),
+	}
+	return &v3.PathItem{
+		Get: &v3.Operation{
+			OperationId: "get-scrape-pool-config",
+			Summary:     "Get scrape pool configuration",
+			Tags:        []string{"targets"},
+			Parameters:  params,
+			Responses:   responsesWithErrorExamples("ScrapePoolConfigOutputBody", scrapePoolConfigResponseExamples(), errorResponseExamples(), "Scrape pool configuration retrieved successfully.", "Error retrieving scrape pool configuration."),
 		},
 	}
 }
