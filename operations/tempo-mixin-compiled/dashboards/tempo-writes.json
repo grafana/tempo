@@ -18,7 +18,7 @@
     "tempo"
    ],
    "targetBlank": false,
-   "title": "Tempo Dashboards",
+   "title": "Tempo dashboards",
    "type": "dashboards"
   }
  ],
@@ -1916,6 +1916,6 @@
  },
  "timezone": "utc",
  "title": "Tempo / Writes",
- "uid": "",
+ "uid": "c58e4ef11c70955853eff34ac875be07",
  "version": 0
 }

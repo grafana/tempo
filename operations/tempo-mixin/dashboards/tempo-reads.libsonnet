@@ -1,10 +1,11 @@
 local dashboard_utils = import 'dashboard-utils.libsonnet';
 local g = import 'grafana-builder/grafana.libsonnet';
+local filename = 'tempo-reads.json';
 
 dashboard_utils {
   grafanaDashboards+: {
-    'tempo-reads.json':
-      $.dashboard('Tempo / Reads')
+    [filename]:
+      ($.dashboard('Tempo / Reads') + { uid: std.md5(filename) })
       .addClusterSelectorTemplates()
       .addRow(
         g.row('Gateway')

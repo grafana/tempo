@@ -18,7 +18,7 @@
     "tempo"
    ],
    "targetBlank": false,
-   "title": "Tempo Dashboards",
+   "title": "Tempo dashboards",
    "type": "dashboards"
   }
  ],
@@ -1168,6 +1168,6 @@
  },
  "timezone": "utc",
  "title": "Tempo / Block builder",
- "uid": "",
+ "uid": "656fd5f55f6ba95523df4b8269d3a14c",
  "version": 0
 }

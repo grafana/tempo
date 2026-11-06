@@ -18,7 +18,7 @@
     "tempo"
    ],
    "targetBlank": false,
-   "title": "Tempo Dashboards",
+   "title": "Tempo dashboards",
    "type": "dashboards"
   }
  ],
@@ -3209,6 +3209,6 @@
  },
  "timezone": "utc",
  "title": "Tempo / Resources",
- "uid": "",
+ "uid": "1cc1cdc65207f2e02f26fc5ad95149f4",
  "version": 0
 }

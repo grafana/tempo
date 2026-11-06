@@ -19,7 +19,7 @@
     "tempo"
    ],
    "targetBlank": false,
-   "title": "Tempo Dashboards",
+   "title": "Tempo dashboards",
    "type": "dashboards"
   }
  ],
@@ -2610,6 +2610,6 @@
  },
  "timezone": "utc",
  "title": "Tempo / Livestore",
- "uid": "",
+ "uid": "46dfe8c18341eec31bb10949b0e3e3fa",
  "version": 0
 }

@@ -23,7 +23,7 @@ grafana {
               keepTime: true,
               tags: ['tempo'],
               targetBlank: false,
-              title: 'Tempo Dashboards',
+              title: 'Tempo dashboards',
               type: 'dashboards',
             },
           ],
@@ -31,6 +31,17 @@ grafana {
 
         d.addMultiTemplate('cluster', 'tempo_build_info', $._config.per_cluster_label, allValue=null)
         .addMultiTemplate('namespace', 'tempo_build_info{' + $._config.per_cluster_label + "=~'$cluster'}", 'namespace', allValue=null),
+    },
+
+  // Returns the URL of a given dashboard, keeping the current time range and variables.
+  // The UID is the md5 of the filename, matching the dashboard's own uid, so it doesn't depend on tags.
+  dashboardURL(filename)::
+    // Grafana uses a <base> HTML set to the path defined in GF_SERVER_ROOT_URL, so relative
+    // links (starting with ".") honor it. Due to a Grafana issue this works only when opened
+    // in a new browser tab (target="_blank").
+    './d/%(uid)s/%(slug)s?${__url_time_range}&${__all_variables}' % {
+      uid: std.md5(filename),
+      slug: std.strReplace(filename, '.json', ''),
     },
 
   jobMatcher(job)::
