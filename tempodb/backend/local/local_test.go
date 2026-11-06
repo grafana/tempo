@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	crand "crypto/rand"
+	"errors"
 	"fmt"
+	gio "io"
 	"math/rand"
 	"os"
 	"sync"
 	"testing"
+	"testing/iotest"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/v3/pkg/io"
@@ -273,4 +276,45 @@ func TestWriteAtomicRespectsCancelledContext(t *testing.T) {
 
 	entries, _ := os.ReadDir(b.rootPath(keypath))
 	require.Empty(t, entries)
+}
+
+func TestWriteFailureLeavesNoPartialObject(t *testing.T) {
+	b, err := NewBackend(&Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	keypath := backend.KeyPath{"tenant", "block-uuid"}
+	readErr := errors.New("reader failed")
+	data := gio.MultiReader(bytes.NewReader([]byte(`{"format":`)), iotest.ErrReader(readErr))
+
+	err = b.Write(ctx, backend.MetaName, keypath, data, -1, nil)
+	require.ErrorIs(t, err, readErr)
+
+	entries, err := os.ReadDir(b.rootPath(keypath))
+	require.NoError(t, err)
+	require.Empty(t, entries, "a failed write left a partial object or its temporary file")
+}
+
+func TestWriteReplacesExistingObject(t *testing.T) {
+	b, err := NewBackend(&Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	keypath := backend.KeyPath{"tenant", "block-uuid"}
+	first := []byte("first value, longer than the second")
+	second := []byte("second")
+
+	require.NoError(t, b.Write(ctx, objectName, keypath, bytes.NewReader(first), -1, nil))
+	require.NoError(t, b.Write(ctx, objectName, keypath, bytes.NewReader(second), -1, nil))
+
+	r, sz, err := b.Read(ctx, objectName, keypath, nil)
+	require.NoError(t, err)
+	defer r.Close()
+	got, err := io.ReadAllWithEstimate(r, sz)
+	require.NoError(t, err)
+	require.Equal(t, second, got)
+
+	entries, err := os.ReadDir(b.rootPath(keypath))
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
 }
