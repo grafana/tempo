@@ -68,6 +68,8 @@ Refer to [Tune search performance](https://grafana.com/docs/tempo/<TEMPO_VERSION
 |---|---|
 | `tempo_query_frontend_queries_total` | Total queries received |
 | `tempo_query_frontend_queue_length` | Current queue depth per tenant |
+| `tempo_query_frontend_executing_jobs` | Jobs currently executing on queriers, per tenant and operation |
+| `tempo_query_frontend_job_inspected_bytes` | Histogram of the bytes inspected by each querier job that responded with metrics, per operation, excluding cached job responses |
 
 ## Related resources
 

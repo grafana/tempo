@@ -243,6 +243,51 @@ func TestFindWithBlocks(t *testing.T) {
 	require.Empty(t, bFound)
 }
 
+// TestFindReportsBytesOfBlocksWithoutTrace checks that blocks ruled out by the bloom filter still report the bytes read.
+func TestFindReportsBytesOfBlocksWithoutTrace(t *testing.T) {
+	r, w, _, _ := testConfig(t, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r.EnablePolling(ctx, &mockJobSharder{})
+
+	wal := w.WAL()
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	const numBlocks = 3
+	for range numBlocks {
+		meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+		head, err := wal.NewBlock(meta, model.CurrentEncoding)
+		require.NoError(t, err)
+
+		id := test.ValidTraceID(nil)
+		writeTraceToWal(t, head, dec, id, test.MakeTrace(1, id), 0, 0)
+
+		_, err = w.CompleteBlock(ctx, head)
+		require.NoError(t, err)
+	}
+
+	r.(*readerWriter).pollBlocklist(ctx)
+
+	metas := r.TraceByIDBlockMetas(ctx, testTenantID, time.Time{}, time.Time{})
+	require.Len(t, metas, numBlocks)
+
+	resps, failedBlocks, err := r.Find(ctx, testTenantID, &tempopb.TraceByIDRequest{
+		TraceID: test.ValidTraceID(nil),
+		Blocks:  backend.TraceByIDBlocksFromMetas(metas),
+	}, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.Nil(t, failedBlocks)
+
+	// every block responds, none has the trace, and each read at least the bloom filter
+	require.Len(t, resps, numBlocks)
+	for _, resp := range resps {
+		require.Nil(t, resp.Trace)
+		require.Positive(t, resp.Metrics.InspectedBytes)
+	}
+}
+
 // TestFindWithBlocksFromStaleView covers a frontend blocklist view that compaction has since changed.
 func TestFindWithBlocksFromStaleView(t *testing.T) {
 	r, w, c, _ := testConfig(t, time.Minute)

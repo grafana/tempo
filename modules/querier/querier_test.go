@@ -2,6 +2,7 @@ package querier
 
 import (
 	"context"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/grpcclient"
 	"github.com/grafana/dskit/user"
 	livestore_client "github.com/grafana/tempo/v3/modules/livestore/client"
@@ -16,6 +18,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/querier/worker"
 	"github.com/grafana/tempo/v3/modules/storage"
 	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/v3/pkg/util/test"
@@ -243,13 +246,14 @@ type mockTraceByIDStore struct {
 	findCalls    int
 	findTenantID string
 	findReq      *tempopb.TraceByIDRequest
+	findResp     []*tempopb.TraceByIDResponse
 }
 
 func (m *mockTraceByIDStore) Find(_ context.Context, tenantID string, req *tempopb.TraceByIDRequest, _ common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {
 	m.findCalls++
 	m.findTenantID = tenantID
 	m.findReq = req
-	return nil, nil, nil
+	return m.findResp, nil, nil
 }
 
 func TestFindTraceByIDUsesFrontendBlocks(t *testing.T) {
@@ -347,6 +351,131 @@ func TestFindTraceByIDRequiresBlocksOnlyForBackendModes(t *testing.T) {
 			require.Error(t, err)
 			require.NotErrorIs(t, err, ErrTraceByIDBlocksRequired)
 			require.Equal(t, 0, store.findCalls)
+		})
+	}
+}
+
+func TestCombineLiveStoreResponses(t *testing.T) {
+	traceWithSpans := func() *tempopb.Trace { return test.MakeTrace(2, []byte{0x01}) }
+
+	tests := []struct {
+		name            string
+		responses       []any
+		expectedFound   bool
+		expectedTraces  int64
+		expectedMetrics *tempopb.TraceByIDMetrics
+	}{
+		{
+			name:            "no responses",
+			expectedMetrics: &tempopb.TraceByIDMetrics{},
+		},
+		{
+			name: "trace found",
+			responses: []any{
+				&tempopb.TraceByIDResponse{Trace: traceWithSpans(), Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 10}},
+			},
+			expectedFound:   true,
+			expectedTraces:  1,
+			expectedMetrics: &tempopb.TraceByIDMetrics{InspectedBytes: 10},
+		},
+		{
+			name: "metrics of responses without a trace are merged",
+			responses: []any{
+				&tempopb.TraceByIDResponse{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 10}},
+				&tempopb.TraceByIDResponse{Trace: traceWithSpans(), Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 5}},
+				&tempopb.TraceByIDResponse{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 1}},
+			},
+			expectedFound:   true,
+			expectedTraces:  1,
+			expectedMetrics: &tempopb.TraceByIDMetrics{InspectedBytes: 16},
+		},
+		{
+			name: "nothing found",
+			responses: []any{
+				&tempopb.TraceByIDResponse{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 10}},
+				&tempopb.TraceByIDResponse{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 20}},
+			},
+			expectedMetrics: &tempopb.TraceByIDMetrics{InspectedBytes: 30},
+		},
+		{
+			name: "responses without metrics",
+			responses: []any{
+				&tempopb.TraceByIDResponse{Trace: traceWithSpans()},
+				&tempopb.TraceByIDResponse{},
+			},
+			expectedFound:   true,
+			expectedTraces:  1,
+			expectedMetrics: &tempopb.TraceByIDMetrics{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			metrics := &tempopb.TraceByIDMetrics{}
+			found, _, traces, err := combineLiveStoreResponses(tc.responses, trace.NewCombiner(0, false), metrics)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedFound, found)
+			require.Equal(t, tc.expectedTraces, traces)
+			require.Equal(t, tc.expectedMetrics, metrics)
+		})
+	}
+}
+
+// The query-frontend relies on a trace by id job that finds nothing answering 404 with an
+// encoded response that still carries the metrics.
+func TestTraceByIDHandlerReturnsMetricsWithoutTrace(t *testing.T) {
+	traceID := test.ValidTraceID(nil)
+
+	tests := []struct {
+		name           string
+		storeResp      []*tempopb.TraceByIDResponse
+		expectedStatus int
+		expectedBytes  uint64
+	}{
+		{
+			name:           "trace not found",
+			storeResp:      []*tempopb.TraceByIDResponse{{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, {Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 23}}},
+			expectedStatus: http.StatusNotFound,
+			expectedBytes:  123,
+		},
+		{
+			name:           "no response from the store",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name: "trace found",
+			storeResp: []*tempopb.TraceByIDResponse{
+				{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}},
+				{Trace: test.MakeTrace(1, traceID), Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 20}},
+			},
+			expectedStatus: http.StatusOK,
+			expectedBytes:  120,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
+			require.NoError(t, err)
+
+			cfg := Config{BlocklistPolling: true, TraceByID: TraceByIDConfig{QueryTimeout: 10 * time.Second}}
+			q, err := New(cfg, nil, livestore_client.Config{}, nil, false, &mockTraceByIDStore{findResp: tc.storeResp}, o)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodGet, "/querier/api/traces/"+hex.EncodeToString(traceID)+"?mode=blocks", nil)
+			req = mux.SetURLVars(req, map[string]string{"traceID": hex.EncodeToString(traceID)})
+			req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
+			req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
+
+			rec := httptest.NewRecorder()
+			q.TraceByIDHandler(rec, req)
+
+			require.Equal(t, tc.expectedStatus, rec.Code)
+
+			resp := &tempopb.TraceByIDResponse{}
+			require.NoError(t, resp.Unmarshal(rec.Body.Bytes()))
+			require.Equal(t, tc.expectedBytes, resp.GetMetrics().GetInspectedBytes())
 		})
 	}
 }

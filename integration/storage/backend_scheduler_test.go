@@ -305,7 +305,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
 			trs, failedBlocks, err = tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: traceID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
-			return err == nil && len(failedBlocks) == 0 && len(trs) > 0
+			return err == nil && len(failedBlocks) == 0 && countFoundTraces(trs) > 0
 		}, 60*time.Second, 2*time.Second, "trace must be findable in all blocks before redaction")
 
 		// Dial the scheduler's gRPC endpoint and build a client.
@@ -362,7 +362,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
 			trs, _, err = tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: traceID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
-			return err == nil && len(trs) == 0
+			return err == nil && countFoundTraces(trs) == 0
 		}, 60*time.Second, 2*time.Second, "trace must not be findable in any block after redaction")
 	})
 }
@@ -417,7 +417,7 @@ func TestBackendSchedulerRedactionQuery(t *testing.T) {
 			require.Eventually(t, func() bool {
 				tempodbReader.PollNow(ctx)
 				trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
-				return err == nil && len(failedBlocks) == 0 && len(trs) > 0
+				return err == nil && len(failedBlocks) == 0 && countFoundTraces(trs) > 0
 			}, 60*time.Second, 2*time.Second, "trace %x must be findable before redaction", id)
 		}
 
@@ -460,13 +460,25 @@ func TestBackendSchedulerRedactionQuery(t *testing.T) {
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
 			trs, _, err := tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: matchID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
-			return err == nil && len(trs) == 0
+			return err == nil && countFoundTraces(trs) == 0
 		}, 60*time.Second, 2*time.Second, "query-matched trace must not be findable after redaction")
 
 		keepTrs, _, err := tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: keepID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
 		require.NoError(t, err)
-		require.NotEmpty(t, keepTrs, "non-matching trace must survive redaction")
+		require.Positive(t, countFoundTraces(keepTrs), "non-matching trace must survive redaction")
 	})
+}
+
+// countFoundTraces returns the number of responses that contain a trace. Blocks that don't have the
+// trace respond with metrics only, so the number of responses is not the number of blocks with the trace.
+func countFoundTraces(trs []*tempopb.TraceByIDResponse) int {
+	found := 0
+	for _, tr := range trs {
+		if tr.GetTrace() != nil {
+			found++
+		}
+	}
+	return found
 }
 
 // traceWithNamespace builds a trace whose resource carries a specific namespace attribute so a

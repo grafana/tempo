@@ -2433,6 +2433,7 @@ func BenchmarkReadSingleTrace(b *testing.B) {
 		tr, err := block.FindTraceByID(ctx, id, opts)
 		require.NoError(b, err)
 		require.NotNil(b, tr)
+		require.NotNil(b, tr.Trace)
 	}
 }
 
