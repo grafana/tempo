@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/v3/pkg/util"
 	pq "github.com/parquet-go/parquet-go"
@@ -402,14 +403,6 @@ func SyncIteratorOptPredicate(p Predicate) SyncIteratorOpt {
 	}
 }
 
-// SyncIteratorOptStats collects chunk/page/value inspected/kept counts into s as the
-// iterator runs. The caller owns s and reads it after iteration; nil disables counting.
-func SyncIteratorOptStats(s *PredicateStats) SyncIteratorOpt {
-	return func(i *SyncIterator) {
-		i.stats = s
-	}
-}
-
 // SyncIteratorOptColumnName sets the column name for the iterator.
 // This is used for tracing and debugging only. All work is done
 // using the column index which is a required parameter on creation.
@@ -474,7 +467,8 @@ type SyncIterator struct {
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
 	filter     Predicate
-	stats      *PredicateStats // optional; counts chunk/page/value decisions (SyncIteratorOptStats)
+	stats      PredicateStats // chunk/page/value decisions of filter; exported as metrics on Close
+	tenant     string         // label for exported stats, from ctx
 	sampler    Sampler
 
 	// Status
@@ -544,6 +538,10 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 	// Apply options
 	for _, opt := range opts {
 		opt(i)
+	}
+
+	if i.filter != nil {
+		i.tenant, _ = user.ExtractOrgID(ctx)
 	}
 
 	// Default value, always clone results until we have
@@ -929,15 +927,11 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 			}
 
 			if c.filter != nil {
-				if c.stats != nil {
-					c.stats.InspectedValues++
-				}
+				c.stats.InspectedValues++
 				if !c.filter.KeepValue(*v) {
 					continue
 				}
-				if c.stats != nil {
-					c.stats.KeptValues++
-				}
+				c.stats.KeptValues++
 			}
 
 			if c.sampler != nil && !c.sampler.Sample() {
@@ -1058,8 +1052,25 @@ func (c *SyncIterator) makeResultRowOnly(t RowNumber, _ *pq.Value) *IteratorResu
 	return &c.at
 }
 
+// Stats returns the predicate decisions counted so far. They are reset on Close.
+func (c *SyncIterator) Stats() PredicateStats {
+	return c.stats
+}
+
 func (c *SyncIterator) Close() {
 	c.closeCurrRowGroup()
+
+	if c.filter != nil && c.span.IsRecording() {
+		c.span.SetAttributes(
+			attribute.Int64("inspectedColumnChunks", c.stats.InspectedColumnChunks),
+			attribute.Int64("keptColumnChunks", c.stats.KeptColumnChunks),
+			attribute.Int64("inspectedPages", c.stats.InspectedPages),
+			attribute.Int64("keptPages", c.stats.KeptPages),
+			attribute.Int64("inspectedValues", c.stats.InspectedValues),
+			attribute.Int64("keptValues", c.stats.KeptValues),
+		)
+	}
+	c.stats.flushMetrics(c.tenant)
 
 	c.span.End()
 

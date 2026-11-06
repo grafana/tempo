@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // HTTPRequest is a transport-agnostic view of an incoming MCP HTTP request.
@@ -137,6 +138,13 @@ func (a *httpResponseWriterAdapter) Flush() {
 	}
 }
 
+// SetWriteDeadline sets a deadline for future writes via
+// http.ResponseController, bounding how long a stalled client can block the
+// server. A zero time clears the deadline.
+func (a *httpResponseWriterAdapter) SetWriteDeadline(t time.Time) error {
+	return http.NewResponseController(a.w).SetWriteDeadline(t)
+}
+
 func (a *httpResponseWriterAdapter) CanStream() bool { return a.flusher != nil }
 
 // httpErrorTextHeader sets the conventional headers for plain-text HTTP
@@ -175,6 +183,10 @@ func writeHTTPErrorf(w HTTPResponseWriter, code int, format string, args ...any)
 //
 //   - WithStreamableHTTPCORS is NOT applied. Frameworks should use their
 //     native CORS middleware.
+//   - DNS rebinding protection is NOT applied, because Handle has no access
+//     to the connection's local address. Adapters for localhost-reachable
+//     servers should validate the Host header themselves (reject non-loopback
+//     Host values on loopback connections with 403 Forbidden).
 //   - WithProtectedResourceMetadata is NOT applied. The caller should mount
 //     the metadata route separately if needed (see ProtectedResourceMetadataHandler).
 //   - WithHTTPContextFunc is honored for backwards compatibility; it receives
@@ -195,6 +207,8 @@ func (s *StreamableHTTPServer) Handle(w HTTPResponseWriter, r *HTTPRequest) {
 		s.handleGet(w, r)
 	case http.MethodDelete:
 		s.handleDelete(w, r)
+	case http.MethodHead:
+		w.WriteHeader(http.StatusOK)
 	default:
 		writeHTTPError(w, "404 page not found", http.StatusNotFound)
 	}

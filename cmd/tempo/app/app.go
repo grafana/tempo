@@ -452,6 +452,10 @@ func (t *App) statusHandler() http.HandlerFunc {
 		vars := mux.Vars(r)
 
 		if endpoint, ok := vars["endpoint"]; ok {
+			if _, supported := simpleEndpoints[endpoint]; !supported && endpoint != "runtime_config" && endpoint != "config" {
+				http.NotFound(w, r)
+				return
+			}
 			wrapStatus(endpoint)
 		} else {
 			wrapStatus("version")

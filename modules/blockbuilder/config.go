@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+
 	"github.com/grafana/tempo/v3/pkg/ingest"
 	"github.com/grafana/tempo/v3/pkg/util/log"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
@@ -35,6 +36,7 @@ type Config struct {
 	PartitionsPerInstance int                `yaml:"partitions_per_instance" doc:"Number of partitions assigned to this block builder."`
 	ConsumeCycleDuration  time.Duration      `yaml:"consume_cycle_duration" doc:"Interval between consumption cycles."`
 	MaxBytesPerCycle      uint64             `yaml:"max_consuming_bytes" doc:"Maximum number of bytes that can be consumed in a single cycle.  0 to disable"`
+	FlushConcurrency      int                `yaml:"flush_concurrency" doc:"Maximum number of tenants to flush concurrently per partition section."`
 
 	BlockConfig BlockConfig `yaml:"block" doc:"Configuration for the block builder."`
 	WAL         wal.Config  `yaml:"wal" doc:"Configuration for the write ahead log."`
@@ -64,6 +66,9 @@ func (c *Config) Validate() error {
 	if len(c.AssignedPartitionsMap) == 0 && c.PartitionsPerInstance <= 0 {
 		return fmt.Errorf("at least one of AssignedPartitionsMap or PartitionsPerInstance must be set")
 	}
+	if c.FlushConcurrency <= 0 {
+		return fmt.Errorf("flush_concurrency must be positive")
+	}
 
 	return nil
 }
@@ -84,6 +89,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.IntVar(&c.PartitionsPerInstance, prefix+".partitions-per-instance", 0, "Number of partitions assigned to this block builder.")
 	f.DurationVar(&c.ConsumeCycleDuration, prefix+".consume-cycle-duration", 5*time.Minute, "Interval between consumption cycles.")
 	f.Uint64Var(&c.MaxBytesPerCycle, prefix+".max-bytes-per-cycle", 5e9, "Maximum number of bytes that can be consumed in a single cycle. 0 to disable") // 5 Gb
+	f.IntVar(&c.FlushConcurrency, prefix+".flush-concurrency", 4, "Maximum number of tenants to flush concurrently per partition section. Must be positive.")
 
 	c.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
 	c.WAL.RegisterFlags(f)

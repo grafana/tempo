@@ -30,11 +30,12 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 		Path: t.TempDir(),
 	})
 	require.NoError(t, err)
+	cr := &countingRawReader{RawReader: rawR}
 
 	var (
 		ctx       = context.Background()
 		numTraces = 16
-		r         = backend.NewReader(rawR)
+		r         = backend.NewReader(cr)
 		w         = backend.NewWriter(rawW)
 		cfg       = &common.BlockConfig{
 			BloomFP:             0.01,
@@ -129,6 +130,17 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	for i, c := range counters {
 		require.Equal(t, float64(numTraces), prom_testutil.ToFloat64(c)-before[i])
 	}
+
+	// A smaller TraceByIDReadBufferSize replaces ReadBufferSize, so the lookup takes more reads.
+	readsWith := func(bufSize int) int64 {
+		opts := common.DefaultSearchOptions()
+		opts.TraceByIDReadBufferSize = bufSize
+		before := cr.reads.Load()
+		_, err := b.FindTraceByID(ctx, traces[0].id, opts)
+		require.NoError(t, err)
+		return cr.reads.Load() - before
+	}
+	require.Greater(t, readsWith(64), readsWith(0))
 }
 
 func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
@@ -293,6 +305,7 @@ func TestFindRowGroupByStats(t *testing.T) {
 		_, ok := findRowGroupByStats(pf, colIndex, id(60))
 		require.False(t, ok)
 
+		// rowGroup is -1, so the page indexes are not loaded and rr is unused.
 		for i := 1; i <= 15; i++ {
 			tr, err := findTraceByID(t.Context(), id(byte(i*10)), meta, pf, rr, -1)
 			require.NoError(t, err)
@@ -304,7 +317,7 @@ func TestFindRowGroupByStats(t *testing.T) {
 	})
 }
 
-func TestPreloadOffsetIndexes(t *testing.T) {
+func TestPreloadPageIndexes(t *testing.T) {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
@@ -361,10 +374,11 @@ func TestPreloadOffsetIndexes(t *testing.T) {
 	})
 
 	t.Run("single read with preload", func(t *testing.T) {
+		colIndex, _, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 		for rowGroup := 1; rowGroup < numRowGroups; rowGroup++ {
 			before := cr.reads.Load()
-			require.NoError(t, preloadOffsetIndexes(rr, pf, rowGroup))
-			require.Equal(t, int64(1), cr.reads.Load()-before, "preload should read the offset index region once")
+			require.NoError(t, preloadPageIndexes(rr, pf, rowGroup, colIndex))
+			require.Equal(t, int64(2), cr.reads.Load()-before, "preload should read the column and offset index regions once each")
 
 			// All indexes are now loaded, so per-chunk OffsetIndex calls read nothing more.
 			for _, cc := range pf.RowGroups()[rowGroup].ColumnChunks() {
@@ -372,7 +386,12 @@ func TestPreloadOffsetIndexes(t *testing.T) {
 				require.NoError(t, err)
 				require.Positive(t, oi.NumPages())
 			}
-			require.Equal(t, int64(1), cr.reads.Load()-before, "per-chunk OffsetIndex calls should not read after preload")
+
+			// The column index of the searched column is loaded too.
+			_, err := pf.RowGroups()[rowGroup].ColumnChunks()[colIndex].ColumnIndex()
+			require.NoError(t, err)
+
+			require.Equal(t, int64(2), cr.reads.Load()-before, "per-chunk index calls should not read after preload")
 		}
 	})
 }

@@ -87,6 +87,7 @@ type MemcachedClientConfig struct {
 	// If negative, idle connections are never closed. If 0, all connections idle for longer
 	// than 2 minutes are closed.
 	MinIdleConnsHeadroomPercentage float64       `yaml:"min_idle_conns_headroom_percentage"`
+	RecentlyUsedConnsThreshold     time.Duration `yaml:"recently_used_conns_threshold"` // How long a free connection counts as recently used when reaping idle connections. If 0, 2 minutes is used.
 	MaxItemSize                    int           `yaml:"max_item_size"`
 	UpdateInterval                 time.Duration `yaml:"update_interval"`
 	ConsistentHash                 bool          `yaml:"consistent_hash"`
@@ -107,6 +108,7 @@ func (cfg *MemcachedClientConfig) RegisterFlagsWithPrefix(prefix, description st
 	f.StringVar(&cfg.Addresses, prefix+"memcached.addresses", "", description+"EXPERIMENTAL: Comma separated addresses list in DNS Service Discovery format: https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery")
 	f.IntVar(&cfg.MaxIdleConns, prefix+"memcached.max-idle-conns", 100, description+"Maximum number of idle connections in pool per memcached server. Set higher than peak parallel requests to keep connections warm across request bursts.")
 	f.Float64Var(&cfg.MinIdleConnsHeadroomPercentage, prefix+"memcached.min-idle-conns-headroom-percentage", -1, description+"Percentage of idle connections to keep open when reaping idle connections, relative to the number of recently used connections. If negative, idle connections are never closed.")
+	f.DurationVar(&cfg.RecentlyUsedConnsThreshold, prefix+"memcached.recently-used-conns-threshold", 0, description+"How long a free connection can sit unused and still count as recently used when reaping idle connections. Only applies if the headroom percentage is not negative. If 0, 2 minutes is used.")
 	f.DurationVar(&cfg.Timeout, prefix+"memcached.timeout", 100*time.Millisecond, description+"Maximum time to wait before giving up on memcached requests.")
 	f.DurationVar(&cfg.ConnectTimeout, prefix+"memcached.connect-timeout", 0, description+"Maximum time to wait for a connection to a memcached server to be established. If 0, the value of timeout is used.")
 	f.DurationVar(&cfg.UpdateInterval, prefix+"memcached.update-interval", 1*time.Minute, description+"Period with which to poll DNS for memcache servers.")
@@ -144,6 +146,7 @@ func NewMemcachedClient(cfg MemcachedClientConfig, name string, r prometheus.Reg
 		client.ConnectTimeout = cfg.Timeout
 	}
 	client.MinIdleConnsHeadroomPercentage = cfg.MinIdleConnsHeadroomPercentage
+	client.RecentlyUsedConnsThreshold = cfg.RecentlyUsedConnsThreshold
 	client.MaxIdleConns = cfg.MaxIdleConns
 
 	dnsProviderRegisterer := prometheus.WrapRegistererWithPrefix("tempo_", prometheus.WrapRegistererWith(prometheus.Labels{

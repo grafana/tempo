@@ -155,9 +155,7 @@ func (c *SyncIterator) nextMatchedValue(seeking bool) (v *pq.Value, ok bool) {
 			continue
 		}
 
-		if c.stats != nil {
-			c.stats.InspectedValues++
-		}
+		c.stats.InspectedValues++
 		if index < 0 {
 			if !r.matchNull {
 				continue
@@ -165,9 +163,7 @@ func (c *SyncIterator) nextMatchedValue(seeking bool) (v *pq.Value, ok bool) {
 		} else if !r.matches[index] {
 			continue
 		}
-		if c.stats != nil {
-			c.stats.KeptValues++
-		}
+		c.stats.KeptValues++
 
 		if c.sampler != nil && !c.sampler.Sample() {
 			continue

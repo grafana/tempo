@@ -65,7 +65,7 @@ jobs:
       # "Add static registry credentials" step below then adds a static auths
       # entry for actions/attest, which does NOT understand credential helpers.
       - name: Login to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
+        uses: grafana/shared-workflows/actions/login-to-gar@afad5c7621e788905e6417f05b492972685ab1eb # login-to-gar/v1.0.4
         with:
           registry: ${{ inputs.registry }}
 
@@ -99,7 +99,7 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
-          cosign-release: v3.1.3
+          cosign-release: v3.1.4
 
       - name: Sign image
         # Signs the image index by digest. Uploads to the public Rekor

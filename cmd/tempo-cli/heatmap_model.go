@@ -28,10 +28,9 @@ const debounceDelay = 200 * time.Millisecond
 // handleMouse (which has to know exactly where they land on screen to hit-test a click or
 // hover). Keeping these in one place means the two can never drift out of sync.
 const (
-	cellWidth       = 2               // characters per rendered grid cell
-	gapChars        = 3               // characters between the span and io columns
-	linesBeforeGrid = 6               // title(1) + query box(3) + column header(2)
-	reservedLines   = linesBeforeGrid // no footer
+	cellWidth       = 2 // characters per rendered grid cell
+	gapChars        = 3 // characters between the span and io columns
+	linesBeforeGrid = 6 // title(1) + controls row(3) + column header(2)
 )
 
 // rowNumbered is implemented by vparquet5 spans returned from Fetch/FetchSpans. It exposes
@@ -99,8 +98,15 @@ type heatmapModel struct {
 
 	program *tea.Program
 
-	input  []rune
-	cursor int
+	query textField
+	tag   textField // attribute for tag values mode
+	scope textField // scope for tag names mode; blank means all scopes
+	mode  queryMode
+	focus fieldFocus // which control receives keys; tab cycles through them
+
+	// modalOpen shows the mode picker popup; modalSel is its highlighted entry.
+	modalOpen bool
+	modalSel  queryMode
 
 	width, height int
 	ready         bool
@@ -143,15 +149,16 @@ type heatmapModel struct {
 const defaultQuery = `{resource.service.name="tempo-querier"}`
 
 func newHeatmapModel(reader backend.Reader, meta *backend.BlockMeta, opts common.SearchOptions, rowGroupEnds, rowGroupByteEnds []int64) *heatmapModel {
-	input := []rune(defaultQuery)
 	return &heatmapModel{
 		reader:           reader,
 		meta:             meta,
 		searchOpts:       opts,
 		rowGroupEnds:     rowGroupEnds,
 		rowGroupByteEnds: rowGroupByteEnds,
-		input:            input,
-		cursor:           len(input),
+		query:            newTextField(defaultQuery),
+		tag:              newTextField(defaultTag),
+		scope:            newTextField(""),
+		focus:            focusQuery,
 	}
 }
 
@@ -228,43 +235,37 @@ func (m *heatmapModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *heatmapModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.modalOpen {
+		return m.handleModalKey(msg)
+	}
+
 	switch msg.String() {
 	case "ctrl+c", "esc":
 		return m, tea.Quit
-	case "backspace":
-		if m.cursor > 0 {
-			m.input = append(m.input[:m.cursor-1], m.input[m.cursor:]...)
-			m.cursor--
-		}
-	case "delete":
-		if m.cursor < len(m.input) {
-			m.input = append(m.input[:m.cursor], m.input[m.cursor+1:]...)
-		}
-	case "left":
-		if m.cursor > 0 {
-			m.cursor--
+	case "tab":
+		m.cycleFocus(1)
+		return m, nil
+	case "shift+tab":
+		m.cycleFocus(-1)
+		return m, nil
+	}
+
+	if m.focus == focusMode {
+		switch msg.String() {
+		case "enter", "space", "up", "down":
+			m.modalOpen = true
+			m.modalSel = m.mode
 		}
 		return m, nil
-	case "right":
-		if m.cursor < len(m.input) {
-			m.cursor++
-		}
+	}
+
+	field := &m.query
+	if m.focus == focusTag {
+		field = m.modeField()
+	}
+	edited, handled := field.handleKey(msg)
+	if !handled || !edited {
 		return m, nil
-	case "home":
-		m.cursor = 0
-		return m, nil
-	case "end": // nolint: goconst // goconst wants us to make "end" a const, shared with unrelated column-header strings elsewhere in the package
-		m.cursor = len(m.input)
-		return m, nil
-	default:
-		// Plain typed text, including space (its Text is " " even though String() is
-		// "space"); msg.Text is empty for keys with no text representation, e.g. arrows.
-		if msg.Text == "" {
-			return m, nil
-		}
-		runes := []rune(msg.Text)
-		m.input = append(m.input[:m.cursor], append(append([]rune{}, runes...), m.input[m.cursor:]...)...)
-		m.cursor += len(runes)
 	}
 
 	m.inputGen++
@@ -346,7 +347,7 @@ func cellIndex(g *heatGrid, row, col int) (idx int, ok bool) {
 // gap between them. Each cell is rendered 2 characters wide so cells read as roughly square
 // despite terminal characters being taller than they are wide.
 func (m *heatmapModel) recomputeGrid() {
-	rows := m.height - reservedLines
+	rows := m.height - linesBeforeGrid
 	if rows < 1 {
 		rows = 1
 	}
@@ -412,7 +413,7 @@ func (m *heatmapModel) applyCounts(spanCounts, ioCounts []int64, stats ioStats, 
 // a new one. An unparsable query (which is the normal state of things while typing) leaves
 // whatever was last successfully rendered on screen untouched, aside from the error message.
 func (m *heatmapModel) triggerFetch() tea.Cmd {
-	query := strings.TrimSpace(string(m.input))
+	query := strings.TrimSpace(m.query.String())
 
 	if m.cancel != nil {
 		m.cancel()
@@ -428,6 +429,10 @@ func (m *heatmapModel) triggerFetch() tea.Cmd {
 	// fetch that's already been abandoned.
 	m.fetchGen++
 	m.scanning = false
+
+	if m.mode.usesTag() {
+		return m.triggerTagFetch(query)
+	}
 
 	if query == "" {
 		m.errText = ""
@@ -831,19 +836,23 @@ func (m *heatmapModel) View() tea.View {
 	}
 	fmt.Fprintf(&b, "%s%s\n", titleStyle.Render(title), suffix)
 
-	before, after := string(m.input[:m.cursor]), string(m.input[m.cursor:])
-	fmt.Fprintf(&b, "%s\n", boxStyle.Render("Query: "+before+"█"+after))
+	b.WriteString(m.renderControls())
+	b.WriteString("\n")
 
 	b.WriteString(m.renderHeaders())
 	b.WriteString(m.renderGrids())
 
 	// The grid's last row (like every other line built above) ends with a trailing "\n".
 	// bubbletea needs the very last line to NOT end in one: a trailing newline makes the
-	// terminal need one row more than we accounted for in reservedLines, so once content
+	// terminal need one row more than we accounted for in linesBeforeGrid, so once content
 	// exactly fills the screen it scrolls - pushing the title off the top and leaving a
 	// blank line at the bottom.
 	var v tea.View
-	v.SetContent(strings.TrimSuffix(b.String(), "\n"))
+	content := strings.TrimSuffix(b.String(), "\n")
+	if m.modalOpen {
+		content = m.overlayModal(content)
+	}
+	v.SetContent(content)
 	// AltScreen and mouse mode are set here rather than as tea.NewProgram options - that's
 	// where bubbletea v2 moved them.
 	v.AltScreen = true
@@ -867,6 +876,9 @@ func (m *heatmapModel) renderHeaders() string {
 	rightWidth := m.ioGrid.cols * cellWidth
 
 	left := fmt.Sprintf("SPAN LOCATIONS  %s matches", humanize.Comma(m.matched))
+	if m.mode.usesTag() {
+		left = fmt.Sprintf("%s  %s distinct (no span locations)", strings.ToUpper(m.mode.String()), humanize.Comma(m.matched))
+	}
 
 	right1 := fileIOPrefix + "no reads yet"
 	right2 := ""
@@ -1041,4 +1053,362 @@ func levelFor(count, maxCount int64) int {
 		level = 1
 	}
 	return level
+}
+
+// queryMode selects what the heatmap runs the TraceQL filter box against: a normal span search,
+// or one of the two tag lookups behind the autocomplete APIs. In the tag modes the filter box
+// still narrows which spans are considered, exactly like the query parameter on those APIs.
+type queryMode int
+
+const (
+	modeSpans queryMode = iota
+	modeTagNames
+	modeTagValues
+	numQueryModes
+)
+
+func (q queryMode) String() string {
+	switch q {
+	case modeTagNames:
+		return "tag names"
+	case modeTagValues:
+		return "tag values"
+	default:
+		return "spans"
+	}
+}
+
+func (q queryMode) usesTag() bool { return q == modeTagNames || q == modeTagValues }
+
+// tagLabel names what the tag field means in this mode: a scope for tag names, a fully
+// scoped attribute for tag values.
+func (q queryMode) tagLabel() string {
+	if q == modeTagNames {
+		return "Scope"
+	}
+	return "Tag"
+}
+
+type fieldFocus int
+
+const (
+	focusMode fieldFocus = iota
+	focusTag
+	focusQuery
+	numFieldFocus
+)
+
+// defaultTag pre-fills the tag field so switching to tag values works straight away; it is
+// only used by tag values mode; tag names mode has its own scope field, blank by default.
+const defaultTag = "resource.service.name"
+
+// textField is a minimal single-line editor shared by the query and tag inputs.
+type textField struct {
+	runes  []rune
+	cursor int
+}
+
+func newTextField(s string) textField {
+	r := []rune(s)
+	return textField{runes: r, cursor: len(r)}
+}
+
+func (f *textField) String() string { return string(f.runes) }
+
+// render returns the field's text fitted to width columns, scrolled horizontally so the
+// cursor stays visible, with the cursor drawn when focused.
+func (f *textField) render(focused bool, width int) string {
+	if width < 2 {
+		width = 2
+	}
+	runes := f.runes
+	cursor := f.cursor
+	if focused {
+		runes = append(append(append([]rune{}, runes[:cursor]...), '█'), runes[cursor:]...)
+	}
+	if len(runes) <= width {
+		return string(runes)
+	}
+
+	// Window of `width` runes ending at (or just past) the cursor, or the start if unfocused.
+	end := width
+	if focused && cursor+1 > end {
+		end = cursor + 1
+	}
+	return string(runes[end-width : end])
+}
+
+// handleKey applies msg to the field. handled reports whether the key meant anything to the
+// field at all; edited whether the text changed (cursor movement alone doesn't).
+func (f *textField) handleKey(msg tea.KeyPressMsg) (edited, handled bool) {
+	switch msg.String() {
+	case "backspace":
+		if f.cursor > 0 {
+			f.runes = append(f.runes[:f.cursor-1], f.runes[f.cursor:]...)
+			f.cursor--
+			return true, true
+		}
+		return false, true
+	case "delete":
+		if f.cursor < len(f.runes) {
+			f.runes = append(f.runes[:f.cursor], f.runes[f.cursor+1:]...)
+			return true, true
+		}
+		return false, true
+	case "left":
+		if f.cursor > 0 {
+			f.cursor--
+		}
+		return false, true
+	case "right":
+		if f.cursor < len(f.runes) {
+			f.cursor++
+		}
+		return false, true
+	case "home":
+		f.cursor = 0
+		return false, true
+	case "end": // nolint: goconst // goconst wants us to make "end" a const, shared with unrelated column-header strings elsewhere in the package
+		f.cursor = len(f.runes)
+		return false, true
+	}
+
+	// Plain typed text, including space (its Text is " " even though String() is "space");
+	// msg.Text is empty for keys with no text representation, e.g. arrows.
+	if msg.Text == "" {
+		return false, false
+	}
+	typed := []rune(msg.Text)
+	f.runes = append(f.runes[:f.cursor], append(append([]rune{}, typed...), f.runes[f.cursor:]...)...)
+	f.cursor += len(typed)
+	return true, true
+}
+
+// modeField returns the field holding the current tag mode's parameter.
+func (m *heatmapModel) modeField() *textField {
+	if m.mode == modeTagNames {
+		return &m.scope
+	}
+	return &m.tag
+}
+
+// cycleFocus moves keyboard focus to the next (dir=1) or previous (dir=-1) visible control,
+// wrapping around, like tab in a dialog box. The tag box is skipped outside the tag modes.
+func (m *heatmapModel) cycleFocus(dir int) {
+	for i := 0; i < int(numFieldFocus); i++ {
+		m.focus = (m.focus + fieldFocus(int(numFieldFocus)+dir)) % numFieldFocus
+		if m.focus != focusTag || m.mode.usesTag() {
+			return
+		}
+	}
+}
+
+// Fixed widths (including border and padding) of the mode and tag controls; the query box
+// takes whatever horizontal space is left.
+const (
+	modeBoxWidth = 24
+	tagBoxWidth  = 36
+	boxChrome    = 4 // border (2) + padding (2)
+)
+
+// renderControls draws the three-line controls row, left to right: mode, tag/scope (tag modes
+// only), then the query box filling the remaining width.
+func (m *heatmapModel) renderControls() string {
+	boxes := []string{m.renderBox("Mode: ", m.mode.String()+" ▾", modeBoxWidth, focusMode)}
+	used := modeBoxWidth
+
+	if m.mode.usesTag() {
+		label := m.mode.tagLabel() + ": "
+		boxes = append(boxes, m.renderBox(label, m.modeField().render(m.focus == focusTag, tagBoxWidth-boxChrome-len(label)), tagBoxWidth, focusTag))
+		used += tagBoxWidth
+	}
+
+	queryWidth := m.width - used
+	if queryWidth < 16 {
+		queryWidth = 16
+	}
+	const queryLabel = "Query: "
+	boxes = append(boxes, m.renderBox(queryLabel, m.query.render(m.focus == focusQuery, queryWidth-boxChrome-len(queryLabel)), queryWidth, focusQuery))
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, boxes...)
+}
+
+// renderBox draws one labelled control of the given total width; the focused one gets a
+// highlighted border.
+func (m *heatmapModel) renderBox(label, content string, width int, which fieldFocus) string {
+	style := boxStyle.Width(width)
+	if m.focus == which {
+		style = style.BorderForeground(lipgloss.Color("220"))
+	}
+	return style.Render(label + content)
+}
+
+// triggerTagFetch starts a tag names/values lookup using the filter box as the condition
+// source. The caller (triggerFetch) has already canceled the previous fetch and bumped fetchGen.
+func (m *heatmapModel) triggerTagFetch(query string) tea.Cmd {
+	m.metricsMode = false
+
+	groups, err := traceql.ExtractConditionGroups(query, traceql.DefaultMaxConditionGroupsPerTagQuery)
+	if err != nil {
+		m.errText = err.Error()
+		return nil
+	}
+
+	tagText := strings.TrimSpace(m.modeField().String())
+	var run tagLookup
+	switch m.mode {
+	case modeTagNames:
+		scope := traceql.AttributeScopeFromString(tagText)
+		if scope == traceql.AttributeScopeUnknown {
+			m.errText = fmt.Sprintf("unknown scope %q: use span, resource, event, link, instrumentation, or leave blank", tagText)
+			return nil
+		}
+		run = tagNamesLookup(scope, groups)
+	default:
+		if tagText == "" {
+			m.errText = "tag is required, e.g. resource.service.name or span.http.method"
+			return nil
+		}
+		tag, err := traceql.ParseIdentifier(tagText)
+		if err != nil {
+			m.errText = err.Error()
+			return nil
+		}
+		run = tagValuesLookup(tag, groups)
+	}
+
+	m.errText = ""
+	m.scanning = true
+	gen := m.fetchGen
+
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+
+	reader, meta, opts, prog := m.reader, m.meta, m.searchOpts, m.program
+	spanCells := int64(len(m.spanGrid.counts))
+	ioCells, ioUnitsPerCell := int64(len(m.ioGrid.counts)), m.ioGrid.unitsPerCell
+
+	return func() tea.Msg {
+		runHeatmapTagFetch(ctx, prog, gen, reader, meta, opts, run, spanCells, ioCells, ioUnitsPerCell)
+		return nil
+	}
+}
+
+// tagLookup runs one tag names or values query against a block and returns how many distinct
+// results it produced.
+type tagLookup func(ctx context.Context, block common.BackendBlock, opts common.SearchOptions) (distinct int64, err error)
+
+func tagNamesLookup(scope traceql.AttributeScope, groups [][]traceql.Condition) tagLookup {
+	return func(ctx context.Context, block common.BackendBlock, opts common.SearchOptions) (int64, error) {
+		type key struct {
+			name  string
+			scope traceql.AttributeScope
+		}
+		seen := map[key]struct{}{}
+		fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
+			return block.FetchTagNames(ctx, req, cb, func(uint64) {}, opts)
+		})
+		err := traceql.NewEngine().ExecuteTagNames(ctx, scope, groups, func(tag string, scope traceql.AttributeScope) bool {
+			seen[key{tag, scope}] = struct{}{}
+			return false
+		}, fetcher)
+		return int64(len(seen)), err
+	}
+}
+
+func tagValuesLookup(tag traceql.Attribute, groups [][]traceql.Condition) tagLookup {
+	return func(ctx context.Context, block common.BackendBlock, opts common.SearchOptions) (int64, error) {
+		type key struct {
+			typ traceql.StaticType
+			val string
+		}
+		seen := map[key]struct{}{}
+		fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+			return block.FetchTagValues(ctx, req, cb, func(uint64) {}, opts)
+		})
+		err := traceql.NewEngine().ExecuteTagValues(ctx, tag, groups, func(v traceql.Static) bool {
+			seen[key{v.Type, v.EncodeToString(false)}] = struct{}{}
+			return false
+		}, fetcher, traceql.DefaultMaxConditionGroupsPerTagQuery)
+		return int64(len(seen)), err
+	}
+}
+
+// runHeatmapTagFetch runs a tag lookup on a freshly opened block wrapped in an ioTrackingReader,
+// so the I/O map shows exactly which parts of the file the lookup read. Tag lookups don't
+// surface per-span row numbers, so the span-location map stays empty and matched reports the
+// number of distinct names/values instead. Results arrive in one piece rather than streaming.
+func runHeatmapTagFetch(
+	ctx context.Context, prog *tea.Program, gen int,
+	reader backend.Reader, meta *backend.BlockMeta, opts common.SearchOptions, run tagLookup,
+	spanCells, ioCells, ioUnitsPerCell int64,
+) {
+	io := newIOTracker(ioCells, ioUnitsPerCell)
+	tracked := &ioTrackingReader{Reader: reader, onRead: io.record}
+
+	block, err := encoding.OpenBlock(meta, tracked)
+	if err != nil {
+		prog.Send(fetchDoneMsg{gen: gen, err: err})
+		return
+	}
+
+	distinct, err := run(ctx, block, opts)
+	if err != nil {
+		prog.Send(fetchDoneMsg{gen: gen, err: err})
+		return
+	}
+
+	prog.Send(fetchDoneMsg{gen: gen, counts: make([]int64, spanCells), ioCounts: io.snapshot(), ioStats: io.statsSnapshot(), matched: distinct})
+}
+
+// handleModalKey drives the mode picker popup. Picking a different mode re-runs immediately,
+// since there's no typing to debounce.
+func (m *heatmapModel) handleModalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.modalOpen = false
+	case "up", "k":
+		m.modalSel = (m.modalSel + numQueryModes - 1) % numQueryModes
+	case "down", "j", "tab":
+		m.modalSel = (m.modalSel + 1) % numQueryModes
+	case "enter":
+		m.modalOpen = false
+		if m.modalSel == m.mode {
+			return m, nil
+		}
+		m.mode = m.modalSel
+		m.inputGen++
+		return m, m.triggerFetch()
+	}
+	return m, nil
+}
+
+// overlayModal draws the mode picker centered on top of content.
+func (m *heatmapModel) overlayModal(content string) string {
+	var b strings.Builder
+	b.WriteString(titleStyle.Render("Query mode") + "\n\n")
+	for mode := modeSpans; mode < numQueryModes; mode++ {
+		if mode == m.modalSel {
+			b.WriteString(tooltipStyle.Render("> "+mode.String()+" ") + "\n")
+		} else {
+			b.WriteString("  " + mode.String() + "\n")
+		}
+	}
+	b.WriteString("\n" + statusStyle.Render("↑/↓/tab select  enter apply  esc cancel"))
+
+	box := boxStyle.BorderForeground(lipgloss.Color("220")).Render(b.String())
+	x := (m.width - lipgloss.Width(box)) / 2
+	y := (m.height - lipgloss.Height(box)) / 2
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
+	return lipgloss.NewCompositor(
+		lipgloss.NewLayer(content),
+		lipgloss.NewLayer(box).X(x).Y(y).Z(1),
+	).Render()
 }

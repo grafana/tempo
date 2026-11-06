@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"sort"
@@ -71,13 +72,22 @@ type ToolHandlerMiddleware func(ToolHandlerFunc) ToolHandlerFunc
 // ResourceHandlerMiddleware is a middleware function that wraps a ResourceHandlerFunc.
 type ResourceHandlerMiddleware func(ResourceHandlerFunc) ResourceHandlerFunc
 
-// ToolFilterFunc is a function that filters tools based on context, typically using session information.
+// ToolFilterFunc is a function that filters tools based on context, typically
+// using session information. Filters are applied both when listing tools
+// (tools/list) and when calling tools (tools/call), so a filtered-out tool
+// cannot be discovered or invoked. During tools/call, filters receive only the
+// requested tool to keep the call-time access check off the full-list hot path.
 type ToolFilterFunc func(ctx context.Context, tools []mcp.Tool) []mcp.Tool
 
 // PromptHandlerMiddleware is a middleware function that wraps a PromptHandlerFunc.
 type PromptHandlerMiddleware func(PromptHandlerFunc) PromptHandlerFunc
 
-// PromptFilterFunc is a function that filters prompts based on context, typically using session information.
+// PromptFilterFunc is a function that filters prompts based on context,
+// typically using session information. Filters are applied both when listing
+// prompts (prompts/list) and when retrieving prompts (prompts/get), so a
+// filtered-out prompt cannot be discovered or accessed. During prompts/get,
+// filters receive only the requested prompt to keep the get-time access check
+// off the full-list hot path.
 type PromptFilterFunc func(ctx context.Context, prompts []mcp.Prompt) []mcp.Prompt
 
 // ServerTool combines a Tool with its ToolHandlerFunc.
@@ -221,6 +231,8 @@ type MCPServer struct {
 	strictInputSchemaDefault   bool
 	tracer                     tracing.Tracer
 	propagator                 tracing.Propagator
+	metaPropagator             tracing.MetaPropagator
+	requestLogger              *slog.Logger
 }
 
 // WithPaginationLimit sets the pagination limit for the server.
@@ -342,7 +354,12 @@ func WithResourceRecovery() ServerOption {
 	})
 }
 
-// WithToolFilter adds a filter function that will be applied to tools before they are returned in list_tools
+// WithToolFilter adds a filter function that controls tool visibility and access.
+// The filter is applied both when listing tools (tools/list) and when calling
+// tools (tools/call). A tool that is filtered out cannot be discovered or
+// invoked, ensuring that filters act as an access control boundary rather than
+// just a visibility hint. Call-time checks pass only the requested tool to the
+// filter, while list-time checks pass the full candidate list.
 func WithToolFilter(
 	toolFilter ToolFilterFunc,
 ) ServerOption {
@@ -365,7 +382,11 @@ func WithPromptHandlerMiddleware(
 	}
 }
 
-// WithPromptFilter adds a filter function that will be applied to prompts before they are returned in list_prompts
+// WithPromptFilter adds a filter function that controls prompt visibility and
+// access. The filter is applied both when listing prompts (prompts/list) and
+// when retrieving a prompt (prompts/get). A prompt that is filtered out cannot
+// be discovered or accessed. Get-time checks pass only the requested prompt to
+// the filter, while list-time checks pass the full candidate list.
 func WithPromptFilter(
 	promptFilter PromptFilterFunc,
 ) ServerOption {
@@ -1225,7 +1246,16 @@ func (s *MCPServer) handleSubscribe(
 	}
 
 	if session := ClientSessionFromContext(ctx); session != nil {
-		if subs, ok := session.(SessionWithResourceSubscriptions); ok {
+		switch subs := session.(type) {
+		case SessionWithResourceSubscriptionsErr:
+			if err := subs.SubscribeToResourceErr(request.Params.URI); err != nil {
+				return nil, &requestError{
+					id:   id,
+					code: mcp.RESOURCE_NOT_FOUND,
+					err:  err,
+				}
+			}
+		case SessionWithResourceSubscriptions:
 			subs.SubscribeToResource(request.Params.URI)
 		}
 	}
@@ -1606,11 +1636,11 @@ func matchesTemplate(uri string, template *mcp.URITemplate) bool {
 	return template.Regexp().MatchString(uri)
 }
 
-func (s *MCPServer) handleListPrompts(
-	ctx context.Context,
-	id any,
-	request mcp.ListPromptsRequest,
-) (*mcp.ListPromptsResult, *requestError) {
+// filteredPrompts builds the full prompt candidate set and applies all
+// registered prompt filters. This is the single source of truth for which
+// prompts are visible in a given context, used by both handleListPrompts
+// and handleGetPrompt to guarantee consistent behavior.
+func (s *MCPServer) filteredPrompts(ctx context.Context) []mcp.Prompt {
 	s.promptsMu.RLock()
 	prompts := make([]mcp.Prompt, 0, len(s.prompts))
 	for _, prompt := range s.prompts {
@@ -1631,6 +1661,39 @@ func (s *MCPServer) handleListPrompts(
 		}
 	}
 	s.promptFiltersMu.RUnlock()
+
+	return prompts
+}
+
+func (s *MCPServer) passesPromptFilters(ctx context.Context, prompt mcp.Prompt) bool {
+	s.promptFiltersMu.RLock()
+	defer s.promptFiltersMu.RUnlock()
+	if len(s.promptFilters) == 0 {
+		return true
+	}
+
+	prompts := []mcp.Prompt{prompt}
+	for _, filter := range s.promptFilters {
+		prompts = filter(ctx, prompts)
+		if len(prompts) == 0 {
+			return false
+		}
+	}
+
+	for _, candidate := range prompts {
+		if candidate.Name == prompt.Name {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *MCPServer) handleListPrompts(
+	ctx context.Context,
+	id any,
+	request mcp.ListPromptsRequest,
+) (*mcp.ListPromptsResult, *requestError) {
+	prompts := s.filteredPrompts(ctx)
 
 	promptsToReturn, nextCursor, err := listByPagination(
 		ctx,
@@ -1661,9 +1724,21 @@ func (s *MCPServer) handleGetPrompt(
 ) (*mcp.GetPromptResult, *requestError) {
 	s.promptsMu.RLock()
 	handler, ok := s.promptHandlers[request.Params.Name]
+	prompt := s.prompts[request.Params.Name]
 	s.promptsMu.RUnlock()
 
 	if !ok {
+		return nil, &requestError{
+			id:   id,
+			code: mcp.INVALID_PARAMS,
+			err:  fmt.Errorf("prompt '%s' not found: %w", request.Params.Name, ErrPromptNotFound),
+		}
+	}
+
+	// Enforce prompt filters at get time to prevent access to filtered-out
+	// prompts. Only the requested prompt is passed through the filter chain so
+	// this access check does not rebuild and filter the full prompt list.
+	if !s.passesPromptFilters(ctx, prompt) {
 		return nil, &requestError{
 			id:   id,
 			code: mcp.INVALID_PARAMS,
@@ -1694,11 +1769,11 @@ func (s *MCPServer) handleGetPrompt(
 	return result, nil
 }
 
-func (s *MCPServer) handleListTools(
-	ctx context.Context,
-	id any,
-	request mcp.ListToolsRequest,
-) (*mcp.ListToolsResult, *requestError) {
+// filteredTools builds the full tool candidate set (global + task + session)
+// and applies all registered tool filters. This is the single source of truth
+// for which tools are visible in a given context, used by both handleListTools
+// and handleToolCall to guarantee consistent behavior.
+func (s *MCPServer) filteredTools(ctx context.Context) []mcp.Tool {
 	// Get the base tools from the server (both regular and task tools)
 	s.toolsMu.RLock()
 	tools := make([]mcp.Tool, 0, len(s.tools)+len(s.taskTools))
@@ -1766,6 +1841,39 @@ func (s *MCPServer) handleListTools(
 		}
 	}
 	s.toolFiltersMu.RUnlock()
+
+	return tools
+}
+
+func (s *MCPServer) passesToolFilters(ctx context.Context, tool mcp.Tool) bool {
+	s.toolFiltersMu.RLock()
+	defer s.toolFiltersMu.RUnlock()
+	if len(s.toolFilters) == 0 {
+		return true
+	}
+
+	tools := []mcp.Tool{tool}
+	for _, filter := range s.toolFilters {
+		tools = filter(ctx, tools)
+		if len(tools) == 0 {
+			return false
+		}
+	}
+
+	for _, candidate := range tools {
+		if candidate.Name == tool.Name {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *MCPServer) handleListTools(
+	ctx context.Context,
+	id any,
+	request mcp.ListToolsRequest,
+) (*mcp.ListToolsResult, *requestError) {
+	tools := s.filteredTools(ctx)
 
 	// Apply pagination
 	toolsToReturn, nextCursor, err := listByPagination(
@@ -1835,6 +1943,17 @@ func (s *MCPServer) handleToolCall(
 	}
 
 	if !ok {
+		return nil, &requestError{
+			id:   id,
+			code: mcp.INVALID_PARAMS,
+			err:  fmt.Errorf("tool '%s' not found: %w", request.Params.Name, ErrToolNotFound),
+		}
+	}
+
+	// Enforce tool filters at call time to prevent access to filtered-out
+	// tools. Only the requested tool is passed through the filter chain so this
+	// access check does not rebuild and filter the full tool list.
+	if !s.passesToolFilters(ctx, tool.Tool) {
 		return nil, &requestError{
 			id:   id,
 			code: mcp.INVALID_PARAMS,

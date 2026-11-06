@@ -56,12 +56,12 @@ func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansReq
 func fetchSpans(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns) (*spanOnlyIterator, error) {
 	makeIter := makeIterFunc(ctx, rowGroups, pf)
 	makeNilIter := makeNilIterFunc(ctx, rowGroups, pf)
-	iter, span, err := create(makeIter, makeNilIter, nil, req.Conditions, req.SecondPass, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.AllConditions, false, dc, req.SpanSampler)
+	iter, span, err := create(makeIter, makeNilIter, nil, req.Conditions, req.SecondPass, req.TraceStartTimeUnixNanos, req.TraceEndTimeUnixNanos, req.SpanStartTimeUnixNanos, req.SpanEndTimeUnixNanos, req.AllConditions, false, dc, req.SpanSampler)
 	if err != nil {
 		return nil, err
 	}
 	if len(req.SecondPassConditions) > 0 || req.SecondPassSelectAll {
-		iter, span, err = create(makeIter, makeNilIter, iter, req.SecondPassConditions, nil, 0, 0, false, req.SecondPassSelectAll, dc, nil)
+		iter, span, err = create(makeIter, makeNilIter, iter, req.SecondPassConditions, nil, 0, 0, 0, 0, false, req.SecondPassSelectAll, dc, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +100,8 @@ func create(makeIter, makeNilIter makeIterFn,
 	driver parquetquery.Iterator,
 	conditions []traceql.Condition,
 	secondPass traceql.SecondPassFn,
-	start, end uint64,
+	traceStart, traceEnd uint64,
+	spanStart, spanEnd uint64,
 	allConditions bool,
 	selectAll bool,
 	dedicatedColumns backend.DedicatedColumns,
@@ -120,7 +121,7 @@ func create(makeIter, makeNilIter makeIterFn,
 	// anywhere, except in the case of the empty query: {}
 	batchRequireAtLeastOneMatchOverall := len(conditions) > 0 && len(catConditions.trace) == 0
 
-	traceIters, traceOptional, err := createTraceIterators(makeIter, catConditions.trace, start, end, allConditions, dedicatedColumns, selectAll)
+	traceIters, traceOptional, err := createTraceIterators(makeIter, catConditions.trace, traceStart, traceEnd, allConditions, dedicatedColumns, selectAll)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -130,7 +131,7 @@ func create(makeIter, makeNilIter makeIterFn,
 		return nil, nil, err
 	}
 
-	alternateDriver, spanIters, spanOptional, err := createSpanIterators(makeIter, makeNilIter, driver == nil, catConditions.span, allConditions, selectAll, dedicatedColumns, sampler)
+	alternateDriver, spanIters, spanOptional, err := createSpanIterators(makeIter, makeNilIter, driver == nil, catConditions.span, spanStart, spanEnd, allConditions, selectAll, dedicatedColumns, sampler)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -473,6 +474,7 @@ func createSpanIterators(
 	makeIter, makeNilIter makeIterFn,
 	needDriver bool,
 	conditions []traceql.Condition,
+	spanStartMin, spanStartMax uint64,
 	allConditions bool,
 	selectAll bool,
 	dedicatedColumns backend.DedicatedColumns,
@@ -490,6 +492,9 @@ func createSpanIterators(
 		// not it falls back to the span-count iterator built when nothing else is
 		// required.
 		samplerPlaced bool
+		// spanStartCol is the start time column bounded by spanStartMin/Max. It is
+		// always required, whatever allConditions says, so it can drive the scan.
+		spanStartCol string
 	)
 
 	// todo: improve these methods. if addPredicate gets a nil predicate shouldn't it just wipe out the existing predicates instead of appending?
@@ -578,7 +583,11 @@ func createSpanIterators(
 			default:
 				startCol = columnPathSpanStartTime
 			}
-			addPredicate(startCol, pred)
+			if pred == nil && spanStartMax > 0 {
+				spanStartCol = startCol
+			} else {
+				addPredicate(startCol, pred)
+			}
 			columnSelectAs[startCol] = startCol
 
 			if sampler != nil && !samplerPlaced {
@@ -763,6 +772,11 @@ func createSpanIterators(
 		optional = append(optional, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath], columnSyncIterOpts[columnPath]...))
 	}
 
+	if spanStartCol != "" {
+		lo, hi := spanStartBounds(spanStartCol, spanStartMin, spanStartMax)
+		required = append(required, makeIter(spanStartCol, parquetquery.NewIntBetweenPredicate(lo, hi), spanStartCol, columnSyncIterOpts[spanStartCol]...))
+	}
+
 	attrIter, err := createScopedAttributeIterator(
 		makeIter,
 		genericConditions,
@@ -809,6 +823,31 @@ func createSpanIterators(
 	}
 
 	return driver, required, optional, nil
+}
+
+// spanStartBounds turns a span start time range into a predicate range over column, which
+// holds nanoseconds or, for the rounded columns, interval numbers. The range is widened by
+// one interval each side, so it is a superset of the spans in [min, max].
+func spanStartBounds(column string, minNanos, maxNanos uint64) (int64, int64) {
+	var m traceql.IntervalMapper
+	switch column {
+	case columnPathSpanStartRounded15:
+		m = intervalMapper15Seconds
+	case columnPathSpanStartRounded60:
+		m = intervalMapper60Seconds
+	case columnPathSpanStartRounded300:
+		m = intervalMapper300Seconds
+	case columnPathSpanStartRounded3600:
+		m = intervalMapper3600Seconds
+	default:
+		return int64(minNanos), int64(maxNanos)
+	}
+	lo, hi := m.Interval(minNanos), m.Interval(maxNanos)
+	if lo < 0 || hi < 0 {
+		// Outside the mapper's range: don't bound.
+		return 0, math.MaxInt64
+	}
+	return int64(lo) - 1, int64(hi) + 1
 }
 
 func createEventIterators(

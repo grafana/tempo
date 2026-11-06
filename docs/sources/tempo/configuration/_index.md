@@ -451,7 +451,8 @@ For architectural details, refer to the [Kafka architecture](/docs/tempo/<TEMPO_
 ingest:
 
     kafka:
-        # The Kafka backend address.
+        # The Kafka bootstrap addresses (host:port). A single address or a
+        # comma-separated list of brokers.
         [address: <string> | default = "localhost:9092"]
 
         # The Kafka topic name.
@@ -597,6 +598,9 @@ block_builder:
     # Maximum number of bytes that can be consumed in a single cycle. 0 to disable.
     [max_consuming_bytes: <uint64> | default = 5000000000]
 
+    # Maximum number of tenants to flush concurrently per partition section. Must be positive.
+    [flush_concurrency: <int> | default = 4]
+
     # Block configuration for the block builder.
     block: <Block config>
       [max_block_bytes: <uint64> | default = 20971520]
@@ -605,6 +609,12 @@ block_builder:
     wal: <WAL config>
       [path: <string> | default = "/var/tempo/block-builder/traces"]
 ```
+
+Increase `block_builder.flush_concurrency` when tenant flushes on a high-latency object store
+prevent the block-builder from keeping up with its consumption cycles.
+Higher concurrency increases the number of simultaneous block builds and uploads,
+so monitor memory usage and object-store throttling when tuning this setting.
+The equivalent CLI flag is `-block-builder.flush-concurrency`.
 
 ## Live-store
 
@@ -1240,6 +1250,12 @@ query_frontend:
     # to be exposed to LLM-based tools. Requires explicit opt-in.
     mcp_server:
         [enabled: <bool> | default = false]
+
+    # Query tracker configuration. Enable it to expose active query status pages.
+    query_tracker:
+        [enabled: <bool> | default = false]
+        [max_queries_per_tenant: <int> | default = 100]
+        [max_query_text_bytes: <int> | default = 4096]
 
 ```
 
@@ -2338,6 +2354,10 @@ multi:
 # is the total amount of bytes used for buffering when performing search on a parquet block.
 [read_buffer_size_bytes: <int> | default = 2097152]
 
+# Size of read buffers used when looking up a trace by ID in a block. A trace-by-ID lookup opens a
+# buffer per column read, so memory per lookup scales with this value.
+[trace_by_id_read_buffer_size_bytes: <int> | default = 524288]
+
 # Granular cache control settings for parquet metadata objects
 # Deprecated. See [Cache](#cache) section.
 cache_control:
@@ -3075,6 +3095,17 @@ cache:
             # idle for longer than two minutes are closed.
             # (default: -1)
             [min_idle_conns_headroom_percentage: <float>]
+
+            # Optional
+            # How long a free connection can sit unused and still count as
+            # recently used when reaping idle connections. Recently used
+            # connections are never closed and set the headroom kept by
+            # min_idle_conns_headroom_percentage, so a longer value keeps more
+            # connections after a burst. Idle connections are checked once a
+            # minute. Only applies if min_idle_conns_headroom_percentage is not
+            # negative. If 0, the default of 2m is used.
+            # (default: 2m)
+            [recently_used_conns_threshold: <duration>]
 
             # Optional
             # Period with which to poll DNS for memcache servers.

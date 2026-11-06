@@ -11,7 +11,6 @@
       querier: 'querier',
       metrics_generator: 'metrics-generator',
       distributor: 'distributor',
-      compactor: 'compactor',
       block_builder: 'block-builder',
       backend_scheduler: 'backend-scheduler',
       backend_worker: 'backend-worker',
@@ -49,6 +48,42 @@
       live_store_partition_lag_warning_seconds: 200,  // 3.3 minutes
       live_store_partition_lag_critical_seconds: 1200,  // 20 minutes
       live_store_all_members_lag_seconds: 300,  // all zones lagging simultaneously indicates a partial read outage
+    },
+
+    // Prefix of the HPA objects created for each autoscaled component. KEDA
+    // names the HPA behind a ScaledObject "keda-hpa-<ScaledObject name>".
+    autoscaling_hpa_prefix: 'keda-hpa-',
+
+    // Per-component HPA/KEDA autoscaling rows on the Writes and Reads
+    // dashboards. Off by default; hpa_name is a regex matched against the HPA name.
+    // keda_triggers: false skips the KEDA desired-replicas and failures panels for
+    // components that only use native HPA resource (cpu) triggers, which KEDA doesn't expose.
+    autoscaling: {
+      gateway: {
+        enabled: false,
+        keda_triggers: true,
+        hpa_name: $._config.autoscaling_hpa_prefix + 'cortex-gw(-internal)?',
+      },
+      distributor: {
+        enabled: false,
+        keda_triggers: false,
+        hpa_name: $._config.autoscaling_hpa_prefix + 'distributor',
+      },
+      metrics_generator: {
+        enabled: false,
+        keda_triggers: true,
+        hpa_name: $._config.autoscaling_hpa_prefix + 'metrics-generator',
+      },
+      query_frontend: {
+        enabled: false,
+        keda_triggers: true,
+        hpa_name: $._config.autoscaling_hpa_prefix + 'query-frontend',
+      },
+      querier: {
+        enabled: false,
+        keda_triggers: true,
+        hpa_name: $._config.autoscaling_hpa_prefix + 'querier',
+      },
     },
 
     per_cluster_label: 'cluster',

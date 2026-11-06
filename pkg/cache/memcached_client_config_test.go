@@ -17,6 +17,7 @@ func TestNewMemcachedClientAppliesConfig(t *testing.T) {
 		wantConnectTimeout time.Duration
 		wantMaxIdleConns   int
 		wantHeadroom       float64
+		wantRecentlyUsed   time.Duration
 	}{
 		{
 			name: "connect timeout falls back to timeout",
@@ -37,12 +38,14 @@ func TestNewMemcachedClientAppliesConfig(t *testing.T) {
 				ConnectTimeout:                 50 * time.Millisecond,
 				MaxIdleConns:                   42,
 				MinIdleConnsHeadroomPercentage: -1,
+				RecentlyUsedConnsThreshold:     10 * time.Minute,
 				UpdateInterval:                 time.Minute,
 			},
 			wantTimeout:        100 * time.Millisecond,
 			wantConnectTimeout: 50 * time.Millisecond,
 			wantMaxIdleConns:   42,
 			wantHeadroom:       -1,
+			wantRecentlyUsed:   10 * time.Minute,
 		},
 	}
 
@@ -59,6 +62,7 @@ func TestNewMemcachedClientAppliesConfig(t *testing.T) {
 			require.Equal(t, tt.wantConnectTimeout, mc.ConnectTimeout)
 			require.Equal(t, tt.wantMaxIdleConns, mc.MaxIdleConns)
 			require.Equal(t, tt.wantHeadroom, mc.MinIdleConnsHeadroomPercentage)
+			require.Equal(t, tt.wantRecentlyUsed, mc.RecentlyUsedConnsThreshold)
 		})
 	}
 }

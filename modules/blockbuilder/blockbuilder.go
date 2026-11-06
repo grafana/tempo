@@ -423,6 +423,7 @@ outer:
 					rec.Timestamp,
 					dur,
 					b.cfg.WAL.IngestionSlack,
+					b.cfg.FlushConcurrency,
 					b.cfg.BlockConfig,
 					b.overrides,
 					b.wal,

@@ -8,17 +8,16 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/wal"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 )
-
-const flushConcurrency = 4
 
 type partitionSectionWriter interface {
 	pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRequest) error
@@ -28,12 +27,13 @@ type partitionSectionWriter interface {
 type writer struct {
 	logger log.Logger
 
-	blockCfg      BlockConfig
-	partition     uint64
-	startOffset   uint64
-	startTime     time.Time
-	cycleDuration time.Duration
-	slackDuration time.Duration
+	blockCfg         BlockConfig
+	partition        uint64
+	startOffset      uint64
+	startTime        time.Time
+	cycleDuration    time.Duration
+	slackDuration    time.Duration
+	flushConcurrency int
 
 	overrides Overrides
 	wal       *wal.WAL
@@ -43,20 +43,21 @@ type writer struct {
 	m   map[string]*tenantStore
 }
 
-func newPartitionSectionWriter(logger log.Logger, partition, firstOffset uint64, startTime time.Time, cycleDuration, slackDuration time.Duration, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
+func newPartitionSectionWriter(logger log.Logger, partition, firstOffset uint64, startTime time.Time, cycleDuration, slackDuration time.Duration, concurrency int, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
 	return &writer{
-		logger:        logger,
-		partition:     partition,
-		startOffset:   firstOffset,
-		startTime:     startTime,
-		cycleDuration: cycleDuration,
-		slackDuration: slackDuration,
-		blockCfg:      blockCfg,
-		overrides:     overrides,
-		wal:           wal,
-		enc:           enc,
-		mtx:           sync.Mutex{},
-		m:             make(map[string]*tenantStore),
+		logger:           logger,
+		partition:        partition,
+		startOffset:      firstOffset,
+		startTime:        startTime,
+		cycleDuration:    cycleDuration,
+		slackDuration:    slackDuration,
+		flushConcurrency: concurrency,
+		blockCfg:         blockCfg,
+		overrides:        overrides,
+		wal:              wal,
+		enc:              enc,
+		mtx:              sync.Mutex{},
+		m:                make(map[string]*tenantStore),
 	}
 }
 
@@ -89,7 +90,7 @@ func (p *writer) flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, 
 
 	// Flush tenants concurrently
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(flushConcurrency)
+	g.SetLimit(p.flushConcurrency)
 
 	for _, i := range p.m {
 		g.Go(func() error {

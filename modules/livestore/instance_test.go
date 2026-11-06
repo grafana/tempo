@@ -3,10 +3,14 @@ package livestore
 import (
 	"bytes"
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +20,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	util_log "github.com/grafana/tempo/v3/pkg/util/log"
 	"github.com/grafana/tempo/v3/pkg/util/test"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
 
 func instanceWithPushLimits(t *testing.T, maxBytesPerTrace int, maxLiveTraces int) (*instance, *LiveStore) {
@@ -44,6 +49,281 @@ func pushTrace(ctx context.Context, t *testing.T, instance *instance, tr *tempop
 		Ids:    [][]byte{id},
 	}
 	instance.pushBytes(ctx, time.Now(), req)
+}
+
+func TestInstanceCreatesHeadBlockLazily(t *testing.T) {
+	inst, ls := defaultInstance(t)
+	require.Nil(t, inst.blocks.Load().headBlock)
+
+	// An idle instance can be queried and flushed without creating a WAL writer.
+	id := test.ValidTraceID(nil)
+	response, err := inst.FindByTraceID(t.Context(), id, true)
+	require.NoError(t, err)
+	require.Nil(t, response.Trace)
+	ls.cutOneInstanceToWal(t.Context(), inst, true)
+	require.Nil(t, inst.blocks.Load().headBlock)
+	require.Empty(t, inst.blocks.Load().walBlocks)
+	require.Nil(t, inst.toFlush)
+
+	for range 2 {
+		id = test.ValidTraceID(nil)
+		trace := test.MakeTrace(1, id)
+		pushTrace(t.Context(), t, inst, trace, id)
+		require.Nil(t, inst.blocks.Load().headBlock)
+		requireTraceInLiveStore(t, ls, id, trace)
+
+		drained, err := inst.cutIdleTraces(t.Context(), false)
+		require.NoError(t, err)
+		require.True(t, drained)
+		require.NotNil(t, inst.blocks.Load().headBlock)
+		require.Zero(t, inst.blocks.Load().headBlock.DataLength())
+		require.Equal(t, uint64(1), inst.liveTraces.Len())
+		require.Nil(t, inst.toFlush)
+		requireTraceInLiveStore(t, ls, id, trace)
+
+		drained, err = inst.cutIdleTraces(t.Context(), true)
+		require.NoError(t, err)
+		require.True(t, drained)
+		require.NotNil(t, inst.blocks.Load().headBlock)
+		requireTraceInLiveStore(t, ls, id, trace)
+
+		blockID, err := inst.cutBlocks(t.Context(), true)
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, blockID)
+		require.Nil(t, inst.blocks.Load().headBlock)
+		requireTraceInLiveStore(t, ls, id, trace)
+
+		block, err := inst.completeBlock(t.Context(), blockID)
+		require.NoError(t, err)
+		require.NotNil(t, block)
+		require.Nil(t, inst.blocks.Load().headBlock)
+		requireTraceInLiveStore(t, ls, id, trace)
+	}
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+func TestHeadBlockCreationFailureRetainsLiveTraces(t *testing.T) {
+	for _, afterCut := range []bool{false, true} {
+		name := "first block"
+		if afterCut {
+			name = "after block cut"
+		}
+		t.Run(name, func(t *testing.T) {
+			inst, ls := defaultInstance(t)
+			if afterCut {
+				id := test.ValidTraceID(nil)
+				pushTrace(t.Context(), t, inst, test.MakeTrace(1, id), id)
+				ls.cutOneInstanceToWal(t.Context(), inst, true)
+			}
+			traces, ids := pushTracesToInstance(t, inst, 2)
+			liveBytes := inst.liveTraces.Size()
+			restore := blockWALCreation(t, ls)
+
+			drained, err := inst.cutIdleTraces(t.Context(), true)
+			require.Error(t, err)
+			require.False(t, drained)
+			require.Nil(t, inst.blocks.Load().headBlock)
+			require.Equal(t, uint64(2), inst.liveTraces.Len())
+			require.Equal(t, liveBytes, inst.liveTraces.Size())
+			require.Nil(t, inst.toFlush)
+			for j, id := range ids {
+				requireTraceInLiveStore(t, ls, id, traces[j])
+			}
+
+			restore()
+			ls.cutOneInstanceToWal(t.Context(), inst, true)
+			for j, id := range ids {
+				requireTraceInLiveStore(t, ls, id, traces[j])
+			}
+			require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+		})
+	}
+}
+
+func TestHeadBlockCreationFailureRetainsPendingTraces(t *testing.T) {
+	inst, ls := defaultInstance(t)
+	inst.Cfg.MaxBlockBytes = 1
+	ids := [][]byte{
+		test.ValidTraceID([]byte{4}),
+		test.ValidTraceID([]byte{2}),
+		test.ValidTraceID([]byte{3}),
+	}
+	traces := make([]*tempopb.Trace, 0, len(ids))
+	for _, id := range ids {
+		trace := test.MakeTrace(1, id)
+		traces = append(traces, trace)
+		pushTrace(t.Context(), t, inst, trace, id)
+	}
+
+	drained, err := inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.False(t, drained)
+	require.Zero(t, inst.liveTraces.Len())
+	require.Len(t, inst.toFlush, 2)
+	require.Equal(t, ids[2], inst.toFlush[0].ID)
+	require.Equal(t, ids[0], inst.toFlush[1].ID)
+	pending := inst.toFlush
+	nextTrace, lastTrace := pending[0], pending[1]
+	_, err = inst.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+
+	restore := blockWALCreation(t, ls)
+	drained, err = inst.cutIdleTraces(t.Context(), true)
+	require.Error(t, err)
+	require.False(t, drained)
+	require.Len(t, inst.toFlush, 2)
+	require.Same(t, nextTrace, inst.toFlush[0])
+	require.Same(t, lastTrace, inst.toFlush[1])
+	restore()
+
+	// New ingestion must not replace the pending batch, even when its ID sorts first.
+	newID := test.ValidTraceID([]byte{1})
+	newTrace := test.MakeTrace(1, newID)
+	pushTrace(t.Context(), t, inst, newTrace, newID)
+	for remaining := 1; remaining >= 0; remaining-- {
+		drained, err = inst.cutIdleTraces(t.Context(), true)
+		require.NoError(t, err)
+		require.False(t, drained)
+		require.Len(t, inst.toFlush, remaining)
+		require.Equal(t, uint64(1), inst.liveTraces.Len())
+		require.Nil(t, pending[1-remaining], "consumed slots must release their trace references")
+		if remaining > 0 {
+			require.Same(t, lastTrace, inst.toFlush[0])
+		} else {
+			require.Nil(t, inst.toFlush, "the final pop must release the backing slice")
+		}
+		_, err = inst.cutBlocks(t.Context(), true)
+		require.NoError(t, err)
+	}
+
+	ls.cutOneInstanceToWal(t.Context(), inst, true)
+	for j, id := range ids {
+		requireTraceInLiveStore(t, ls, id, traces[j])
+	}
+	requireTraceInLiveStore(t, ls, newID, newTrace)
+	require.Nil(t, inst.toFlush)
+	require.Nil(t, inst.blocks.Load().headBlock)
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+func TestAppendTraceFailureDiscardsPendingTraces(t *testing.T) {
+	inst, ls := defaultInstance(t)
+	inst.Cfg.MaxBlockBytes = 1
+	pushTracesToInstance(t, inst, 3)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.False(t, drained)
+	require.Len(t, inst.toFlush, 2)
+
+	head := inst.blocks.Load().headBlock
+	appendErr := errors.New("append failed")
+	failing := &appendErrorWALBlock{WALBlock: head, err: appendErr}
+	inst.blocks.Store(inst.blocks.Load().withHeadBlock(failing))
+	drained, err = inst.cutIdleTraces(t.Context(), true)
+	require.ErrorIs(t, err, appendErr)
+	require.False(t, drained)
+	require.Nil(t, inst.toFlush)
+	require.Zero(t, inst.liveTraces.Len())
+	require.Equal(t, 1, failing.calls)
+
+	// Append failures retain the existing discard behavior rather than retrying the batch.
+	drained, err = inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.True(t, drained)
+	require.Equal(t, 1, failing.calls)
+	inst.blocks.Store(inst.blocks.Load().withHeadBlock(head))
+	_, err = inst.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+
+	id := test.ValidTraceID(nil)
+	trace := test.MakeTrace(1, id)
+	pushTrace(t.Context(), t, inst, trace, id)
+	ls.cutOneInstanceToWal(t.Context(), inst, true)
+	requireTraceInLiveStore(t, ls, id, trace)
+	require.Nil(t, inst.toFlush)
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+type appendErrorWALBlock struct {
+	common.WALBlock
+	err   error
+	calls int
+}
+
+func (b *appendErrorWALBlock) AppendTrace(common.ID, *tempopb.Trace, uint32, uint32, bool) error {
+	b.calls++
+	return b.err
+}
+
+func blockWALCreation(t *testing.T, ls *LiveStore) func() {
+	t.Helper()
+	blocked := filepath.Join(t.TempDir(), "wal")
+	require.NoError(t, os.WriteFile(blocked, nil, 0o600))
+	original := ls.cfg.WAL.Filepath
+	ls.cfg.WAL.Filepath = blocked
+	restore := func() { ls.cfg.WAL.Filepath = original }
+	t.Cleanup(restore)
+	return restore
+}
+
+func TestInstanceRetainsTraceSizeAfterFirstBlockCut(t *testing.T) {
+	id := test.ValidTraceID(nil)
+	trace := test.MakeTrace(1, id)
+	inst, ls := instanceWithPushLimits(t, trace.Size(), 0)
+	pushTrace(t.Context(), t, inst, trace, id)
+
+	drained, err := inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.True(t, drained)
+	_, err = inst.cutBlocks(t.Context(), true)
+	require.NoError(t, err)
+
+	// Allocating the head after ingestion must not advance the trace-size
+	// retention boundary and forget the size recorded for the first batch.
+	pushTrace(t.Context(), t, inst, trace, id)
+	require.Zero(t, inst.liveTraces.Len())
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+func TestLazyHeadBlockPreservesCutSchedule(t *testing.T) {
+	inst, ls := defaultInstance(t)
+	inst.lastCutTime = time.Now().Add(-inst.Cfg.MaxBlockDuration)
+
+	id := test.ValidTraceID(nil)
+	pushTrace(t.Context(), t, inst, test.MakeTrace(1, id), id)
+	drained, err := inst.cutIdleTraces(t.Context(), true)
+	require.NoError(t, err)
+	require.True(t, drained)
+
+	// The block duration still starts at the previous cut, even if the
+	// tenant was idle and did not have a head block during that interval.
+	blockID, err := inst.cutBlocks(t.Context(), false)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, blockID)
+	require.Nil(t, inst.blocks.Load().headBlock)
+
+	require.NoError(t, services.StopAndAwaitTerminated(t.Context(), ls))
+}
+
+func BenchmarkInstanceCreation(b *testing.B) {
+	inst, ls := defaultInstance(b)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for range b.N {
+		created, err := newInstance(inst.tenantID, inst.Cfg, inst.wal, inst.completeBlockEncoding, inst.completeBlockLifecycle, inst.overrides, inst.logger)
+		require.NoError(b, err)
+		b.StopTimer()
+		if head := created.blocks.Load().headBlock; head != nil {
+			require.NoError(b, head.Clear())
+		}
+		b.StartTimer()
+	}
+
+	b.StopTimer()
+	require.NoError(b, services.StopAndAwaitTerminated(b.Context(), ls))
 }
 
 // TestInstanceLimits verifies MaxBytesPerTrace and MaxLocalTracesPerUser enforcement in livestore.

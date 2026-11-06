@@ -95,7 +95,7 @@
      ],
      "targets": [
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})\n) by (limit_name)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",user=\"$tenant\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\"})\n) by (limit_name)\n",
        "format": "table",
        "instant": true,
        "legendFormat": "",
@@ -181,14 +181,14 @@
        "legendLink": null
       },
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\",limit_name=\"ingestion_rate_limit_bytes\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",limit_name=\"ingestion_rate_limit_bytes\"})\n) by (ingestion_rate_limit_bytes)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",user=\"$tenant\",limit_name=\"ingestion_rate_limit_bytes\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",limit_name=\"ingestion_rate_limit_bytes\"})\n) by (ingestion_rate_limit_bytes)\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "limit",
        "legendLink": null
       },
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\",limit_name=\"ingestion_burst_size_bytes\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",limit_name=\"ingestion_burst_size_bytes\"})\n) by (ingestion_burst_size_bytes)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",user=\"$tenant\",limit_name=\"ingestion_burst_size_bytes\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",limit_name=\"ingestion_burst_size_bytes\"})\n) by (ingestion_burst_size_bytes)\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "burst limit",
@@ -340,14 +340,14 @@
        "legendLink": null
       },
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\",limit_name=\"max_global_traces_per_user\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",limit_name=\"max_global_traces_per_user\"})\n) by (max_global_traces_per_user)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",user=\"$tenant\",limit_name=\"max_global_traces_per_user\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",limit_name=\"max_global_traces_per_user\"})\n) by (max_global_traces_per_user)\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "global limit",
        "legendLink": null
       },
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\",limit_name=\"max_local_traces_per_user\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",limit_name=\"max_local_traces_per_user\"})\n) by (max_local_traces_per_user)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",user=\"$tenant\",limit_name=\"max_local_traces_per_user\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",limit_name=\"max_local_traces_per_user\"})\n) by (max_local_traces_per_user)\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "local limit",
@@ -536,7 +536,7 @@
      "span": 6,
      "targets": [
       {
-       "expr": "avg(tempodb_blocklist_length{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=\"$tenant\"})",
+       "expr": "avg(tempodb_blocklist_length{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",tenant=\"$tenant\"})",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "length",
@@ -593,7 +593,7 @@
      "span": 6,
      "targets": [
       {
-       "expr": "sum(tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",tenant=\"$tenant\"})\n/\ncount(tempo_build_info{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"})\n",
+       "expr": "sum(tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",tenant=\"$tenant\"})\n/\ncount(tempo_build_info{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\"})\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "blocks",
@@ -748,7 +748,7 @@
        "legendLink": null
       },
       {
-       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",user=\"$tenant\",limit_name=\"metrics_generator_max_active_series\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",limit_name=\"metrics_generator_max_active_series\"})\n) by (metrics_generator_max_active_series)\n",
+       "expr": "max(\n  max by (cluster, namespace, limit_name) (tempo_limits_overrides{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",user=\"$tenant\",limit_name=\"metrics_generator_max_active_series\"})\n  or max by (cluster, namespace, limit_name) (tempo_limits_defaults{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\",limit_name=\"metrics_generator_max_active_series\"})\n) by (metrics_generator_max_active_series)\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "limit",
@@ -861,7 +861,7 @@
     "options": [
 
     ],
-    "query": "label_values(tempodb_blocklist_length{cluster=~\"$cluster\", job=~\"($namespace)/compactor\"}, tenant)",
+    "query": "label_values(tempodb_blocklist_length{cluster=~\"$cluster\", job=~\"($namespace)/backend-scheduler\"}, tenant)",
     "refresh": 1,
     "regex": "",
     "sort": 2,
