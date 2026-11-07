@@ -197,6 +197,14 @@ func (f ScalarFilter) validate() error {
 }
 
 func (o *BinaryOperation) validate() error {
+	if !o.validateComputed {
+		o.validateComputed = true
+		o.validateCache = o.computeValidate()
+	}
+	return o.validateCache
+}
+
+func (o *BinaryOperation) computeValidate() error {
 	if err := o.LHS.validate(); err != nil {
 		return err
 	}
