@@ -91,6 +91,15 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 		mergedJobs: make(chan *work.Job, 1),
 	}
 
+	// Export every job type at 0 until its first success, so dashboards can show "Never"
+	// instead of no data for a job type that has not succeeded since startup.
+	for jobType := range tempopb.JobType_name {
+		if jobType == int32(tempopb.JobType_JOB_TYPE_UNSPECIFIED) {
+			continue
+		}
+		metricLastSuccessfulJobTimestamp.WithLabelValues(tempopb.JobType(jobType).String())
+	}
+
 	// Initialize providers
 	s.providers = []struct {
 		provider provider.Provider
@@ -457,6 +466,8 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		if err != nil {
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
+
+		metricLastSuccessfulJobTimestamp.WithLabelValues(j.GetType().String()).SetToCurrentTime()
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
 		s.work.FailJob(req.JobId)
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
