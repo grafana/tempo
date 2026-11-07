@@ -87,6 +87,14 @@
     },
 
     per_cluster_label: 'cluster',
+    // Loki stream label that holds the component name, used by log-based dashboards.
+    per_component_loki_label: 'container',
+    // UID of the Tempo data source that holds the traces of Tempo itself. When set, the trace IDs in the
+    // Tempo / Slow queries tables link to the trace in Explore. Empty means no link.
+    tempo_datasource_uid: '',
+    // The query-frontend's metrics max_response_series limit. The Tempo / Slow queries dashboard lists queries that
+    // return this many series as series-limited. 0 means no limit, so only partial responses are listed.
+    query_frontend_max_response_series: 10000,
     namespace_selector_separator: '/',
 
     // Groups labels to uniquely identify and group by {jobs, clusters, tenants}
