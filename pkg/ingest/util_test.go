@@ -37,3 +37,34 @@ func TestHandleKafkaError(t *testing.T) {
 		require.Equal(t, test.expectedRefresh, refreshCalled, "HandleKafkaError(%v) refresh function call mismatch", test.err)
 	}
 }
+
+func TestIngesterPartitionID(t *testing.T) {
+	tests := []struct {
+		ingesterID  string
+		expected    int32
+		expectedErr bool
+	}{
+		{ingesterID: "ingester-0", expected: 0},
+		{ingesterID: "ingester-1", expected: 1},
+		{ingesterID: "ingester-zone-a-2", expected: 2},
+		{ingesterID: "ingester-2147483647", expected: 2147483647},
+		// Past what a partition ID can hold: this used to wrap round to
+		// -2147483648 and address a different partition.
+		{ingesterID: "ingester-2147483648", expectedErr: true},
+		{ingesterID: "ingester-9223372036854775808", expectedErr: true},
+		{ingesterID: "ingester", expectedErr: true},
+		{ingesterID: "ingester-abc", expectedErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.ingesterID, func(t *testing.T) {
+			actual, err := IngesterPartitionID(test.ingesterID)
+			if test.expectedErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.expected, actual)
+		})
+	}
+}
