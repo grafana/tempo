@@ -1128,6 +1128,16 @@ query_frontend:
         # (default: 168h)
         [max_duration: <duration>]
 
+        # The maximum bytes of backend blocks a search may scan. The allowed range is the longest
+        # range ending at the query end whose blocks fit, raised to min_duration and capped at max_duration.
+        # Data newer than query_backend_after isn't counted. 0 disables this limit.
+        [max_scanned_bytes: <int> | default = 0 ]
+
+        # A search of this range or shorter is always allowed, even if it scans more than max_scanned_bytes.
+        # Has no effect when max_scanned_bytes is 0. Tempo fails to start if min_duration is above max_duration.
+        # 0 means no minimum.
+        [min_duration: <duration> | default = 0s]
+
         # query_backend_after controls where the query-frontend searches for traces.
         # Time ranges newer than query_backend_after will be searched in the live-stores only.
         # Time ranges older than query_backend_after will be searched in the backend/object storage only.
@@ -1216,6 +1226,16 @@ query_frontend:
         # The maximum allowed time range for a metrics query.
         # 0 disables this limit.
         [max_duration: <duration> | default = 24h ]
+
+        # The maximum bytes of backend blocks a metrics query may scan. The allowed range is the longest
+        # range ending at the query end whose blocks fit, raised to min_duration and capped at max_duration.
+        # Data newer than query_backend_after isn't counted. 0 disables this limit.
+        [max_scanned_bytes: <int> | default = 0 ]
+
+        # A metrics query of this range or shorter is always allowed, even if it scans more than max_scanned_bytes.
+        # Has no effect when max_scanned_bytes is 0. Tempo fails to start if min_duration is above max_duration.
+        # 0 means no minimum.
+        [min_duration: <duration> | default = 0s ]
 
         # Maximum number of exemplars per range query.
         # Set to 0 to disable exemplars.
@@ -2496,10 +2516,30 @@ overrides:
       #  in the front-end configuration is used.
       [max_search_duration: <duration> | default = 0s]
 
+      # Per-tenant search max_scanned_bytes. Limits the search range by the bytes of backend blocks it scans.
+      # A value of 0 (default) falls back to the value configured by query_frontend.search.max_scanned_bytes.
+      [max_search_scanned_bytes: <int> | default = 0]
+
+      # Per-tenant search min_duration. Replaces query_frontend.search.min_duration for this tenant.
+      #  A search of this range or shorter is always allowed, unless the tenant's max_duration is lower.
+      #  Must not be above max_search_duration when both are set.
+      # 0 (default) uses the front-end configuration.
+      [min_search_duration: <duration> | default = 0s]
+
       # Per-user max duration for metrics queries. If this value is set to 0 (default), then metrics max_duration
       #  in the front-end configuration is used. This limit is enforced against the user-provided time range,
       #  not the post-alignment range. Queries whose entire window falls within query_end_cutoff are rejected.
       [max_metrics_duration: <duration> | default = 0s]
+
+      # Per-tenant metrics max_scanned_bytes. Limits the metrics query range by the bytes of backend blocks it scans.
+      # A value of 0 (default) falls back to the value configured by query_frontend.metrics.max_scanned_bytes.
+      [max_metrics_scanned_bytes: <int> | default = 0]
+
+      # Per-tenant metrics min_duration. Replaces query_frontend.metrics.min_duration for this tenant.
+      #  A metrics query of this range or shorter is always allowed, unless the tenant's max_duration is lower.
+      #  Must not be above max_metrics_duration when both are set.
+      # 0 (default) uses the front-end configuration.
+      [min_metrics_duration: <duration> | default = 0s]
 
       # Per-user option to left-pad trace IDs with zeros to 32 hex characters in search API responses.
       # When enabled, trace IDs like "8efff798038103d269b633813fc703" will be returned as

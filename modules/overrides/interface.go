@@ -91,6 +91,10 @@ type Interface interface {
 	CompactionDisabled(userID string) bool
 	MaxSearchDuration(userID string) time.Duration
 	MaxMetricsDuration(userID string) time.Duration
+	MaxMetricsScannedBytes(userID string) uint64
+	MinMetricsDuration(userID string) time.Duration
+	MaxSearchScannedBytes(userID string) uint64
+	MinSearchDuration(userID string) time.Duration
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	UnsafeQueryHints(userID string) bool
 	LeftPadTraceIDs(userID string) bool
