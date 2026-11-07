@@ -20,8 +20,8 @@ import (
 //	                       otherwise next reads the page value by value
 //	  nextMatchedValue()   return the next matching row, until the page is exhausted
 //	  setPage(nil)
-//	on a long seek:
-//	  setPage(slice)       seekWithinPage reslices the page and restarts the reader on it
+//	on a seek:
+//	  skipToRow()          walk the levels to the target row, see plain_page_reader.go
 
 // Example of how dictPageReader works: it serves dictionary-encoded pages from their
 // levels and dictionary indexes, without decoding values. Take an optional string
@@ -116,6 +116,15 @@ func (r *dictPageReader) setPage(pg pq.Page) {
 	r.indexes = data.Int32()
 	r.defLevels = pg.DefinitionLevels()
 	r.repLevels = pg.RepetitionLevels()
+}
+
+// skipToRow moves the reader to the first slot of root row to, see skipToRow.
+func (r *dictPageReader) skipToRow(cur, to int32) bool {
+	numSlots := len(r.indexes) // a required column has no levels: every slot is present
+	if r.defLevels != nil {
+		numSlots = len(r.defLevels)
+	}
+	return skipToRow(r.defLevels, r.repLevels, r.maxDef, numSlots, &r.slot, &r.index, cur, to)
 }
 
 // nextMatchedValue is next's loop for a pushed-down page: it advances c.curr over every
