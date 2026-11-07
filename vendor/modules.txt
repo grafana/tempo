@@ -333,7 +333,7 @@ github.com/buger/jsonparser
 # github.com/bytedance/gopkg v0.1.3
 ## explicit; go 1.18
 github.com/bytedance/gopkg/lang/dirtmake
-# github.com/bytedance/sonic v1.15.4
+# github.com/bytedance/sonic v1.15.5
 ## explicit; go 1.18
 github.com/bytedance/sonic
 github.com/bytedance/sonic/ast
@@ -368,7 +368,7 @@ github.com/bytedance/sonic/internal/utils
 github.com/bytedance/sonic/option
 github.com/bytedance/sonic/unquote
 github.com/bytedance/sonic/utf8
-# github.com/bytedance/sonic/loader v0.5.2
+# github.com/bytedance/sonic/loader v0.5.3
 ## explicit; go 1.16
 github.com/bytedance/sonic/loader
 github.com/bytedance/sonic/loader/internal/abi
@@ -861,8 +861,8 @@ github.com/grafana/pyroscope-go/godeltaprof/internal/pprof
 ## explicit; go 1.21
 github.com/grafana/regexp
 github.com/grafana/regexp/syntax
-# github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
-## explicit; go 1.23.0
+# github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
+## explicit; go 1.24.0
 github.com/grpc-ecosystem/go-grpc-middleware/v2
 # github.com/grpc-ecosystem/grpc-gateway/v2 v2.33.0
 ## explicit; go 1.26.0
@@ -1152,7 +1152,7 @@ github.com/olekukonko/errors
 github.com/olekukonko/ll
 github.com/olekukonko/ll/lh
 github.com/olekukonko/ll/lx
-# github.com/olekukonko/tablewriter v1.1.4
+# github.com/olekukonko/tablewriter v1.1.5
 ## explicit; go 1.21
 github.com/olekukonko/tablewriter
 github.com/olekukonko/tablewriter/pkg/twcache
@@ -1672,8 +1672,8 @@ github.com/twmb/franz-go/pkg/sasl/scram
 # github.com/twmb/franz-go/pkg/kadm v1.19.0
 ## explicit; go 1.26.0
 github.com/twmb/franz-go/pkg/kadm
-# github.com/twmb/franz-go/pkg/kfake v0.0.0-20260515175617-8268a5d078c0
-## explicit; go 1.25.0
+# github.com/twmb/franz-go/pkg/kfake v0.0.0-20261022190701-123ec885bc97
+## explicit; go 1.26.0
 github.com/twmb/franz-go/pkg/kfake
 # github.com/twmb/franz-go/pkg/kmsg v1.15.0
 ## explicit; go 1.26.0
@@ -1747,8 +1747,8 @@ github.com/yusufpapurcu/wmi
 # github.com/zeebo/xxh3 v1.1.0
 ## explicit; go 1.22
 github.com/zeebo/xxh3
-# go.etcd.io/etcd/api/v3 v3.7.2
-## explicit; go 1.26
+# go.etcd.io/etcd/api/v3 v3.7.3
+## explicit; go 1.26.0
 go.etcd.io/etcd/api/v3/authpb
 go.etcd.io/etcd/api/v3/etcdserverpb
 go.etcd.io/etcd/api/v3/membershippb
@@ -2297,10 +2297,10 @@ go.uber.org/zap/internal/pool
 go.uber.org/zap/internal/stacktrace
 go.uber.org/zap/zapcore
 go.uber.org/zap/zapgrpc
-# go.yaml.in/yaml/v2 v2.4.4
+# go.yaml.in/yaml/v2 v2.4.5
 ## explicit; go 1.15
 go.yaml.in/yaml/v2
-# go.yaml.in/yaml/v3 v3.0.5
+# go.yaml.in/yaml/v3 v3.0.6
 ## explicit; go 1.16
 go.yaml.in/yaml/v3
 # go.yaml.in/yaml/v4 v4.0.0-rc.6
