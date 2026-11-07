@@ -197,7 +197,7 @@
      "span": 2,
      "targets": [
       {
-       "expr": "max by (group) (tempo_ingest_group_partition_lag_seconds{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", group=~\"live-store.*\", container=\"live-store\"})",
+       "expr": "max by (group) (tempo_ingest_group_partition_lag_seconds{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", group=~\".*live-store.*\", container=\"live-store\"})",
        "format": null,
        "instant": false,
        "interval": "",
@@ -602,7 +602,7 @@
      "span": 6,
      "targets": [
       {
-       "expr": "max by (cluster, namespace, group) (tempo_ingest_group_partition_lag_seconds{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", group=~\"live-store.*\", container=\"live-store\"})",
+       "expr": "max by (cluster, namespace, group) (tempo_ingest_group_partition_lag_seconds{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", group=~\".*live-store.*\", container=\"live-store\"})",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{cluster}}/{{namespace}} {{group}}",
@@ -663,7 +663,7 @@
      "span": 6,
      "targets": [
       {
-       "expr": "topk(20, max by (cluster, namespace, pod, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", group=~\"live-store.*\", container=\"live-store\"}))",
+       "expr": "topk(20, max by (cluster, namespace, pod, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~\"$namespace\", cluster=~\"$cluster\", pod=~\"$pod\", group=~\".*live-store.*\", container=\"live-store\"}))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{cluster}}/{{namespace}} {{pod}} p{{partition}}",
