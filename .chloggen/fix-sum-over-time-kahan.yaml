@@ -1,0 +1,9 @@
+change_type: bug_fix
+
+component: traceql
+
+note: Fix `sum_over_time` and `avg_over_time` returning slightly incorrect values.
+
+issues: []
+
+user: zhxiaogg
