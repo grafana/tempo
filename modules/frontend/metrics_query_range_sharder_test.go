@@ -488,6 +488,8 @@ func TestQueryRangeSharderResolvesExtrapolate(t *testing.T) {
 		query    string
 		urlParam bool // client-supplied extrapolate=true, which the sharder should ignore
 		want     bool
+		// unaffected is set when the query's functions ignore extrapolation, so results aren't marked extrapolated
+		unaffected bool
 	}{
 		{name: "neither set", query: "{} | rate()", want: false},
 		{name: "override on", override: new(true), query: "{} | rate()", want: true},
@@ -496,6 +498,7 @@ func TestQueryRangeSharderResolvesExtrapolate(t *testing.T) {
 		{name: "override on, hint off", override: new(true), query: "{} | rate() with(extrapolate=false)", want: false},
 		{name: "override off, hint on", override: new(false), query: "{} | rate() with(extrapolate=true)", want: true},
 		{name: "client param ignored", query: "{} | rate()", urlParam: true, want: false},
+		{name: "override on, function ignores extrapolation", override: new(true), query: "{} | max_over_time(duration)", want: true, unaffected: true},
 	}
 
 	for _, tc := range tests {
@@ -550,13 +553,21 @@ func TestQueryRangeSharderResolvesExtrapolate(t *testing.T) {
 
 			resps, err := testRT.RoundTrip(pipeline.NewHTTPRequest(httpReq))
 			require.NoError(t, err)
+			var jobMetadata *combiner.QueryRangeJobResponse
 			for {
-				_, done, err := resps.Next(context.Background())
+				resp, done, err := resps.Next(context.Background())
 				require.NoError(t, err)
+				if qr, ok := resp.(*combiner.QueryRangeJobResponse); ok {
+					jobMetadata = qr
+				}
 				if done {
 					break
 				}
 			}
+
+			// the job metadata tells the combiner whether to mark the response as extrapolated
+			require.NotNil(t, jobMetadata, "expected job metadata")
+			assert.Equal(t, tc.want && !tc.unaffected, jobMetadata.Extrapolated)
 
 			mtx.Lock()
 			defer mtx.Unlock()

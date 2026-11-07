@@ -58,3 +58,10 @@ func TestClampInstantQueryEnd(t *testing.T) {
 		require.ErrorIs(t, clampInstantQueryEnd(cfg, req), errQueryWindowWithinEndCutoff)
 	})
 }
+
+func TestTranslateQueryRangeToInstantExtrapolated(t *testing.T) {
+	for _, extrapolated := range []bool{false, true} {
+		out := translateQueryRangeToInstant(tempopb.QueryRangeResponse{Extrapolated: extrapolated})
+		require.Equal(t, extrapolated, out.Extrapolated)
+	}
+}
