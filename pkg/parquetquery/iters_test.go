@@ -294,17 +294,19 @@ func testColumnIteratorPredicate(t *testing.T, makeIter makeTestIterFn) {
 func BenchmarkSyncIteratorSeekTo(b *testing.B) {
 	count := 100_000
 	type T struct {
-		A int64  `parquet:",delta"`
-		S string `parquet:",dict"`
+		A int64   `parquet:",delta"`
+		S string  `parquet:",dict"`
+		L []int64 // repeated
 	}
 	rows := make([]T, count)
 	for i := range rows {
-		rows[i] = T{A: int64(i), S: fmt.Sprintf("span-name-%d", i%100)}
+		rows[i] = T{A: int64(i), S: fmt.Sprintf("span-name-%d", i%100), L: []int64{int64(i), 1, 2}[:i%4]}
 	}
 	pf := createFileWith(b, context.Background(), rows)
 
 	aIdx, _, _ := GetColumnIndexByPath(pf, "A")
 	sIdx, _, _ := GetColumnIndexByPath(pf, "S")
+	lIdx, _, _ := GetColumnIndexByPath(pf, "L")
 
 	testCases := []struct {
 		name     string
@@ -318,10 +320,14 @@ func BenchmarkSyncIteratorSeekTo(b *testing.B) {
 			require.NoError(b, err)
 			return pred
 		}},
+		{"string/nopred", sIdx, func() Predicate { return nil }},
+		{"list/nopred", lIdx, func() Predicate { return nil }},
+		{"list/between", lIdx, func() Predicate { return NewIntBetweenPredicate(0, int64(count)) }},
 	}
 
 	for _, tc := range testCases {
-		for _, stride := range []int32{10, 500} {
+		// Long strides seek within a page by walking its levels.
+		for _, stride := range []int32{10, 500, 2_000, 10_000} {
 			b.Run(fmt.Sprintf("%s/stride=%d", tc.name, stride), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					iter := NewSyncIterator(context.TODO(), pf.RowGroups(), tc.column,

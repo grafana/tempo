@@ -56,11 +56,15 @@ func (c *NilSyncIterator) Next() (*IteratorResult, error) {
 
 func (c *NilSyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResult, error) {
 	for {
-		if done := c.seekRowGroup(to, definitionLevel, false); done {
+		done, err := c.seekRowGroup(to, definitionLevel, false)
+		if err != nil {
+			return nil, err
+		}
+		if done {
 			return nil, nil
 		}
 
-		done, err := c.seekPages(to, definitionLevel, false)
+		done, err = c.seekPages(to, definitionLevel, false)
 		if err != nil {
 			return nil, err
 		}
@@ -113,8 +117,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 
 	advanceValue := func(v *pq.Value) {
 		c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
-		c.currBufN++
-		c.currPageN++
+		c.pageReader.NextSlot()
 
 		if !v.IsNull() {
 			scopeHasValues = true
@@ -136,10 +139,12 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-			c.setRowGroup(rg, minRN, maxRN, cc)
+			if err := c.setRowGroup(rg, minRN, maxRN, cc); err != nil {
+				return EmptyRowNumber(), nil, err
+			}
 		}
 
-		if c.currPage == nil {
+		if c.pageReader.Page() == nil {
 			pg, err := c.currChunk.NextPage()
 			if err != nil && !errors.Is(err, io.EOF) {
 				return EmptyRowNumber(), nil, err
@@ -149,33 +154,25 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 				c.closeCurrRowGroup()
 				continue
 			}
-			c.setPage(pg)
-		}
-
-		// Read next batch of values if needed
-		if c.currBuf == nil {
-			c.currBuf = syncIteratorPoolGet(c.readSize, 0)
-		}
-
-		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
-			c.currBuf = c.currBuf[:cap(c.currBuf)]
-			n, err := c.currValues.ReadValues(c.currBuf)
-			if err != nil && !errors.Is(err, io.EOF) {
+			if err := c.setPage(pg); err != nil {
 				return EmptyRowNumber(), nil, err
 			}
-			c.currBuf = c.currBuf[:n]
-			c.currBufN = 0
-			if n == 0 {
-				// This value reader and page are exhausted.
-				c.setPage(nil)
-				continue
-			}
 		}
 
-		// Consume current buffer until empty
-		for c.currBufN < len(c.currBuf) {
+		// Consume the page until empty. A value is looked at before it is consumed: on
+		// leaving a scope, the nil for it is returned first, and the value is looked at
+		// again on the next call.
+		for {
+			v, err := c.pageReader.PeekValue()
+			if err != nil {
+				return EmptyRowNumber(), nil, err
+			}
+			if v == nil {
+				// This page is exhausted.
+				c.closePage()
+				break
+			}
 			var (
-				v    = &c.currBuf[c.currBufN]
 				r    = v.RepetitionLevel()
 				d    = v.DefinitionLevel()
 				maxD = c.maxDefinitionLevel
