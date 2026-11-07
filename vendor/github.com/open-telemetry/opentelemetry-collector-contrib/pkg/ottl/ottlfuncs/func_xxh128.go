@@ -13,19 +13,21 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type XXH128Arguments[K any] struct {
+type xXH128Arguments[K any] struct {
 	Target ottl.StringGetter[K]
 }
 
+// NewXXH128Factory returns a factory for the XXH128 OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#xxh128
 func NewXXH128Factory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("XXH128", &XXH128Arguments[K]{}, createXXH128Function[K])
+	return ottl.NewFactory("XXH128", &xXH128Arguments[K]{}, createXXH128Function[K])
 }
 
 func createXXH128Function[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*XXH128Arguments[K])
+	args, ok := oArgs.(*xXH128Arguments[K])
 
 	if !ok {
-		return nil, errors.New("XXH128Factory args must be of type *XXH128Arguments[K]")
+		return nil, errors.New("XXH128Factory args must be of type *xXH128Arguments[K]")
 	}
 
 	return xxh128HashString(args.Target), nil

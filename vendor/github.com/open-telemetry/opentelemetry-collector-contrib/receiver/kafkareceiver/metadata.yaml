@@ -109,10 +109,12 @@ telemetry:
     kafka_receiver_current_offset:
       enabled: true
       description: Current message offset
+      extended_documentation: Reported only for currently assigned partitions after processing at least one record. Reporting stops when a partition is lost, revoked, or terminally paused, and resumes after a reassigned partition processes a record. Temporary backpressure and rewind pauses continue reporting the last observed offset. With eager group_rebalance_strategies (e.g. range), every rebalance revokes all partitions, so each series pauses until that partition's next record; the default cooperative-sticky strategy only affects moved partitions.
       stability: development
       unit: "1"
       gauge:
         value_type: int
+        async: true
       attributes: [topic, partition]
     kafka_receiver_latency:
       enabled: true
@@ -140,10 +142,12 @@ telemetry:
     kafka_receiver_offset_lag:
       enabled: true
       description: Current offset lag
+      extended_documentation: Reported only for currently assigned partitions after processing at least one record. Reporting stops when a partition is lost, revoked, or terminally paused, and resumes after a reassigned partition processes a record. Temporary backpressure and rewind pauses continue reporting the last observed lag. With eager group_rebalance_strategies (e.g. range), every rebalance revokes all partitions, so each series pauses until that partition's next record; the default cooperative-sticky strategy only affects moved partitions.
       stability: development
       unit: "1"
       gauge:
         value_type: int
+        async: true
       attributes: [topic, partition]
     kafka_receiver_partition_close:
       enabled: true

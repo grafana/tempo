@@ -10,19 +10,21 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type BoolArguments[K any] struct {
+type boolArguments[K any] struct {
 	Target ottl.BoolLikeGetter[K]
 }
 
+// NewBoolFactory returns a factory for the Bool OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#bool
 func NewBoolFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Bool", &BoolArguments[K]{}, createBoolFunction[K])
+	return ottl.NewFactory("Bool", &boolArguments[K]{}, createBoolFunction[K])
 }
 
 func createBoolFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*BoolArguments[K])
+	args, ok := oArgs.(*boolArguments[K])
 
 	if !ok {
-		return nil, errors.New("BoolFactory args must be of type *BoolArguments[K]")
+		return nil, errors.New("BoolFactory args must be of type *boolArguments[K]")
 	}
 
 	return boolFunc(args.Target), nil

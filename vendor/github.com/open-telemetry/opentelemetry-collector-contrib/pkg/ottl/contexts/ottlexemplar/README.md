@@ -7,6 +7,8 @@ In general, the Exemplar Context supports accessing pdata using the field names 
 
 The following paths are supported.
 
+Setting a path to `nil` is handled based on the path's type: `pcommon.Map` and `pcommon.Slice` fields are set to empty, `pcommon.Value` fields become an empty value, and scalar and struct-typed fields return an error.
+
 | path                                             | field accessed                                                                                                                                                                                  | type                                                                      |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | exemplar.cache                                   | the value of the current transform context's temporary cache. cache can be used as a temporary placeholder for data during complex transformations                                              | pcommon.Map                                                               |

@@ -24,10 +24,13 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
 	"go.opentelemetry.io/collector/receiver/xreceiver"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/metadata"
 )
 
@@ -79,6 +82,7 @@ func newLogsReceiver(config *Config, set receiver.Settings, nextConsumer consume
 		}
 
 		headerAttrKeys := buildHeaderAttrKeys(config)
+		propagator := traceContextPropagator()
 		return func(ctx context.Context, record *kgo.Record, attrs attribute.Set) error {
 			return processMessage(ctx, record, config, set.Logger, telBldr,
 				&logsHandler{
@@ -89,6 +93,7 @@ func newLogsReceiver(config *Config, set receiver.Settings, nextConsumer consume
 				},
 				attrs,
 				headerAttrKeys,
+				propagator,
 			)
 		}, nil
 	}
@@ -106,6 +111,7 @@ func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer cons
 		}
 
 		headerAttrKeys := buildHeaderAttrKeys(config)
+		propagator := traceContextPropagator()
 		return func(ctx context.Context, record *kgo.Record, attrs attribute.Set) error {
 			return processMessage(ctx, record, config, set.Logger, telBldr,
 				&metricsHandler{
@@ -116,6 +122,7 @@ func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer cons
 				},
 				attrs,
 				headerAttrKeys,
+				propagator,
 			)
 		}, nil
 	}
@@ -133,6 +140,7 @@ func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consu
 		}
 
 		headerAttrKeys := buildHeaderAttrKeys(config)
+		propagator := traceContextPropagator()
 		return func(ctx context.Context, record *kgo.Record, attrs attribute.Set) error {
 			return processMessage(ctx, record, config, set.Logger, telBldr,
 				&tracesHandler{
@@ -143,6 +151,7 @@ func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consu
 				},
 				attrs,
 				headerAttrKeys,
+				propagator,
 			)
 		}, nil
 	}
@@ -160,6 +169,7 @@ func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xco
 		}
 
 		headerAttrKeys := buildHeaderAttrKeys(config)
+		propagator := traceContextPropagator()
 		return func(ctx context.Context, record *kgo.Record, attrs attribute.Set) error {
 			return processMessage(ctx, record, config, set.Logger, telBldr,
 				&profilesHandler{
@@ -170,6 +180,7 @@ func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xco
 				},
 				attrs,
 				headerAttrKeys,
+				propagator,
 			)
 		}, nil
 	}
@@ -350,6 +361,7 @@ func processMessage[T plog.Logs | pmetric.Metrics | ptrace.Traces | pprofile.Pro
 	handler messageHandler[T],
 	attrs attribute.Set,
 	headerAttrKeys map[string]string,
+	propagator propagation.TextMapPropagator,
 ) error {
 	if logger.Core().Enabled(zap.DebugLevel) {
 		logger.Debug("kafka message received",
@@ -362,6 +374,9 @@ func processMessage[T plog.Logs | pmetric.Metrics | ptrace.Traces | pprofile.Pro
 	}
 
 	ctx = contextWithMetadata(ctx, record)
+	if propagator != nil {
+		ctx = propagator.Extract(ctx, (*kafka.HeaderCarrier)(&record.Headers))
+	}
 
 	obsCtx := handler.startObsReport(ctx)
 	data, n, err := handler.unmarshalData(record.Value)
@@ -384,7 +399,7 @@ func processMessage[T plog.Logs | pmetric.Metrics | ptrace.Traces | pprofile.Pro
 		}
 	}
 
-	err = handler.consumeData(ctx, data)
+	err = handler.consumeData(obsCtx, data)
 	handler.endObsReport(obsCtx, n, err)
 	return err
 }
@@ -430,6 +445,14 @@ func newExponentialBackOff(config configretry.BackOffConfig) *backoff.Exponentia
 	backOff.MaxElapsedTime = config.MaxElapsedTime
 	backOff.Reset()
 	return backOff
+}
+
+func traceContextPropagator() propagation.TextMapPropagator {
+	propagator := otel.GetTextMapPropagator()
+	if len(propagator.Fields()) == 0 {
+		return nil
+	}
+	return propagator
 }
 
 func contextWithMetadata(ctx context.Context, record *kgo.Record) context.Context {

@@ -6,24 +6,6 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 )
 
-var OttlPanicDuplicateNameFeatureGate = featuregate.GlobalRegistry().MustRegister(
-	"ottl.PanicDuplicateName",
-	featuregate.StageStable,
-	featuregate.WithRegisterDescription("When enabled, the CreateFactoryMap panics if the name is duplicated."),
-	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/44630"),
-	featuregate.WithRegisterFromVersion("v0.141.0"),
-	featuregate.WithRegisterToVersion("v0.161.0"),
-)
-
-var OttlContextsEnableOTelColContextFeatureGate = featuregate.GlobalRegistry().MustRegister(
-	"ottl.contexts.enableOTelColContext",
-	featuregate.StageStable,
-	featuregate.WithRegisterDescription("Enable the `otelcol` context for OTTL. This allows users using `otelcol.*` paths in their OTTL statements and conditions."),
-	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/46437"),
-	featuregate.WithRegisterFromVersion("v0.147.0"),
-	featuregate.WithRegisterToVersion("v0.161.0"),
-)
-
 var OttlFunctionsEnableLambdaFeatureGate = featuregate.GlobalRegistry().MustRegister(
 	"ottl.functions.enableLambda",
 	featuregate.StageAlpha,
@@ -32,10 +14,18 @@ var OttlFunctionsEnableLambdaFeatureGate = featuregate.GlobalRegistry().MustRegi
 	featuregate.WithRegisterFromVersion("v0.155.0"),
 )
 
-var OttlSetAllowNilFeatureGate = featuregate.GlobalRegistry().MustRegister(
-	"ottl.set.allowNil",
+var PkgOttlFunctionsEnableDynamicSliceArgumentsFeatureGate = featuregate.GlobalRegistry().MustRegister(
+	"pkg.ottl.functions.enableDynamicSliceArguments",
 	featuregate.StageBeta,
-	featuregate.WithRegisterDescription("When enabled, the set function passes nil values directly to the target."),
-	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/49741"),
-	featuregate.WithRegisterFromVersion("v0.158.0"),
+	featuregate.WithRegisterDescription("Allow slice arguments of stable OTTL functions, such as the values of Concat, to be paths or converters that resolve to a slice at runtime. When disabled, these arguments only accept list literals."),
+	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/27821"),
+	featuregate.WithRegisterFromVersion("v0.163.0"),
+)
+
+var PkgOttlFunctionsEnableExperimentalFeatureGate = featuregate.GlobalRegistry().MustRegister(
+	"pkg.ottl.functions.enableExperimental",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Allow OTTL statements and conditions to use experimental functions. When disabled, experimental functions are rejected."),
+	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/50927"),
+	featuregate.WithRegisterFromVersion("v0.163.0"),
 )

@@ -22,6 +22,8 @@ func createUUIDFunction[K any](_ ottl.FunctionContext, _ ottl.Arguments) (ottl.E
 	return uuid[K]()
 }
 
+// NewUUIDFactory returns a factory for the UUID OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#uuid
 func NewUUIDFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("UUID", nil, createUUIDFunction[K])
 }
