@@ -22,6 +22,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3express"
 )
 
 const (
@@ -56,10 +57,11 @@ type Config struct {
 	// checks against concurrent writes will be performed.
 	ConfirmVersioning bool `yaml:"confirm_versioning"`
 
-	Local *local.Config `yaml:"local"`
-	GCS   *gcs.Config   `yaml:"gcs"`
-	S3    *s3.Config    `yaml:"s3"`
-	Azure *azure.Config `yaml:"azure"`
+	Local     *local.Config     `yaml:"local"`
+	GCS       *gcs.Config       `yaml:"gcs"`
+	S3        *s3.Config        `yaml:"s3"`
+	S3Express *s3express.Config `yaml:"s3express"`
+	Azure     *azure.Config     `yaml:"azure"`
 }
 
 func (c *Config) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
@@ -74,6 +76,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
 	c.GCS.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 	c.S3 = &s3.Config{}
 	c.S3.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
+	c.S3Express = &s3express.Config{}
+	c.S3Express.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 	c.Azure = &azure.Config{}
 	c.Azure.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 }
@@ -128,6 +132,8 @@ func initBackend(cfg *Config) (rw backend.VersionedReaderWriter, err error) {
 		rw, err = gcs.NewVersionedReaderWriter(cfg.GCS, cfg.ConfirmVersioning)
 	case backend.S3:
 		rw, err = s3.NewVersionedReaderWriter(cfg.S3)
+	case backend.S3Express:
+		rw, err = s3express.NewVersionedReaderWriter(cfg.S3Express)
 	case backend.Azure:
 		rw, err = azure.NewVersionedReaderWriter(cfg.Azure)
 	default:
@@ -136,7 +142,7 @@ func initBackend(cfg *Config) (rw backend.VersionedReaderWriter, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Backend == backend.Local || cfg.Backend == backend.S3 || cfg.Backend == backend.Azure {
+	if cfg.Backend == backend.Local || cfg.Backend == backend.S3 || cfg.Backend == backend.S3Express || cfg.Backend == backend.Azure {
 		level.Warn(log.Logger).Log(
 			"msg", "versioned backend requests are best-effort for the configured backend, concurrent requests modifying user-configurable overrides might cause data races",
 			"backend", cfg.Backend,

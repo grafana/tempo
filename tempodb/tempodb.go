@@ -33,6 +33,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3express"
 	"github.com/grafana/tempo/v3/tempodb/blocklist"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
@@ -195,6 +196,8 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 		rawR, rawW, c, err = gcs.New(cfg.GCS)
 	case backend.S3:
 		rawR, rawW, c, err = s3.New(cfg.S3)
+	case backend.S3Express:
+		rawR, rawW, c, err = s3express.New(cfg.S3Express)
 	case backend.Azure:
 		rawR, rawW, c, err = azure.New(cfg.Azure)
 	default:
