@@ -43,7 +43,7 @@ the [tenant index](../../operations/monitor/polling/) introduces approximately t
 one for the index builder and one for the reader.
 Poll duration and failures add to this delay.
 The `2 * blocklist_poll` minimum values of `query_backend_after` and `compacted_block_retention` described below
-are not sufficient when polling falls behind.
+aren't sufficient when polling falls behind.
 For a detailed explanation of how compaction interacts with the polling cycle, refer to [Compaction](../../operations/compaction/).
 
 ## Scale polling across many tenants
