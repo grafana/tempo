@@ -49,14 +49,17 @@ README](../configtls/README.md).
       - SpeedBestCompression: `11`
     - `snappy`
       No compression levels supported yet
-    - `x-snappy-framed` (When feature gate `confighttp.framedSnappy` is enabled)
+    - `x-snappy-framed`
       No compression levels supported yet
-- [`max_idle_conns`](https://golang.org/pkg/net/http/#Transport)
-- [`max_idle_conns_per_host`](https://golang.org/pkg/net/http/#Transport)
 - [`max_conns_per_host`](https://golang.org/pkg/net/http/#Transport)
-- [`idle_conn_timeout`](https://golang.org/pkg/net/http/#Transport)
+- `keepalive`: Keepalive settings for the HTTP client.
+  - `enabled`: Set to `false` to disable keep-alives. Default: `true`
+  - [`idle_conn_timeout`](https://golang.org/pkg/net/http/#Transport): Default: `90s`
+  - [`max_idle_conns`](https://golang.org/pkg/net/http/#Transport): Default: `100`
+  - [`max_idle_conns_per_host`](https://golang.org/pkg/net/http/#Transport)
 - [`auth`](../configauth/README.md)
-- [`disable_keep_alives`](https://golang.org/pkg/net/http/#Transport)
+- **Deprecated** — `idle_conn_timeout`, `max_idle_conns`, `max_idle_conns_per_host`: use the `keepalive` section instead.
+- **Deprecated** — `disable_keep_alives`: use `keepalive:\n  enabled: false` instead.
 - [`force_attempt_http2`](https://golang.org/pkg/net/http/#Transport)
 - [`http2_read_idle_timeout`](https://pkg.go.dev/golang.org/x/net/http2#Transport)
 - [`http2_ping_timeout`](https://pkg.go.dev/golang.org/x/net/http2#Transport)
@@ -103,6 +106,9 @@ will not be enabled.
   [default safelist][cors-headers]. By default, safelist headers and
   `X-Requested-With` will be allowed. To allow any request header, set to
   `["*"]`.
+  - `exposed_headers`: Sets the value of the
+  [`Access-Control-Expose-Headers`][cors-expose] response header, indicating
+  which headers are safe to expose to the API of a CORS response.
   - `max_age`: Sets the value of the [`Access-Control-Max-Age`][cors-cache]
   header, allowing clients to cache the response to CORS preflight requests. If
   not set, browsers use a default of 5 seconds.
@@ -112,12 +118,14 @@ will not be enabled.
 - `include_metadata`: propagates the client metadata from the incoming requests to the downstream consumers. Default: `false`
 - `response_headers`: Additional headers attached to each HTTP response sent to the client. Header values are opaque since they may be sensitive
 - `compression_algorithms`: configures the list of compression algorithms the server can accept. Default: ["", "gzip", "zstd", "zlib", "snappy", "deflate", "lz4"]
-  - `x-snappy-framed` can be used if feature gate `confighttp.snappyFramed` is enabled.
 - `read_timeout`: maximum duration for reading the entire request, including the body. A zero or negative value means there will be no timeout. Default: `0` (no timeout)
 - `read_header_timeout`: amount of time allowed to read request headers. If zero, the value of `read_timeout` is used. If both are zero, there is no timeout. Default: `1m`
 - `write_timeout`: maximum duration before timing out writes of the response. A zero or negative value means there will be no timeout. Default: `30s`
-- `idle_timeout`: maximum amount of time to wait for the next request when keep-alives are enabled. If zero, the value of `read_timeout` is used. If both are zero, there is no timeout. Default: `1m`
-- `keep_alives_enabled`: controls whether HTTP keep-alives are enabled. Default: `true`
+- `keepalive`: Keepalive settings for the HTTP server.
+  - `enabled`: Set to `false` to disable keep-alives. Default: `true`
+  - `idle_timeout`: maximum amount of time to wait for the next request when keep-alives are enabled. If zero, the value of `read_timeout` is used. If both are zero, there is no timeout. Default: `1m`
+- **Deprecated** — `idle_timeout`: use `keepalive::idle_timeout` instead.
+- **Deprecated** — `keep_alives_enabled: false`: use `keepalive:\n  enabled: false` instead.
 - [`tls`](../configtls/README.md)
 - [`auth`](../configauth/README.md)
   - `request_params`: a list of query parameter names to add to the auth context, along with the HTTP headers
@@ -143,6 +151,8 @@ receivers:
             - https://*.test.com
           allowed_headers:
             - Example-Header
+          exposed_headers:
+            - Example-Expose-Header
           max_age: 7200
         endpoint: 0.0.0.0:55690
         compression_algorithms: ["", "gzip"]
@@ -157,5 +167,6 @@ processors:
 [cors]: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
 [cors-headers]: https://developer.mozilla.org/en-US/docs/Glossary/CORS-safelisted_request_header
 [cors-cache]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age
+[cors-expose]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Expose-Headers
 [origin]: https://developer.mozilla.org/en-US/docs/Glossary/Origin
 [attribute-processor]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/attributesprocessor/README.md

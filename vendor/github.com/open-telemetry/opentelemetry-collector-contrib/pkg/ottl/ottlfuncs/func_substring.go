@@ -7,14 +7,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
 type SubstringArguments[K any] struct {
-	Target ottl.StringGetter[K]
-	Start  ottl.IntGetter[K]
-	Length ottl.IntGetter[K]
+	Target   ottl.StringGetter[K]
+	Start    ottl.IntGetter[K]
+	Length   ottl.IntGetter[K]
+	Utf8Safe ottl.Optional[bool]
 }
 
 func NewSubstringFactory[K any]() ottl.Factory[K] {
@@ -28,10 +30,15 @@ func createSubstringFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 		return nil, errors.New("SubstringFactory args must be of type *SubstringArguments[K]")
 	}
 
-	return substring(args.Target, args.Start, args.Length), nil
+	return substring(args.Target, args.Start, args.Length, args.Utf8Safe), nil
 }
 
-func substring[K any](target ottl.StringGetter[K], startGetter, lengthGetter ottl.IntGetter[K]) ottl.ExprFunc[K] {
+func substring[K any](
+	target ottl.StringGetter[K],
+	startGetter, lengthGetter ottl.IntGetter[K],
+	utf8Safe ottl.Optional[bool],
+) ottl.ExprFunc[K] {
+	useUTF8Safe := utf8Safe.GetOr(false)
 	return func(ctx context.Context, tCtx K) (any, error) {
 		start, err := startGetter.Get(ctx, tCtx)
 		if err != nil {
@@ -52,8 +59,26 @@ func substring[K any](target ottl.StringGetter[K], startGetter, lengthGetter ott
 			return nil, err
 		}
 		if start > int64(len(val)) || length > int64(len(val))-start {
-			return nil, fmt.Errorf("invalid range for substring function, start(%d)+length(%d) cannot be greater than the length of target string(%d)", start, length, len(val))
+			return nil, fmt.Errorf(
+				"invalid range for substring function, start(%d)+length(%d) cannot be greater than the length of target string(%d)",
+				start,
+				length,
+				len(val),
+			)
 		}
-		return val[start : start+length], nil
+		byteStart := int(start)
+		byteEnd := int(start + length)
+		if useUTF8Safe {
+			for byteStart < len(val) && !utf8.RuneStart(val[byteStart]) {
+				byteStart++
+			}
+			for byteStart < byteEnd && byteEnd < len(val) && !utf8.RuneStart(val[byteEnd]) {
+				byteEnd--
+			}
+			if byteEnd < byteStart {
+				byteEnd = byteStart
+			}
+		}
+		return val[byteStart:byteEnd], nil
 	}
 }

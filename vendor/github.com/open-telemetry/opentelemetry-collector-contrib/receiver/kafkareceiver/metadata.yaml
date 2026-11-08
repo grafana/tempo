@@ -15,11 +15,10 @@ status:
     - core
     - contrib
   codeowners:
-    active: [pavolloffay, MovieStoreGuy, axw, paulojmdias]
+    active: [pavolloffay, MovieStoreGuy, paulojmdias]
+    emeritus: [axw]
 
-# TODO: Update the receiver to pass the tests
 tests:
-  skip_lifecycle: true
   goleak:
     ignore:
       top:

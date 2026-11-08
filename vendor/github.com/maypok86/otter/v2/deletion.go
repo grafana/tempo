@@ -18,9 +18,11 @@ package otter
 type DeletionCause int
 
 const (
-	// CauseInvalidation means that the entry was manually deleted by the user.
+	// CauseInvalidation means that the entry was deleted explicitly: by Invalidate, InvalidateAll or a Compute
+	// method, or by a refresh that found no value (ErrNotFound).
 	CauseInvalidation DeletionCause = iota + 1
-	// CauseReplacement means that the entry itself was not actually deleted, but its value was replaced by the user.
+	// CauseReplacement means that the entry itself was not actually deleted, but its value was replaced, by a
+	// write or by a refresh.
 	CauseReplacement
 	// CauseOverflow means that the entry was evicted due to size constraints.
 	CauseOverflow

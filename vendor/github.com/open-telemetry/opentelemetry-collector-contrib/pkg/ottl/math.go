@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func (p *Parser[K]) evaluateMathExpression(expr *mathExpression) (Getter[K], error) {
+func (p *parseContext[K]) evaluateMathExpression(expr *mathExpression) (Getter[K], error) {
 	mainGetter, err := p.evaluateAddSubTerm(expr.Left)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func (p *Parser[K]) evaluateMathExpression(expr *mathExpression) (Getter[K], err
 	return mainGetter, nil
 }
 
-func (p *Parser[K]) evaluateAddSubTerm(term *addSubTerm) (Getter[K], error) {
+func (p *parseContext[K]) evaluateAddSubTerm(term *addSubTerm) (Getter[K], error) {
 	mainGetter, err := p.evaluateMathValue(term.Left)
 	if err != nil {
 		return nil, err
@@ -42,7 +42,7 @@ func (p *Parser[K]) evaluateAddSubTerm(term *addSubTerm) (Getter[K], error) {
 	return mainGetter, nil
 }
 
-func (p *Parser[K]) evaluateMathValue(val *mathValue) (Getter[K], error) {
+func (p *parseContext[K]) evaluateMathValue(val *mathValue) (Getter[K], error) {
 	// we have to handle unary plus/minus here because the lexer cannot
 	// differentiate between binary and unary operators
 	switch {

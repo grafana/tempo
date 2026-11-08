@@ -61,6 +61,10 @@ type HelpOptions struct {
 
 	// ValueFormatter is used to format the help text of flags and positional arguments.
 	ValueFormatter HelpValueFormatter
+
+	// NoAppDescFormat skips all formatting of app description text (wrapping, paragraph
+	// reflow, newline merging, etc).
+	NoAppDescFormat bool
 }
 
 // Apply options to Kong as a configuration option.
@@ -162,10 +166,16 @@ func printCommand(w *helpWriter, app *Application, cmd *Command) {
 	}
 }
 
-func printNodeDetail(w *helpWriter, node *Node, hide bool) {
+func printNodeDetail(w *helpWriter, node *Node, hide bool) { //nolint:gocyclo
 	if node.Help != "" {
 		w.Print("")
-		w.Wrap(node.Help)
+		if w.NoAppDescFormat && node.Parent == nil {
+			for _, line := range strings.Split(node.Help, "\n") {
+				w.Print(line)
+			}
+		} else {
+			w.Wrap(node.Help)
+		}
 	}
 	if w.Summary {
 		return

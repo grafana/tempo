@@ -29,7 +29,7 @@ To test your Tempo deployment, you can use the Tempo CLI to push traces to your 
 The Tempo CLI is a command-line tool that allows you to interact with your Tempo instance and perform various operations, such as pushing traces, querying traces, and more.
 
 ### Install the Tempo CLI
-You can install the Tempo CLI by following the instructions in the [Tempo CLI documentation](https://grafana.com/docs/tempo/latest/operations/cli/).
+You can install the Tempo CLI by following the instructions in the [Tempo CLI documentation](https://grafana.com/docs/tempo/latest/operations/tempo_cli/).
 
 ### Push traces to Tempo
 

@@ -126,6 +126,9 @@ dashboard_utils {
           $.panel('Latency') +
           $.latencyPanel('tempo_querier_external_endpoint_request_duration_seconds', '{%s}' % $.jobMatcher($._config.jobs.querier))
         )
-      ),
+      )
+      // Autoscaling rows are grouped at the bottom so they don't interleave with the request-path rows.
+      .addRowIf($._config.autoscaling.query_frontend.enabled, $.autoscalingRow('Query Frontend', 'query_frontend'))
+      .addRowIf($._config.autoscaling.querier.enabled, $.autoscalingRow('Querier', 'querier')),
   },
 }

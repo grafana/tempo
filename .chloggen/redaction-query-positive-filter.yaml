@@ -1,0 +1,6 @@
+change_type: breaking
+component: backend-scheduler
+note: "A redaction query must now include at least one `=` comparison (or an `||` of `=` comparisons) ANDed with the rest of the query; `attr != nil` can no longer be used without one."
+issues: []
+subtext:
+user: zhxiaogg

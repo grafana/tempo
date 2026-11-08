@@ -266,18 +266,17 @@ func (k *Kong) interpolateValue(value *Value, vars Vars) (err error) {
 		"default": value.Default,
 		"enum":    value.Enum,
 	}
+	for i, env := range value.Tag.Envs {
+		if value.Tag.Envs[i], err = interpolate(env, vars, updatedVars); err != nil {
+			return fmt.Errorf("env value for %s: %s", value.Summary(), err)
+		}
+	}
+	updatedVars["env"] = ""
+	if len(value.Tag.Envs) != 0 {
+		updatedVars["env"] = value.Tag.Envs[0]
+	}
 	if value.Flag != nil {
-		for i, env := range value.Flag.Envs {
-			if value.Flag.Envs[i], err = interpolate(env, vars, updatedVars); err != nil {
-				return fmt.Errorf("env value for %s: %s", value.Summary(), err)
-			}
-		}
-		value.Tag.Envs = value.Flag.Envs
-		updatedVars["env"] = ""
-		if len(value.Flag.Envs) != 0 {
-			updatedVars["env"] = value.Flag.Envs[0]
-		}
-
+		value.Flag.Envs = value.Tag.Envs
 		value.Flag.PlaceHolder, err = interpolate(value.Flag.PlaceHolder, vars, updatedVars)
 		if err != nil {
 			return fmt.Errorf("placeholder value for %s: %s", value.Summary(), err)
@@ -397,7 +396,7 @@ func (k *Kong) getMethods(value reflect.Value, name string) []reflect.Value {
 	)
 }
 
-// Call hook on any unset flags with default values.
+// Call hook on any unset flags with default values or values supplied via env.
 func (k *Kong) applyHookToDefaultFlags(ctx *Context, node *Node, name string) error {
 	if node == nil {
 		return nil
@@ -409,7 +408,15 @@ func (k *Kong) applyHookToDefaultFlags(ctx *Context, node *Node, name string) er
 		}
 		binds := k.bindings.clone().add(ctx).add(node.Vars().CloneWith(k.vars))
 		for _, flag := range node.Flags {
-			if !flag.HasDefault || ctx.values[flag.Value].IsValid() || !flag.Target.IsValid() {
+			// Flags handled here are the ones that won't show up in ctx.Path:
+			// they got their value from the default tag or an env var, both of
+			// which Reset() applies straight to the target without touching the
+			// parse path. Anything actually parsed off argv or set by a resolver
+			// shows up in ctx.values and is covered by the main hook loop.
+			if ctx.values[flag.Value].IsValid() || !flag.Target.IsValid() {
+				continue
+			}
+			if !flag.HasDefault && !atLeastOneEnvSet(flag.Tag.Envs) {
 				continue
 			}
 			for _, method := range getMethods(flag.Target, name) {

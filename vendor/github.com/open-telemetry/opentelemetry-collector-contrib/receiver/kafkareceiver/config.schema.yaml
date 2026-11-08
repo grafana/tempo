@@ -33,6 +33,16 @@ $defs:
       kafka_receiver_records_delay:
         description: KafkaReceiverRecordsDelay controls whether the metric kafka_receiver_records_delay that measures the time in seconds between producing and receiving a batch of records will be reported or not. This metric is not reported by default because it may slow down high-volume consuming.
         $ref: metric_config
+  partition_processing:
+    description: PartitionProcessing controls optional ordered, independent processing of assigned Kafka partitions.
+    type: object
+    properties:
+      independent:
+        description: Independent enables ordered processing by independent partition workers.
+        type: boolean
+      max_buffered_batches:
+        description: MaxBufferedBatches bounds the number of fetched batches waiting for each partition worker.
+        type: integer
   telemetry_config:
     type: object
     properties:
@@ -73,6 +83,9 @@ properties:
   metrics:
     description: Metrics holds configuration about how metrics should be consumed.
     $ref: topic_encoding_config
+  partition_processing:
+    description: PartitionProcessing controls optional independent processing of assigned topic partitions.
+    $ref: partition_processing
   profiles:
     description: Profiles holds configuration about how profiles should be consumed.
     $ref: topic_encoding_config

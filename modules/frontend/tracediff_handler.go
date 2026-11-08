@@ -299,6 +299,8 @@ func traceDiffErrorResponse(err error) *http.Response {
 	switch {
 	case errors.Is(err, errTraceDiffTraceNotFound):
 		statusCode = http.StatusNotFound
+	case errors.Is(err, tracediff.ErrOutputTooLarge):
+		statusCode = http.StatusUnprocessableEntity
 	case errors.Is(err, errTraceDiffPartialTrace):
 		statusCode = http.StatusUnprocessableEntity
 	case status.Code(err) == codes.NotFound:

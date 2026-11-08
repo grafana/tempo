@@ -1206,6 +1206,17 @@ func (s Static) BooleanArray() ([]bool, bool) {
 	return unsafe.Slice((*bool)(unsafe.Pointer(&s.valBytes[0])), len(s.valBytes)), true
 }
 
+// Clone returns a copy of s that shares no array memory with s.
+func (s Static) Clone() Static {
+	switch s.Type {
+	case TypeIntArray, TypeFloatArray, TypeBooleanArray:
+		s.valBytes = bytes.Clone(s.valBytes)
+	case TypeStringArray:
+		s.valStrings = slices.Clone(s.valStrings)
+	}
+	return s
+}
+
 func (s Static) isNumeric() bool {
 	return s.Type.isNumeric()
 }

@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package otelconf // import "go.opentelemetry.io/contrib/otelconf/v0.2.0"
+package otelconf
 
 import (
 	"go.opentelemetry.io/otel/attribute"
@@ -21,7 +21,8 @@ func newResource(res *Resource) (*resource.Resource, error) {
 	}
 
 	return resource.Merge(resource.Default(),
-		resource.NewWithAttributes(*res.SchemaUrl,
+		resource.NewWithAttributes(
+			*res.SchemaUrl,
 			attrs...,
 		))
 }

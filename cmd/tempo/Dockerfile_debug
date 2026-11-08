@@ -1,8 +1,8 @@
-FROM golang:1.27.3-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS build-dlv
+FROM golang:1.27.3-alpine@sha256:fa3d596898d9f126af7c01d14ee7597bab3f39cccf392ef36b69fe77cd681f18 AS build-dlv
 
 RUN go install github.com/go-delve/delve/cmd/dlv@v1.26.3
 
-FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b as certs
+FROM alpine:3.24@sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a as certs
 RUN apk --update add ca-certificates bash
 ARG TARGETARCH
 COPY bin/linux/tempo-${TARGETARCH} /tempo

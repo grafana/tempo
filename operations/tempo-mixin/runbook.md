@@ -503,7 +503,7 @@ The `tempo_distributor_produce_failures_total` metric carries a `reason` label s
 - Metric/query: `sum by (cluster, namespace, reason) (rate(tempo_distributor_produce_failures_total[5m]))`
 - Metric/query: `sum by (cluster, namespace, reason) (rate(tempo_distributor_produce_failures_total[5m])) / ignoring(reason) group_left sum by (cluster, namespace) (rate(tempo_distributor_produce_records_total[5m]))`
 - Metric/query: `histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket[5m])))`
-- Metric/query: `tempo_distributor_buffered_produce_bytes / tempo_distributor_buffered_produce_bytes_limit`
+- Metric/query: `tempo_distributor_buffered_produce_bytes_distribution{quantile="1"} / tempo_distributor_buffered_produce_bytes_limit`
 - Log query: `{container="distributor"} |~ "failed to produce|kafka"`
 
 ## TempoMetricsGeneratorProcessorUpdatesFailing

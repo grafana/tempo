@@ -6,14 +6,13 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
 type ConcatArguments[K any] struct {
-	Vals      []ottl.StringLikeGetter[K]
+	Vals      ottl.SliceGetter[K, ottl.StringLikeGetter[K]]
 	Delimiter ottl.StringGetter[K]
 }
 
@@ -28,29 +27,40 @@ func createConcatFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 		return nil, errors.New("ConcatFactory args must be of type *ConcatArguments[K]")
 	}
 
-	return concat(args.Vals, args.Delimiter), nil
+	return concat(&args.Vals, args.Delimiter), nil
 }
 
-func concat[K any](vals []ottl.StringLikeGetter[K], delimiter ottl.StringGetter[K]) ottl.ExprFunc[K] {
+func concat[K any](vals *ottl.SliceGetter[K, ottl.StringLikeGetter[K]], delimiter ottl.StringGetter[K]) ottl.ExprFunc[K] {
 	return func(ctx context.Context, tCtx K) (any, error) {
 		builder := strings.Builder{}
 		delimiterVal, err := delimiter.Get(ctx, tCtx)
 		if err != nil {
 			return nil, err
 		}
-		for i, rv := range vals {
-			val, err := rv.Get(ctx, tCtx)
-			if err != nil {
-				return nil, err
+		first := true
+		var concatErr error
+		err = vals.Range(ctx, tCtx, func(rv ottl.StringLikeGetter[K]) bool {
+			val, ok, getErr := rv.Get(ctx, tCtx)
+			if getErr != nil {
+				concatErr = getErr
+				return false
 			}
-			if val == nil {
-				builder.WriteString(fmt.Sprint(val))
-			} else {
-				builder.WriteString(*val)
-			}
-			if i != len(vals)-1 {
+			if !first {
 				builder.WriteString(delimiterVal)
 			}
+			first = false
+			if !ok {
+				builder.WriteString("<nil>")
+			} else {
+				builder.WriteString(val)
+			}
+			return true
+		})
+		if err != nil {
+			return nil, err
+		}
+		if concatErr != nil {
+			return nil, concatErr
 		}
 		return builder.String(), nil
 	}

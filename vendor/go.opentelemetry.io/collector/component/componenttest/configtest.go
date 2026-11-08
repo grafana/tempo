@@ -12,8 +12,9 @@ import (
 	"go.uber.org/multierr"
 )
 
-// The regular expression for valid config field tag.
-var configFieldTagRegExp = regexp.MustCompile("^[a-z0-9][a-z0-9_]*$")
+// The regular expression for valid config field tags. Slashes are allowed for
+// declarative configuration keys such as "detection/development".
+var configFieldTagRegExp = regexp.MustCompile("^[a-z0-9][a-z0-9_]*(/[a-z0-9][a-z0-9_]*)*$")
 
 // CheckConfigStruct enforces that given configuration object is following the patterns
 // used by the collector. This ensures consistency between different implementations
@@ -22,7 +23,7 @@ var configFieldTagRegExp = regexp.MustCompile("^[a-z0-9][a-z0-9_]*$")
 // component factory.
 func CheckConfigStruct(config any) error {
 	t := reflect.TypeOf(config)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -40,7 +41,7 @@ func validateConfigDataType(t reflect.Type) error {
 	var errs error
 
 	switch t.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		errs = multierr.Append(errs, validateConfigDataType(t.Elem()))
 	case reflect.Struct:
 		// Reflect on the pointed data and check each of its fields.
@@ -100,9 +101,10 @@ func checkStructFieldTags(f reflect.StructField) error {
 	for _, tag := range tagParts[1:] {
 		switch tag {
 		case "squash":
-			if (f.Type.Kind() != reflect.Struct) && (f.Type.Kind() != reflect.Ptr || f.Type.Elem().Kind() != reflect.Struct) {
+			if (f.Type.Kind() != reflect.Struct) && (f.Type.Kind() != reflect.Pointer || f.Type.Elem().Kind() != reflect.Struct) {
 				return fmt.Errorf(
-					"attempt to squash non-struct type on field %q", f.Name)
+					"attempt to squash non-struct type on field %q", f.Name,
+				)
 			}
 		case "remain":
 			if f.Type.Kind() != reflect.Map && f.Type.Kind() != reflect.Interface {
@@ -127,7 +129,8 @@ func checkStructFieldTags(f reflect.StructField) error {
 				"field %q has config tag %q which doesn't satisfy %q",
 				f.Name,
 				fieldTag,
-				configFieldTagRegExp.String())
+				configFieldTagRegExp.String(),
+			)
 		}
 	}
 

@@ -1520,7 +1520,7 @@
      "stack": true,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\",method=\"Memcache.Put\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
@@ -1575,7 +1575,7 @@
      "span": 6,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\",method=\"Memcache.Put\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1584,7 +1584,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempo_memcache_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\",method=\"Memcache.Put\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1593,7 +1593,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempo_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval])) by ()",
+       "expr": "sum(rate(tempo_memcache_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\",method=\"Memcache.Put\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\",method=\"Memcache.Put\"}[$__rate_interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1628,7 +1628,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Memcached - Compactor",
+   "title": "Memcached - Backend worker",
    "titleSize": "h6"
   },
   {
@@ -1692,7 +1692,7 @@
      "stack": true,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\",operation=~\"(PUT|POST)\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z_]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{status}}",
@@ -1747,7 +1747,7 @@
      "span": 6,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.99, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1756,7 +1756,7 @@
        "step": 10
       },
       {
-       "expr": "histogram_quantile(0.50, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by (le,)) * 1e3",
+       "expr": "histogram_quantile(0.50, sum(rate(tempodb_backend_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by (le,)) * 1e3",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1765,7 +1765,7 @@
        "step": 10
       },
       {
-       "expr": "sum(rate(tempodb_backend_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by ()",
+       "expr": "sum(rate(tempodb_backend_request_duration_seconds_sum{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by () * 1e3 / sum(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/backend-worker\",operation=~\"(PUT|POST)\"}[$__rate_interval])) by ()",
        "format": "time_series",
        "interval": "1m",
        "intervalFactor": 2,
@@ -1800,7 +1800,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Backend - Compactor",
+   "title": "Backend - Backend worker",
    "titleSize": "h6"
   }
  ],

@@ -1,0 +1,82 @@
+# Notify #tempo-dev when a non-dependency-bot PR is merged to main.
+name: Notify Merged PRs
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  notify:
+    name: Notify tempo-dev
+    # Squash merges preserve the PR author as the commit author.
+    if: >-
+      github.repository == 'grafana/tempo' &&
+      github.event.head_commit.author.username != 'dependabot[bot]' &&
+      github.event.head_commit.author.username != 'renovate-sh-app[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Extract PR details from squash commit
+        id: pr
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          TITLE=${COMMIT_MESSAGE%%$'\n'*}
+          [[ "$TITLE" =~ \(#([0-9]+)\)$ ]]
+          {
+            echo "title=${TITLE}"
+            echo "url=${SERVER_URL}/${REPO}/pull/${BASH_REMATCH[1]}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send Slack notification
+        uses: grafana/shared-workflows/actions/send-slack-message@551bc8d50017d3e95d5da3f8a4826e733a208dc0 # send-slack-message/v3.0.2
+        with:
+          method: chat.postMessage
+          payload: |
+            {
+              "channel": ${{ toJSON(vars.TEMPO_DEV_SLACK_CHANNEL_ID) }},
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": ":pr-merged: PR merged",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "plain_text",
+                    "text": ${{ toJSON(steps.pr.outputs.title) }},
+                    "emoji": true
+                  },
+                  "accessory": {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View PR",
+                      "emoji": true
+                    },
+                    "url": ${{ toJSON(steps.pr.outputs.url) }},
+                    "action_id": "view_pr"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "plain_text",
+                      "text": ${{ toJSON(format('Author: {0}', github.event.head_commit.author.username)) }},
+                      "emoji": true
+                    }
+                  ]
+                }
+              ]
+            }

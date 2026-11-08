@@ -40,7 +40,7 @@ func (mc MetricsConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 	var condErr error
 	md.ResourceMetrics().RemoveIf(func(rm pmetric.ResourceMetrics) bool {
 		if mc.resourceExpr != nil {
-			rCtx := ottlresource.NewTransformContextPtr(rm.Resource(), rm)
+			rCtx := ottlresource.NewTransformContext(rm.Resource(), rm)
 			rCond, rErr := mc.resourceExpr.Eval(ctx, rCtx)
 			rCtx.Close()
 			if rErr != nil {
@@ -58,7 +58,7 @@ func (mc MetricsConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 
 		rm.ScopeMetrics().RemoveIf(func(sm pmetric.ScopeMetrics) bool {
 			if mc.scopeExpr != nil {
-				sCtx := ottlscope.NewTransformContextPtr(sm.Scope(), rm.Resource(), sm, rm)
+				sCtx := ottlscope.NewTransformContext(sm.Scope(), rm.Resource(), sm, rm)
 				sCond, sErr := mc.scopeExpr.Eval(ctx, sCtx)
 				sCtx.Close()
 				if sErr != nil {
@@ -76,7 +76,7 @@ func (mc MetricsConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 
 			sm.Metrics().RemoveIf(func(metric pmetric.Metric) bool {
 				if mc.metricExpr != nil {
-					tCtx := ottlmetric.NewTransformContextPtr(rm, sm, metric)
+					tCtx := ottlmetric.NewTransformContext(rm, sm, metric)
 					mCond, err := mc.metricExpr.Eval(ctx, tCtx)
 					tCtx.Close()
 					if err != nil {
@@ -146,7 +146,7 @@ func (mc MetricsConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 func (mc MetricsConsumer) handleNumberDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.NumberDataPointSlice) error {
 	var errors error
 	dps.RemoveIf(func(datapoint pmetric.NumberDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, datapoint)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, datapoint)
 		cond, err := mc.dataPointExpr.Eval(ctx, tCtx)
 		tCtx.Close()
 		if err != nil {
@@ -161,7 +161,7 @@ func (mc MetricsConsumer) handleNumberDataPoints(ctx context.Context, rm pmetric
 func (mc MetricsConsumer) handleHistogramDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.HistogramDataPointSlice) error {
 	var errors error
 	dps.RemoveIf(func(dp pmetric.HistogramDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, dp)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, dp)
 		cond, err := mc.dataPointExpr.Eval(ctx, tCtx)
 		tCtx.Close()
 		if err != nil {
@@ -176,7 +176,7 @@ func (mc MetricsConsumer) handleHistogramDataPoints(ctx context.Context, rm pmet
 func (mc MetricsConsumer) handleExponentialHistogramDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.ExponentialHistogramDataPointSlice) error {
 	var errors error
 	dps.RemoveIf(func(dp pmetric.ExponentialHistogramDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, dp)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, dp)
 		cond, err := mc.dataPointExpr.Eval(ctx, tCtx)
 		tCtx.Close()
 		if err != nil {
@@ -191,7 +191,7 @@ func (mc MetricsConsumer) handleExponentialHistogramDataPoints(ctx context.Conte
 func (mc MetricsConsumer) handleSummaryDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.SummaryDataPointSlice) error {
 	var errors error
 	dps.RemoveIf(func(dp pmetric.SummaryDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, dp)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, dp)
 		cond, err := mc.dataPointExpr.Eval(ctx, tCtx)
 		tCtx.Close()
 		if err != nil {

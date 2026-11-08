@@ -4,10 +4,17 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"math"
 	"testing"
 
+	"github.com/grafana/dskit/user"
 	"github.com/parquet-go/parquet-go"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // testPlainInt is deliberately not dict-encoded, so pruning falls to the column index
@@ -142,26 +149,24 @@ func TestKeepStatsCounters(t *testing.T) {
 		require.NoError(t, w.Write(&testDictString{"abc"}))
 	})
 
-	// SyncIteratorOptStats attaches a PredicateStats, so keepColumnChunk counts into it.
-	var keepStats PredicateStats
+	// keepColumnChunk counts into the iterator's stats.
 	keepIt := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
-		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})), SyncIteratorOptStats(&keepStats))
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})))
 	defer keepIt.Close()
 	ccKeep := &ColumnChunkHelper{ColumnChunk: r.RowGroups()[0].ColumnChunks()[0]}
 	defer ccKeep.Close()
 	require.True(t, keepIt.keepColumnChunk(ccKeep))
-	require.Equal(t, int64(1), keepStats.InspectedColumnChunks)
-	require.Equal(t, int64(1), keepStats.KeptColumnChunks)
+	require.Equal(t, int64(1), keepIt.Stats().InspectedColumnChunks)
+	require.Equal(t, int64(1), keepIt.Stats().KeptColumnChunks)
 
-	var skipStats PredicateStats
 	skipIt := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
-		SyncIteratorOptPredicate(NewStringInPredicate([]string{"zzz"})), SyncIteratorOptStats(&skipStats))
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"zzz"})))
 	defer skipIt.Close()
 	ccSkip := &ColumnChunkHelper{ColumnChunk: r.RowGroups()[0].ColumnChunks()[0]}
 	defer ccSkip.Close()
 	require.False(t, skipIt.keepColumnChunk(ccSkip))
-	require.Equal(t, int64(1), skipStats.InspectedColumnChunks)
-	require.Equal(t, int64(0), skipStats.KeptColumnChunks) // chunk skipped
+	require.Equal(t, int64(1), skipIt.Stats().InspectedColumnChunks)
+	require.Equal(t, int64(0), skipIt.Stats().KeptColumnChunks) // chunk skipped
 }
 
 // TestKeepPagePrunesByBounds covers page-level KeepRange pruning on a plain (non-dict)
@@ -181,16 +186,15 @@ func TestKeepPagePrunesByBounds(t *testing.T) {
 	require.NoError(t, err)
 
 	// Matches only the tail of an ascending column, so the leading pages are out of range.
-	var stats PredicateStats
 	it := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
-		SyncIteratorOptPredicate(NewIntBetweenPredicate(rows-5, rows)), SyncIteratorOptStats(&stats))
+		SyncIteratorOptPredicate(NewIntBetweenPredicate(rows-5, rows)))
 	defer it.Close()
 	drain(t, it)
 
-	require.Equal(t, int64(1), stats.KeptColumnChunks, "chunk holds matching values, must be kept")
-	require.Greater(t, stats.InspectedPages, int64(1), "need multiple pages to exercise pruning")
-	require.Less(t, stats.KeptPages, stats.InspectedPages, "out-of-range pages must be pruned")
-	require.Equal(t, int64(5), stats.KeptValues)
+	require.Equal(t, int64(1), it.Stats().KeptColumnChunks, "chunk holds matching values, must be kept")
+	require.Greater(t, it.Stats().InspectedPages, int64(1), "need multiple pages to exercise pruning")
+	require.Less(t, it.Stats().KeptPages, it.Stats().InspectedPages, "out-of-range pages must be pruned")
+	require.Equal(t, int64(5), it.Stats().KeptValues)
 }
 
 // TestStatsCountOnlyRowValues pins the invariant that replaced InstrumentedPredicate's
@@ -203,16 +207,15 @@ func TestStatsCountOnlyRowValues(t *testing.T) {
 		require.NoError(t, w.Write(&testDictString{"cde"}))
 	})
 
-	var stats PredicateStats
 	it := NewSyncIterator(context.TODO(), r.RowGroups(), 0,
-		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})), SyncIteratorOptStats(&stats))
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})))
 	defer it.Close()
 	drain(t, it)
 
 	// Exactly one inspection per row: the 3-entry dictionary scan and the null probe
 	// that keepColumnChunk performed are not counted.
-	require.Equal(t, int64(3), stats.InspectedValues)
-	require.Equal(t, int64(1), stats.KeptValues)
+	require.Equal(t, int64(3), it.Stats().InspectedValues)
+	require.Equal(t, int64(1), it.Stats().KeptValues)
 }
 
 func drain(t *testing.T, it Iterator) {
@@ -269,8 +272,23 @@ func (c *countingChunk) ColumnIndex() (parquet.ColumnIndex, error) {
 	return c.ColumnChunk.ColumnIndex()
 }
 
-// TestKeepColumnChunkReadsIndexOnlyWhenNeeded: a predicate whose chunk decision
-// the index cannot help must not pay for reading it.
+// Bounds and NullCount pass the footer stats through, as a file chunk has them.
+func (c *countingChunk) Bounds() (parquet.Value, parquet.Value, bool) {
+	if s, ok := c.ColumnChunk.(footerStats); ok {
+		return s.Bounds()
+	}
+	return parquet.Value{}, parquet.Value{}, false
+}
+
+func (c *countingChunk) NullCount() int64 {
+	if s, ok := c.ColumnChunk.(footerStats); ok {
+		return s.NullCount()
+	}
+	return 0
+}
+
+// TestKeepColumnChunkReadsIndexOnlyWhenNeeded: the footer stats decide the chunk, so
+// the index is only read for a chunk without them.
 func TestKeepColumnChunkReadsIndexOnlyWhenNeeded(t *testing.T) {
 	pf := createTestFile(t, 100) // plain int column A = 0..99
 
@@ -280,14 +298,14 @@ func TestKeepColumnChunkReadsIndexOnlyWhenNeeded(t *testing.T) {
 		keep       bool
 		indexReads int
 	}{
-		{"range predicate in range", NewIntBetweenPredicate(10, 20), true, 1},
-		{"range predicate out of range", NewIntBetweenPredicate(500, 600), false, 1},
-		{"nil predicate needs null counts", NewNilValuePredicate(), false, 1},
+		{"range predicate in range", NewIntBetweenPredicate(10, 20), true, 0},
+		{"range predicate out of range", NewIntBetweenPredicate(500, 600), false, 0},
+		{"nil predicate needs null counts", NewNilValuePredicate(), false, 0},
 		{"skip nils", NewSkipNilsPredicate(), true, 0},
 		{"callback keeps", NewCallbackPredicate(func() bool { return true }), true, 0},
 		{"callback prunes", NewCallbackPredicate(func() bool { return false }), false, 0},
 		{"or of rangeless branches", NewOrPredicate(NewSkipNilsPredicate(), NewCallbackPredicate(func() bool { return false })), true, 0},
-		{"or with a range branch", NewOrPredicate(NewCallbackPredicate(func() bool { return false }), NewIntBetweenPredicate(500, 600)), false, 1},
+		{"or with a range branch", NewOrPredicate(NewCallbackPredicate(func() bool { return false }), NewIntBetweenPredicate(500, 600)), false, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -299,7 +317,10 @@ func TestKeepColumnChunkReadsIndexOnlyWhenNeeded(t *testing.T) {
 	}
 }
 
-// noIndexChunk is a chunk written without a column index.
+// noStatsChunk is a chunk whose footer has no statistics.
+type noStatsChunk struct{ parquet.ColumnChunk }
+
+// noIndexChunk is a chunk written without a column index or footer statistics.
 type noIndexChunk struct{ parquet.ColumnChunk }
 
 func (noIndexChunk) ColumnIndex() (parquet.ColumnIndex, error) {
@@ -345,6 +366,12 @@ func TestKeepColumnChunkDecisions(t *testing.T) {
 	plainWithNulls := chunkOf(t, []testOptInt{{n(5)}, {nil}})
 	plainNoNulls := chunkOf(t, []testOptInt{{n(5)}, {n(6)}})
 	nullPageFirst := chunkOf(t, []testOptInt{{nil}, {n(5)}}, parquet.PageBufferSize(1))
+	allNulls := chunkOf(t, []testOptInt{{nil}, {nil}})
+	type testFloat struct {
+		F float64 `parquet:"f"`
+	}
+	nan := math.NaN()
+	nanPageFirst := chunkOf(t, []testFloat{{nan}, {nan}, {5}}, parquet.PageBufferSize(1))
 	// Keeps nulls without supporting column index pruning.
 	keepsNulls := NewIncludeNilStringEqualPredicate(nil)
 
@@ -358,17 +385,28 @@ func TestKeepColumnChunkDecisions(t *testing.T) {
 		{"no filter", dictWithNulls, nil, true, 0},
 		{"a dictionary entry matches", dictWithNulls, NewStringInPredicate([]string{"abc"}), true, 0},
 		{"no entry matches and the filter rejects nulls", dictWithNulls, NewStringInPredicate([]string{"x"}), false, 0},
-		{"no entry matches, the filter keeps nulls and the chunk has some", dictWithNulls, NewNilValuePredicate(), true, 1},
-		{"no entry matches, the filter keeps nulls but the chunk has none", dictNoNulls, NewNilValuePredicate(), false, 1},
-		{"the null check runs for a filter without index pruning", dictWithNulls, keepsNulls, true, 1},
-		{"and prunes when there are no nulls", dictNoNulls, keepsNulls, false, 1},
+		{"footer nulls the filter keeps", dictWithNulls, NewNilValuePredicate(), true, 0},
+		{"footer has no nulls the filter keeps", dictNoNulls, NewNilValuePredicate(), false, 0},
+		{"the null check runs for a filter without index pruning", dictWithNulls, keepsNulls, true, 0},
+		{"and prunes when there are no nulls", dictNoNulls, keepsNulls, false, 0},
+		{"footer bounds pass the range", plainNoNulls, NewIntBetweenPredicate(0, 10), true, 0},
+		{"footer bounds fail the range", plainNoNulls, NewIntBetweenPredicate(50, 60), false, 0},
+		{"footer bounds rule out a dict chunk", dictNoNulls, NewStringInPredicate([]string{"zzz"}), false, 0},
+		{"footer bounds skip null pages", nullPageFirst, NewIntBetweenPredicate(0, 3), false, 0},
+		// Without footer stats the index decides.
+		{"no entry matches, the filter keeps nulls and the chunk has some", noStatsChunk{dictWithNulls}, NewNilValuePredicate(), true, 1},
+		{"no entry matches, the filter keeps nulls but the chunk has none", noStatsChunk{dictNoNulls}, NewNilValuePredicate(), false, 1},
 		{"no column index assumes nulls", noIndexChunk{dictNoNulls}, NewNilValuePredicate(), true, 1},
-		{"a page with nulls the filter keeps", plainWithNulls, NewNilValuePredicate(), true, 1},
-		{"page bounds pass the range", plainNoNulls, NewIntBetweenPredicate(0, 10), true, 1},
-		{"page bounds fail the range", plainNoNulls, NewIntBetweenPredicate(50, 60), false, 1},
+		{"a page with nulls the filter keeps", noStatsChunk{plainWithNulls}, NewNilValuePredicate(), true, 1},
+		{"page bounds pass the range", noStatsChunk{plainNoNulls}, NewIntBetweenPredicate(0, 10), true, 1},
+		{"page bounds fail the range", noStatsChunk{plainNoNulls}, NewIntBetweenPredicate(50, 60), false, 1},
 		// Its empty bounds read as 0, which would wrongly pass [0,3].
-		{"a null page is skipped for the range test", nullPageFirst, NewIntBetweenPredicate(0, 3), false, 1},
+		{"a null page is skipped for the range test", noStatsChunk{nullPageFirst}, NewIntBetweenPredicate(0, 3), false, 1},
+		{"an all-null chunk keeps nulls from the footer", allNulls, NewNilValuePredicate(), true, 0},
+		{"an all-null chunk fails a range from the footer", allNulls, NewIntBetweenPredicate(0, 10), false, 0},
 		{"no column index keeps the chunk", noIndexChunk{plainNoNulls}, NewIntBetweenPredicate(50, 60), true, 1},
+		// An all-NaN first page leaves the footer bounds NaN, so the index decides.
+		{"NaN footer bounds fall back to the index", nanPageFirst, NewFloatGreaterPredicate(3), true, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -510,4 +548,63 @@ func b2i(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// TestStatsExportedAsMetrics checks that an iterator exports its decisions on Close,
+// exactly once, under the tenant from its context.
+func TestStatsExportedAsMetrics(t *testing.T) {
+	r := buildFile(t, func(w *parquet.Writer) { //nolint:all
+		require.NoError(t, w.Write(&testDictString{"abc"}))
+		require.NoError(t, w.Write(&testDictString{"bcd"}))
+		require.NoError(t, w.Write(&testDictString{"cde"}))
+	})
+
+	const tenant = "test-stats-exported"
+	count := func(level, decision string) float64 {
+		return testutil.ToFloat64(metricPredicateDecisions.WithLabelValues(tenant, level, decision))
+	}
+
+	it := NewSyncIterator(user.InjectOrgID(context.Background(), tenant), r.RowGroups(), 0,
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})))
+	drain(t, it)
+	require.Zero(t, count("value", "kept"), "exported on Close, not while iterating")
+
+	it.Close()
+	it.Close()
+
+	require.Equal(t, 1.0, count("column_chunk", "kept"))
+	require.Equal(t, 0.0, count("column_chunk", "pruned"))
+	require.Equal(t, 1.0, count("value", "kept"))
+	require.Equal(t, 2.0, count("value", "pruned"))
+}
+
+// TestStatsRecordedOnSpan checks that Close records the iterator's decisions on its span.
+func TestStatsRecordedOnSpan(t *testing.T) {
+	r := buildFile(t, func(w *parquet.Writer) { //nolint:all
+		require.NoError(t, w.Write(&testDictString{"abc"}))
+		require.NoError(t, w.Write(&testDictString{"bcd"}))
+		require.NoError(t, w.Write(&testDictString{"cde"}))
+	})
+
+	// tracer is a package global bound to the global provider, so record through it.
+	rec := tracetest.NewSpanRecorder()
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec)))
+	t.Cleanup(func() { otel.SetTracerProvider(prev) })
+
+	it := NewSyncIterator(context.Background(), r.RowGroups(), 0,
+		SyncIteratorOptPredicate(NewStringInPredicate([]string{"abc"})))
+	drain(t, it)
+	it.Close()
+
+	ended := rec.Ended()
+	require.Len(t, ended, 1)
+	attrs := map[attribute.Key]int64{}
+	for _, kv := range ended[0].Attributes() {
+		attrs[kv.Key] = kv.Value.AsInt64()
+	}
+	require.Equal(t, int64(1), attrs["inspectedColumnChunks"])
+	require.Equal(t, int64(1), attrs["keptColumnChunks"])
+	require.Equal(t, int64(3), attrs["inspectedValues"])
+	require.Equal(t, int64(1), attrs["keptValues"])
 }

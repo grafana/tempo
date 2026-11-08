@@ -5,7 +5,7 @@ import (
 	"regexp"
 )
 
-var interpolationRegex = regexp.MustCompile(`(\$\$)|((?:\${([[:alpha:]_][[:word:]]*))(?:=([^}]+))?})|(\$)|([^$]+)`)
+var interpolationRegex = regexp.MustCompile(`(\$\$)|((?:\${([[:alpha:]_][[:word:]]*))(?:(=)([^}]*))?})|(\$)|([^$]+)`)
 
 // HasInterpolatedVar returns true if the variable "v" is interpolated in "s".
 func HasInterpolatedVar(s string, v string) bool {
@@ -37,11 +37,11 @@ func interpolate(s string, vars Vars, updatedVars map[string]string) (string, er
 		} else if name := match[3]; name != "" {
 			value, ok := vars[name]
 			if !ok {
-				// No default value.
+				// Check for "=" rather than an empty default, as "${name=}" is an empty default.
 				if match[4] == "" {
 					return "", fmt.Errorf("undefined variable ${%s}", name)
 				}
-				value = match[4]
+				value = match[5]
 			}
 			out += value
 		} else {

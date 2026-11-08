@@ -38,17 +38,18 @@ type mapResizeHint int
 const (
 	mapGrowHint   mapResizeHint = 0
 	mapShrinkHint mapResizeHint = 1
-	mapClearHint  mapResizeHint = 2
 )
 
 const (
 	// number of Map nodes per bucket; 5 nodes lead to size of 64B
 	// (one cache line) on 64-bit machines.
-	nodesPerMapBucket        = 5
-	defaultMeta       uint64 = 0x8080808080808080
-	metaMask          uint64 = 0xffffffffff
-	defaultMetaMasked        = defaultMeta & metaMask
-	emptyMetaSlot     uint8  = 0x80
+	nodesPerMapBucket = 5
+	// an empty slot has a zero meta byte, and an occupied one has the high
+	// bit set (see h2), so that a zeroed bucket is empty and a new table
+	// needs no initialization.
+	metaMask           uint64 = 0xffffffffff
+	occupiedMeta       uint64 = 0x8080808080808080
+	occupiedMetaMasked        = occupiedMeta & metaMask
 
 	// threshold fraction of table occupation to start a table shrinking
 	// when deleting the last entry in a bucket chain.
@@ -89,15 +90,18 @@ const (
 // (immutable K/V pair structs instead of atomic snapshots)
 // and C++'s absl::flat_hash_map (meta memory and SWAR-based
 // lookups).
-type Map[K comparable, V any, N mapNode[K, V]] struct {
+type Map[K comparable, N mapNode] struct {
 	totalGrowths atomic.Int64
 	totalShrinks atomic.Int64
 	resizing     atomic.Bool                 // resize in progress flag
 	resizeMu     sync.Mutex                  // only used along with resizeCond
 	resizeCond   sync.Cond                   // used to wake up resize waiters (concurrent modifications)
 	table        atomic.Pointer[mapTable[K]] // *mapTable
-	nodeManager  mapNodeManager[K, V, N]
-	minTableLen  int
+	nodeManager  mapNodeManager[N]
+	// keyOffset is the node manager's key offset, cached so that a lookup compares keys without
+	// calling the node manager.
+	keyOffset   uintptr
+	minTableLen int
 }
 
 type counterStripe struct {
@@ -118,52 +122,60 @@ type mapTable[K comparable] struct {
 // bucketPadded is a CL-sized map bucket holding up to
 // nodesPerMapBucket nodes.
 type bucketPadded struct {
-	//lint:ignore U1000 ensure each bucket takes two cache lines on both 32 and 64-bit archs
+	//lint:ignore U1000 pads a bucket to 64 bytes on 32-bit archs; it is already 64 bytes on 64-bit ones
 	pad [64 - unsafe.Sizeof(bucket{})]byte
 	bucket
 }
 
+// bucket keeps mu ahead of next, so that next is the field at the tail.
+//
+// A []bucketPadded slice is not guaranteed to start on a cache line: for
+// tables of 16 to 511 buckets the Go allocator puts an 8-byte malloc header
+// in front of it, so each bucket straddles two cache lines, and its last
+// 8 bytes share a line with the first 56 bytes of the next bucket. mu is
+// written by every write to the bucket, while next only changes when an
+// overflow chain grows. With mu at the tail, every write would invalidate
+// the meta and nodes that lock-free readers of the neighboring bucket load.
 type bucket struct {
 	meta  atomic.Uint64
 	nodes [nodesPerMapBucket]unsafe.Pointer // node.Node
-	next  atomic.Pointer[bucketPadded]
 	mu    sync.Mutex
+	next  atomic.Pointer[bucketPadded]
 }
 
 // NewWithSize creates a new Map instance with capacity enough
 // to hold size nodes. If size is zero or negative, the value
 // is ignored.
-func NewWithSize[K comparable, V any, N mapNode[K, V]](nodeManager mapNodeManager[K, V, N], size int) *Map[K, V, N] {
-	return newMap[K, V, N](nodeManager, size)
+func NewWithSize[K comparable, N mapNode](nodeManager mapNodeManager[N], size int) *Map[K, N] {
+	return newMap[K, N](nodeManager, size)
 }
 
 // New creates a new Map instance.
-func New[K comparable, V any, N mapNode[K, V]](nodeManager mapNodeManager[K, V, N]) *Map[K, V, N] {
-	return newMap[K, V, N](nodeManager, defaultMinMapTableLen*nodesPerMapBucket)
+func New[K comparable, N mapNode](nodeManager mapNodeManager[N]) *Map[K, N] {
+	return newMap[K, N](nodeManager, defaultMinMapTableLen*nodesPerMapBucket)
 }
 
-func newMap[K comparable, V any, N mapNode[K, V]](nodeManager mapNodeManager[K, V, N], sizeHint int) *Map[K, V, N] {
-	m := &Map[K, V, N]{
+func newMap[K comparable, N mapNode](nodeManager mapNodeManager[N], sizeHint int) *Map[K, N] {
+	m := &Map[K, N]{
 		nodeManager: nodeManager,
+		keyOffset:   nodeManager.KeyOffset(),
 	}
 	m.resizeCond = *sync.NewCond(&m.resizeMu)
-	var table *mapTable[K]
-	if sizeHint <= defaultMinMapTableLen*nodesPerMapBucket {
-		table = newMapTable[K](defaultMinMapTableLen)
-	} else {
-		tableLen := xmath.RoundUpPowerOf2(uint32((float64(sizeHint) / nodesPerMapBucket) / mapLoadFactor))
-		table = newMapTable[K](int(tableLen))
-	}
+	table := newMapTable(tableLenFor(sizeHint), xruntime.NewHasher[K]())
 	m.minTableLen = len(table.buckets)
 	m.table.Store(table)
 	return m
 }
 
-func newMapTable[K comparable](minTableLen int) *mapTable[K] {
-	buckets := make([]bucketPadded, minTableLen)
-	for i := range buckets {
-		buckets[i].meta.Store(defaultMeta)
+func tableLenFor(sizeHint int) int {
+	if sizeHint <= defaultMinMapTableLen*nodesPerMapBucket {
+		return defaultMinMapTableLen
 	}
+	return int(xmath.RoundUpPowerOf264(uint64((float64(sizeHint) / nodesPerMapBucket) / mapLoadFactor)))
+}
+
+func newMapTable[K comparable](minTableLen int, hasher xruntime.Hasher[K]) *mapTable[K] {
+	buckets := make([]bucketPadded, minTableLen)
 	counterLen := minTableLen >> 10
 	if counterLen < minMapCounterLen {
 		counterLen = minMapCounterLen
@@ -174,7 +186,7 @@ func newMapTable[K comparable](minTableLen int) *mapTable[K] {
 	t := &mapTable[K]{
 		buckets: buckets,
 		size:    counter,
-		hasher:  xruntime.NewHasher[K](),
+		hasher:  hasher,
 	}
 	return t
 }
@@ -184,9 +196,13 @@ func zeroValue[V any]() V {
 	return zero
 }
 
+func (m *Map[K, N]) keyOf(nptr unsafe.Pointer) K {
+	return *(*K)(unsafe.Add(nptr, m.keyOffset))
+}
+
 // Get returns the node stored in the map for a key, or nil
 // if no value is present.
-func (m *Map[K, V, N]) Get(key K) N {
+func (m *Map[K, N]) Get(key K) N {
 	table := m.table.Load()
 	hash := table.hasher.Hash(key)
 	h1 := h1(hash)
@@ -200,11 +216,8 @@ func (m *Map[K, V, N]) Get(key K) N {
 		for markedw != 0 {
 			idx := firstMarkedByteIndex(markedw)
 			nptr := atomic.LoadPointer(&b.nodes[idx])
-			if nptr != nil {
-				n := m.nodeManager.FromPointer(nptr)
-				if n.Key() == key {
-					return n
-				}
+			if nptr != nil && m.keyOf(nptr) == key {
+				return m.nodeManager.FromPointer(nptr)
 			}
 			markedw &= markedw - 1
 		}
@@ -215,6 +228,28 @@ func (m *Map[K, V, N]) Get(key K) N {
 	}
 }
 
+// isNil reports whether n is a missing node: the zero value of N, a nil pointer or a nil
+// interface.
+func isNil[N comparable](n N) bool {
+	var zero N
+	return n == zero
+}
+
+// callUnlockingOnPanic calls computeFunc with mu held and releases mu if computeFunc panics
+// or exits the goroutine, so that a failing callback does not leave the bucket locked. The
+// bucket is left unchanged in that case. On a normal return mu stays locked.
+func callUnlockingOnPanic[N any](mu *sync.Mutex, computeFunc func(n N) N, n N) N {
+	returned := false
+	defer func() {
+		if !returned {
+			mu.Unlock()
+		}
+	}()
+	result := computeFunc(n)
+	returned = true
+	return result
+}
+
 // Compute either sets the computed new value for the key or deletes
 // the value for the key.
 //
@@ -222,7 +257,7 @@ func (m *Map[K, V, N]) Get(key K) N {
 // is executed. It means that modifications on other nodes in
 // the bucket will be blocked until the computeFn executes. Consider
 // this when the function includes long-running operations.
-func (m *Map[K, V, N]) Compute(key K, computeFunc func(n N) N) N {
+func (m *Map[K, N]) Compute(key K, computeFunc func(n N) N) N {
 	for {
 	compute_attempt:
 		var (
@@ -253,44 +288,48 @@ func (m *Map[K, V, N]) Compute(key K, computeFunc func(n N) N) N {
 			goto compute_attempt
 		}
 		b := rootb
+		var prevb *bucketPadded
 		for {
 			metaw := b.meta.Load()
 			markedw := markZeroBytes(metaw^h2w) & metaMask
 			for markedw != 0 {
 				idx := firstMarkedByteIndex(markedw)
 				nptr := b.nodes[idx]
-				if nptr != nil {
+				if nptr != nil && m.keyOf(nptr) == key {
 					oldNode := m.nodeManager.FromPointer(nptr)
-					if oldNode.Key() == key {
-						// In-place update/delete.
-						newNode := computeFunc(oldNode)
-						// oldNode != nil
-						if m.nodeManager.IsNil(newNode) {
-							// Deletion.
-							// First we update the hash, then the node.
-							newmetaw := setByte(metaw, emptyMetaSlot, idx)
-							b.meta.Store(newmetaw)
-							atomic.StorePointer(&b.nodes[idx], nil)
-							rootb.mu.Unlock()
-							table.addSize(bidx, -1)
-							// Might need to shrink the table if we left bucket empty.
-							if newmetaw == defaultMeta {
-								m.resize(table, mapShrinkHint)
-							}
-							return newNode
-						}
-						if oldNode.AsPointer() != newNode.AsPointer() {
-							atomic.StorePointer(&b.nodes[idx], newNode.AsPointer())
+					// In-place update/delete.
+					newNode := callUnlockingOnPanic(&rootb.mu, computeFunc, oldNode)
+					// oldNode != nil
+					if isNil(newNode) {
+						// Deletion.
+						// First we update the hash, then the node.
+						newmetaw := setByte(metaw, 0, idx)
+						b.meta.Store(newmetaw)
+						atomic.StorePointer(&b.nodes[idx], nil)
+						if newmetaw == 0 && prevb != nil {
+							// Unlink the empty overflow bucket. Readers that are in it
+							// go on to its next bucket, which stays the same.
+							prevb.next.Store(b.next.Load())
 						}
 						rootb.mu.Unlock()
+						table.addSize(bidx, -1)
+						// Might need to shrink the table if we left bucket empty.
+						if newmetaw == 0 {
+							m.resize(table, mapShrinkHint)
+						}
 						return newNode
 					}
+					if oldNode.AsPointer() != newNode.AsPointer() {
+						atomic.StorePointer(&b.nodes[idx], newNode.AsPointer())
+					}
+					rootb.mu.Unlock()
+					return newNode
 				}
 				markedw &= markedw - 1
 			}
 			if emptyb == nil {
 				// Search for empty nodes (up to 5 per bucket).
-				emptyw := metaw & defaultMetaMasked
+				emptyw := ^metaw & occupiedMetaMasked
 				if emptyw != 0 {
 					idx := firstMarkedByteIndex(emptyw)
 					emptyb = b
@@ -302,8 +341,8 @@ func (m *Map[K, V, N]) Compute(key K, computeFunc func(n N) N) N {
 					// Insertion into an existing bucket.
 					var zeroNode N
 					// oldNode == nil.
-					newNode := computeFunc(zeroNode)
-					if m.nodeManager.IsNil(newNode) {
+					newNode := callUnlockingOnPanic(&rootb.mu, computeFunc, zeroNode)
+					if isNil(newNode) {
 						// no op.
 						rootb.mu.Unlock()
 						return newNode
@@ -325,34 +364,35 @@ func (m *Map[K, V, N]) Compute(key K, computeFunc func(n N) N) N {
 				// Insertion into a new bucket.
 				var zeroNode N
 				// oldNode == nil
-				newNode := computeFunc(zeroNode)
-				if m.nodeManager.IsNil(newNode) {
+				newNode := callUnlockingOnPanic(&rootb.mu, computeFunc, zeroNode)
+				if isNil(newNode) {
 					rootb.mu.Unlock()
 					return newNode
 				}
 				// Create and append a bucket.
 				newb := new(bucketPadded)
-				newb.meta.Store(setByte(defaultMeta, h2, 0))
+				newb.meta.Store(setByte(0, h2, 0))
 				newb.nodes[0] = newNode.AsPointer()
 				b.next.Store(newb)
 				rootb.mu.Unlock()
 				table.addSize(bidx, 1)
 				return newNode
 			}
+			prevb = b
 			b = b.next.Load()
 		}
 	}
 }
 
-func (m *Map[K, V, N]) newerTableExists(table *mapTable[K]) bool {
+func (m *Map[K, N]) newerTableExists(table *mapTable[K]) bool {
 	return table != m.table.Load()
 }
 
-func (m *Map[K, V, N]) resizeInProgress() bool {
+func (m *Map[K, N]) resizeInProgress() bool {
 	return m.resizing.Load()
 }
 
-func (m *Map[K, V, N]) waitForResize() {
+func (m *Map[K, N]) waitForResize() {
 	m.resizeMu.Lock()
 	for m.resizeInProgress() {
 		m.resizeCond.Wait()
@@ -360,7 +400,7 @@ func (m *Map[K, V, N]) waitForResize() {
 	m.resizeMu.Unlock()
 }
 
-func (m *Map[K, V, N]) resize(knownTable *mapTable[K], hint mapResizeHint) {
+func (m *Map[K, N]) resize(knownTable *mapTable[K], hint mapResizeHint) {
 	knownTableLen := len(knownTable.buckets)
 	// Fast path for shrink attempts.
 	if hint == mapShrinkHint {
@@ -380,106 +420,98 @@ func (m *Map[K, V, N]) resize(knownTable *mapTable[K], hint mapResizeHint) {
 	tableLen := len(table.buckets)
 	switch hint {
 	case mapGrowHint:
-		// Grow the table with factor of 2.
+		if table != knownTable {
+			// The caller saw knownTable full, but another writer has grown it
+			// since. Growing again would double a table that has room.
+			m.finishResize()
+			return
+		}
+		// Grow the table with factor of 2. The new table keeps the hasher,
+		// so that the copy can write to its buckets without locking them
+		// (see copyBuckets).
 		m.totalGrowths.Add(1)
-		newTable = newMapTable[K](tableLen << 1)
+		newTable = newMapTable(tableLen<<1, table.hasher)
 	case mapShrinkHint:
 		shrinkThreshold := int64((tableLen * nodesPerMapBucket) / mapShrinkFraction)
 		if tableLen > m.minTableLen && table.sumSize() <= shrinkThreshold {
-			// Shrink the table with factor of 2.
+			// Shrink the table with factor of 2, keeping the hasher as when growing.
 			m.totalShrinks.Add(1)
-			newTable = newMapTable[K](tableLen >> 1)
+			newTable = newMapTable(tableLen>>1, table.hasher)
 		} else {
 			// No need to shrink. Wake up all waiters and give up.
-			m.resizeMu.Lock()
-			m.resizing.Store(false)
-			m.resizeCond.Broadcast()
-			m.resizeMu.Unlock()
+			m.finishResize()
 			return
 		}
-	case mapClearHint:
-		newTable = newMapTable[K](m.minTableLen)
 	default:
 		panic(fmt.Sprintf("unexpected resize hint: %d", hint))
 	}
-	// Copy the data only if we're not clearing the map.
-	if hint != mapClearHint {
-		// Enable parallel resizing when serialResize is false and table is large enough.
-		// Calculate optimal goroutine count based on table size and available CPUs
-		chunks := 1
-		if tableLen >= minBucketsPerGoroutine*2 {
-			chunks = min(tableLen/minBucketsPerGoroutine, runtime.GOMAXPROCS(0))
-			chunks = max(chunks, 1)
-		}
-		if chunks > 1 {
-			var copyWg sync.WaitGroup
-			chunkSize := (tableLen + chunks - 1) / chunks
-			for c := 0; c < chunks; c++ {
-				copyWg.Add(1)
-				go func(start, end int) {
-					for i := start; i < end; i++ {
-						copied := m.copyBucketWithDestLock(&table.buckets[i], newTable)
-						if copied > 0 {
-							//nolint:gosec // there is no overflow
-							newTable.addSize(uint64(i), copied)
-						}
-					}
-					copyWg.Done()
-				}(c*chunkSize, min((c+1)*chunkSize, tableLen))
-			}
-			copyWg.Wait()
-		} else {
-			for i := 0; i < tableLen; i++ {
-				copied := m.copyBucket(&table.buckets[i], newTable)
-				//nolint:gosec // there is no overflow
-				newTable.addSizePlain(uint64(i), copied)
-			}
-		}
-	}
+	m.copyBuckets(table, newTable)
 	// Publish the new table and wake up all waiters.
 	m.table.Store(newTable)
+	m.finishResize()
+}
+
+// finishResize clears the resize flag and wakes up the writers waiting for it.
+func (m *Map[K, N]) finishResize() {
 	m.resizeMu.Lock()
 	m.resizing.Store(false)
 	m.resizeCond.Broadcast()
 	m.resizeMu.Unlock()
 }
 
-func (m *Map[K, V, N]) copyBucketWithDestLock(b *bucketPadded, destTable *mapTable[K]) (copied int) {
-	rootb := b
-	rootb.mu.Lock()
-	for {
-		for i := 0; i < nodesPerMapBucket; i++ {
-			if b.nodes[i] == nil {
-				continue
+// copyBuckets copies the nodes of table into newTable, in parallel if the
+// table is large enough.
+//
+// The two tables share the hasher and their lengths differ by a factor of 2,
+// so a node can only move between buckets with equal indexes modulo
+// baseLen = min(len(table), len(newTable)): when growing, source bucket i
+// goes to destination buckets i and i+baseLen, and when shrinking, source
+// buckets i and i+baseLen go to destination bucket i. The work is split by
+// i, so every destination bucket is written by one goroutine only and needs
+// no lock. Nobody else can see newTable until it is published.
+func (m *Map[K, N]) copyBuckets(table, newTable *mapTable[K]) {
+	tableLen := len(table.buckets)
+	baseLen := min(tableLen, len(newTable.buckets))
+	copyRange := func(start, end int) {
+		copied := 0
+		for i := start; i < end; i++ {
+			for src := i; src < tableLen; src += baseLen {
+				copied += m.copyBucket(&table.buckets[src], newTable)
 			}
-			n := m.nodeManager.FromPointer(b.nodes[i])
-			hash := destTable.hasher.Hash(n.Key())
-			//nolint:gosec // there is no overflow
-			bidx := uint64(len(destTable.buckets)-1) & h1(hash)
-			destb := &destTable.buckets[bidx]
-			destb.mu.Lock()
-			appendToBucket(h2(hash), b.nodes[i], destb)
-			destb.mu.Unlock()
-			copied++
 		}
-		if next := b.next.Load(); next == nil {
-			rootb.mu.Unlock()
-			return copied
-		} else {
-			b = next
-		}
+		//nolint:gosec // there is no overflow
+		newTable.addSize(uint64(start), copied)
 	}
+
+	chunks := 1
+	if tableLen >= minBucketsPerGoroutine*2 {
+		chunks = min(tableLen/minBucketsPerGoroutine, runtime.GOMAXPROCS(0))
+		chunks = max(chunks, 1)
+	}
+	if chunks == 1 {
+		copyRange(0, baseLen)
+		return
+	}
+	var copyWg sync.WaitGroup
+	chunkSize := (baseLen + chunks - 1) / chunks
+	for start := 0; start < baseLen; start += chunkSize {
+		copyWg.Add(1)
+		go func(start, end int) {
+			defer copyWg.Done()
+			copyRange(start, end)
+		}(start, min(start+chunkSize, baseLen))
+	}
+	copyWg.Wait()
 }
 
-func (m *Map[K, V, N]) copyBucket(b *bucketPadded, destTable *mapTable[K]) (copied int) {
+func (m *Map[K, N]) copyBucket(b *bucketPadded, destTable *mapTable[K]) (copied int) {
 	rootb := b
 	rootb.mu.Lock()
 	//nolint:gocritic // nesting is normal here
 	for {
 		for i := 0; i < nodesPerMapBucket; i++ {
 			if b.nodes[i] != nil {
-				n := m.nodeManager.FromPointer(b.nodes[i])
-				hash := destTable.hasher.Hash(n.Key())
+				hash := destTable.hasher.Hash(m.keyOf(b.nodes[i]))
 				//nolint:gosec // there is no overflow
 				bidx := uint64(len(destTable.buckets)-1) & h1(hash)
 				destb := &destTable.buckets[bidx]
@@ -509,7 +541,7 @@ func (m *Map[K, V, N]) copyBucket(b *bucketPadded, destTable *mapTable[K]) (copi
 // creation, modification and deletion. However, the concurrent
 // modification rule apply, i.e. the changes may be not reflected
 // in the subsequently iterated nodes.
-func (m *Map[K, V, N]) Range(fn func(n N) bool) {
+func (m *Map[K, N]) Range(fn func(n N) bool) {
 	var zeroPtr unsafe.Pointer
 	// Pre-allocate array big enough to fit nodes for most hash tables.
 	bnodes := make([]unsafe.Pointer, 0, 16*nodesPerMapBucket)
@@ -547,14 +579,8 @@ func (m *Map[K, V, N]) Range(fn func(n N) bool) {
 	}
 }
 
-// Clear deletes all keys and values currently stored in the map.
-func (m *Map[K, V, N]) Clear() {
-	table := m.table.Load()
-	m.resize(table, mapClearHint)
-}
-
 // Size returns current size of the map.
-func (m *Map[K, V, N]) Size() int {
+func (m *Map[K, N]) Size() int {
 	table := m.table.Load()
 	return int(table.sumSize())
 }
@@ -570,7 +596,7 @@ func appendToBucket(h2 uint8, nodePtr unsafe.Pointer, b *bucketPadded) {
 		}
 		if next := b.next.Load(); next == nil {
 			newb := new(bucketPadded)
-			newb.meta.Store(setByte(defaultMeta, h2, 0))
+			newb.meta.Store(setByte(0, h2, 0))
 			newb.nodes[0] = nodePtr
 			b.next.Store(newb)
 			return
@@ -584,12 +610,6 @@ func (table *mapTable[K]) addSize(bucketIdx uint64, delta int) {
 	//nolint:gosec // there is no overflow
 	cidx := uint64(len(table.size)-1) & bucketIdx
 	atomic.AddInt64(&table.size[cidx].c, int64(delta))
-}
-
-func (table *mapTable[K]) addSizePlain(bucketIdx uint64, delta int) {
-	//nolint:gosec // there is no overflow
-	cidx := uint64(len(table.size)-1) & bucketIdx
-	table.size[cidx].c += int64(delta)
 }
 
 func (table *mapTable[K]) sumSize() int64 {
@@ -606,7 +626,7 @@ func h1(h uint64) uint64 {
 
 func h2(h uint64) uint8 {
 	//nolint:gosec // there is no overflow
-	return uint8(h & 0x7f)
+	return 0x80 | uint8(h&0x7f)
 }
 
 func broadcast(b uint8) uint64 {

@@ -13,6 +13,113 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestComputeDiffPathBudget(t *testing.T) {
+	spanAtDepth := func(name string, depth int) normalizedSpan {
+		var path *normalizedPath
+		for d := 1; d <= depth; d++ {
+			path = &normalizedPath{parent: path, depth: d}
+		}
+		return normalizedSpan{spanID: name, ref: SpanRef{Name: name}, path: path}
+	}
+
+	tests := []struct {
+		name          string
+		modifiedDepth int
+		addedDepth    int
+		removedDepth  int
+		wantError     bool
+	}{
+		{name: "modified at budget", modifiedDepth: 32_768},
+		{name: "modified over budget", modifiedDepth: 32_769, wantError: true},
+		// An addition emits depth + depth - 1 indexes, so include a modified
+		// root to reach the even-sized budget exactly.
+		{name: "added at budget", modifiedDepth: 1, addedDepth: 16_384},
+		{name: "added over budget", addedDepth: 16_385, wantError: true},
+		{name: "removed at budget", removedDepth: 16_384},
+		{name: "removed over budget", removedDepth: 16_385, wantError: true},
+		{name: "mixed at budget", modifiedDepth: 1, addedDepth: 8_192, removedDepth: 8_192},
+		{name: "mixed over budget", modifiedDepth: 2, addedDepth: 8_192, removedDepth: 8_192, wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var base, compare normalizedTrace
+			if tt.modifiedDepth > 0 {
+				span := spanAtDepth("modified", tt.modifiedDepth)
+				base.spans = append(base.spans, span)
+				span.snapshot.Status = "error"
+				compare.spans = append(compare.spans, span)
+			}
+			if tt.addedDepth > 0 {
+				compare.spans = append(compare.spans, spanAtDepth("added", tt.addedDepth))
+			}
+			if tt.removedDepth > 0 {
+				base.spans = append(base.spans, spanAtDepth("removed", tt.removedDepth))
+			}
+
+			matched, modified, added, removed, err := computeDiff(base, compare)
+			if tt.wantError {
+				require.ErrorIs(t, err, ErrOutputTooLarge)
+				require.Zero(t, matched)
+				require.Nil(t, modified)
+				require.Nil(t, added)
+				require.Nil(t, removed)
+				return
+			}
+			require.NoError(t, err)
+			wantModified, wantAdded, wantRemoved := 0, 0, 0
+			if tt.modifiedDepth > 0 {
+				wantModified = 1
+			}
+			if tt.addedDepth > 0 {
+				wantAdded = 1
+			}
+			if tt.removedDepth > 0 {
+				wantRemoved = 1
+			}
+			require.Equal(t, wantModified, matched)
+			require.Len(t, modified, wantModified)
+			require.Len(t, added, wantAdded)
+			require.Len(t, removed, wantRemoved)
+		})
+	}
+}
+
+func TestTraceDiffFormatsPathBudget(t *testing.T) {
+	base := benchmarkTrace(256, true)
+	compare := benchmarkTrace(256, true)
+	for _, span := range compare.ResourceSpans[0].ScopeSpans[0].Spans {
+		span.Status.Code = tracev1.Status_STATUS_CODE_ERROR
+	}
+
+	formats := []struct {
+		name string
+		run  func(*tempopb.Trace, *tempopb.Trace) (any, error)
+	}{
+		{name: "patch", run: func(base, compare *tempopb.Trace) (any, error) {
+			return Diff(base, compare, FormatTracePatchV0)
+		}},
+		{name: "summary", run: func(base, compare *tempopb.Trace) (any, error) {
+			return Summarize(base, compare)
+		}},
+		{name: "composed", run: func(base, compare *tempopb.Trace) (any, error) {
+			return Compose(base, compare, DefaultPatchBudgetBytes, nil)
+		}},
+	}
+	for _, format := range formats {
+		t.Run(format.name, func(t *testing.T) {
+			got, err := format.run(base, compare)
+			require.ErrorIs(t, err, ErrOutputTooLarge)
+			require.Nil(t, got)
+
+			// Identical deep traces emit no paths and must not consume the budget.
+			got, err = format.run(base, base)
+			require.NoError(t, err)
+			require.NotNil(t, got)
+		})
+	}
+}
+
 func TestDiffRejectsNilInputs(t *testing.T) {
 	tests := []struct {
 		name    string

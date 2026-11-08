@@ -65,11 +65,11 @@ func applyReplaceFormat[K any](ctx context.Context, tCtx K, replacementFormat ot
 }
 
 func applyOptReplaceFunction[K any](ctx context.Context, tCtx K, compiledPattern *regexp.Regexp, fn ottl.Optional[ottl.FunctionGetter[K]], originalValStr, replacementVal string, replacementFormat ottl.Optional[ottl.StringGetter[K]]) (string, error) {
-	var updatedString string
-	updatedString = originalValStr
-	submatches := compiledPattern.FindAllStringSubmatchIndex(updatedString, -1)
+	submatches := compiledPattern.FindAllStringSubmatchIndex(originalValStr, -1)
+	var sb strings.Builder
+	sb.Grow(len(originalValStr))
+	lastEnd := 0
 	for _, submatch := range submatches {
-		fullMatch := originalValStr[submatch[0]:submatch[1]]
 		result := compiledPattern.ExpandString([]byte{}, replacementVal, originalValStr, submatch)
 		fnVal := fn.Get()
 		replaceValGetter := ottl.StandardStringGetter[K]{
@@ -93,9 +93,13 @@ func applyOptReplaceFunction[K any](ctx context.Context, tCtx K, compiledPattern
 		if errNew != nil {
 			return "", errNew
 		}
-		updatedString = strings.ReplaceAll(updatedString, fullMatch, replacementValStr)
+		// Replace at the match position so identical text elsewhere is untouched.
+		sb.WriteString(originalValStr[lastEnd:submatch[0]])
+		sb.WriteString(replacementValStr)
+		lastEnd = submatch[1]
 	}
-	return updatedString, nil
+	sb.WriteString(originalValStr[lastEnd:])
+	return sb.String(), nil
 }
 
 func replacePattern[K any](target ottl.GetSetter[K], regexPattern, replacement ottl.StringGetter[K], fn ottl.Optional[ottl.FunctionGetter[K]], replacementFormat ottl.Optional[ottl.StringGetter[K]]) (ottl.ExprFunc[K], error) {

@@ -271,14 +271,14 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		case "zipkin":
 			zipkinRecvCfg := cfg.(*zipkinreceiver.Config)
 
-			zipkinRecvCfg.IncludeMetadata = true
+			zipkinRecvCfg.ServerConfig.IncludeMetadata = true
 			cfg = zipkinRecvCfg
 
 		case "jaeger":
 			jaegerRecvCfg := cfg.(*jaegerreceiver.Config)
 
-			if jaegerRecvCfg.ThriftHTTP.HasValue() {
-				jaegerRecvCfg.ThriftHTTP.Get().IncludeMetadata = true
+			if jaegerRecvCfg.Protocols.ThriftHTTP.HasValue() {
+				jaegerRecvCfg.Protocols.ThriftHTTP.Get().IncludeMetadata = true
 			}
 
 			cfg = jaegerRecvCfg

@@ -11,6 +11,7 @@ import (
 func StandardFuncs[K any]() map[string]ottl.Factory[K] {
 	f := []ottl.Factory[K]{
 		// Editors
+		NewClearFactory[K](),
 		NewDeleteKeyFactory[K](),
 		NewDeleteMatchingKeysFactory[K](),
 		NewKeepMatchingKeysFactory[K](),
@@ -23,6 +24,7 @@ func StandardFuncs[K any]() map[string]ottl.Factory[K] {
 		NewReplaceMatchFactory[K](),
 		NewReplacePatternFactory[K](),
 		NewSetFactory[K](),
+		NewStringifyAllFactory[K](),
 		NewTruncateAllFactory[K](),
 	}
 	f = append(f, converters[K]()...)
@@ -38,7 +40,8 @@ func StandardConverters[K any]() map[string]ottl.Factory[K] {
 func converters[K any]() []ottl.Factory[K] {
 	return []ottl.Factory[K]{
 		// Converters
-		NewBase64DecodeFactory[K](),
+		NewAllFactory[K](),
+		NewAnyFactory[K](),
 		NewBase64EncodeFactory[K](),
 		NewBoolFactory[K](),
 		NewDecodeFactory[K](),
@@ -54,6 +57,8 @@ func converters[K any]() []ottl.Factory[K] {
 		NewDurationFactory[K](),
 		NewExtractPatternsFactory[K](),
 		NewExtractGrokPatternsFactory[K](),
+		NewFilterFactory[K](),
+		NewFindFactory[K](),
 		NewFnvFactory[K](),
 		NewGetXMLFactory[K](),
 		NewHasPrefixFactory[K](),
@@ -65,6 +70,7 @@ func converters[K any]() []ottl.Factory[K] {
 		NewIntFactory[K](),
 		NewIsBoolFactory[K](),
 		NewIsDoubleFactory[K](),
+		NewIsEmptyFactory[K](),
 		NewIsListFactory[K](),
 		NewIsIntFactory[K](),
 		NewIsMapFactory[K](),
@@ -73,6 +79,8 @@ func converters[K any]() []ottl.Factory[K] {
 		NewLenFactory[K](),
 		NewLogFactory[K](),
 		NewIsValidLuhnFactory[K](),
+		NewMapEachFactory[K](),
+		NewMapKeysFactory[K](),
 		NewMD5Factory[K](),
 		NewMicrosecondsFactory[K](),
 		NewMillisecondsFactory[K](),
@@ -89,6 +97,7 @@ func converters[K any]() []ottl.Factory[K] {
 		NewParseKeyValueFactory[K](),
 		NewParseSimplifiedXMLFactory[K](),
 		NewParseXMLFactory[K](),
+		NewReduceFactory[K](),
 		NewRemoveXMLFactory[K](),
 		NewSecondFactory[K](),
 		NewSecondsFactory[K](),
@@ -123,6 +132,7 @@ func converters[K any]() []ottl.Factory[K] {
 		NewURLFactory[K](),
 		NewValuesFactory[K](),
 		NewWeekdayFactory[K](),
+		NewWhenFactory[K](),
 		NewUserAgentFactory[K](),
 		NewAppendFactory[K](),
 		NewDeleteIndexFactory[K](),

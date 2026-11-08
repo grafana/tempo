@@ -970,11 +970,15 @@ type testData struct {
 }
 
 func cutTestBlockWithTraces(t testing.TB, w Writer, data []testData) common.BackendBlock {
+	return cutTestBlockWithDedicatedColumns(t, w, nil, data)
+}
+
+func cutTestBlockWithDedicatedColumns(t testing.TB, w Writer, dc backend.DedicatedColumns, data []testData) common.BackendBlock {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: dc}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 

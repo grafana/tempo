@@ -1235,7 +1235,7 @@ Options:
 
 - `--tenant <value>` **(required)** Tenant ID.
 - `--trace-id <value>` Trace ID to redact, in hex format. Repeat the flag for several traces in one request (`--trace-id=<ID> --trace-id=<ID>`, not comma-separated), up to 1000. Every job the redaction creates carries the whole list, so a longer list costs one copy per block; use `--query` instead. Mutually exclusive with `--query`.
-- `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter over the matched span's own `resource.*` or `span.*` attributes, joined by `&&` or `||`: `=` comparisons, and the existence check `attr != nil`. Regular expressions, `!=` against a value, ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
+- `--query <value>` TraceQL query selecting the traces to redact, for example `{ span.http.status_code = 500 }`. Mutually exclusive with `--trace-id`. The query is restricted to a single spanset filter over the matched span's own `resource.*` or `span.*` attributes: conditions joined by `&&`, at least one of which is a positive filter, either an `=` comparison or an `||` of `=` comparisons such as `(resource.service.name = "a" || resource.service.name = "b")`. The other conditions narrow that match and can combine `=`, `!=`, `=~`, `!~` and the existence check `attr != nil` with `&&` and `||`, for example `{ resource.service.name = "a" && (span.a != nil || span.full_command != "") }`. `&&` binds tighter than `||`, so parenthesise an `||` next to the positive filter. Regular expressions are fully anchored. Ordered comparisons, `parent.`-scoped attributes, and pipelines or aggregates aren't supported.
 - `--dry-run` Evaluate the selector without rewriting any blocks. After the dry-run jobs complete, match counts are added to `tempo_backend_scheduler_redaction_traces_found_total` (`mode="dry_run"`). The command doesn't print the count (default: `false`).
 - `--start <value>` Start of the time window. Accepts `now`, a relative offset such as `now-7d`, or an RFC3339 timestamp. Must be given with `--end`, must be before `--end`, and cannot be combined with `--trace-id`. Omit both bounds to redact the whole tenant.
 - `--end <value>` End of the time window. Same forms as `--start`. Must be given with `--start`.
@@ -1245,7 +1245,9 @@ Options:
 
 You must provide exactly one of `--trace-id` or `--query`. Providing both, or neither, returns an error before the request is submitted.
 
-`attr != nil` is rewritten to an existence check, so it selects spans that **have** the attribute, not the ones missing it. Other `!=` forms are refused. This can be broader than it looks on a large tenant (`span.user_id != nil` matches every span carrying a user ID), so preview with `--dry-run` first.
+`attr != nil` is rewritten to an existence check, so it selects spans that **have** the attribute, not the ones missing it. Likewise, a span missing the attribute never matches `!=` or `!~`: `span.foo != "bar"` selects spans whose `foo` is set to another value. None of these conditions can be used without a positive filter.
+
+On an array attribute, every operator matches if **any** element satisfies it, including `!=` and `!~`: `span.foo != "bar"` selects a span whose `foo` is `["bar", "baz"]`. Only an array whose every element is excluded, such as `["bar", "bar"]`, is kept. Run a dry run first when the attribute can hold arrays.
 
 A tenant can have only one redaction in progress at a time, dry runs included.
 A submission made while an earlier one is still running, or still in its quiescence period, is rejected.
@@ -1302,8 +1304,8 @@ Enter the same query string you pass to `--query`.
 
 For help building and running TraceQL queries, refer to [TraceQL queries in Grafana](/docs/tempo/<TEMPO_VERSION>/traceql/).
 
-The `--query` option accepts only a restricted subset of TraceQL: a single spanset filter with positive equality matchers.
-That subset is deliberately narrow so a redaction query can't widen its own match set the way negation or regular expressions could.
+The `--query` option accepts only a restricted subset of TraceQL: a single spanset filter anchored by at least one positive equality filter.
+Negation and regular expressions are allowed only alongside that filter, so a mistake in one of them can't widen the match set beyond it.
 A broader query that works in Explore may be rejected at submission.
 Explore shows a sample; use `--dry-run` for the count before you apply the redaction.
 
