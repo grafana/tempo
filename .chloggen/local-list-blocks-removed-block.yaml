@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: storage
+
+note: Skip blocks removed during the local backend `ListBlocks` walk instead of failing the tenant blocklist poll.
+
+issues: []
+
+subtext:
+
+user: lazerg
