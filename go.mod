@@ -15,7 +15,7 @@ require (
 	github.com/apache/thrift v0.25.0
 	github.com/axiomhq/hyperloglog v0.3.0
 	github.com/bits-and-blooms/bloom/v3 v3.7.1
-	github.com/bytedance/sonic v1.15.4
+	github.com/bytedance/sonic v1.15.5
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cristalhq/hedgedhttp v0.9.1
 	github.com/drone/envsubst v1.0.3
@@ -34,7 +34,7 @@ require (
 	github.com/grafana/dskit v0.0.0-20261021083420-72e594bf1533
 	github.com/grafana/e2e v0.1.2-0.20260925181323-2ec4363d2215
 	github.com/grafana/gomemcache v0.0.0-20261102183244-888ddcfa6685
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
 	github.com/jaegertracing/jaeger-idl v0.13.2
 	github.com/jedib0t/go-pretty/v6 v6.7.10
 	github.com/jsternberg/zap-logfmt v1.3.0
@@ -42,7 +42,7 @@ require (
 	github.com/mark3labs/mcp-go v0.58.0
 	github.com/maypok86/otter/v2 v2.4.0
 	github.com/minio/minio-go/v7 v7.4.1
-	github.com/olekukonko/tablewriter v1.1.4
+	github.com/olekukonko/tablewriter v1.1.5
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.161.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.161.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.161.0
@@ -68,7 +68,7 @@ require (
 	github.com/twmb/franz-go/pkg/kmsg v1.15.0
 	github.com/twmb/franz-go/plugin/kotel v1.7.1
 	github.com/twmb/franz-go/plugin/kprom v1.5.0
-	go.etcd.io/etcd/api/v3 v3.7.2
+	go.etcd.io/etcd/api/v3 v3.7.3
 	go.opentelemetry.io/collector/client v1.70.0
 	go.opentelemetry.io/collector/component v1.70.0
 	go.opentelemetry.io/collector/component/componenttest v0.164.0
@@ -104,13 +104,13 @@ require (
 	go.uber.org/atomic v1.12.0
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.28.0
-	go.yaml.in/yaml/v2 v2.4.4
-	go.yaml.in/yaml/v3 v3.0.5
+	go.yaml.in/yaml/v2 v2.4.5
+	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/net v0.62.0
 	golang.org/x/sync v0.24.0
 	golang.org/x/time v0.16.0
 	google.golang.org/api v0.310.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261104224025-d1e00e9f33ab
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 )
@@ -156,7 +156,7 @@ require (
 	github.com/brunoscheufler/aws-ecs-metadata-go v0.0.0-20221221133751-67e37ae746cd // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic/loader v0.5.2 // indirect
+	github.com/bytedance/sonic/loader v0.5.3 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.1 // indirect
