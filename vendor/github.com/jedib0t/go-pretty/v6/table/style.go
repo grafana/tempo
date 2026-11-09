@@ -6,6 +6,7 @@ type Style struct {
 	Name     string          // name of the Style
 	Box      BoxStyle        // characters to use for the boxes
 	Color    ColorOptions    // colors to use for the rows and columns
+	CSV      CSVOptions      // rendering options for CSV mode
 	Format   FormatOptions   // formatting options for the rows and columns
 	HTML     HTMLOptions     // rendering options for HTML mode
 	Markdown MarkdownOptions // rendering options for Markdown mode

@@ -36,7 +36,7 @@ require (
 	github.com/grafana/gomemcache v0.0.0-20261102183244-888ddcfa6685
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
 	github.com/jaegertracing/jaeger-idl v0.13.2
-	github.com/jedib0t/go-pretty/v6 v6.7.10
+	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/klauspost/compress v1.20.3
 	github.com/mark3labs/mcp-go v0.58.0
