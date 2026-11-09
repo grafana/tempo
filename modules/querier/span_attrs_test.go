@@ -426,11 +426,10 @@ func TestBlockJobAttributes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			attrs := map[string]attribute.Value{}
-			for _, attr := range blockJobAttributes(api.OpSearch, tc.blockSize, tc.startPage, tc.pagesToSearch, tc.totalRecords) {
+			for _, attr := range blockJobAttributes(tc.blockSize, tc.startPage, tc.pagesToSearch, tc.totalRecords) {
 				attrs[string(attr.Key)] = attr.Value
 			}
 
-			require.Equal(t, api.OpSearch, attrs["op"].AsString())
 			require.Equal(t, int64(1), attrs["blocks"].AsInt64())
 			if tc.expectedBytes == nil {
 				require.NotContains(t, attrs, "blockBytes")

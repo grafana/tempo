@@ -14,19 +14,14 @@ import (
 	"github.com/grafana/tempo/v3/pkg/validation"
 )
 
-// opAttribute is the operation of a job, with the same values as the op label of the query-frontend metrics.
-func opAttribute(op string) attribute.KeyValue {
-	return attribute.String("op", op)
-}
-
 // blockJobAttributes describe the work of a job that searches a range of a block. Despite their names,
 // startPage, pagesToSearch and totalRecords are counted in parquet row groups, not in parquet pages.
 // blockBytes is the part of the block the job covers, assuming row groups of equal size, like the
 // query-frontend does when it creates the jobs. The last job of a block may cover less row groups
 // than requested. totalRecords is 0 if the request doesn't have it, then blockBytes is left out.
 // The query-frontend always sends jobs with at least one row group.
-func blockJobAttributes(op string, blockSize uint64, startPage, pagesToSearch, totalRecords uint32) []attribute.KeyValue {
-	attrs := []attribute.KeyValue{opAttribute(op), attribute.Int64("blocks", 1)}
+func blockJobAttributes(blockSize uint64, startPage, pagesToSearch, totalRecords uint32) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{attribute.Int64("blocks", 1)}
 	if totalRecords == 0 {
 		return attrs
 	}
@@ -80,7 +75,7 @@ func setQuerierSpanAttributes(span oteltrace.Span, tenantID, query string, attrs
 func startTraceByIDSpan(ctx context.Context, name string, req *tempopb.TraceByIDRequest) (context.Context, oteltrace.Span, string, error) {
 	timeStart, timeEnd := req.Start, req.End
 	attrs := []attribute.KeyValue{
-		opAttribute(api.OpTraceByID),
+		attribute.String("op", api.OpTraceByID),
 		attribute.String("traceID", hex.EncodeToString(req.TraceID)),
 		attribute.String("queryMode", req.QueryMode),
 		attribute.String("blockStart", req.BlockStart),
@@ -116,7 +111,7 @@ func startTraceByIDSpan(ctx context.Context, name string, req *tempopb.TraceByID
 func startSearchRequestSpan(ctx context.Context, name string, req *tempopb.SearchRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(
 		ctx, name, req.Query,
-		opAttribute(api.OpSearch),
+		attribute.String("op", api.OpSearch),
 		attribute.Int64("startUnixSeconds", int64(req.Start)),
 		attribute.Int64("endUnixSeconds", int64(req.End)),
 		attribute.Int64("rangeSeconds", int64(req.End)-int64(req.Start)),
@@ -126,7 +121,7 @@ func startSearchRequestSpan(ctx context.Context, name string, req *tempopb.Searc
 func startTagsRequestSpan(ctx context.Context, name string, req *tempopb.SearchTagsRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(
 		ctx, name, req.Query,
-		opAttribute(api.OpMetadata),
+		attribute.String("op", api.OpMetadata),
 		attribute.String("scope", req.Scope),
 		attribute.Int64("startUnixSeconds", int64(req.Start)),
 		attribute.Int64("endUnixSeconds", int64(req.End)),
@@ -137,7 +132,7 @@ func startTagsRequestSpan(ctx context.Context, name string, req *tempopb.SearchT
 func startTagValuesRequestSpan(ctx context.Context, name string, req *tempopb.SearchTagValuesRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(
 		ctx, name, req.Query,
-		opAttribute(api.OpMetadata),
+		attribute.String("op", api.OpMetadata),
 		attribute.String("tagName", req.TagName),
 		attribute.Int64("startUnixSeconds", int64(req.Start)),
 		attribute.Int64("endUnixSeconds", int64(req.End)),
@@ -147,6 +142,7 @@ func startTagValuesRequestSpan(ctx context.Context, name string, req *tempopb.Se
 
 func startSearchBlockSpan(ctx context.Context, name string, req *tempopb.SearchBlockRequest) (context.Context, oteltrace.Span, string, error) {
 	attrs := []attribute.KeyValue{
+		attribute.String("op", api.OpSearch),
 		attribute.String("blockID", req.GetBlockID()),
 		attribute.String("version", req.GetVersion()),
 		attribute.Int64("startPage", int64(req.GetStartPage())),
@@ -155,7 +151,7 @@ func startSearchBlockSpan(ctx context.Context, name string, req *tempopb.SearchB
 		attribute.Int64("footerSize", int64(req.GetFooterSize())),
 		attribute.Int64("totalRecords", int64(req.GetTotalRecords())),
 	}
-	attrs = append(attrs, blockJobAttributes(api.OpSearch, req.GetSize_(), req.GetStartPage(), req.GetPagesToSearch(), req.GetTotalRecords())...)
+	attrs = append(attrs, blockJobAttributes(req.GetSize_(), req.GetStartPage(), req.GetPagesToSearch(), req.GetTotalRecords())...)
 
 	query := ""
 	if searchReq := req.GetSearchReq(); searchReq != nil {
@@ -173,6 +169,7 @@ func startSearchBlockSpan(ctx context.Context, name string, req *tempopb.SearchB
 
 func startTagsBlockSpan(ctx context.Context, name string, req *tempopb.SearchTagsBlockRequest) (context.Context, oteltrace.Span, string, error) {
 	attrs := []attribute.KeyValue{
+		attribute.String("op", api.OpMetadata),
 		attribute.String("blockID", req.GetBlockID()),
 		attribute.String("version", req.GetVersion()),
 		attribute.Int64("startPage", int64(req.GetStartPage())),
@@ -181,7 +178,7 @@ func startTagsBlockSpan(ctx context.Context, name string, req *tempopb.SearchTag
 		attribute.Int64("footerSize", int64(req.GetFooterSize())),
 		attribute.Int64("totalRecords", int64(req.GetTotalRecords())),
 	}
-	attrs = append(attrs, blockJobAttributes(api.OpMetadata, req.GetSize_(), req.GetStartPage(), req.GetPagesToSearch(), req.GetTotalRecords())...)
+	attrs = append(attrs, blockJobAttributes(req.GetSize_(), req.GetStartPage(), req.GetPagesToSearch(), req.GetTotalRecords())...)
 
 	query := ""
 	if searchReq := req.GetSearchReq(); searchReq != nil {
@@ -200,6 +197,7 @@ func startTagsBlockSpan(ctx context.Context, name string, req *tempopb.SearchTag
 
 func startTagValuesBlockSpan(ctx context.Context, name string, req *tempopb.SearchTagValuesBlockRequest) (context.Context, oteltrace.Span, string, error) {
 	attrs := []attribute.KeyValue{
+		attribute.String("op", api.OpMetadata),
 		attribute.String("blockID", req.GetBlockID()),
 		attribute.String("version", req.GetVersion()),
 		attribute.Int64("startPage", int64(req.GetStartPage())),
@@ -208,7 +206,7 @@ func startTagValuesBlockSpan(ctx context.Context, name string, req *tempopb.Sear
 		attribute.Int64("footerSize", int64(req.GetFooterSize())),
 		attribute.Int64("totalRecords", int64(req.GetTotalRecords())),
 	}
-	attrs = append(attrs, blockJobAttributes(api.OpMetadata, req.GetSize_(), req.GetStartPage(), req.GetPagesToSearch(), req.GetTotalRecords())...)
+	attrs = append(attrs, blockJobAttributes(req.GetSize_(), req.GetStartPage(), req.GetPagesToSearch(), req.GetTotalRecords())...)
 
 	query := ""
 	if searchReq := req.GetSearchReq(); searchReq != nil {
@@ -228,7 +226,7 @@ func startTagValuesBlockSpan(ctx context.Context, name string, req *tempopb.Sear
 func startQueryRangeSpan(ctx context.Context, name string, req *tempopb.QueryRangeRequest) (context.Context, oteltrace.Span, string, error) {
 	return startQuerierSpan(
 		ctx, name, req.Query,
-		opAttribute(api.OpMetrics),
+		attribute.String("op", api.OpMetrics),
 		attribute.String("queryMode", req.QueryMode),
 		attribute.Int64("startUnixNanos", int64(req.Start)),
 		attribute.Int64("endUnixNanos", int64(req.End)),
