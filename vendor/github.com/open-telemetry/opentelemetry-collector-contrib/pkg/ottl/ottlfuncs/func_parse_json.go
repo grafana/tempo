@@ -14,19 +14,21 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type ParseJSONArguments[K any] struct {
+type parseJSONArguments[K any] struct {
 	Target ottl.StringGetter[K]
 }
 
+// NewParseJSONFactory returns a factory for the ParseJSON OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#parsejson
 func NewParseJSONFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ParseJSON", &ParseJSONArguments[K]{}, createParseJSONFunction[K])
+	return ottl.NewFactory("ParseJSON", &parseJSONArguments[K]{}, createParseJSONFunction[K])
 }
 
 func createParseJSONFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*ParseJSONArguments[K])
+	args, ok := oArgs.(*parseJSONArguments[K])
 
 	if !ok {
-		return nil, errors.New("ParseJSONFactory args must be of type *ParseJSONArguments[K]")
+		return nil, errors.New("ParseJSONFactory args must be of type *parseJSONArguments[K]")
 	}
 
 	return parseJSON(args.Target), nil

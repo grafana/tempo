@@ -12,28 +12,30 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type TimeArguments[K any] struct {
+type timeArguments[K any] struct {
 	Time     ottl.StringGetter[K]
 	Format   string
 	Location ottl.Optional[string]
 	Locale   ottl.Optional[string]
 }
 
+// NewTimeFactory returns a factory for the Time OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#time
 func NewTimeFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Time", &TimeArguments[K]{}, createTimeFunction[K])
+	return ottl.NewFactory("Time", &timeArguments[K]{}, createTimeFunction[K])
 }
 
 func createTimeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*TimeArguments[K])
+	args, ok := oArgs.(*timeArguments[K])
 
 	if !ok {
-		return nil, errors.New("TimeFactory args must be of type *TimeArguments[K]")
+		return nil, errors.New("TimeFactory args must be of type *timeArguments[K]")
 	}
 
-	return Time(args.Time, args.Format, args.Location, args.Locale)
+	return parseTime(args.Time, args.Format, args.Location, args.Locale)
 }
 
-func Time[K any](inputTime ottl.StringGetter[K], format string, location, locale ottl.Optional[string]) (ottl.ExprFunc[K], error) {
+func parseTime[K any](inputTime ottl.StringGetter[K], format string, location, locale ottl.Optional[string]) (ottl.ExprFunc[K], error) {
 	if format == "" {
 		return nil, errors.New("format cannot be nil")
 	}

@@ -7,10 +7,10 @@ include ../../Makefile.Common
 benchmark-ottl:
 	$(GOCMD) test -run='^$$' -bench=. -benchmem ./...
 
-# update-ottl-signatures regenerates the golden file that locks the OTTL
+# update-ottl-signatures regenerates the golden file that locks the stable OTTL
 # function signature surface (name, argument order, type, optionality). Run it
 # after an intentional change to a function's Arguments struct, then commit the
 # diff alongside a changelog entry.
 .PHONY: update-ottl-signatures
 update-ottl-signatures:
-	OTTL_UPDATE_SIGNATURES=1 $(GOCMD) test ./ottlfuncs -run Test_FunctionSignatures
+	OTTL_UPDATE_SIGNATURES=1 $(GOCMD) test ./ottlfuncs -run 'Test_StableFunctionSignatures'

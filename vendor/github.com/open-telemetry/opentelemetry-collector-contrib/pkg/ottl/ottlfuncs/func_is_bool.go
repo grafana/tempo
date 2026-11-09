@@ -10,19 +10,21 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type IsBoolArguments[K any] struct {
+type isBoolArguments[K any] struct {
 	Target ottl.BoolGetter[K]
 }
 
+// NewIsBoolFactory returns a factory for the IsBool OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#isbool
 func NewIsBoolFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("IsBool", &IsBoolArguments[K]{}, createIsBoolFunction[K])
+	return ottl.NewFactory("IsBool", &isBoolArguments[K]{}, createIsBoolFunction[K])
 }
 
 func createIsBoolFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*IsBoolArguments[K])
+	args, ok := oArgs.(*isBoolArguments[K])
 
 	if !ok {
-		return nil, errors.New("IsBoolFactory args must be of type *IsBoolArguments[K]")
+		return nil, errors.New("IsBoolFactory args must be of type *isBoolArguments[K]")
 	}
 
 	return isBool(args.Target), nil

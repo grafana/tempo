@@ -21,19 +21,21 @@ const (
 	typeError = `target arg must be of type string, []any, map[string]any, pcommon.Map, pcommon.Slice, pcommon.Value (of type String, Map, Slice) or a supported slice type from the plog, pmetric or ptrace packages`
 )
 
-type LenArguments[K any] struct {
+type lenArguments[K any] struct {
 	Target ottl.Getter[K]
 }
 
+// NewLenFactory returns a factory for the Len OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#len
 func NewLenFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Len", &LenArguments[K]{}, createLenFunction[K])
+	return ottl.NewFactory("Len", &lenArguments[K]{}, createLenFunction[K])
 }
 
 func createLenFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*LenArguments[K])
+	args, ok := oArgs.(*lenArguments[K])
 
 	if !ok {
-		return nil, errors.New("LenFactory args must be of type *LenArguments[K]")
+		return nil, errors.New("LenFactory args must be of type *lenArguments[K]")
 	}
 
 	return computeLen(args.Target), nil

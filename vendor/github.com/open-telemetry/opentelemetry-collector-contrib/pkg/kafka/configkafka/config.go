@@ -76,6 +76,9 @@ type ClientConfig struct {
 
 	// ConnIdleTimeout specifies the time after which idle connections are not reused and may be closed.
 	ConnIdleTimeout time.Duration `mapstructure:"conn_idle_timeout"`
+
+	// DialTimeout specifies the time allowed to establish a connection to a broker (default 10s).
+	DialTimeout time.Duration `mapstructure:"dial_timeout"`
 }
 
 func NewDefaultClientConfig() ClientConfig {
@@ -85,6 +88,7 @@ func NewDefaultClientConfig() ClientConfig {
 		Metadata:        NewDefaultMetadataConfig(),
 		UseLeaderEpoch:  true,
 		ConnIdleTimeout: 9 * time.Minute,
+		DialTimeout:     10 * time.Second,
 	}
 }
 
@@ -99,6 +103,15 @@ func (c ClientConfig) Validate() error {
 	}
 	if c.ConnIdleTimeout <= 0 {
 		return fmt.Errorf("conn_idle_timeout (%s) must be positive", c.ConnIdleTimeout)
+	}
+	if c.DialTimeout <= 0 {
+		return fmt.Errorf("dial_timeout (%s) must be positive", c.DialTimeout)
+	}
+	if c.Metadata.Retry.Max < 0 {
+		return fmt.Errorf("metadata::retry::max (%d) must be non-negative", c.Metadata.Retry.Max)
+	}
+	if c.Metadata.Retry.Backoff < 0 {
+		return fmt.Errorf("metadata::retry::backoff (%s) must be non-negative", c.Metadata.Retry.Backoff)
 	}
 	return nil
 }
@@ -138,6 +151,14 @@ type ConsumerConfig struct {
 	// per partition (default "1048576")
 	MaxPartitionFetchSize int32 `mapstructure:"max_partition_fetch_size"`
 
+	// MaxDecompressBatchBytes defines the maximum number of bytes to allow
+	// for decompressing a single Kafka record batch. This limit is applied
+	// after decompression, so it bounds the memory required for a decompressed
+	// record batch. The default is 1 GiB (1073741824 bytes).
+	// This setting is independent of MaxFetchSize and MaxPartitionFetchSize,
+	// which limit compressed bytes on the wire.
+	MaxDecompressBatchBytes int `mapstructure:"max_decompress_batch_bytes"`
+
 	// GroupRebalanceStrategies specifies the ordered strategies to advertise
 	// for partition assignment. Kafka selects the first strategy supported by
 	// every member of the consumer group. Built-in values are "range",
@@ -162,10 +183,11 @@ func NewDefaultConsumerConfig() ConsumerConfig {
 			Enable:   true,
 			Interval: time.Second,
 		},
-		MinFetchSize:          1,
-		MaxFetchSize:          1048576,
-		MaxFetchWait:          250 * time.Millisecond,
-		MaxPartitionFetchSize: 1048576,
+		MinFetchSize:            1,
+		MaxFetchSize:            1048576,
+		MaxFetchWait:            250 * time.Millisecond,
+		MaxPartitionFetchSize:   1048576,
+		MaxDecompressBatchBytes: 1073741824, // 1 GiB
 	}
 }
 
@@ -198,6 +220,9 @@ func (c ConsumerConfig) Validate() error {
 	}
 	if c.MaxPartitionFetchSize < 0 {
 		return fmt.Errorf("max_partition_fetch_size (%d) must be non-negative", c.MaxPartitionFetchSize)
+	}
+	if c.MaxDecompressBatchBytes < 1 || c.MaxDecompressBatchBytes > math.MaxInt32 {
+		return fmt.Errorf("max_decompress_batch_bytes (%d) must be between 1 and %d", c.MaxDecompressBatchBytes, math.MaxInt32)
 	}
 	if c.MaxFetchSize < c.MinFetchSize {
 		return fmt.Errorf(
@@ -395,29 +420,35 @@ func (r RequiredAcks) Validate() error {
 }
 
 type MetadataConfig struct {
-	// Whether to maintain a full set of metadata for all topics, or just
-	// the minimal set that has been necessary so far. The full set is simpler
-	// and usually more convenient, but can take up a substantial amount of
-	// memory if you have many topics and partitions. Defaults to true.
+	// Full is ignored, and exists for backwards compatibility in config parsing.
+	//
+	// Deprecated [v0.159.0]: this field is a no-op since the migration to franz-go,
+	// which only fetches metadata for the topics the client produces to or consumes
+	// from. This config will be removed in a future release.
 	Full bool `mapstructure:"full"`
 
 	// RefreshInterval controls the frequency at which cluster metadata is
 	// refreshed. Defaults to 10 minutes.
 	RefreshInterval time.Duration `mapstructure:"refresh_interval"`
 
-	// Retry configuration for metadata.
+	// Retry configuration for retriable Kafka requests.
 	// This configuration is useful to avoid race conditions when broker
 	// is starting at the same time as collector.
 	Retry MetadataRetryConfig `mapstructure:"retry"`
 }
 
-// MetadataRetryConfig defines retry configuration for Metadata.
+// MetadataRetryConfig defines retry configuration for retriable Kafka requests.
 type MetadataRetryConfig struct {
-	// The total number of times to retry a metadata request when the
-	// cluster is in the middle of a leader election or at startup (default 3).
+	// The total number of times to retry a retriable request, such as when the
+	// cluster is in the middle of a leader election or at startup (default 20).
+	// Applies to consumer group, offset commit/fetch and admin requests. It does
+	// not apply to produce or fetch requests, nor to franz-go's internal
+	// metadata refresh, which caps itself at 3 retries.
 	Max int `mapstructure:"max"`
-	// How long to wait for leader election to occur before retrying
-	// (default 250ms). Similar to the JVM's `retry.backoff.ms`.
+	// The minimum time to wait before retrying a request (default 250ms).
+	// Similar to the JVM's `retry.backoff.ms`: each successive retry doubles
+	// the wait, with jitter applied, capped at max(5s, backoff). Unlike Max,
+	// this applies to every retry path, including produce and fetch.
 	Backoff time.Duration `mapstructure:"backoff"`
 }
 
@@ -426,7 +457,8 @@ func NewDefaultMetadataConfig() MetadataConfig {
 		Full:            true,
 		RefreshInterval: 10 * time.Minute,
 		Retry: MetadataRetryConfig{
-			Max:     3,
+			// Matches the franz-go default this field was silently unwired to.
+			Max:     20,
 			Backoff: time.Millisecond * 250,
 		},
 	}
@@ -474,7 +506,9 @@ type SASLConfig struct {
 func (c SASLConfig) Validate() error {
 	switch c.Mechanism {
 	case "AWS_MSK_IAM_OAUTHBEARER":
-		// TODO validate c.AWSMSK
+		if c.AWSMSK.Region == "" {
+			return errors.New("region is required for AWS_MSK_IAM_OAUTHBEARER mechanism")
+		}
 	case "PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512":
 		// Do nothing, valid mechanism
 		if c.Username == "" {
@@ -489,7 +523,7 @@ func (c SASLConfig) Validate() error {
 		}
 	default:
 		return fmt.Errorf(
-			"mechanism should be one of 'PLAIN', 'AWS_MSK_IAM_OAUTHBEARER', 'SCRAM-SHA-256' or 'SCRAM-SHA-512'. configured value %v",
+			"mechanism should be one of 'PLAIN', 'AWS_MSK_IAM_OAUTHBEARER', 'OAUTHBEARER', 'SCRAM-SHA-256' or 'SCRAM-SHA-512'. configured value %v",
 			c.Mechanism,
 		)
 	}

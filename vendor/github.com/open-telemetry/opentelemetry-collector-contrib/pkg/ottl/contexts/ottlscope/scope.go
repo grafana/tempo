@@ -58,7 +58,11 @@ type TransformContextOption func(*TransformContext)
 
 // WithCache sets an external shared cache on the TransformContext.
 // When set, the cache is shared across multiple TransformContext instances.
-// Experimental: *NOTE* this option is subject to change or removal in the future.
+// The caller owns the cache: TransformContext.Close does not clear it, so the caller
+// is responsible for clearing or discarding it when it is no longer needed.
+// pcommon.Map is not safe for concurrent use, so a shared cache must not be used by
+// multiple goroutines at the same time.
+// If cache is nil, the option has no effect and the TransformContext uses its own cache.
 func WithCache(cache *pcommon.Map) TransformContextOption {
 	return func(tCtx *TransformContext) {
 		if cache != nil {

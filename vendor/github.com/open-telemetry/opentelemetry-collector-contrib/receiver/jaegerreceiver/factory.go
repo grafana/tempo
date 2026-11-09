@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/coredistro"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata"
 )
 
@@ -39,11 +40,6 @@ func NewFactory() receiver.Factory {
 // CreateDefaultConfig creates the default configuration for Jaeger receiver.
 func createDefaultConfig() component.Config {
 	thriftHTTPServerConfig := confighttp.NewDefaultServerConfig()
-	// TODO: See https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/49316.
-	thriftHTTPServerConfig.WriteTimeout = 0
-	thriftHTTPServerConfig.ReadHeaderTimeout = 0
-	thriftHTTPServerConfig.IdleTimeout = 0           //nolint:staticcheck // SA1019: see TODO above
-	thriftHTTPServerConfig.KeepAlivesEnabled = false //nolint:staticcheck // SA1019: see TODO above
 	thriftHTTPServerConfig.NetAddr = confignet.AddrConfig{
 		Endpoint:  defaultHTTPEndpoint,
 		Transport: confignet.TransportTypeTCP,
@@ -76,6 +72,7 @@ func createTracesReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (receiver.Traces, error) {
+	coredistro.WarnRemoval(set.TelemetrySettings, set.BuildInfo, "v0.167.0", coredistro.JaegerZipkinCoda)
 	// Convert settings in the source config to configuration struct
 	// that Jaeger receiver understands.
 	// Error handling for the conversion is done in the Validate function from the Config object itself.

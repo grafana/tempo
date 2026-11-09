@@ -5,11 +5,12 @@ package ottl // import "github.com/open-telemetry/opentelemetry-collector-contri
 
 import (
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/alecthomas/participle/v2/lexer"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlerror"
 )
 
 // parsedStatement represents a parsed statement. It is the entry point into the statement DSL.
@@ -23,7 +24,7 @@ type parsedStatement struct {
 func (p *parsedStatement) checkForCustomError() error {
 	validator := &grammarCustomErrorsVisitor{}
 	if p.Converter != nil {
-		validator.add(fmt.Errorf("editor names must start with a lowercase letter but got '%v'", p.Converter.Function))
+		validator.add(ottlerror.Errorf(p.Converter.Pos, "editor names must start with a lowercase letter but got '%v'", p.Converter.Function))
 	}
 
 	p.Editor.accept(validator)
@@ -44,6 +45,7 @@ type constExpr struct {
 // either an equality or inequality, explicit true or false, or
 // a parenthesized subexpression.
 type booleanValue struct {
+	Pos        lexer.Position
 	Negation   *string            `parser:"@OpNot?"`
 	Comparison *comparison        `parser:"( @@"`
 	ConstExpr  *constExpr         `parser:"| @@"`
@@ -194,6 +196,7 @@ func (c *comparison) accept(v grammarVisitor) {
 
 // editor represents the function call of a statement.
 type editor struct {
+	Pos       lexer.Position
 	Function  string     `parser:"@(Lowercase(Uppercase | Lowercase)*)"`
 	Arguments []argument `parser:"'(' ( @@ ( ',' @@ )* )? ')'"`
 	// If keys are matched return an error
@@ -202,13 +205,14 @@ type editor struct {
 
 func (i *editor) accept(v grammarVisitor) {
 	v.visitEditor(i)
-	for _, arg := range i.Arguments {
-		arg.accept(v)
+	for j := range i.Arguments {
+		i.Arguments[j].accept(v)
 	}
 }
 
 // converter represents a converter function call.
 type converter struct {
+	Pos       lexer.Position
 	Function  string     `parser:"@(Uppercase(Uppercase | Lowercase)*)"`
 	Arguments []argument `parser:"'(' ( @@ ( ',' @@ )* )? ')'"`
 	Keys      []key      `parser:"( @@ )*"`
@@ -217,25 +221,27 @@ type converter struct {
 func (c *converter) accept(v grammarVisitor) {
 	v.visitConverter(c)
 	if c.Arguments != nil {
-		for _, a := range c.Arguments {
-			a.accept(v)
+		for j := range c.Arguments {
+			c.Arguments[j].accept(v)
 		}
 	}
 	if c.Keys != nil {
-		for _, k := range c.Keys {
-			k.accept(v)
+		for j := range c.Keys {
+			c.Keys[j].accept(v)
 		}
 	}
 }
 
 // lambdaExpr represents a lambda function definition with its parameters and body.
 type lambdaExpr struct {
-	Params []localIdentifierDecl `parser:"'(' ( (@Lowercase | @Underscore) ( ',' (@Lowercase | @Underscore ) )* )? ')'"`
+	Pos    lexer.Position
+	Params []localIdentifierDecl `parser:"'(' ( (@@) ( ',' (@@ ) )* )? ')'"`
 	Body   lambdaBody            `parser:"LambdaArrow @@"`
 }
 
 // lambdaBody represents the body of a lambda expression, which is either a value or a boolean expression.
 type lambdaBody struct {
+	Pos   lexer.Position
 	Value *value             `parser:"( @@ (?! OpOr | OpAnd | OpComparison)"`
 	Expr  *booleanExpression `parser:"| @@ )"`
 }
@@ -250,12 +256,13 @@ func (lb *lambdaBody) accept(vis grammarVisitor) {
 	}
 }
 
-type localIdentifierDecl string
-
-var _ LocalIdentifierDecl = (*localIdentifierDecl)(nil)
+type localIdentifierDecl struct {
+	Pos        lexer.Position
+	Identifier string `parser:"@Lowercase | @Underscore"`
+}
 
 func (n *localIdentifierDecl) Name() string {
-	return string(*n)
+	return n.Identifier
 }
 
 func (n *localIdentifierDecl) IsBlank() bool {
@@ -264,6 +271,7 @@ func (n *localIdentifierDecl) IsBlank() bool {
 
 // argument represents a single argument passed to an editor or converter function call.
 type argument struct {
+	Pos          lexer.Position
 	Name         string  `parser:"(@(Lowercase(Uppercase | Lowercase)*) Equal)?"`
 	Value        value   `parser:"( @@"`
 	FunctionName *string `parser:"| @(Uppercase(Uppercase | Lowercase)*) )"`
@@ -276,6 +284,7 @@ func (a *argument) accept(v grammarVisitor) {
 // value represents a part of a parsed statement which is resolved to a value of some sort. This can be a telemetry path
 // mathExpression, function call, or literal.
 type value struct {
+	Pos            lexer.Position
 	IsNil          *isNil           `parser:"( @Nil"`
 	Literal        *mathExprLiteral `parser:"| @@ (?! OpAddSub | OpMultDiv)"`
 	Lambda         *lambdaExpr      `parser:"| @@"`
@@ -356,6 +365,7 @@ func (p *path) accept(v grammarVisitor) {
 
 // field is an item within a path.
 type field struct {
+	Pos  lexer.Position
 	Name string `parser:"@Lowercase"`
 	Keys []key  `parser:"( @@ )*"`
 }
@@ -368,6 +378,7 @@ func (f *field) accept(v grammarVisitor) {
 
 // key represents an index into a path or converter.
 type key struct {
+	Pos            lexer.Position
 	String         *string          `parser:"'[' (@String "`
 	Int            *int64           `parser:"| @Int"`
 	MathExpression *mathExpression  `parser:"| @@"`
@@ -461,6 +472,7 @@ func (m *mathExprLiteral) accept(v grammarVisitor) {
 
 // mathValue represents a value within a math expression, optionally negated or parenthesized.
 type mathValue struct {
+	Pos           lexer.Position
 	UnaryOp       *mathOp          `parser:"@OpAddSub?"`
 	Literal       *mathExprLiteral `parser:"( @@"`
 	SubExpression *mathExpression  `parser:"| '(' @@ ')' )"`
@@ -678,13 +690,17 @@ func (*grammarCustomErrorsVisitor) visitConverter(*converter) {}
 
 func (g *grammarCustomErrorsVisitor) visitEditor(v *editor) {
 	if v.Keys != nil {
-		g.add(fmt.Errorf("only paths and converters may be indexed, not editors, but got %s%s", v.Function, buildOriginalKeysText(v.Keys)))
+		pos := v.Pos
+		if len(v.Keys) > 0 {
+			pos = v.Keys[0].Pos
+		}
+		g.add(ottlerror.Errorf(pos, "only paths and converters may be indexed, not editors, but got %s%s", v.Function, buildOriginalKeysText(v.Keys)))
 	}
 }
 
 func (g *grammarCustomErrorsVisitor) visitMathExprLiteral(v *mathExprLiteral) {
 	if v.Editor != nil {
-		g.add(fmt.Errorf("converter names must start with an uppercase letter but got '%v'", v.Editor.Function))
+		g.add(ottlerror.Errorf(v.Editor.Pos, "converter names must start with an uppercase letter but got '%v'", v.Editor.Function))
 	}
 }
 
@@ -695,6 +711,6 @@ func (g *grammarCustomErrorsVisitor) visitLambdaBody(v *lambdaBody) {
 	// It might be changed in the future if lambdas become available for general use
 	// within the language.
 	if v.Value != nil && v.Value.Lambda != nil {
-		g.add(errors.New("lambda body cannot result into another lambda expression"))
+		g.add(ottlerror.New(v.Pos, "lambda body cannot result into another lambda expression"))
 	}
 }
