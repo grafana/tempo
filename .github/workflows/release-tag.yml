@@ -151,3 +151,14 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --notes-file release-notes.md \
             "${flags[@]}"
+
+  export_sbom:
+    # A release published with GITHUB_TOKEN does not fire `release: published`, so call the
+    # SBOM workflow directly once the release is public.
+    needs: [guard-and-tag, publish]
+    permissions:
+      contents: write # to upload the SBOM as a release asset
+      id-token: write # to authenticate to Vault
+    uses: ./.github/workflows/sbom-on-release.yml
+    with:
+      version: ${{ needs.guard-and-tag.outputs.tag }}
