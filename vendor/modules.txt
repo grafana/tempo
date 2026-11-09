@@ -1778,7 +1778,7 @@ go.opentelemetry.io/auto/sdk/internal/telemetry
 # go.opentelemetry.io/collector v0.161.0
 ## explicit; go 1.26.0
 go.opentelemetry.io/collector/internal/statusutil
-# go.opentelemetry.io/collector/client v1.70.0
+# go.opentelemetry.io/collector/client v1.71.0
 ## explicit; go 1.26.0
 go.opentelemetry.io/collector/client
 # go.opentelemetry.io/collector/component v1.70.0
@@ -1847,7 +1847,7 @@ go.opentelemetry.io/collector/connector/connectortest
 # go.opentelemetry.io/collector/connector/xconnector v0.164.0
 ## explicit; go 1.26.0
 go.opentelemetry.io/collector/connector/xconnector
-# go.opentelemetry.io/collector/consumer v1.70.0
+# go.opentelemetry.io/collector/consumer v1.71.0
 ## explicit; go 1.26.0
 go.opentelemetry.io/collector/consumer
 go.opentelemetry.io/collector/consumer/internal
@@ -1914,7 +1914,7 @@ go.opentelemetry.io/collector/extension/extensiontest
 # go.opentelemetry.io/collector/extension/xextension v0.164.0
 ## explicit; go 1.26.0
 go.opentelemetry.io/collector/extension/xextension/storage
-# go.opentelemetry.io/collector/featuregate v1.70.0
+# go.opentelemetry.io/collector/featuregate v1.71.0
 ## explicit; go 1.26.0
 go.opentelemetry.io/collector/featuregate
 # go.opentelemetry.io/collector/internal/componentalias v0.164.0
@@ -1934,7 +1934,7 @@ go.opentelemetry.io/collector/internal/telemetry
 go.opentelemetry.io/collector/otelcol
 go.opentelemetry.io/collector/otelcol/internal/configunmarshaler
 go.opentelemetry.io/collector/otelcol/internal/grpclog
-# go.opentelemetry.io/collector/pdata v1.70.0
+# go.opentelemetry.io/collector/pdata v1.71.0
 ## explicit; go 1.26.0
 go.opentelemetry.io/collector/pdata/internal
 go.opentelemetry.io/collector/pdata/internal/json
@@ -1949,14 +1949,14 @@ go.opentelemetry.io/collector/pdata/pmetric
 go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp
 go.opentelemetry.io/collector/pdata/ptrace
 go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp
-# go.opentelemetry.io/collector/pdata/pprofile v0.164.0
+# go.opentelemetry.io/collector/pdata/pprofile v0.165.0
 ## explicit; go 1.26.0
 go.opentelemetry.io/collector/pdata/pprofile
 go.opentelemetry.io/collector/pdata/pprofile/pprofileotlp
-# go.opentelemetry.io/collector/pdata/testdata v0.164.0
+# go.opentelemetry.io/collector/pdata/testdata v0.165.0
 ## explicit; go 1.26.0
 go.opentelemetry.io/collector/pdata/testdata
-# go.opentelemetry.io/collector/pdata/xpdata v0.164.0
+# go.opentelemetry.io/collector/pdata/xpdata v0.165.0
 ## explicit; go 1.26.0
 go.opentelemetry.io/collector/pdata/xpdata
 go.opentelemetry.io/collector/pdata/xpdata/entity
