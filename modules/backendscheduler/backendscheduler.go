@@ -344,7 +344,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 						level.Debug(log.Logger).Log("msg", "dropping stale retention job: tenant has active redaction batch",
 							"job_id", j.ID, "tenant", j.Tenant())
 						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
-						s.work.UnregisterJob(j.ID)
+						s.work.UnregisterJob(j)
 						drop = true
 					}
 				case tempopb.JobType_JOB_TYPE_REDACTION:

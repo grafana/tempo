@@ -361,7 +361,7 @@ func TestUnregisterJob(t *testing.T) {
 		w.RegisterJob(j)
 		require.True(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_RETENTION))
 
-		w.UnregisterJob(j.ID)
+		w.UnregisterJob(j)
 		require.False(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_RETENTION))
 	})
 
@@ -375,7 +375,7 @@ func TestUnregisterJob(t *testing.T) {
 			require.True(t, w.IsBlockBusy("tenant-a", bid), "block %s", bid)
 		}
 
-		w.UnregisterJob(j.ID)
+		w.UnregisterJob(j)
 		require.False(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_COMPACTION))
 		busy := w.BusyBlocksForTenant("tenant-a")
 		for _, bid := range blocks {
@@ -392,7 +392,7 @@ func TestUnregisterJob(t *testing.T) {
 		w.RegisterJob(older)
 		w.RegisterJob(newer) // block-b now points to the newer job
 
-		w.UnregisterJob(older.ID)
+		w.UnregisterJob(older)
 		require.False(t, w.IsBlockBusy("tenant-a", "block-a"))
 		require.True(t, w.IsBlockBusy("tenant-a", "block-b"))
 		busy := w.BusyBlocksForTenant("tenant-a")
@@ -401,12 +401,13 @@ func TestUnregisterJob(t *testing.T) {
 		require.True(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_COMPACTION))
 	})
 
-	t.Run("unknown id is a no-op", func(t *testing.T) {
+	t.Run("unregistered job is a no-op", func(t *testing.T) {
 		w := New(Config{}).(*Work)
 		j := createCompactionJob("c1", "tenant-a", []string{"block-a"})
 		w.RegisterJob(j)
 
-		w.UnregisterJob("does-not-exist")
+		// Never registered, but claims the same block.
+		w.UnregisterJob(createCompactionJob("c2", "tenant-a", []string{"block-a"}))
 		require.True(t, w.IsBlockBusy("tenant-a", "block-a"))
 		require.Equal(t, j.ID, w.BusyBlocksForTenant("tenant-a")["block-a"])
 		require.True(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_COMPACTION))

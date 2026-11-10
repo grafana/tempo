@@ -35,7 +35,7 @@ type Interface interface {
 
 	// UnregisterJob releases the registration for a job that was dropped before
 	// AddJob promoted it. No-op if the job is not registered.
-	UnregisterJob(id string)
+	UnregisterJob(job *Job)
 
 	// HasJobsForTenant returns true if there are any jobs of the given type in any
 	// state (pending queue, in-flight channel, or active map) for the tenant.

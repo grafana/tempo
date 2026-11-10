@@ -193,21 +193,20 @@ func (w *Work) RegisterJob(job *Job) {
 // UnregisterJob releases the registration for a job that was dropped before AddJob
 // promoted it. It is the inverse of RegisterJob. Block index entries are removed only
 // if they still point to this job. It is a no-op if the job is not registered.
-func (w *Work) UnregisterJob(id string) {
+func (w *Work) UnregisterJob(job *Job) {
 	w.pendingMtx.Lock()
 	defer w.pendingMtx.Unlock()
 
-	j, ok := w.registeredJobs[id]
-	if !ok {
+	if w.registeredJobs[job.ID] != job {
 		return
 	}
-	for _, key := range runningBlockKeys(j) {
-		if w.runningBlocks[key] == j {
+	for _, key := range runningBlockKeys(job) {
+		if w.runningBlocks[key] == job {
 			delete(w.runningBlocks, key)
 		}
 	}
-	w.removeRunningBlocksByTenant(j)
-	delete(w.registeredJobs, id)
+	w.removeRunningBlocksByTenant(job)
+	delete(w.registeredJobs, job.ID)
 }
 
 // FlushToLocal writes the work cache to local storage using sharding optimizations
