@@ -64,6 +64,13 @@
   ],
   packageRules: [
     {
+      description: 'Temporarily disable franz-go updates while the rollback guard is validated',
+      matchPackageNames: [
+        'github.com/twmb/franz-go{,/**}',
+      ],
+      enabled: false,
+    },
+    {
       description: 'Disable all non-vulnerability updates for releases',
       matchBaseBranches: [
         '/^release-v.*/',
