@@ -86,20 +86,10 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 		return nil
 	}
 
-	// Read the body
-	buff, err := tempo_io.ReadAllWithEstimate(res.Body, res.ContentLength)
+	resp, err := decodeResponse(res)
 	if err != nil {
 		c.statusMessage = internalErrorMsg
-		return fmt.Errorf("error reading response body: %w", err)
-	}
-	_ = res.Body.Close()
-
-	// Unmarshal the body
-	resp := &tempopb.TraceByIDResponse{}
-	err = resp.Unmarshal(buff)
-	if err != nil {
-		c.statusMessage = internalErrorMsg
-		return fmt.Errorf("error unmarshalling response body: %w", err)
+		return err
 	}
 
 	// Combine the metrics first, the bytes were read even if the trace can't be consumed
@@ -125,22 +115,16 @@ func (c *TraceByIDCombiner) combineNotFoundMetrics(r PipelineResponse) {
 		return
 	}
 
-	buff, err := tempo_io.ReadAllWithEstimate(res.Body, res.ContentLength)
-	_ = res.Body.Close()
+	resp, err := decodeResponse(res)
 	if err != nil {
-		level.Debug(c.logger).Log("msg", "trace by id: failed to read the body of a 404 response, its bytes are not counted", "err", err)
+		level.Debug(c.logger).Log("msg", "trace by id: failed to decode the body of a 404 response, its bytes are not counted", "err", err)
 		return
 	}
-	if len(buff) == 0 {
-		level.Debug(c.logger).Log("msg", "trace by id: 404 response has no body, its bytes are not counted")
+	if resp.Metrics == nil {
+		level.Debug(c.logger).Log("msg", "trace by id: 404 response has no metrics, its bytes are not counted")
 		return
 	}
 
-	resp := &tempopb.TraceByIDResponse{}
-	if err = resp.Unmarshal(buff); err != nil {
-		level.Debug(c.logger).Log("msg", "trace by id: failed to unmarshal the body of a 404 response, its bytes are not counted", "err", err)
-		return
-	}
 	c.MetricsCombiner.Combine(resp.Metrics, r)
 }
 
@@ -267,4 +251,20 @@ func (c *TraceByIDCombiner) shouldQuit() bool {
 
 	// 2xx and 404 are OK
 	return false
+}
+
+// decodeResponse reads and unmarshals the body of a response of a querier job.
+func decodeResponse(res *http.Response) (*tempopb.TraceByIDResponse, error) {
+	buff, err := tempo_io.ReadAllWithEstimate(res.Body, res.ContentLength)
+	_ = res.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %w", err)
+	}
+
+	resp := &tempopb.TraceByIDResponse{}
+	if err = resp.Unmarshal(buff); err != nil {
+		return nil, fmt.Errorf("error unmarshalling response body: %w", err)
+	}
+
+	return resp, nil
 }
