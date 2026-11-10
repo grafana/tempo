@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.3] - 2026-11-01
+
+### Fixed
+
+- `Ticker` no longer delivers a tick to a receive started after `Stop` returns. `Stop` now waits for the ticker to shut down, so `C` is closed when it returns; it must not be called from the `BackOff`'s methods. ([#198](https://github.com/cenkalti/backoff/issues/198))
+- `Ticker` stops its pending timer when it shuts down instead of leaving it to expire. ([#197](https://github.com/cenkalti/backoff/pull/197))
+
+## [7.0.2] - 2026-10-19
+
+### Fixed
+
+- Recheck context cancellation after `WithNotify` runs and after timer expiration, preventing subsequent attempts if the context is cancelled. ([#194](https://github.com/cenkalti/backoff/issues/194))
+
 ## [7.0.1] - 2026-09-30
 
 ### Fixed
