@@ -1191,13 +1191,13 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filter
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset/strict
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterspan
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/internal/metadata
-# github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.164.1
+# github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka v0.161.0
 ## explicit; go 1.26.0
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka
 # github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.164.1
 ## explicit; go 1.26.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils
-# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.164.1
+# github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.161.0
 ## explicit; go 1.26.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka
 # github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.3.1
@@ -1289,7 +1289,7 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceive
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/udpserver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/udpserver/thriftudp
-# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.164.1
+# github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.161.0
 ## explicit; go 1.26.0
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/metadata
@@ -1667,8 +1667,8 @@ github.com/twitchyliquid64/golang-asm/objabi
 github.com/twitchyliquid64/golang-asm/src
 github.com/twitchyliquid64/golang-asm/sys
 github.com/twitchyliquid64/golang-asm/unsafeheader
-# github.com/twmb/franz-go v1.22.2
-## explicit; go 1.26.0
+# github.com/twmb/franz-go v1.21.6
+## explicit; go 1.25.0
 github.com/twmb/franz-go/pkg/kbin
 github.com/twmb/franz-go/pkg/kerr
 github.com/twmb/franz-go/pkg/kgo
@@ -1680,14 +1680,14 @@ github.com/twmb/franz-go/pkg/sasl/aws
 github.com/twmb/franz-go/pkg/sasl/oauth
 github.com/twmb/franz-go/pkg/sasl/plain
 github.com/twmb/franz-go/pkg/sasl/scram
-# github.com/twmb/franz-go/pkg/kadm v1.19.0
-## explicit; go 1.26.0
+# github.com/twmb/franz-go/pkg/kadm v1.18.0
+## explicit; go 1.25.0
 github.com/twmb/franz-go/pkg/kadm
 # github.com/twmb/franz-go/pkg/kfake v0.0.0-20260515175617-8268a5d078c0
 ## explicit; go 1.25.0
 github.com/twmb/franz-go/pkg/kfake
-# github.com/twmb/franz-go/pkg/kmsg v1.15.0
-## explicit; go 1.26.0
+# github.com/twmb/franz-go/pkg/kmsg v1.13.1
+## explicit; go 1.24.0
 github.com/twmb/franz-go/pkg/kmsg
 github.com/twmb/franz-go/pkg/kmsg/internal/kbin
 # github.com/twmb/franz-go/pkg/sasl/kerberos v1.1.0
