@@ -33,6 +33,10 @@ type Interface interface {
 	// visible to other components. Cleared automatically by AddJob when promoted to active.
 	RegisterJob(job *Job)
 
+	// UnregisterJob releases the registration for a job that was dropped before
+	// AddJob promoted it. No-op if the job is not registered.
+	UnregisterJob(id string)
+
 	// HasJobsForTenant returns true if there are any jobs of the given type in any
 	// state (pending queue, in-flight channel, or active map) for the tenant.
 	HasJobsForTenant(tenantID string, jobType tempopb.JobType) bool
