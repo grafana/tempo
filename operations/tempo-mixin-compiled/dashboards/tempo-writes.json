@@ -680,21 +680,21 @@
      "span": 3,
      "targets": [
       {
-       "expr": "histogram_quantile(0.99, sum (rate(tempo_distributor_trace_size_bytes{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))) or histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_trace_size_bytes_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])))",
+       "expr": "histogram_quantile(0.99, sum (rate(tempo_distributor_trace_size_bytes{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\"}[$__rate_interval]))) or histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_trace_size_bytes_bucket{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\"}[$__rate_interval])))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "99th Percentile",
        "legendLink": null
       },
       {
-       "expr": "histogram_quantile(0.50, sum (rate(tempo_distributor_trace_size_bytes{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))) or histogram_quantile(0.50, sum by (le) (rate(tempo_distributor_trace_size_bytes_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])))",
+       "expr": "histogram_quantile(0.50, sum (rate(tempo_distributor_trace_size_bytes{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\"}[$__rate_interval]))) or histogram_quantile(0.50, sum by (le) (rate(tempo_distributor_trace_size_bytes_bucket{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\"}[$__rate_interval])))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "50th Percentile",
        "legendLink": null
       },
       {
-       "expr": "sum(histogram_sum(rate(tempo_distributor_trace_size_bytes{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))) /\nsum(histogram_count(rate(tempo_distributor_trace_size_bytes{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])))\n or sum(rate(tempo_distributor_trace_size_bytes_sum{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval])) /\nsum(rate(tempo_distributor_trace_size_bytes_count{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))\n",
+       "expr": "sum(histogram_sum(rate(tempo_distributor_trace_size_bytes{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\"}[$__rate_interval]))) /\nsum(histogram_count(rate(tempo_distributor_trace_size_bytes{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\"}[$__rate_interval])))\n or sum(rate(tempo_distributor_trace_size_bytes_sum{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\"}[$__rate_interval])) /\nsum(rate(tempo_distributor_trace_size_bytes_count{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\"}[$__rate_interval]))\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "Average",
@@ -934,7 +934,7 @@
      "span": 6,
      "targets": [
       {
-       "expr": "topk(10, histogram_quantile(0.99, sum by (tenant) (rate(tempo_distributor_trace_size_bytes{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))) or histogram_quantile(0.99, sum by (le,tenant) (rate(tempo_distributor_trace_size_bytes_bucket{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))))",
+       "expr": "topk(10, histogram_quantile(0.99, sum by (tenant) (rate(tempo_distributor_trace_size_bytes{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\"}[$__rate_interval]))) or histogram_quantile(0.99, sum by (le,tenant) (rate(tempo_distributor_trace_size_bytes_bucket{cluster=~\"$cluster\", job=~\"($namespace)/live-store.*\"}[$__rate_interval]))))",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{tenant}}",

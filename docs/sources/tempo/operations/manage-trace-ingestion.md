@@ -57,10 +57,10 @@ This limit is enforced asynchronously in live-stores and block-builders.
 Traces that exceed this limit are partially dropped.
 Unusually large traces often indicate a retry loop or misconfigured instrumentation rather than normal application behavior.
 
-Use the `tempo_distributor_trace_size_bytes` histogram to observe the size distribution of every trace received by the distributor, per tenant.
-Unlike the limits above, this histogram records all traces, so you can see how close traces get to the limit before they are dropped.
-
-The distributor sees each push request separately, so a trace sent across many requests shows up as several smaller samples.
+Use the `tempo_distributor_trace_size_bytes` histogram to observe the size distribution of traces, per tenant.
+It is observed once per trace when the live-store flushes the trace, and it includes pushes that were rejected because the trace exceeded `max_bytes_per_trace`, so you can see how close traces get to the limit before they are dropped.
+The distributor only sees one push request at a time, so it cannot observe the size of a trace that is sent across several requests.
+This is a native histogram; query it with `histogram_quantile`, `histogram_sum`, and `histogram_count`.
 Use the `tempodb_compaction_trace_size_bytes` histogram to observe the size of combined traces written by compaction, per tenant and compaction level.
 Each compaction level rewrites the trace, so filter to the highest level to approximate the final trace size.
 

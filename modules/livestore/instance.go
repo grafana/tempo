@@ -171,7 +171,7 @@ func newInstance(instanceID string, cfg Config, wal *wal.WAL, completeBlockEncod
 		completeBlockEncoding:  completeBlockEncoding,
 		completeBlockLifecycle: completeBlockLifecycle,
 		liveTraces:             livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }, cfg.MaxTraceIdle, cfg.MaxTraceLive, instanceID),
-		traceSizes:             tracesizes.New(),
+		traceSizes:             tracesizes.New(instanceID),
 		maxTraceLogger:         util_log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
 		overrides:              overrides,
 		tracesCreatedTotal:     metricTracesCreatedTotal.WithLabelValues(instanceID),

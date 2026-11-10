@@ -1335,6 +1335,37 @@ func TestProcessAttributesRecordsSizeMetric(t *testing.T) {
 	require.Equal(t, float64(11008), m.Histogram.GetSampleSum())
 }
 
+func TestProcessAttributesRecordsAllValueTypesWithTruncationDisabled(t *testing.T) {
+	metricAttributeSizeBytes.Reset()
+	t.Cleanup(metricAttributeSizeBytes.Reset)
+
+	longKey := strings.Repeat("k", 100)
+	attributes := []*v1_common.KeyValue{
+		{Key: "s", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "abc"}}},          // 1 + 3
+		{Key: "by", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BytesValue{BytesValue: []byte("abcde")}}}, // 2 + 5
+		{Key: "i", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: 42}}},                   // 1 + 1
+		{Key: "d", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_DoubleValue{DoubleValue: 1.5}}},            // 1 + 8
+		{Key: "b", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},               // 1 + 1
+		{Key: "a", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_ArrayValue{ArrayValue: &v1_common.ArrayValue{Values: []*v1_common.AnyValue{
+			{Value: &v1_common.AnyValue_StringValue{StringValue: "xy"}},
+			{Value: &v1_common.AnyValue_IntValue{IntValue: 1}},
+		}}}}}, // 1 + 2 + 1
+		{Key: "k", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_KvlistValue{KvlistValue: &v1_common.KeyValueList{Values: []*v1_common.KeyValue{
+			{Key: "kk", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: false}}},
+		}}}}}, // 1 + 2 + 1
+		{Key: longKey, Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: "v"}}}, // 100 + 1
+	}
+
+	count := processAttributes(attributes, 0, nil, "span", "test")
+	require.Equal(t, 0, count, "truncation is disabled")
+	require.Equal(t, longKey, attributes[len(attributes)-1].Key, "keys are not truncated when truncation is disabled")
+
+	m := &dto.Metric{}
+	require.NoError(t, metricAttributeSizeBytes.WithLabelValues("test", "span").(prometheus.Histogram).Write(m))
+	require.Equal(t, uint64(len(attributes)), m.Histogram.GetSampleCount())
+	require.Equal(t, float64(4+7+2+9+2+4+4+101), m.Histogram.GetSampleSum())
+}
+
 func BenchmarkTestsByRequestID(b *testing.B) {
 	spansPer := 5000
 	batches := 100
@@ -1869,44 +1900,6 @@ func TestPushTracesToLocalLiveStore(t *testing.T) {
 	decoded := &tempopb.Trace{}
 	require.NoError(t, decoded.Unmarshal(gotReq.Traces[0].Slice))
 	require.NotEmpty(t, decoded.ResourceSpans)
-}
-
-func TestPushTracesRecordsTraceSizeMetric(t *testing.T) {
-	metricTraceSizeBytes.Reset()
-	t.Cleanup(metricTraceSizeBytes.Reset)
-
-	limits := overrides.Config{}
-	limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
-	distributorCfg, overridesSvc, loggingLevel, middleware := setupDependencies(t, limits)
-
-	d, err := New(
-		distributorCfg,
-		LocalPushTargets{
-			LiveStore: func(_ context.Context, _ *tempopb.PushBytesRequest) (*tempopb.PushResponse, error) {
-				return &tempopb.PushResponse{}, nil
-			},
-		},
-		nil,
-		overridesSvc,
-		middleware,
-		kitlog.NewNopLogger(),
-		loggingLevel,
-		prometheus.NewRegistry(),
-	)
-	require.NoError(t, err)
-
-	// A push spanning several traces must observe the size of every trace, not
-	// just oversized ones.
-	const traceCount = 3
-	batches, _ := makeRebatchRequest(traceCount, 4)
-	traces := batchesToTraces(t, batches)
-	_, err = d.PushTraces(ctx, traces)
-	require.NoError(t, err)
-
-	m := &dto.Metric{}
-	require.NoError(t, metricTraceSizeBytes.WithLabelValues("test").(prometheus.Histogram).Write(m))
-	require.Equal(t, uint64(traceCount), m.Histogram.GetSampleCount())
-	require.Greater(t, m.Histogram.GetSampleSum(), 0.0)
 }
 
 func TestPushTracesToLocalLiveStoreError(t *testing.T) {
