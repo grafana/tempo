@@ -284,7 +284,7 @@ func TestFindReportsBytesOfBlocksWithoutTrace(t *testing.T) {
 	require.Len(t, resps, numBlocks)
 	for _, resp := range resps {
 		require.Nil(t, resp.Trace)
-		require.Positive(t, resp.Metrics.InspectedBytes)
+		require.Positive(t, resp.GetMetrics().GetInspectedBytes())
 	}
 }
 

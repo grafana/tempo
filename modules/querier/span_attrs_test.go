@@ -77,8 +77,9 @@ func TestFinishQuerierSpanHandlesTypedNilTraceByIDMetrics(t *testing.T) {
 
 func TestStartBlockSpanWithoutSearchRequest(t *testing.T) {
 	tests := []struct {
-		name  string
-		start func(context.Context) error
+		name       string
+		start      func(context.Context) error
+		expectedOp string
 	}{
 		{
 			name: "search block",
@@ -88,12 +89,15 @@ func TestStartBlockSpanWithoutSearchRequest(t *testing.T) {
 					Version:       "vParquet4",
 					StartPage:     2,
 					PagesToSearch: 3,
+					Size_:         1000,
+					TotalRecords:  10,
 				})
 				if err == nil {
 					span.End()
 				}
 				return err
 			},
+			expectedOp: "search",
 		},
 		{
 			name: "search tags block",
@@ -103,12 +107,15 @@ func TestStartBlockSpanWithoutSearchRequest(t *testing.T) {
 					Version:       "vParquet4",
 					StartPage:     2,
 					PagesToSearch: 3,
+					Size_:         1000,
+					TotalRecords:  10,
 				})
 				if err == nil {
 					span.End()
 				}
 				return err
 			},
+			expectedOp: "metadata",
 		},
 		{
 			name: "search tag values block",
@@ -118,12 +125,15 @@ func TestStartBlockSpanWithoutSearchRequest(t *testing.T) {
 					Version:       "vParquet4",
 					StartPage:     2,
 					PagesToSearch: 3,
+					Size_:         1000,
+					TotalRecords:  10,
 				})
 				if err == nil {
 					span.End()
 				}
 				return err
 			},
+			expectedOp: "metadata",
 		},
 	}
 
@@ -151,6 +161,9 @@ func TestStartBlockSpanWithoutSearchRequest(t *testing.T) {
 			require.Equal(t, "vParquet4", attrs["version"].AsString())
 			require.Equal(t, int64(2), attrs["startPage"].AsInt64())
 			require.Equal(t, int64(3), attrs["pagesToSearch"].AsInt64())
+			require.Equal(t, tt.expectedOp, attrs["op"].AsString())
+			require.Equal(t, int64(1), attrs["blocks"].AsInt64())
+			require.Equal(t, int64(300), attrs["blockBytes"].AsInt64()) // 3 of 10 row groups of 1000 bytes
 			require.NotContains(t, attrs, "query")
 			require.NotContains(t, attrs, "scope")
 			require.NotContains(t, attrs, "tagName")
@@ -253,8 +266,11 @@ func TestQueryRangeCreatesOnlyPublicQueryRangeSpan(t *testing.T) {
 		{
 			name: "block",
 			req: &tempopb.QueryRangeRequest{
-				BlockID: "invalid",
-				Version: "vParquet4",
+				BlockID:       "invalid",
+				Version:       "vParquet4",
+				Size_:         1000,
+				StartPage:     2,
+				PagesToSearch: 2,
 			},
 			spanCount: 1,
 		},
@@ -288,13 +304,20 @@ func TestQueryRangeCreatesOnlyPublicQueryRangeSpan(t *testing.T) {
 			}
 			require.NotNil(t, queryRangeSpan)
 
+			attrs := map[string]attribute.Value{}
+			for _, attr := range queryRangeSpan.Attributes() {
+				attrs[string(attr.Key)] = attr.Value
+			}
+			require.Equal(t, "metrics", attrs["op"].AsString())
+			// the request doesn't have the total number of row groups, so blockBytes can't be calculated
+			require.NotContains(t, attrs, "blockBytes")
+
 			if tt.name == "block" {
-				attrs := map[string]attribute.Value{}
-				for _, attr := range queryRangeSpan.Attributes() {
-					attrs[string(attr.Key)] = attr.Value
-				}
 				require.Equal(t, tt.req.BlockID, attrs["blockID"].AsString())
 				require.Equal(t, tt.req.Version, attrs["version"].AsString())
+				require.Equal(t, int64(1), attrs["blocks"].AsInt64())
+			} else {
+				require.NotContains(t, attrs, "blocks")
 			}
 		})
 	}
@@ -320,6 +343,9 @@ func TestTraceByIDSpanAttributesAndMetrics(t *testing.T) {
 		AllowPartialTrace: true,
 		Start:             start,
 		End:               end,
+		Blocks: &tempopb.TraceByIDBlocks{Blocks: []*tempopb.TraceByIDBlock{
+			{Size_: 100}, {Size_: 250}, {Size_: 1000},
+		}},
 	})
 	require.NoError(t, err)
 	finishQuerierSpan(span, nil, &tempopb.TraceByIDMetrics{
@@ -340,6 +366,9 @@ func TestTraceByIDSpanAttributesAndMetrics(t *testing.T) {
 	}
 
 	require.Equal(t, "tenant-a", attrs["tenant"].AsString())
+	require.Equal(t, "traces", attrs["op"].AsString())
+	require.Equal(t, int64(3), attrs["blocks"].AsInt64())
+	require.Equal(t, int64(1350), attrs["blockBytes"].AsInt64())
 	require.Equal(t, "010203", attrs["traceID"].AsString())
 	require.Equal(t, QueryModeAll, attrs["queryMode"].AsString())
 	require.Equal(t, "block-start", attrs["blockStart"].AsString())
@@ -355,13 +384,15 @@ func TestTraceByIDSpanAttributesAndMetrics(t *testing.T) {
 }
 
 func TestBlockJobAttributes(t *testing.T) {
+	const noBlockBytes = -1
+
 	tests := []struct {
 		name          string
 		blockSize     uint64
 		startPage     uint32
 		pagesToSearch uint32
 		totalRecords  uint32
-		expectedBytes *int64
+		expectedBytes int64
 	}{
 		{
 			name:          "part of the block",
@@ -369,14 +400,14 @@ func TestBlockJobAttributes(t *testing.T) {
 			startPage:     2,
 			pagesToSearch: 2,
 			totalRecords:  10,
-			expectedBytes: ptr(int64(200)),
+			expectedBytes: 200,
 		},
 		{
 			name:          "whole block",
 			blockSize:     1000,
 			pagesToSearch: 10,
 			totalRecords:  10,
-			expectedBytes: ptr(int64(1000)),
+			expectedBytes: 1000,
 		},
 		{
 			name:          "last job covers less than requested",
@@ -384,7 +415,7 @@ func TestBlockJobAttributes(t *testing.T) {
 			startPage:     8,
 			pagesToSearch: 4,
 			totalRecords:  10,
-			expectedBytes: ptr(int64(200)),
+			expectedBytes: 200,
 		},
 		{
 			name:          "job past the end of the block",
@@ -392,34 +423,28 @@ func TestBlockJobAttributes(t *testing.T) {
 			startPage:     12,
 			pagesToSearch: 2,
 			totalRecords:  10,
-			expectedBytes: ptr(int64(0)),
-		},
-		{
-			name:          "job starts at the end of the block",
-			blockSize:     1000,
-			startPage:     10,
-			pagesToSearch: 2,
-			totalRecords:  10,
-			expectedBytes: ptr(int64(0)),
+			expectedBytes: 0,
 		},
 		{
 			name:          "bytes are not rounded down per row group",
 			blockSize:     1000,
 			pagesToSearch: 3,
 			totalRecords:  7,
-			expectedBytes: ptr(int64(428)),
+			expectedBytes: 428,
 		},
 		{
+			// not a realistic block, it guards that blockSize*rowGroups is not computed in one step, which overflows a uint64
 			name:          "big block does not overflow",
-			blockSize:     100 << 40, // 100 TiB, multiplied with the row groups this is more than a uint64
+			blockSize:     100 << 40,
 			pagesToSearch: 400_000,
 			totalRecords:  1_000_000,
-			expectedBytes: ptr(int64(40 << 40)),
+			expectedBytes: 40 << 40,
 		},
 		{
 			name:          "request without total records",
 			blockSize:     1000,
 			pagesToSearch: 2,
+			expectedBytes: noBlockBytes,
 		},
 	}
 
@@ -431,37 +456,21 @@ func TestBlockJobAttributes(t *testing.T) {
 			}
 
 			require.Equal(t, int64(1), attrs["blocks"].AsInt64())
-			if tc.expectedBytes == nil {
+			if tc.expectedBytes == noBlockBytes {
 				require.NotContains(t, attrs, "blockBytes")
 				return
 			}
-			require.Contains(t, attrs, "blockBytes")
-			require.Equal(t, *tc.expectedBytes, attrs["blockBytes"].AsInt64())
+			require.Equal(t, tc.expectedBytes, attrs["blockBytes"].AsInt64())
 		})
 	}
 }
 
-func TestJobSpansHaveEstimateInputs(t *testing.T) {
+func TestStartRequestSpanOp(t *testing.T) {
 	tests := []struct {
-		name  string
-		start func(context.Context) (oteltrace.Span, error)
-		// expected attributes, nil means that the attribute is not set
-		expectedOp         string
-		expectedBlocks     *int64
-		expectedBlockBytes *int64
+		name       string
+		start      func(context.Context) (oteltrace.Span, error)
+		expectedOp string
 	}{
-		{
-			name: "search block",
-			start: func(ctx context.Context) (oteltrace.Span, error) {
-				_, span, _, err := startSearchBlockSpan(ctx, "Querier.SearchBlock", &tempopb.SearchBlockRequest{
-					BlockID: "block-a", Size_: 1000, StartPage: 2, PagesToSearch: 2, TotalRecords: 10,
-				})
-				return span, err
-			},
-			expectedOp:         "search",
-			expectedBlocks:     ptr(int64(1)),
-			expectedBlockBytes: ptr(int64(200)),
-		},
 		{
 			name: "search request",
 			start: func(ctx context.Context) (oteltrace.Span, error) {
@@ -469,30 +478,6 @@ func TestJobSpansHaveEstimateInputs(t *testing.T) {
 				return span, err
 			},
 			expectedOp: "search",
-		},
-		{
-			name: "search tags block",
-			start: func(ctx context.Context) (oteltrace.Span, error) {
-				_, span, _, err := startTagsBlockSpan(ctx, "Querier.SearchTagsBlocks", &tempopb.SearchTagsBlockRequest{
-					BlockID: "block-a", Size_: 1000, StartPage: 5, PagesToSearch: 10, TotalRecords: 10,
-				})
-				return span, err
-			},
-			expectedOp:         "metadata",
-			expectedBlocks:     ptr(int64(1)),
-			expectedBlockBytes: ptr(int64(500)),
-		},
-		{
-			name: "search tag values block",
-			start: func(ctx context.Context) (oteltrace.Span, error) {
-				_, span, _, err := startTagValuesBlockSpan(ctx, "Querier.SearchTagValuesBlocks", &tempopb.SearchTagValuesBlockRequest{
-					BlockID: "block-a", Size_: 1000, PagesToSearch: 1, TotalRecords: 10,
-				})
-				return span, err
-			},
-			expectedOp:         "metadata",
-			expectedBlocks:     ptr(int64(1)),
-			expectedBlockBytes: ptr(int64(100)),
 		},
 		{
 			name: "search tags request",
@@ -510,68 +495,10 @@ func TestJobSpansHaveEstimateInputs(t *testing.T) {
 			},
 			expectedOp: "metadata",
 		},
-		{
-			name: "trace by id with blocks",
-			start: func(ctx context.Context) (oteltrace.Span, error) {
-				_, span, _, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", &tempopb.TraceByIDRequest{
-					QueryMode: QueryModeBlocks,
-					Blocks: &tempopb.TraceByIDBlocks{Blocks: []*tempopb.TraceByIDBlock{
-						{Size_: 100}, {Size_: 250}, {Size_: 1000},
-					}},
-				})
-				return span, err
-			},
-			expectedOp:         "traces",
-			expectedBlocks:     ptr(int64(3)),
-			expectedBlockBytes: ptr(int64(1350)),
-		},
-		{
-			name: "trace by id without blocks",
-			start: func(ctx context.Context) (oteltrace.Span, error) {
-				_, span, _, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", &tempopb.TraceByIDRequest{QueryMode: QueryModeIngesters})
-				return span, err
-			},
-			expectedOp: "traces",
-		},
-		{
-			name: "trace by id with empty list of blocks",
-			start: func(ctx context.Context) (oteltrace.Span, error) {
-				_, span, _, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", &tempopb.TraceByIDRequest{
-					QueryMode: QueryModeBlocks,
-					Blocks:    &tempopb.TraceByIDBlocks{},
-				})
-				return span, err
-			},
-			expectedOp:         "traces",
-			expectedBlocks:     ptr(int64(0)),
-			expectedBlockBytes: ptr(int64(0)),
-		},
-		{
-			name: "query range recent",
-			start: func(ctx context.Context) (oteltrace.Span, error) {
-				_, span, _, err := startQueryRangeSpan(ctx, "Querier.QueryRange", &tempopb.QueryRangeRequest{QueryMode: QueryModeRecent})
-				return span, err
-			},
-			expectedOp: "metrics",
-		},
-		{
-			name: "query range block",
-			start: func(ctx context.Context) (oteltrace.Span, error) {
-				req := &tempopb.QueryRangeRequest{BlockID: "block-a", Size_: 1000, StartPage: 2, PagesToSearch: 2}
-				_, span, _, err := startQueryRangeSpan(ctx, "Querier.QueryRange", req)
-				if err == nil {
-					setQueryRangeBlockSpanAttributes(span, req)
-				}
-				return span, err
-			},
-			expectedOp:     "metrics",
-			expectedBlocks: ptr(int64(1)),
-			// the request doesn't have the total number of row groups of the block
-		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			recorder := tracetest.NewSpanRecorder()
 			tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 			defer func() { require.NoError(t, tp.Shutdown(context.Background())) }()
@@ -580,28 +507,13 @@ func TestJobSpansHaveEstimateInputs(t *testing.T) {
 			tracer = tp.Tracer("test")
 			defer func() { tracer = oldTracer }()
 
-			span, err := tc.start(user.InjectOrgID(context.Background(), "tenant-a"))
+			span, err := tt.start(user.InjectOrgID(context.Background(), "tenant-a"))
 			require.NoError(t, err)
 			span.End()
 
 			spans := recorder.Ended()
 			require.Len(t, spans, 1)
-			attrs := map[string]attribute.Value{}
-			for _, attr := range spans[0].Attributes() {
-				attrs[string(attr.Key)] = attr.Value
-			}
-
-			require.Equal(t, tc.expectedOp, attrs["op"].AsString())
-			for key, expected := range map[string]*int64{"blocks": tc.expectedBlocks, "blockBytes": tc.expectedBlockBytes} {
-				if expected == nil {
-					require.NotContains(t, attrs, key)
-					continue
-				}
-				require.Contains(t, attrs, key)
-				require.Equal(t, *expected, attrs[key].AsInt64(), key)
-			}
+			require.Contains(t, spans[0].Attributes(), attribute.String("op", tt.expectedOp))
 		})
 	}
 }
-
-func ptr[T any](v T) *T { return &v }

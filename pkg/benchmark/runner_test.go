@@ -76,7 +76,7 @@ func TestRun(t *testing.T) {
 	require.Equal(t, 25, absent.Executions)
 	require.Zero(t, absent.Matched, "an absent ID was found, so the profile is wrong")
 	// A bloom miss still reports the bytes read from the bloom filter, and
-	// the backend counter observes the same read.
+	// the backend counter observes a read as well.
 	require.Positive(t, absent.Metrics[metrics.PrefixResponse+"inspectedBytes"].Total)
 	require.Positive(t, absent.Metrics[metrics.KeyBackendReads].Total)
 

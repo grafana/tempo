@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
@@ -38,11 +39,21 @@ type mockProcessServer struct {
 	totalRequests int
 	// returned for every request batch
 	sendErr error
+	// if set, the batches are answered once release is closed, or the server context is done
+	release chan struct{}
+	// if set, receives the size of every batch sent to the querier
+	sent chan int
 
 	mu            sync.Mutex
 	recvCount     int
 	lastBatchSize int
 	served        int
+}
+
+// newHeldProcessServer returns a mockProcessServer that holds every batch it receives until
+// it is released, so tests can observe the frontend while jobs execute.
+func newHeldProcessServer(ctx context.Context) *mockProcessServer {
+	return &mockProcessServer{ctx: ctx, release: make(chan struct{}), sent: make(chan int, 100)}
 }
 
 func (m *mockProcessServer) Context() context.Context { return m.ctx }
@@ -61,29 +72,45 @@ func (m *mockProcessServer) Send(msg *frontendv1pb.FrontendToClient) error {
 		return nil
 	}
 
+	if m.sent != nil {
+		m.sent <- m.lastBatchSize
+	}
+
 	return m.sendErr
 }
 
 func (m *mockProcessServer) Recv() (*frontendv1pb.ClientToFrontend, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.recvCount++
 	if m.recvCount == 1 {
+		m.mu.Unlock()
 		// Handshake: advertise batching support so Process uses MaxBatchSize.
 		return &frontendv1pb.ClientToFrontend{
 			ClientID: "test-querier",
 			Features: int32(frontendv1pb.Feature_REQUEST_BATCHING),
 		}, nil
 	}
+	size := m.lastBatchSize
+	m.mu.Unlock()
 
-	batch := make([]*httpgrpc.HTTPResponse, m.lastBatchSize)
+	if m.release != nil {
+		select {
+		case <-m.release:
+		case <-m.ctx.Done():
+			return nil, m.ctx.Err()
+		}
+	}
+
+	batch := make([]*httpgrpc.HTTPResponse, size)
 	for i := range batch {
 		batch[i] = &httpgrpc.HTTPResponse{Code: http.StatusOK}
 	}
 
-	m.served += m.lastBatchSize
-	if m.served >= m.totalRequests {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.served += size
+	if m.cancel != nil && m.served >= m.totalRequests {
 		// No more work is coming; unblock the queue so Process returns.
 		m.cancel()
 	}
@@ -182,79 +209,84 @@ func TestQueryOp(t *testing.T) {
 }
 
 func TestInflightJobsCountsQueuedAndExecuting(t *testing.T) {
-	f, reg := newInflightTestFrontend(t, 10)
+	f, reg := newTestFrontend(t, 10, 1)
 	done := startRoundTrip(f, tenantRequest(context.Background()))
 
-	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond, "queued job not counted")
+	require.Eventually(t, func() bool { return gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch) == 1 }, time.Second, time.Millisecond, "queued job not counted")
 
 	r := dequeueForQuerier(t, f)
-	require.Equal(t, 1.0, inflightJobs(reg), "executing job not counted")
+	require.Equal(t, 1.0, gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch), "executing job not counted")
 
 	r.response <- &http.Response{StatusCode: http.StatusOK}
 	require.NoError(t, (<-done).err)
-	require.Equal(t, 0.0, inflightJobs(reg))
+	require.Equal(t, 0.0, gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch))
 }
 
 func TestInflightJobsReleasedOnError(t *testing.T) {
-	f, reg := newInflightTestFrontend(t, 10)
+	f, reg := newTestFrontend(t, 10, 1)
 	done := startRoundTrip(f, tenantRequest(context.Background()))
-	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch) == 1 }, time.Second, time.Millisecond)
 
 	dequeueForQuerier(t, f).Fail(errors.New("querier stream closed"))
 	require.Error(t, (<-done).err)
-	require.Equal(t, 0.0, inflightJobs(reg))
+	require.Equal(t, 0.0, gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch))
 }
 
 func TestInflightJobsReleasedOnCancel(t *testing.T) {
-	f, reg := newInflightTestFrontend(t, 10)
+	f, reg := newTestFrontend(t, 10, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := startRoundTrip(f, tenantRequest(ctx))
-	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch) == 1 }, time.Second, time.Millisecond)
 
 	cancel()
 	require.ErrorIs(t, (<-done).err, context.Canceled)
-	require.Equal(t, 0.0, inflightJobs(reg))
+	require.Equal(t, 0.0, gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch))
 }
 
 func TestInflightJobsExcludesRejected(t *testing.T) {
-	f, reg := newInflightTestFrontend(t, 1)
+	f, reg := newTestFrontend(t, 1, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	startRoundTrip(f, tenantRequest(ctx)) // fills the tenant queue
-	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch) == 1 }, time.Second, time.Millisecond)
 
 	res := <-startRoundTrip(f, tenantRequest(context.Background()))
 	require.ErrorIs(t, res.err, queue.ErrTooManyRequests)
-	require.Equal(t, 1.0, inflightJobs(reg))
+	require.Equal(t, 1.0, gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch))
 }
 
 func TestInflightJobsRemovedForInactiveUser(t *testing.T) {
-	f, reg := newInflightTestFrontend(t, 10)
+	f, reg := newTestFrontend(t, 10, 1)
 	done := startRoundTrip(f, tenantRequest(context.Background()))
-	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch) == 1 }, time.Second, time.Millisecond)
 	dequeueForQuerier(t, f).response <- &http.Response{StatusCode: http.StatusOK}
 	require.NoError(t, (<-done).err)
 
 	f.cleanupInactiveUserMetrics(testTenant)
-	require.Equal(t, -1.0, inflightJobs(reg))
+	require.Equal(t, -1.0, gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch))
 }
 
 func TestInflightJobsCleanupDuringJobDoesNotGoNegative(t *testing.T) {
-	f, reg := newInflightTestFrontend(t, 10)
+	f, reg := newTestFrontend(t, 10, 1)
 	done := startRoundTrip(f, tenantRequest(context.Background()))
-	require.Eventually(t, func() bool { return inflightJobs(reg) == 1 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch) == 1 }, time.Second, time.Millisecond)
 
 	f.cleanupInactiveUserMetrics(testTenant)
 	dequeueForQuerier(t, f).response <- &http.Response{StatusCode: http.StatusOK}
 	require.NoError(t, (<-done).err)
-	require.Equal(t, -1.0, inflightJobs(reg))
+	require.Equal(t, -1.0, gaugeValue(reg, inflightJobsName, pipeline.QueryTypeSearch))
 }
 
-const testTenant = "test-tenant"
+const (
+	testTenant = "test-tenant"
 
-func newInflightTestFrontend(t *testing.T, maxOutstanding int) (*Frontend, *prometheus.Registry) {
+	inflightJobsName  = "tempo_query_frontend_inflight_jobs"
+	executingJobsName = "tempo_query_frontend_executing_jobs"
+)
+
+func newTestFrontend(t *testing.T, maxOutstanding, maxBatchSize int) (*Frontend, *prometheus.Registry) {
 	reg := prometheus.NewRegistry()
-	f, err := New(Config{MaxOutstandingPerTenant: maxOutstanding, MaxBatchSize: 1}, log.NewNopLogger(), reg)
+	f, err := New(Config{MaxOutstandingPerTenant: maxOutstanding, MaxBatchSize: maxBatchSize}, log.NewNopLogger(), reg)
 	require.NoError(t, err)
 	return f, reg
 }
@@ -288,14 +320,14 @@ func dequeueForQuerier(t *testing.T, f *Frontend) *request {
 	return reqs[0].(*request)
 }
 
-// inflightJobs returns the {user=testTenant, op="search"} gauge value, or -1 when the series is absent.
-func inflightJobs(reg *prometheus.Registry) float64 {
+// gaugeValue returns the value of the {user=testTenant, op} series of a gauge, or -1 when the series is absent.
+func gaugeValue(reg *prometheus.Registry, name, op string) float64 {
 	mfs, err := reg.Gather()
 	if err != nil {
 		return -1
 	}
 	for _, mf := range mfs {
-		if mf.GetName() != "tempo_query_frontend_inflight_jobs" {
+		if mf.GetName() != name {
 			continue
 		}
 		for _, m := range mf.GetMetric() {
@@ -303,7 +335,7 @@ func inflightJobs(reg *prometheus.Registry) float64 {
 			for _, lp := range m.GetLabel() {
 				labels[lp.GetName()] = lp.GetValue()
 			}
-			if labels["user"] == testTenant && labels["op"] == pipeline.QueryTypeSearch {
+			if labels["user"] == testTenant && labels["op"] == op {
 				return m.GetGauge().GetValue()
 			}
 		}
@@ -320,77 +352,6 @@ func TestQueryOpSurvivesSharding(t *testing.T) {
 	sub := parent.CloneFromHTTPRequest(httptest.NewRequest("GET", "/shard", nil))
 
 	require.Equal(t, "search", queryOp(sub))
-}
-
-// controlledProcessServer is a Frontend_ProcessServer that holds every batch it receives until released,
-// so tests can observe the frontend while jobs execute.
-type controlledProcessServer struct {
-	grpc.ServerStream
-	ctx context.Context
-
-	// returned for every request batch
-	sendErr error
-	// closed to answer the received batches with 200 responses
-	release chan struct{}
-	// receives the size of every batch sent to the querier
-	sent chan int
-
-	mu            sync.Mutex
-	recvCount     int
-	lastBatchSize int
-}
-
-func newControlledProcessServer(ctx context.Context) *controlledProcessServer {
-	return &controlledProcessServer{ctx: ctx, release: make(chan struct{}), sent: make(chan int, 100)}
-}
-
-func (m *controlledProcessServer) Context() context.Context { return m.ctx }
-
-func (m *controlledProcessServer) Send(msg *frontendv1pb.FrontendToClient) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	switch msg.Type {
-	case frontendv1pb.Type_HTTP_REQUEST:
-		m.lastBatchSize = 1
-	case frontendv1pb.Type_HTTP_REQUEST_BATCH:
-		m.lastBatchSize = len(msg.HttpRequestBatch)
-	default:
-		return nil
-	}
-
-	m.sent <- m.lastBatchSize
-	return m.sendErr
-}
-
-func (m *controlledProcessServer) Recv() (*frontendv1pb.ClientToFrontend, error) {
-	m.mu.Lock()
-	m.recvCount++
-	first, size := m.recvCount == 1, m.lastBatchSize
-	m.mu.Unlock()
-
-	if first {
-		return &frontendv1pb.ClientToFrontend{ClientID: "test-querier", Features: int32(frontendv1pb.Feature_REQUEST_BATCHING)}, nil
-	}
-
-	select {
-	case <-m.release:
-	case <-m.ctx.Done():
-		return nil, m.ctx.Err()
-	}
-
-	batch := make([]*httpgrpc.HTTPResponse, size)
-	for i := range batch {
-		batch[i] = &httpgrpc.HTTPResponse{Code: http.StatusOK}
-	}
-	return &frontendv1pb.ClientToFrontend{HttpResponseBatch: batch}, nil
-}
-
-func newExecutingTestFrontend(t *testing.T, maxBatchSize int) (*Frontend, *prometheus.Registry) {
-	reg := prometheus.NewRegistry()
-	f, err := New(Config{MaxOutstandingPerTenant: 100, MaxBatchSize: maxBatchSize}, log.NewNopLogger(), reg)
-	require.NoError(t, err)
-	return f, reg
 }
 
 // enqueueJob enqueues a job of the given op without waiting for the response.
@@ -415,52 +376,7 @@ func startProcess(f *Frontend, srv frontendv1pb.Frontend_ProcessServer) <-chan e
 	return done
 }
 
-// executingJobs returns the {user=testTenant, op} gauge value, or -1 when the series is absent.
-func executingJobs(reg *prometheus.Registry, op string) float64 {
-	mfs, err := reg.Gather()
-	if err != nil {
-		return -1
-	}
-	for _, mf := range mfs {
-		if mf.GetName() != "tempo_query_frontend_executing_jobs" {
-			continue
-		}
-		for _, m := range mf.GetMetric() {
-			labels := map[string]string{}
-			for _, lp := range m.GetLabel() {
-				labels[lp.GetName()] = lp.GetValue()
-			}
-			if labels["user"] == testTenant && labels["op"] == op {
-				return m.GetGauge().GetValue()
-			}
-		}
-	}
-	return -1
-}
-
-// executingJobSeries returns the number of series of the executing jobs gauge for testTenant.
-func executingJobSeries(reg *prometheus.Registry) int {
-	mfs, err := reg.Gather()
-	if err != nil {
-		return -1
-	}
-	count := 0
-	for _, mf := range mfs {
-		if mf.GetName() != "tempo_query_frontend_executing_jobs" {
-			continue
-		}
-		for _, m := range mf.GetMetric() {
-			for _, lp := range m.GetLabel() {
-				if lp.GetName() == "user" && lp.GetValue() == testTenant {
-					count++
-				}
-			}
-		}
-	}
-	return count
-}
-
-func waitForBatch(t *testing.T, srv *controlledProcessServer, size int) {
+func waitForBatch(t *testing.T, srv *mockProcessServer, size int) {
 	t.Helper()
 	select {
 	case got := <-srv.sent:
@@ -471,25 +387,25 @@ func waitForBatch(t *testing.T, srv *controlledProcessServer, size int) {
 }
 
 func TestExecutingJobsCountsJobsOfBatchWhileExecuting(t *testing.T) {
-	f, reg := newExecutingTestFrontend(t, 3)
+	f, reg := newTestFrontend(t, 100, 3)
 	enqueueJob(context.Background(), t, f, pipeline.QueryTypeSearch)
 	enqueueJob(context.Background(), t, f, pipeline.QueryTypeSearch)
 	enqueueJob(context.Background(), t, f, pipeline.QueryTypeTraces)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	srv := newControlledProcessServer(ctx)
+	srv := newHeldProcessServer(ctx)
 	done := startProcess(f, srv)
 
 	waitForBatch(t, srv, 3)
-	require.Equal(t, 2.0, executingJobs(reg, pipeline.QueryTypeSearch))
-	require.Equal(t, 1.0, executingJobs(reg, pipeline.QueryTypeTraces))
+	require.Equal(t, 2.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeSearch))
+	require.Equal(t, 1.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeTraces))
 
-	require.Equal(t, -1.0, executingJobs(reg, pipeline.QueryTypeMetrics), "no job of this op was sent")
+	require.Equal(t, -1.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeMetrics), "no job of this op was sent")
 
 	close(srv.release)
 	require.Eventually(t, func() bool {
-		return executingJobs(reg, pipeline.QueryTypeSearch) == 0 && executingJobs(reg, pipeline.QueryTypeTraces) == 0
+		return gaugeValue(reg, executingJobsName, pipeline.QueryTypeSearch) == 0 && gaugeValue(reg, executingJobsName, pipeline.QueryTypeTraces) == 0
 	}, 5*time.Second, time.Millisecond)
 
 	cancel()
@@ -497,81 +413,71 @@ func TestExecutingJobsCountsJobsOfBatchWhileExecuting(t *testing.T) {
 }
 
 func TestExecutingJobsDoesNotCountQueuedJobs(t *testing.T) {
-	f, reg := newExecutingTestFrontend(t, 1)
+	f, reg := newTestFrontend(t, 100, 1)
 	enqueueJob(context.Background(), t, f, pipeline.QueryTypeSearch)
 	enqueueJob(context.Background(), t, f, pipeline.QueryTypeSearch)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	srv := newControlledProcessServer(ctx)
+	srv := newHeldProcessServer(ctx)
 	done := startProcess(f, srv)
 
 	// the querier works on one job at a time, the second one is still queued
 	waitForBatch(t, srv, 1)
-	require.Equal(t, 1.0, executingJobs(reg, pipeline.QueryTypeSearch))
+	require.Equal(t, 1.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeSearch))
 
 	srv.release <- struct{}{}
 	waitForBatch(t, srv, 1)
-	require.Equal(t, 1.0, executingJobs(reg, pipeline.QueryTypeSearch))
+	require.Equal(t, 1.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeSearch))
 
 	close(srv.release)
-	require.Eventually(t, func() bool { return executingJobs(reg, pipeline.QueryTypeSearch) == 0 }, 5*time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return gaugeValue(reg, executingJobsName, pipeline.QueryTypeSearch) == 0 }, 5*time.Second, time.Millisecond)
 
 	cancel()
 	require.ErrorIs(t, <-done, context.Canceled)
 }
 
-func TestExecutingJobsReleasedOnSendError(t *testing.T) {
-	f, reg := newExecutingTestFrontend(t, 1)
-	enqueueJob(context.Background(), t, f, pipeline.QueryTypeSearch)
-
+func TestExecutingJobsReleased(t *testing.T) {
 	sendErr := errors.New("querier stream closed")
-	srv := newControlledProcessServer(context.Background())
-	srv.sendErr = sendErr
 
-	require.ErrorIs(t, <-startProcess(f, srv), sendErr)
-	// the series exists, so the job was counted, and it is back to 0
-	require.Equal(t, 0.0, executingJobs(reg, pipeline.QueryTypeSearch))
-}
+	for _, tc := range []struct {
+		name    string
+		sendErr error
+		// ends the job while the querier works on it, nil if sending the batch fails
+		trigger func(cancelJob, cancelStream context.CancelFunc)
+		wantErr error
+	}{
+		{name: "send error", sendErr: sendErr, wantErr: sendErr},
+		{name: "stream error", trigger: func(_, cancelStream context.CancelFunc) { cancelStream() }, wantErr: context.Canceled},
+		{name: "job canceled", trigger: func(cancelJob, _ context.CancelFunc) { cancelJob() }, wantErr: context.Canceled},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, reg := newTestFrontend(t, 100, 1)
+			jobCtx, cancelJob := context.WithCancel(context.Background())
+			defer cancelJob()
+			enqueueJob(jobCtx, t, f, pipeline.QueryTypeSearch)
 
-func TestExecutingJobsReleasedOnStreamError(t *testing.T) {
-	f, reg := newExecutingTestFrontend(t, 1)
-	enqueueJob(context.Background(), t, f, pipeline.QueryTypeSearch)
+			streamCtx, cancelStream := context.WithCancel(context.Background())
+			defer cancelStream()
+			srv := newHeldProcessServer(streamCtx)
+			srv.sendErr = tc.sendErr
+			done := startProcess(f, srv)
 
-	// the stream fails while the querier works on the job
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	srv := newControlledProcessServer(ctx)
-	done := startProcess(f, srv)
+			if tc.trigger != nil {
+				waitForBatch(t, srv, 1)
+				require.Equal(t, 1.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeSearch))
+				tc.trigger(cancelJob, cancelStream)
+			}
 
-	waitForBatch(t, srv, 1)
-	require.Equal(t, 1.0, executingJobs(reg, pipeline.QueryTypeSearch))
-
-	cancel()
-	require.Error(t, <-done)
-	require.Equal(t, 0.0, executingJobs(reg, pipeline.QueryTypeSearch))
-}
-
-func TestExecutingJobsReleasedOnCancel(t *testing.T) {
-	f, reg := newExecutingTestFrontend(t, 1)
-	jobCtx, cancelJob := context.WithCancel(context.Background())
-	enqueueJob(jobCtx, t, f, pipeline.QueryTypeSearch)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	srv := newControlledProcessServer(ctx)
-	done := startProcess(f, srv)
-
-	waitForBatch(t, srv, 1)
-	require.Equal(t, 1.0, executingJobs(reg, pipeline.QueryTypeSearch))
-
-	cancelJob()
-	require.ErrorIs(t, <-done, context.Canceled)
-	require.Equal(t, 0.0, executingJobs(reg, pipeline.QueryTypeSearch))
+			require.ErrorIs(t, <-done, tc.wantErr)
+			// the series exists, so the job was counted, and it is back to 0
+			require.Equal(t, 0.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeSearch))
+		})
+	}
 }
 
 func TestExecutingJobsExcludesExpiredJobs(t *testing.T) {
-	f, reg := newExecutingTestFrontend(t, 2)
+	f, reg := newTestFrontend(t, 100, 2)
 	expiredCtx, cancelExpired := context.WithCancel(context.Background())
 	enqueueJob(expiredCtx, t, f, pipeline.QueryTypeSearch)
 	enqueueJob(context.Background(), t, f, pipeline.QueryTypeTraces)
@@ -579,63 +485,44 @@ func TestExecutingJobsExcludesExpiredJobs(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	srv := newControlledProcessServer(ctx)
+	srv := newHeldProcessServer(ctx)
 	done := startProcess(f, srv)
 
 	// the expired job is dropped from the batch and never counted
 	waitForBatch(t, srv, 1)
-	require.Equal(t, -1.0, executingJobs(reg, pipeline.QueryTypeSearch))
-	require.Equal(t, 1.0, executingJobs(reg, pipeline.QueryTypeTraces))
+	require.Equal(t, -1.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeSearch))
+	require.Equal(t, 1.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeTraces))
 
 	close(srv.release)
-	require.Eventually(t, func() bool { return executingJobs(reg, pipeline.QueryTypeTraces) == 0 }, 5*time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return gaugeValue(reg, executingJobsName, pipeline.QueryTypeTraces) == 0 }, 5*time.Second, time.Millisecond)
 
 	cancel()
 	require.ErrorIs(t, <-done, context.Canceled)
 }
 
 func TestExecutingJobsCleanupDuringJobDoesNotRecreateSeries(t *testing.T) {
-	f, reg := newExecutingTestFrontend(t, 1)
+	f, reg := newTestFrontend(t, 100, 1)
 	enqueueJob(context.Background(), t, f, pipeline.QueryTypeSearch)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	srv := newControlledProcessServer(ctx)
+	srv := newHeldProcessServer(ctx)
 	done := startProcess(f, srv)
 
 	waitForBatch(t, srv, 1)
-	require.Equal(t, 1.0, executingJobs(reg, pipeline.QueryTypeSearch))
+	require.Equal(t, 1.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeSearch))
 
 	f.cleanupInactiveUserMetrics(testTenant)
-	require.Zero(t, executingJobSeries(reg))
+	require.Zero(t, testutil.CollectAndCount(f.executingJobs))
 
 	// the job ends after the series was removed, which must neither recreate it nor make it negative.
 	// the next job is held, so the frontend is done with the first one when its batch is sent.
 	srv.release <- struct{}{}
 	enqueueJob(context.Background(), t, f, pipeline.QueryTypeTraces)
 	waitForBatch(t, srv, 1)
-	require.Equal(t, 1.0, executingJobs(reg, pipeline.QueryTypeTraces))
-	require.Equal(t, 1, executingJobSeries(reg), "only the series of the running job exists")
+	require.Equal(t, 1.0, gaugeValue(reg, executingJobsName, pipeline.QueryTypeTraces))
+	require.Equal(t, 1, testutil.CollectAndCount(f.executingJobs), "only the series of the running job exists")
 
 	cancel()
 	require.ErrorIs(t, <-done, context.Canceled)
-}
-
-func TestExecutingJobsRemovedForInactiveUser(t *testing.T) {
-	f, reg := newExecutingTestFrontend(t, 1)
-	enqueueJob(context.Background(), t, f, pipeline.QueryTypeSearch)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	srv := newControlledProcessServer(ctx)
-	done := startProcess(f, srv)
-
-	waitForBatch(t, srv, 1)
-	close(srv.release)
-	require.Eventually(t, func() bool { return executingJobs(reg, pipeline.QueryTypeSearch) == 0 }, 5*time.Second, time.Millisecond)
-	cancel()
-	require.ErrorIs(t, <-done, context.Canceled)
-
-	f.cleanupInactiveUserMetrics(testTenant)
-	require.Equal(t, -1.0, executingJobs(reg, pipeline.QueryTypeSearch))
 }

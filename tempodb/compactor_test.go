@@ -200,10 +200,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			c := trace.NewCombiner(0, false)
 			for _, tr := range trs {
 				require.NotNil(t, tr)
-				// blocks without the trace respond with metrics only
-				if tr.Trace == nil {
-					continue
-				}
+				// blocks without the trace respond with metrics only, Consume ignores their nil trace
 				_, err = c.Consume(tr.Trace)
 				require.NoError(t, err)
 			}

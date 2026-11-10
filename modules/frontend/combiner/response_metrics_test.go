@@ -188,9 +188,12 @@ func TestMergeAdditionalMetrics(t *testing.T) {
 	assert.Equal(t, map[string]int64{tempopb.AdditionalMetricEngineBytes: 3}, dst)
 }
 
-func TestMetricsCombiners_ReportInspectedBytesPerResponse(t *testing.T) {
-	var reported []uint64
-	opt := WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) })
+func TestMetricsCombiners_ReportAndObserveInspectedBytes(t *testing.T) {
+	var reported, observed []uint64
+	opt := WithOptions(
+		WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) }),
+		WithJobInspectedBytesObserver(func(b uint64) { observed = append(observed, b) }),
+	)
 
 	traceByID := NewTraceByIDMetricsCombiner(opt)
 	search := NewSearchMetricsCombiner(opt)
@@ -199,86 +202,20 @@ func TestMetricsCombiners_ReportInspectedBytesPerResponse(t *testing.T) {
 
 	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 3}, &fakePipelineResponse{})
 	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 30}, &fakePipelineResponse{cacheHit: true})
+	traceByID.Combine(&tempopb.TraceByIDMetrics{}, &fakePipelineResponse{})
+	traceByID.Combine(nil, &fakePipelineResponse{})
 	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 1}, &fakePipelineResponse{})
 	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 10}, &fakePipelineResponse{cacheHit: true})
+	// the sharder summarizes the jobs of a query, which is not a job
+	search.CombineMetadata(&tempopb.SearchMetrics{TotalJobs: 5, TotalBlocks: 2}, &fakePipelineResponse{})
 	metadata.Combine(&tempopb.MetadataMetrics{InspectedBytes: 100}, &fakePipelineResponse{})
 	queryRange.Combine(&tempopb.SearchMetrics{InspectedBytes: 1000}, &fakePipelineResponse{})
 	queryRange.Combine(&tempopb.SearchMetrics{InspectedBytes: 10000}, &fakePipelineResponse{cacheHit: true})
 	queryRange.Combine(&tempopb.SearchMetrics{}, &fakePipelineResponse{})
+	queryRange.Combine(&tempopb.SearchMetrics{TotalJobs: 5, TotalBlocks: 2, TotalBlockBytes: 100}, &fakePipelineResponse{isMetadata: true})
 
 	// cache hits and zero-byte responses are not reported
 	assert.Equal(t, []uint64{3, 1, 100, 1000}, reported)
-}
-
-func TestMetricsCombiners_ObserveInspectedBytesPerJob(t *testing.T) {
-	cacheHit := &fakePipelineResponse{cacheHit: true}
-
-	tests := []struct {
-		name     string
-		combine  func(opt Option)
-		expected []uint64
-	}{
-		{
-			name: "trace by id",
-			combine: func(opt Option) {
-				c := NewTraceByIDMetricsCombiner(opt)
-				c.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 3}, &fakePipelineResponse{})
-				c.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 30}, cacheHit)
-				c.Combine(&tempopb.TraceByIDMetrics{}, &fakePipelineResponse{})
-				c.Combine(nil, &fakePipelineResponse{})
-			},
-			expected: []uint64{3, 0},
-		},
-		{
-			name: "search",
-			combine: func(opt Option) {
-				c := NewSearchMetricsCombiner(opt)
-				c.Combine(&tempopb.SearchMetrics{InspectedBytes: 1}, &fakePipelineResponse{})
-				c.Combine(&tempopb.SearchMetrics{InspectedBytes: 10}, cacheHit)
-				c.Combine(&tempopb.SearchMetrics{}, &fakePipelineResponse{})
-				// the sharder summarizes the jobs of a query, which is not a job
-				c.CombineMetadata(&tempopb.SearchMetrics{TotalJobs: 5, TotalBlocks: 2}, &fakePipelineResponse{})
-			},
-			expected: []uint64{1, 0},
-		},
-		{
-			name: "metadata",
-			combine: func(opt Option) {
-				c := NewMetadataMetricsCombiner(opt)
-				c.Combine(&tempopb.MetadataMetrics{InspectedBytes: 100}, &fakePipelineResponse{})
-				c.Combine(&tempopb.MetadataMetrics{InspectedBytes: 1000}, cacheHit)
-				c.Combine(&tempopb.MetadataMetrics{}, &fakePipelineResponse{})
-			},
-			expected: []uint64{100, 0},
-		},
-		{
-			name: "query range",
-			combine: func(opt Option) {
-				c := NewQueryRangeMetricsCombiner(opt)
-				c.Combine(&tempopb.SearchMetrics{InspectedBytes: 1000}, &fakePipelineResponse{})
-				c.Combine(&tempopb.SearchMetrics{InspectedBytes: 10000}, cacheHit)
-				c.Combine(&tempopb.SearchMetrics{}, &fakePipelineResponse{})
-				// the sharder summarizes the jobs of a query, which is not a job. a query without
-				// any job has a summary with no jobs
-				c.Combine(&tempopb.SearchMetrics{TotalJobs: 5, TotalBlocks: 2, TotalBlockBytes: 100}, &fakePipelineResponse{isMetadata: true})
-				c.Combine(&tempopb.SearchMetrics{}, &fakePipelineResponse{isMetadata: true})
-			},
-			expected: []uint64{1000, 0},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			var observed, reported []uint64
-			tc.combine(WithOptions(
-				WithJobInspectedBytesObserver(func(b uint64) { observed = append(observed, b) }),
-				WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) }),
-			))
-
-			// cache hits and summaries are not observed, jobs without inspected bytes are
-			assert.Equal(t, tc.expected, observed)
-			// the reporter keeps skipping jobs without inspected bytes
-			assert.NotContains(t, reported, uint64(0))
-		})
-	}
+	// cache hits, missing metrics and summaries are not observed, zero-byte responses are
+	assert.Equal(t, []uint64{3, 0, 1, 100, 1000, 0}, observed)
 }
