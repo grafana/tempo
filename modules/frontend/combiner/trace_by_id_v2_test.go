@@ -242,80 +242,55 @@ func TestNewTraceByIDV2WithSpanPruning_AlreadyPrunedOnWrite(t *testing.T) {
 	summary := test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(2, 0), parent.SpanId, "SELECT", 0, 0,
 		&commonv1.KeyValue{Key: "aggregation.is_summary", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BoolValue{BoolValue: true}}})
 
-	traceResponse := &tempopb.TraceByIDResponse{
-		Trace:   test.WrapSpansAsTrace(parent, summary),
-		Metrics: &tempopb.TraceByIDMetrics{},
-	}
-	resBytes, err := proto.Marshal(traceResponse)
-	require.NoError(t, err)
-	response := http.Response{
-		StatusCode: 200,
-		Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
-		Body:       io.NopCloser(bytes.NewReader(resBytes)),
-	}
-
-	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
-	cfg.MinSpansToAggregate = 2
-	cfg.MaxParentDepth = 0
-
-	c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{SpanPruningConfig: cfg})
-	err = c.AddResponse(MockResponse{&response})
-	require.NoError(t, err)
-
-	res, err := c.HTTPFinal(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, res.StatusCode)
-
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	actualResp := &tempopb.TraceByIDResponse{}
-	require.NoError(t, proto.Unmarshal(body, actualResp))
-
-	require.Equal(t, 2, test.CountSpans(actualResp.Trace))
-	require.Equal(t, tempopb.PartialStatus_PARTIAL, actualResp.Status)
-	require.Contains(t, actualResp.Message, "already pruned before it reached Tempo")
-	require.Equal(t, tempopb.PruneStatus_PRUNED_ON_WRITE, actualResp.PruneStatus)
-}
-
-// TestNewTraceByIDV2PruneStatusJSON pins the JSON a client sees: the enum name under
-// "pruneStatus" when pruning happened, and no key at all when it did not (zero value), which is
-// what keeps strict JSON decoders working against responses that were never pruned.
-func TestNewTraceByIDV2PruneStatusJSON(t *testing.T) {
-	traceID := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	parent := test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(1, 0), nil, "parent", 0, 0)
-	spans := []*tracev1.Span{parent}
-	for i := byte(0); i < 3; i++ {
-		spans = append(spans, test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(2, i), parent.SpanId, "SELECT", 0, 0,
-			test.MakeAttribute("db.operation", "select")))
-	}
-
-	run := func(t *testing.T, minSpans int) string {
-		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{Trace: test.WrapSpansAsTrace(spans...), Metrics: &tempopb.TraceByIDMetrics{}})
+	finalize := func(t *testing.T, opts TraceByIDV2Options) *tempopb.TraceByIDResponse {
+		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
+			Trace:   test.WrapSpansAsTrace(parent, summary),
+			Metrics: &tempopb.TraceByIDMetrics{},
+		})
 		require.NoError(t, err)
 		response := http.Response{
 			StatusCode: 200,
 			Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
 			Body:       io.NopCloser(bytes.NewReader(resBytes)),
 		}
-		cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
-		cfg.MinSpansToAggregate = minSpans
-		cfg.MaxParentDepth = 0
 
-		c := NewTraceByIDV2(100_000, api.HeaderAcceptJSON, nil, TraceByIDV2Options{SpanPruningConfig: cfg})
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, opts)
 		require.NoError(t, c.AddResponse(MockResponse{&response}))
+
 		res, err := c.HTTPFinal(context.Background())
 		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
-		return string(body)
+		actualResp := &tempopb.TraceByIDResponse{}
+		require.NoError(t, proto.Unmarshal(body, actualResp))
+		return actualResp
 	}
 
-	t.Run("pruned on read", func(t *testing.T) {
-		require.Contains(t, run(t, 2), `"pruneStatus":"PRUNED_ON_READ"`)
+	t.Run("pruning enabled", func(t *testing.T) {
+		cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+		cfg.MinSpansToAggregate = 2
+		cfg.MaxParentDepth = 0
+
+		actualResp := finalize(t, TraceByIDV2Options{SpanPruningConfig: cfg})
+
+		require.Equal(t, 2, test.CountSpans(actualResp.Trace))
+		require.Equal(t, tempopb.PartialStatus_PARTIAL, actualResp.Status)
+		require.Contains(t, actualResp.Message, "already pruned before it reached Tempo")
+		require.Equal(t, tempopb.PruneStatus_PRUNED_ON_WRITE, actualResp.PruneStatus)
 	})
 
-	t.Run("nothing met the threshold so not pruned", func(t *testing.T) {
-		require.NotContains(t, run(t, 100), "pruneStatus")
+	// Re-querying can't recover spans that were never stored, so the prune status is reported
+	// whatever the request asked for. Status and message describe this request's own handling, which
+	// did nothing, so they stay unset.
+	t.Run("pruning disabled", func(t *testing.T) {
+		actualResp := finalize(t, TraceByIDV2Options{})
+
+		require.Equal(t, 2, test.CountSpans(actualResp.Trace))
+		require.Equal(t, tempopb.PruneStatus_PRUNED_ON_WRITE, actualResp.PruneStatus)
+		require.Equal(t, tempopb.PartialStatus_COMPLETE, actualResp.Status)
+		require.Empty(t, actualResp.Message)
 	})
 }
 

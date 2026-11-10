@@ -109,6 +109,10 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 				messages = append(messages, "Trace filtered, only a subset of spans matching the filter is returned")
 			}
 			resp.PruneStatus = toPruneStatus(pruneStatus)
+			// Even if span pruning is disabled, check whether trace was already pruned on write
+			if opts.SpanPruningConfig == nil && spanpruning.IsPrunedOnWrite(nil, traceResult) {
+				resp.PruneStatus = tempopb.PruneStatus_PRUNED_ON_WRITE
+			}
 			switch pruneStatus {
 			case spanpruning.StatusPrunedOnWrite:
 				messages = append(messages, "Trace was already pruned before it reached Tempo; this is the complete trace Tempo has stored")

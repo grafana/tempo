@@ -47,7 +47,7 @@ const (
 // entirely: aggregating summary spans again would produce summaries-of-summaries and corrupt
 // the stats they carry.
 func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempopb.Trace, Status, error) {
-	if alreadyPruned(cfg, trace) {
+	if IsPrunedOnWrite(cfg, trace) {
 		return trace, StatusPrunedOnWrite, nil
 	}
 
@@ -77,17 +77,28 @@ func PruneTrace(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) (*tempop
 	}
 
 	status := StatusNotPruned
-	if alreadyPruned(cfg, result) {
+	if IsPrunedOnWrite(cfg, result) {
 		status = StatusPrunedOnRead
 	}
 	return result, status, nil
 }
 
-// alreadyPruned reports whether trace already contains a summary span produced by a previous
+// defaultAggregationAttributePrefix is the processor's default marker prefix, used to recognise
+// upstream pruning when no pruning config is in play (the request did not enable pruning).
+var defaultAggregationAttributePrefix = spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config).AggregationAttributePrefix
+
+// IsPrunedOnWrite reports whether trace already contains a summary span produced by a previous
 // run of the span pruning processor, identified by its aggregation marker attribute (e.g.
-// "aggregation.is_summary" for the default AggregationAttributePrefix).
-func alreadyPruned(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) bool {
-	summaryKey := cfg.AggregationAttributePrefix + "is_summary"
+// "aggregation.is_summary" for the default AggregationAttributePrefix). An upstream collector pruned
+// it before it reached Tempo, so the original spans were never stored. It needs no pruning to be
+// enabled for the request, so callers can report it when pruning is off. A nil cfg uses the
+// processor's default marker prefix.
+func IsPrunedOnWrite(cfg *spanpruningprocessor.Config, trace *tempopb.Trace) bool {
+	prefix := defaultAggregationAttributePrefix
+	if cfg != nil {
+		prefix = cfg.AggregationAttributePrefix
+	}
+	summaryKey := prefix + "is_summary"
 	for _, rs := range trace.ResourceSpans {
 		for _, ss := range rs.ScopeSpans {
 			for _, span := range ss.Spans {
