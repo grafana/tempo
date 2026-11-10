@@ -46,7 +46,7 @@ func NewRetentionProvider(cfg RetentionConfig, logger kitlogger.Logger, store Te
 }
 
 func (p *RetentionProvider) Start(ctx context.Context) <-chan *work.Job {
-	jobs := make(chan *work.Job, 1)
+	jobs := make(chan *work.Job)
 
 	go func() {
 		defer close(jobs)

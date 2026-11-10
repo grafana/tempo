@@ -39,7 +39,7 @@ type RedactionProvider struct {
 	logger log.Logger
 }
 
-// NewRedactionProvider returns a provider that pops pending redaction jobs and feeds them to the merged job channel.
+// NewRedactionProvider returns a provider that pops pending redaction jobs and feeds them to the scheduler.
 func NewRedactionProvider(cfg RedactionConfig, logger log.Logger, scheduler Scheduler) *RedactionProvider {
 	return &RedactionProvider{
 		cfg:    cfg,
@@ -50,7 +50,7 @@ func NewRedactionProvider(cfg RedactionConfig, logger log.Logger, scheduler Sche
 
 // Start implements Provider. It drains the pending redaction queue at a manageable rate.
 func (p *RedactionProvider) Start(ctx context.Context) <-chan *work.Job {
-	jobs := make(chan *work.Job, 1)
+	jobs := make(chan *work.Job)
 
 	go func() {
 		defer close(jobs)

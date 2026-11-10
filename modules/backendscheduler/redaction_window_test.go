@@ -264,7 +264,9 @@ func TestNextPropagatesWindowToJob(t *testing.T) {
 		EndTimeUnixNano:   endNano,
 	}))
 
-	s.mergedJobs <- &work.Job{
+	jobs := make(chan *work.Job, 1)
+	s.publishJobChans([]<-chan *work.Job{jobs})
+	jobs <- &work.Job{
 		ID:   "wj1",
 		Type: tempopb.JobType_JOB_TYPE_REDACTION,
 		JobDetail: tempopb.JobDetail{
