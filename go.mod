@@ -44,7 +44,7 @@ require (
 	github.com/minio/minio-go/v7 v7.4.1
 	github.com/olekukonko/tablewriter v1.1.5
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.161.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.161.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.4.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.161.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger v0.161.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.161.0
