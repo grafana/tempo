@@ -108,6 +108,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			if traceFiltered {
 				messages = append(messages, "Trace filtered, only a subset of spans matching the filter is returned")
 			}
+			resp.PruneStatus = toPruneStatus(pruneStatus)
 			switch pruneStatus {
 			case spanpruning.StatusPrunedOnWrite:
 				messages = append(messages, "Trace was already pruned before it reached Tempo; this is the complete trace Tempo has stored")
@@ -127,6 +128,19 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 	}
 	initHTTPCombiner(gc, marshalingFormat)
 	return gc
+}
+
+// toPruneStatus maps the internal pruning outcome to its wire representation so the two enums can
+// evolve independently.
+func toPruneStatus(s spanpruning.Status) tempopb.PruneStatus {
+	switch s {
+	case spanpruning.StatusPrunedOnWrite:
+		return tempopb.PruneStatus_PRUNED_ON_WRITE
+	case spanpruning.StatusPrunedOnRead:
+		return tempopb.PruneStatus_PRUNED_ON_READ
+	default:
+		return tempopb.PruneStatus_NOT_PRUNED
+	}
 }
 
 // countTraceSpans returns the total span count across the trace, used to detect whether the q filter
