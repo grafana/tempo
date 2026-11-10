@@ -13,9 +13,9 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/expr"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlprofile"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlresource"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlscope"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/xprofile/ottlprofile"
 )
 
 type ProfilesConsumer struct {
@@ -139,7 +139,7 @@ type ProfileParserCollectionOption ottl.ParserCollectionOption[parsedProfileCond
 
 func WithProfileParser(functions map[string]ottl.Factory[*ottlprofile.TransformContext]) ProfileParserCollectionOption {
 	return func(pc *ottl.ParserCollection[parsedProfileConditions]) error {
-		profileParser, err := ottlprofile.NewParser(functions, pc.Settings, ottlprofile.EnablePathContextNames())
+		profileParser, err := ottlprofile.NewParser(functions, pc.Settings(), ottlprofile.EnablePathContextNames())
 		if err != nil {
 			return err
 		}
@@ -182,7 +182,7 @@ func convertProfileConditions(pc *ottl.ParserCollection[parsedProfileConditions]
 	errorMode := getErrorMode(pc, contextConditions)
 	return parsedProfileConditions{
 		profileConditions: parsedConditions,
-		telemetrySettings: pc.Settings,
+		telemetrySettings: pc.Settings(),
 		errorMode:         errorMode,
 	}, nil
 }
@@ -222,7 +222,7 @@ func (ppc *ProfileParserCollection) ParseContextConditions(contextConditions Con
 		resourceConditions: rConditions,
 		scopeConditions:    sConditions,
 		profileConditions:  pConditions,
-		telemetrySettings:  pc.Settings,
+		telemetrySettings:  pc.Settings(),
 		errorMode:          getErrorMode[parsedProfileConditions](&pc, &contextConditions),
 	}
 

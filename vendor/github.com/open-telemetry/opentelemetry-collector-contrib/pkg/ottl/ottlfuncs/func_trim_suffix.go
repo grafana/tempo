@@ -11,20 +11,22 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type TrimSuffixArguments[K any] struct {
+type trimSuffixArguments[K any] struct {
 	Target ottl.StringGetter[K]
 	Suffix ottl.StringGetter[K]
 }
 
+// NewTrimSuffixFactory returns a factory for the TrimSuffix OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#trimsuffix
 func NewTrimSuffixFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("TrimSuffix", &TrimSuffixArguments[K]{}, createTrimSuffixFunction[K])
+	return ottl.NewFactory("TrimSuffix", &trimSuffixArguments[K]{}, createTrimSuffixFunction[K])
 }
 
 func createTrimSuffixFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*TrimSuffixArguments[K])
+	args, ok := oArgs.(*trimSuffixArguments[K])
 
 	if !ok {
-		return nil, errors.New("TrimFactory args must be of type *TrimSuffixArguments[K]")
+		return nil, errors.New("TrimFactory args must be of type *trimSuffixArguments[K]")
 	}
 
 	return trimSuffix(args.Target, args.Suffix), nil

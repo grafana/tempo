@@ -168,7 +168,7 @@ type TraceParserCollectionOption ottl.ParserCollectionOption[parsedTraceConditio
 
 func WithSpanParser(functions map[string]ottl.Factory[*ottlspan.TransformContext]) TraceParserCollectionOption {
 	return func(pc *ottl.ParserCollection[parsedTraceConditions]) error {
-		parser, err := ottlspan.NewParser(functions, pc.Settings, ottlspan.EnablePathContextNames())
+		parser, err := ottlspan.NewParser(functions, pc.Settings(), ottlspan.EnablePathContextNames())
 		if err != nil {
 			return err
 		}
@@ -178,7 +178,7 @@ func WithSpanParser(functions map[string]ottl.Factory[*ottlspan.TransformContext
 
 func WithSpanEventParser(functions map[string]ottl.Factory[*ottlspanevent.TransformContext]) TraceParserCollectionOption {
 	return func(pc *ottl.ParserCollection[parsedTraceConditions]) error {
-		parser, err := ottlspanevent.NewParser(functions, pc.Settings, ottlspanevent.EnablePathContextNames())
+		parser, err := ottlspanevent.NewParser(functions, pc.Settings(), ottlspanevent.EnablePathContextNames())
 		if err != nil {
 			return err
 		}
@@ -220,7 +220,7 @@ func convertSpanConditions(pc *ottl.ParserCollection[parsedTraceConditions], con
 	errorMode := getErrorMode(pc, contextConditions)
 	return parsedTraceConditions{
 		spanConditions:    parsedConditions,
-		telemetrySettings: pc.Settings,
+		telemetrySettings: pc.Settings(),
 		errorMode:         errorMode,
 	}, nil
 }
@@ -233,7 +233,7 @@ func convertSpanEventConditions(pc *ottl.ParserCollection[parsedTraceConditions]
 	errorMode := getErrorMode(pc, contextConditions)
 	return parsedTraceConditions{
 		spanEventConditions: parsedConditions,
-		telemetrySettings:   pc.Settings,
+		telemetrySettings:   pc.Settings(),
 		errorMode:           errorMode,
 	}, nil
 }
@@ -278,7 +278,7 @@ func (tpc *TraceParserCollection) ParseContextConditions(contextConditions Conte
 		scopeConditions:     sConditions,
 		spanConditions:      spanConditions,
 		spanEventConditions: spanEventConditions,
-		telemetrySettings:   pc.Settings,
+		telemetrySettings:   pc.Settings(),
 		errorMode:           getErrorMode[parsedTraceConditions](&pc, &contextConditions),
 	}
 

@@ -15,22 +15,24 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type ExtractGrokPatternsArguments[K any] struct {
+type extractGrokPatternsArguments[K any] struct {
 	Target             ottl.StringGetter[K]
 	Pattern            ottl.StringGetter[K]
 	NamedCapturesOnly  ottl.Optional[bool]
 	PatternDefinitions ottl.Optional[[]string]
 }
 
+// NewExtractGrokPatternsFactory returns a factory for the ExtractGrokPatterns OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#extractgrokpatterns
 func NewExtractGrokPatternsFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ExtractGrokPatterns", &ExtractGrokPatternsArguments[K]{}, createExtractGrokPatternsFunction[K])
+	return ottl.NewFactory("ExtractGrokPatterns", &extractGrokPatternsArguments[K]{}, createExtractGrokPatternsFunction[K])
 }
 
 func createExtractGrokPatternsFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*ExtractGrokPatternsArguments[K])
+	args, ok := oArgs.(*extractGrokPatternsArguments[K])
 
 	if !ok {
-		return nil, errors.New("ExtractGrokPatternsFactory args must be of type *ExtractGrokPatternsArguments[K]")
+		return nil, errors.New("ExtractGrokPatternsFactory args must be of type *extractGrokPatternsArguments[K]")
 	}
 
 	return extractGrokPatterns(args.Target, args.Pattern, args.NamedCapturesOnly, args.PatternDefinitions)

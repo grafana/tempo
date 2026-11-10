@@ -10,6 +10,8 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspan"
 )
 
+// NewIsRootSpanFactory returns a factory for the IsRootSpan OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#isrootspan
 func NewIsRootSpanFactory() ottl.Factory[*ottlspan.TransformContext] {
 	return ottl.NewFactory("IsRootSpan", nil, createIsRootSpanFunction)
 }

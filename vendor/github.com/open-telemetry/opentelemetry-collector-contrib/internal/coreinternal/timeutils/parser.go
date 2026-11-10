@@ -72,8 +72,9 @@ func GetLocation(location, layout *string) (*time.Location, error) {
 		return loc, nil
 	}
 
-	if layout != nil && strings.HasSuffix(*layout, "Z") {
-		// If a timestamp ends with 'Z', it should be interpreted at Zulu (UTC) time
+	if layout != nil && strings.HasSuffix(*layout, "Z") && !strings.HasSuffix(*layout, "%Z") {
+		// If a timestamp ends with 'Z', it should be interpreted at Zulu (UTC) time.
+		// A trailing strptime %Z is a time zone abbreviation directive, not a literal 'Z'.
 		return time.UTC, nil
 	}
 

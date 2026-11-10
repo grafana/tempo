@@ -65,7 +65,7 @@ Within each `<signal>_conditions` list, only certain OTTL Contexts can be used. 
 [metric]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/contexts/ottlmetric/README.md
 [datapoint]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/contexts/ottldatapoint/README.md
 [log]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/contexts/ottllog/README.md
-[profile]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/contexts/ottlprofile/README.md
+[profile]: ../../pkg/ottl/contexts/xprofile/ottlprofile/README.md
 
 Telemetry is evaluated hierarchically, from higher to lower levels. The hierarchy may vary by signal type; examples include:
 
@@ -102,14 +102,6 @@ The filter processor also allows configuring an optional field, `error_mode`, wh
 | ignore     | The processor ignores errors returned by conditions, logs them, and continues on to the next condition.  This is the recommended mode. |
 | silent     | The processor ignores errors returned by conditions, does not log them, and continues on to the next condition.                        |
 | propagate  | The processor returns the error up the pipeline.  This will result in the payload being dropped from the collector.                    |
-
-#### Feature Gate
-
-##### `processor.filter.defaultErrorModeIgnore`
-
-The `processor.filter.defaultErrorModeIgnore` [feature gate](https://github.com/open-telemetry/opentelemetry-collector/blob/main/featuregate/README.md#collector-feature-gates) changes the default `error_mode` of the filter processor from `propagate` to `ignore`.
-This gate is currently in `stable` (always enabled). The default `error_mode` is `ignore` and can no longer be reverted via this gate.
-The gate will be removed in v0.159.0.
 
 ### Basic Config
 
@@ -437,6 +429,27 @@ In general, understand your data before using the filter processor.
 
 - When using the Filter Processor make sure you understand the look of your incoming data and test the configuration thoroughly. In general, use as specific a configuration as possible to lower the risk of the wrong data being dropped.
 - [Orphaned Telemetry](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/standard-warnings.md#orphaned-telemetry): The processor allows dropping spans. Dropping a span may lead to orphaned spans if the dropped span is a parent. Dropping a span may lead to orphaned logs if the log references the dropped span.
+
+## Self-observability
+
+The filter processor emits the standard telemetry that the Collector produces for every processor, which is described in the
+Collector's [internal telemetry](https://opentelemetry.io/docs/collector/internal-telemetry/)
+documentation.
+
+### Metrics
+
+The following metrics are emitted for the processor:
+
+- `otelcol_processor_incoming_items`: the number of items (spans, metric data points, log records, or profiles)
+  passed to the processor.
+- `otelcol_processor_outgoing_items`: the number of items emitted by the processor.
+- `otelcol_processor_internal_duration`: a histogram of the time taken to process a batch of
+  telemetry through the processor.
+
+These metrics carry the `otel.signal` and `processor` attributes, so you can observe throughput per
+signal and per configured filter processor instance.
+
+For the component-specific metrics emitted to monitor dropped telemetry, see [documentation.md](./documentation.md#internal-telemetry).
 
 ## Available Benchmarks
 

@@ -139,7 +139,7 @@ type LogParserCollectionOption ottl.ParserCollectionOption[parsedLogConditions]
 
 func WithLogParser(functions map[string]ottl.Factory[*ottllog.TransformContext]) LogParserCollectionOption {
 	return func(pc *ottl.ParserCollection[parsedLogConditions]) error {
-		logParser, err := ottllog.NewParser(functions, pc.Settings, ottllog.EnablePathContextNames())
+		logParser, err := ottllog.NewParser(functions, pc.Settings(), ottllog.EnablePathContextNames())
 		if err != nil {
 			return err
 		}
@@ -182,7 +182,7 @@ func convertLogConditions(pc *ottl.ParserCollection[parsedLogConditions], condit
 	errorMode := getErrorMode(pc, contextConditions)
 	return parsedLogConditions{
 		logConditions:     parsedConditions,
-		telemetrySettings: pc.Settings,
+		telemetrySettings: pc.Settings(),
 		errorMode:         errorMode,
 	}, nil
 }
@@ -227,7 +227,7 @@ func (lpc *LogParserCollection) ParseContextConditions(contextConditions Context
 		resourceConditions: rConditions,
 		scopeConditions:    sConditions,
 		logConditions:      lConditions,
-		telemetrySettings:  pc.Settings,
+		telemetrySettings:  pc.Settings(),
 		errorMode:          getErrorMode[parsedLogConditions](&pc, &contextConditions),
 	}
 

@@ -66,8 +66,18 @@ type ParserCollection[R any] struct {
 	contextInferrerCandidates map[string]*priorityContextInferrerCandidate
 	candidatesLowerContexts   map[string][]string
 	modifiedLogging           bool
-	Settings                  component.TelemetrySettings
-	ErrorMode                 ErrorMode
+	settings                  component.TelemetrySettings
+	errorMode                 ErrorMode
+}
+
+// Settings returns the component.TelemetrySettings of the ParserCollection.
+func (pc *ParserCollection[R]) Settings() component.TelemetrySettings {
+	return pc.settings
+}
+
+// ErrorMode returns the ErrorMode of the ParserCollection.
+func (pc *ParserCollection[R]) ErrorMode() ErrorMode {
+	return pc.errorMode
 }
 
 // ParserCollectionOption is a configurable ParserCollection option.
@@ -80,7 +90,7 @@ func NewParserCollection[R any](
 ) (*ParserCollection[R], error) {
 	contextInferrerCandidates := map[string]*priorityContextInferrerCandidate{}
 	pc := &ParserCollection[R]{
-		Settings:                  settings,
+		settings:                  settings,
 		contextParsers:            map[string]*ParserCollectionContextParser[R]{},
 		contextInferrer:           newPriorityContextInferrer(settings, contextInferrerCandidates),
 		contextInferrerCandidates: contextInferrerCandidates,
@@ -348,11 +358,11 @@ func (pc *ParserCollection[R]) getLowerContexts(context string) []string {
 	return pc.candidatesLowerContexts[context]
 }
 
-// WithParserCollectionErrorMode has no effect on the ParserCollection, but might be used
-// by the ParsedStatementsConverter functions to handle/create StatementSequence.
+// WithParserCollectionErrorMode stores the given ErrorMode on the ParserCollection.
+// The ParserCollection does not act on it; it is exposed via ParserCollection.ErrorMode.
 func WithParserCollectionErrorMode[R any](errorMode ErrorMode) ParserCollectionOption[R] {
 	return func(tp *ParserCollection[R]) error {
-		tp.ErrorMode = errorMode
+		tp.errorMode = errorMode
 		return nil
 	}
 }
@@ -391,10 +401,9 @@ func WithContextInferenceConditions(conditions []string) ParserCollectionContext
 // If no contexts are present in the statements, or if the inferred value is not supported by
 // the [ParserCollection], it returns an error.
 // If parsing the statements fails, it returns the underlying [ottl.Parser.ParseStatements] error.
-// If the provided StatementsGetter also implements ContextInferenceHintsProvider, it uses the
-// additional OTTL conditions to enhance the context inference. This is particularly useful when
-// the statements alone are insufficient for determine the correct context, or if an less-specific
-// parser is desired.
+// The [WithContextInferenceConditions] option can be used to provide additional OTTL conditions
+// to enhance the context inference. This is particularly useful when the statements alone are
+// insufficient to determine the correct context, or if a less-specific parser is desired.
 func (pc *ParserCollection[R]) ParseStatements(statements StatementsGetter, options ...ParserCollectionContextInferenceOption) (R, error) {
 	statementsValues := statements.GetStatements()
 
@@ -588,7 +597,7 @@ func (pc *ParserCollection[R]) logModifications(originalStatements, modifiedStat
 		}
 	}
 	if len(fields) > 0 {
-		pc.Settings.Logger.Info("one or more paths were modified to include their context prefix, please rewrite them accordingly", zap.Dict("values", fields...))
+		pc.settings.Logger.Info("one or more paths were modified to include their context prefix, please rewrite them accordingly", zap.Dict("values", fields...))
 	}
 }
 

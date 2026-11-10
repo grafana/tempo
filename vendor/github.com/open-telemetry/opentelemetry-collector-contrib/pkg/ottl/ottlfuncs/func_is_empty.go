@@ -13,19 +13,21 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type IsEmptyArguments[K any] struct {
+type isEmptyArguments[K any] struct {
 	Target ottl.Getter[K]
 }
 
+// NewIsEmptyFactory returns a factory for the IsEmpty OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#isempty
 func NewIsEmptyFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("IsEmpty", &IsEmptyArguments[K]{}, createIsEmptyFunction[K])
+	return ottl.NewFactory("IsEmpty", &isEmptyArguments[K]{}, createIsEmptyFunction[K])
 }
 
 func createIsEmptyFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*IsEmptyArguments[K])
+	args, ok := oArgs.(*isEmptyArguments[K])
 
 	if !ok {
-		return nil, errors.New("IsEmptyFactory args must be of type *IsEmptyArguments[K]")
+		return nil, errors.New("IsEmptyFactory args must be of type *isEmptyArguments[K]")
 	}
 
 	return isEmpty(args.Target), nil
