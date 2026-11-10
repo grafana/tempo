@@ -8,7 +8,7 @@ change_type: bug_fix
 component: backend-scheduler
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Fix retention stopping for a tenant until the scheduler restarts when a queued retention job is dropped because a redaction was submitted.
+note: Fix an issue with retention stopping for a tenant (till next restart) when a queued retention job is dropped because of a running redaction job.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
