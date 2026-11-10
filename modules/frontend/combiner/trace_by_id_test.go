@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/v3/pkg/api"
@@ -18,40 +19,40 @@ import (
 
 func TestTraceByIDShouldQuit(t *testing.T) {
 	// new combiner should not quit
-	c := NewTraceByID(0, api.HeaderAcceptJSON, nil)
+	c := NewTraceByID(0, api.HeaderAcceptJSON, nil, log.NewNopLogger())
 	should := c.ShouldQuit()
 	require.False(t, should)
 
 	// 500 response should quit
-	c = NewTraceByID(0, api.HeaderAcceptJSON, nil)
+	c = NewTraceByID(0, api.HeaderAcceptJSON, nil, log.NewNopLogger())
 	err := c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 500))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
-	c = NewTraceByID(0, api.HeaderAcceptJSON, nil)
+	c = NewTraceByID(0, api.HeaderAcceptJSON, nil, log.NewNopLogger())
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.SearchResponse{}, 429))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 404 response should not quit
-	c = NewTraceByID(0, api.HeaderAcceptJSON, nil)
+	c = NewTraceByID(0, api.HeaderAcceptJSON, nil, log.NewNopLogger())
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.SearchResponse{}, 404))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// unparseable body should not quit, but should return an error
-	c = NewTraceByID(0, api.HeaderAcceptJSON, nil)
+	c = NewTraceByID(0, api.HeaderAcceptJSON, nil, log.NewNopLogger())
 	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// trace too large, should quit and should not return an error
-	c = NewTraceByID(1, api.HeaderAcceptJSON, nil)
+	c = NewTraceByID(1, api.HeaderAcceptJSON, nil, log.NewNopLogger())
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{
 		Trace:   test.MakeTrace(1, nil),
 		Metrics: &tempopb.TraceByIDMetrics{},
@@ -65,7 +66,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	expected := test.MakeTrace(2, nil)
 
 	// json
-	c := NewTraceByID(0, api.HeaderAcceptJSON, nil)
+	c := NewTraceByID(0, api.HeaderAcceptJSON, nil, log.NewNopLogger())
 	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, 200))
 	require.NoError(t, err)
 
@@ -79,7 +80,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	require.Equal(t, expected, actual)
 
 	// proto
-	c = NewTraceByID(0, api.HeaderAcceptProtobuf, nil)
+	c = NewTraceByID(0, api.HeaderAcceptProtobuf, nil, log.NewNopLogger())
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, 200))
 	require.NoError(t, err)
 
@@ -101,7 +102,7 @@ type hidingRedactor struct{}
 func (h hidingRedactor) RedactTraceAttributes(_ *tempopb.Trace) error { return ErrTraceHidden }
 
 func TestTraceByIDRedactorHidesTrace(t *testing.T) {
-	c := NewTraceByID(0, api.HeaderAcceptJSON, hidingRedactor{})
+	c := NewTraceByID(0, api.HeaderAcceptJSON, hidingRedactor{}, log.NewNopLogger())
 
 	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{
 		Trace:   test.MakeTrace(2, nil),
@@ -139,7 +140,7 @@ func TestTraceByIDHTTPFinalJSONMatchesJsonpb(t *testing.T) {
 		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100},
 	}
 	final := func(format api.MarshallingFormat) []byte {
-		c := NewTraceByID(0, format, nil)
+		c := NewTraceByID(0, format, nil, log.NewNopLogger())
 		require.NoError(t, c.AddResponse(toHTTPProtoResponse(t, response, 200)))
 		resp, err := c.HTTPFinal(context.Background())
 		require.NoError(t, err)
@@ -222,7 +223,7 @@ func TestTraceByIDCombinesMetricsOfNotFoundResponses(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var reported uint64
-			c := NewTypedTraceByID(0, api.HeaderAcceptProtobuf, nil, WithInspectedBytesReporter(func(b uint64) { reported += b }))
+			c := NewTypedTraceByID(0, api.HeaderAcceptProtobuf, nil, log.NewNopLogger(), WithInspectedBytesReporter(func(b uint64) { reported += b }))
 
 			for _, r := range tc.responses {
 				require.NoError(t, c.AddResponse(r))
@@ -239,7 +240,7 @@ func TestTraceByIDCombinesMetricsOfNotFoundResponses(t *testing.T) {
 // The bytes of a response whose trace is too large were still read.
 func TestTraceByIDCombinesMetricsOfTooLargeResponses(t *testing.T) {
 	var reported uint64
-	c := NewTypedTraceByID(1, api.HeaderAcceptProtobuf, nil, WithInspectedBytesReporter(func(b uint64) { reported += b }))
+	c := NewTypedTraceByID(1, api.HeaderAcceptProtobuf, nil, log.NewNopLogger(), WithInspectedBytesReporter(func(b uint64) { reported += b }))
 
 	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{
 		Trace:   test.MakeTrace(1, nil),

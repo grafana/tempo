@@ -16,7 +16,7 @@ import (
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
-func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, ...combiner.Option) *combiner.TraceByIDCombiner, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, log.Logger, ...combiner.Option) *combiner.TraceByIDCombiner, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -60,7 +60,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			}
 		}
 
-		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, inspectedBytesReporter(traceByIDInspectedBytes, traceByIDJobInspectedBytes, tenant))
+		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, logger, inspectedBytesReporter(traceByIDInspectedBytes, traceByIDJobInspectedBytes, tenant))
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()

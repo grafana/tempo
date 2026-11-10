@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/v3/pkg/api"
 	tempo_io "github.com/grafana/tempo/v3/pkg/io"
@@ -35,6 +37,7 @@ type TraceByIDCombiner struct {
 	MetricsCombiner *TraceByIDMetricsCombiner
 
 	traceRedactor TraceRedactor
+	logger        log.Logger
 }
 
 // NewTraceByID returns a trace id combiner. The trace by id combiner has a few different behaviors then the others
@@ -42,18 +45,19 @@ type TraceByIDCombiner struct {
 // - translate tempopb.TraceByIDResponse to tempopb.Trace. all other combiners pass the same object through
 // - runs the zipkin dedupe logic on the fully combined trace
 // - encode the returned trace as either json or proto depending on the request
-func NewTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor, opts ...Option) Combiner {
+func NewTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor, logger log.Logger, opts ...Option) Combiner {
 	return &TraceByIDCombiner{
 		c:               trace.NewCombiner(maxBytes, false),
 		code:            http.StatusNotFound,
 		contentType:     contentType,
 		MetricsCombiner: NewTraceByIDMetricsCombiner(opts...),
 		traceRedactor:   traceRedactor,
+		logger:          logger,
 	}
 }
 
-func NewTypedTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor, opts ...Option) *TraceByIDCombiner {
-	return NewTraceByID(maxBytes, contentType, traceRedactor, opts...).(*TraceByIDCombiner)
+func NewTypedTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor, logger log.Logger, opts ...Option) *TraceByIDCombiner {
+	return NewTraceByID(maxBytes, contentType, traceRedactor, logger, opts...).(*TraceByIDCombiner)
 }
 
 func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
@@ -114,7 +118,7 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 
 // combineNotFoundMetrics adds the metrics carried by a 404 response, if any. Queriers answer
 // 404 with an encoded TraceByIDResponse that has no trace but still has metrics. A missing or
-// undecodable body is ignored because 404s are not errors.
+// undecodable body is logged and otherwise ignored because 404s are not errors.
 func (c *TraceByIDCombiner) combineNotFoundMetrics(r PipelineResponse) {
 	res := r.HTTPResponse()
 	if res.Body == nil {
@@ -123,12 +127,18 @@ func (c *TraceByIDCombiner) combineNotFoundMetrics(r PipelineResponse) {
 
 	buff, err := tempo_io.ReadAllWithEstimate(res.Body, res.ContentLength)
 	_ = res.Body.Close()
-	if err != nil || len(buff) == 0 {
+	if err != nil {
+		level.Debug(c.logger).Log("msg", "trace by id: failed to read the body of a 404 response, its bytes are not counted", "err", err)
+		return
+	}
+	if len(buff) == 0 {
+		level.Debug(c.logger).Log("msg", "trace by id: 404 response has no body, its bytes are not counted")
 		return
 	}
 
 	resp := &tempopb.TraceByIDResponse{}
 	if err = resp.Unmarshal(buff); err != nil {
+		level.Debug(c.logger).Log("msg", "trace by id: failed to unmarshal the body of a 404 response, its bytes are not counted", "err", err)
 		return
 	}
 	c.MetricsCombiner.Combine(resp.Metrics, r)

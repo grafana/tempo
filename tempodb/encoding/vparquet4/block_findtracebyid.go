@@ -66,7 +66,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 
 // checkIndex reports whether the trace ID index of the block may contain the trace ID and in which row group.
 // The row group is -1 if unknown. It also returns the number of bytes read, which is 0 if the index is
-// disabled, missing or could not be read.
+// disabled or missing, or if an error is returned.
 func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int, uint64, error) {
 	if os.Getenv(EnvVarIndexName) != EnvVarIndexEnabledValue {
 		// Index lookup disabled
