@@ -587,6 +587,22 @@ func attributeEntries(sp traceql.Span, a traceql.Attribute) int {
 	return n
 }
 
+// TestDedicatedExistenceIteratorSelectSkipsNilSync keeps select and by off the nil-sync iterator on the generic key column, which read 2.5x the bytes.
+func TestDedicatedExistenceIteratorSelectSkipsNilSync(t *testing.T) {
+	makeIter := func(string, parquetquery.Predicate, string, ...parquetquery.SyncIteratorOpt) parquetquery.Iterator {
+		return nil
+	}
+	makeNilIter := func(column string, _ parquetquery.Predicate, _ string, _ ...parquetquery.SyncIteratorOpt) parquetquery.Iterator {
+		t.Fatalf("select read %s with a nil-sync iterator", column)
+		return nil
+	}
+	cond := traceql.Condition{Attribute: traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "mixed")}
+
+	_, err := createDedicatedExistenceIterator(makeIter, makeNilIter, cond, "dedicated", DefinitionLevelResourceSpansILSSpan, DefinitionLevelResourceSpansILSSpanAttrs,
+		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool)
+	require.NoError(t, err)
+}
+
 // TestBackendBlockSearchTraceQLDedicatedColumnOtherType covers attributes with a dedicated column
 // whose value has another type, which the writer stores in generic attributes instead.
 func TestBackendBlockSearchTraceQLDedicatedColumnOtherType(t *testing.T) {
