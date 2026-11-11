@@ -56,8 +56,8 @@ func attributeCases(prof *profile.BlockProfile) []benchCase {
 	return cases
 }
 
-// existenceCases generates exists, select and by cases per attribute. They read
-// the rows without a value too, which = value cases skip. The filtered by case
+// existenceCases generates exists, select and by cases per attribute. Unlike =
+// value cases, these also read rows without a value. The filtered by case
 // mirrors { span.http.status_code != 200 } | rate() by (span.http.status_code).
 func existenceCases(prof *profile.BlockProfile) []benchCase {
 	if prof.Attributes == nil {

@@ -263,17 +263,17 @@ func TestRunGeneratesAttributeCases(t *testing.T) {
 	require.Len(t, result.Cases, len(casesOf(slices.Concat(attributeCases(prof), existenceCases(prof)), apiSearch)))
 
 	// The fixture's span attributes take three bands of values: one value per
-	// trace or one value across the block.
-	bands := map[string]bool{}
+	// trace or one value across the block. The exists and select cases run too.
+	kinds := map[string]bool{}
 	for _, c := range result.Cases {
-		bands[strings.Split(c.ID, "/")[2]] = true
+		kinds[strings.Split(c.ID, "/")[2]] = true
 
 		require.Empty(t, c.Error, "case %s", c.ID)
 		require.NotEmpty(t, c.Query, "case %s", c.ID)
 		require.Equal(t, result.Shards, c.Executions, "case %s", c.ID)
 		require.Positive(t, c.Matched, "case %s matched nothing; the profile's values were wrong", c.ID)
 	}
-	require.Equal(t, map[string]bool{bandHigh: true, bandMedium: true, bandLow: true, "exists": true, "select": true}, bands)
+	require.Equal(t, map[string]bool{bandHigh: true, bandMedium: true, bandLow: true, "exists": true, "select": true}, kinds)
 }
 
 // A profile from another block would make every lookup a miss, which would read
