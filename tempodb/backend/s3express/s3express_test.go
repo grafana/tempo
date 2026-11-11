@@ -3,6 +3,7 @@ package s3express
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"io"
 	"net/http"
@@ -88,6 +89,11 @@ func testReadWrite(t *testing.T, cfg *Config) {
 	require.NoError(t, r.ReadRange(ctx, "data.parquet", keypath, uint64(len(parts[0])), lastPart, nil))
 	assert.Equal(t, parts[1], lastPart)
 
+	require.NoError(t, w.Write(ctx, "deleted", keypath, bytes.NewReader(meta), int64(len(meta)), nil))
+	require.NoError(t, w.Delete(ctx, "deleted", keypath, nil))
+	_, _, err = r.Read(ctx, "deleted", keypath, nil)
+	require.ErrorIs(t, err, backend.ErrDoesNotExist)
+
 	tenants, err := r.List(ctx, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{tenant}, tenants)
@@ -111,6 +117,9 @@ func testReadWrite(t *testing.T, cfg *Config) {
 	require.NoError(t, err)
 	assert.Empty(t, blockIDs)
 	assert.Equal(t, []uuid.UUID{blockID}, compactedBlockIDs)
+	compacted, err := c.CompactedBlockMeta(blockID, tenant)
+	require.NoError(t, err)
+	assert.Equal(t, "vParquet4", compacted.Version)
 
 	require.NoError(t, c.ClearBlock(blockID, tenant))
 	_, _, err = r.Read(ctx, "data.parquet", keypath, nil)
@@ -119,6 +128,50 @@ func testReadWrite(t *testing.T, cfg *Config) {
 	require.NoError(t, err)
 	assert.Empty(t, blockIDs)
 	assert.Empty(t, compactedBlockIDs)
+	r.Shutdown()
+
+	testVersioned(t, cfg)
+}
+
+// testVersioned writes, reads and deletes an object with versioned requests, which the
+// user-configurable overrides use.
+func testVersioned(t *testing.T, cfg *Config) {
+	ctx := context.Background()
+	rw, err := NewVersionedReaderWriter(cfg)
+	require.NoError(t, err)
+
+	const name = "overrides.json"
+	keypath := backend.KeyPath{"overrides", "tenant"}
+	t.Cleanup(func() {
+		// in case the test failed before deleting the object
+		_, current, err := rw.ReadVersioned(ctx, name, keypath)
+		if err == nil {
+			err = rw.DeleteVersioned(ctx, name, keypath, current)
+		}
+		if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+			t.Logf("failed to delete %s: %v", name, err)
+		}
+		rw.Shutdown()
+	})
+
+	version, err := rw.WriteVersioned(ctx, name, keypath, strings.NewReader("{}"), 2, backend.VersionNew)
+	require.NoError(t, err)
+
+	rc, readVersion, err := rw.ReadVersioned(ctx, name, keypath)
+	require.NoError(t, err)
+	content, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.NoError(t, rc.Close())
+	assert.Equal(t, "{}", string(content))
+	assert.Equal(t, version, readVersion)
+
+	// the object exists, so it isn't new anymore
+	_, err = rw.WriteVersioned(ctx, name, keypath, strings.NewReader("{}"), 2, backend.VersionNew)
+	require.ErrorIs(t, err, backend.ErrVersionDoesNotMatch)
+
+	require.NoError(t, rw.DeleteVersioned(ctx, name, keypath, version))
+	_, _, err = rw.ReadVersioned(ctx, name, keypath)
+	require.ErrorIs(t, err, backend.ErrDoesNotExist)
 }
 
 func TestNewConfirmsBucket(t *testing.T) {
@@ -241,6 +294,33 @@ func TestRegisterFlagsAndApplyDefaults(t *testing.T) {
 	// defaults of the s3 backend
 	assert.Equal(t, 2, cfg.HedgeRequestsUpTo)
 	assert.Equal(t, "VersionTLS12", cfg.MinVersion)
+}
+
+func TestPathMatches(t *testing.T) {
+	tests := []struct {
+		name     string
+		bucket   string
+		prefix   string
+		expected bool
+	}{
+		{name: "same bucket and prefix", bucket: directoryBucketName, prefix: "tempo", expected: true},
+		{name: "other bucket", bucket: "other--euc1-ist1-az1--x-s3", prefix: "tempo", expected: false},
+		{name: "other prefix", bucket: directoryBucketName, prefix: "overrides", expected: false},
+		{name: "no prefix", bucket: directoryBucketName, expected: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{}
+			cfg.Bucket = directoryBucketName
+			cfg.Prefix = "tempo"
+			other := &Config{}
+			other.Bucket = tc.bucket
+			other.Prefix = tc.prefix
+
+			assert.Equal(t, tc.expected, cfg.PathMatches(other))
+		})
+	}
 }
 
 func TestList(t *testing.T) {

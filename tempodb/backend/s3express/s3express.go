@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -27,9 +28,11 @@ import (
 )
 
 // readerWriter can read/write from an S3 directory bucket. The s3 backend it wraps sends the
-// requests, through a transport that signs them with S3 Express sessions.
+// requests, through a transport that signs them with S3 Express sessions. Every method is
+// written out, so that a method added to the backend interfaces has to be implemented here
+// instead of being inherited from the s3 backend.
 type readerWriter struct {
-	*s3.Backend
+	s3     *s3.Backend
 	cfg    *Config
 	logger gkLog.Logger
 }
@@ -104,9 +107,9 @@ func internalNew(cfg *Config, confirm bool, next http.RoundTripper) (*readerWrit
 	}
 
 	return &readerWriter{
-		Backend: b,
-		cfg:     cfg,
-		logger:  log.Logger,
+		s3:     b,
+		cfg:    cfg,
+		logger: log.Logger,
 	}, nil
 }
 
@@ -225,13 +228,83 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 
 	level.Debug(rw.logger).Log("msg", "listing objects", "found", len(keys))
 	for _, key := range keys {
-		err = rw.Core().RemoveObject(context.TODO(), rw.cfg.Bucket, key, minio.RemoveObjectOptions{})
+		err = rw.s3.Core().RemoveObject(context.TODO(), rw.cfg.Bucket, key, minio.RemoveObjectOptions{})
 		if err != nil {
 			return fmt.Errorf("error deleting obj from s3express: %s: %w", key, err)
 		}
 	}
 
 	return nil
+}
+
+// The methods below are the operations directory buckets support like other buckets, which the
+// s3 backend implements.
+
+// Find implements backend.Reader. The s3 backend lists with ListObjectsV2, without start-after.
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) error {
+	return rw.s3.Find(ctx, keypath, f)
+}
+
+// Read implements backend.Reader
+func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, cacheInfo *backend.CacheInfo) (io.ReadCloser, int64, error) {
+	return rw.s3.Read(ctx, name, keypath, cacheInfo)
+}
+
+// ReadRange implements backend.Reader
+func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, cacheInfo *backend.CacheInfo) error {
+	return rw.s3.ReadRange(ctx, name, keypath, offset, buffer, cacheInfo)
+}
+
+// Shutdown implements backend.Reader
+func (rw *readerWriter) Shutdown() {
+	rw.s3.Shutdown()
+}
+
+// Write implements backend.Writer
+func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, cacheInfo *backend.CacheInfo) error {
+	return rw.s3.Write(ctx, name, keypath, data, size, cacheInfo)
+}
+
+// Append implements backend.Writer. The s3 backend numbers parts consecutively from 1, as
+// directory buckets require.
+func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
+	return rw.s3.Append(ctx, name, keypath, tracker, buffer)
+}
+
+// CloseAppend implements backend.Writer
+func (rw *readerWriter) CloseAppend(ctx context.Context, tracker backend.AppendTracker) error {
+	return rw.s3.CloseAppend(ctx, tracker)
+}
+
+// Delete implements backend.Writer
+func (rw *readerWriter) Delete(ctx context.Context, name string, keypath backend.KeyPath, cacheInfo *backend.CacheInfo) error {
+	return rw.s3.Delete(ctx, name, keypath, cacheInfo)
+}
+
+// MarkBlockCompacted implements backend.Compactor. The transport signs its CopyObject request
+// with the IAM credentials, as directory buckets require.
+func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+	return rw.s3.MarkBlockCompacted(blockID, tenantID)
+}
+
+// CompactedBlockMeta implements backend.Compactor
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+	return rw.s3.CompactedBlockMeta(blockID, tenantID)
+}
+
+// WriteVersioned implements backend.VersionedReaderWriter
+func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, version backend.Version) (backend.Version, error) {
+	return rw.s3.WriteVersioned(ctx, name, keypath, data, size, version)
+}
+
+// DeleteVersioned implements backend.VersionedReaderWriter
+func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypath backend.KeyPath, version backend.Version) error {
+	return rw.s3.DeleteVersioned(ctx, name, keypath, version)
+}
+
+// ReadVersioned implements backend.VersionedReaderWriter
+func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
+	return rw.s3.ReadVersioned(ctx, name, keypath)
 }
 
 // listObjects lists the objects under prefix with ListObjectsV2, the only listing directory
@@ -244,7 +317,7 @@ func (rw *readerWriter) listObjects(ctx context.Context, prefix, delimiter strin
 		}
 
 		// ListObjectsV2(bucket, prefix, startAfter, continuationToken, delimiter string, maxKeys int)
-		res, err := rw.Core().ListObjectsV2(rw.cfg.Bucket, prefix, "", token, delimiter, 0)
+		res, err := rw.s3.Core().ListObjectsV2(rw.cfg.Bucket, prefix, "", token, delimiter, 0)
 		if err != nil {
 			return err
 		}
