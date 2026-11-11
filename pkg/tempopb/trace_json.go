@@ -56,6 +56,7 @@ func (e *traceJSONEncoder) response(v *TraceByIDResponse) {
 	}
 	e.enumField("status", int32(v.Status), PartialStatus_name)
 	e.stringField("message", v.Message)
+	e.enumField("pruneStatus", int32(v.PruneStatus), PruneStatus_name)
 	e.buf = append(e.buf, '}')
 }
 

@@ -1,0 +1,7 @@
+change_type: enhancement
+component: query-frontend
+note: Add a `prune_status` field to the `/api/v2/traces/{traceID}` response that reports whether a trace was pruned on read or on write.
+issues: []
+subtext: |
+  `PRUNED_ON_READ` means Tempo pruned the trace for this request and the original spans can be retrieved by querying with `span_pruning=false`. `PRUNED_ON_WRITE` means the trace was already pruned before it reached Tempo, so the original spans are not stored. `PRUNED_ON_WRITE` is reported even when the request does not enable span pruning. The field is omitted when the trace was not pruned.
+user: jenniepham

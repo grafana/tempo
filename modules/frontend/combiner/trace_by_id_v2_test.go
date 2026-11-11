@@ -63,6 +63,7 @@ func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
 	err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
 	require.NoError(t, err)
 	assert.Equal(t, actualResp.Status, tempopb.PartialStatus_PARTIAL)
+	assert.Equal(t, tempopb.PruneStatus_NOT_PRUNED, actualResp.PruneStatus)
 }
 
 func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *testing.T) {
@@ -228,6 +229,7 @@ func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
 	// response is summarized.
 	require.Equal(t, tempopb.PartialStatus_PARTIAL, actualResp.Status)
 	require.Contains(t, actualResp.Message, "pruned by Tempo while serving this request")
+	require.Equal(t, tempopb.PruneStatus_PRUNED_ON_READ, actualResp.PruneStatus)
 }
 
 // TestNewTraceByIDV2WithSpanPruning_AlreadyPrunedOnWrite verifies that a trace which already
@@ -240,38 +242,56 @@ func TestNewTraceByIDV2WithSpanPruning_AlreadyPrunedOnWrite(t *testing.T) {
 	summary := test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(2, 0), parent.SpanId, "SELECT", 0, 0,
 		&commonv1.KeyValue{Key: "aggregation.is_summary", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BoolValue{BoolValue: true}}})
 
-	traceResponse := &tempopb.TraceByIDResponse{
-		Trace:   test.WrapSpansAsTrace(parent, summary),
-		Metrics: &tempopb.TraceByIDMetrics{},
+	finalize := func(t *testing.T, opts TraceByIDV2Options) *tempopb.TraceByIDResponse {
+		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
+			Trace:   test.WrapSpansAsTrace(parent, summary),
+			Metrics: &tempopb.TraceByIDMetrics{},
+		})
+		require.NoError(t, err)
+		response := http.Response{
+			StatusCode: 200,
+			Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+			Body:       io.NopCloser(bytes.NewReader(resBytes)),
+		}
+
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, opts)
+		require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+		res, err := c.HTTPFinal(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		actualResp := &tempopb.TraceByIDResponse{}
+		require.NoError(t, proto.Unmarshal(body, actualResp))
+		return actualResp
 	}
-	resBytes, err := proto.Marshal(traceResponse)
-	require.NoError(t, err)
-	response := http.Response{
-		StatusCode: 200,
-		Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
-		Body:       io.NopCloser(bytes.NewReader(resBytes)),
-	}
 
-	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
-	cfg.MinSpansToAggregate = 2
-	cfg.MaxParentDepth = 0
+	t.Run("pruning enabled", func(t *testing.T) {
+		cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+		cfg.MinSpansToAggregate = 2
+		cfg.MaxParentDepth = 0
 
-	c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{SpanPruningConfig: cfg})
-	err = c.AddResponse(MockResponse{&response})
-	require.NoError(t, err)
+		actualResp := finalize(t, TraceByIDV2Options{SpanPruningConfig: cfg})
 
-	res, err := c.HTTPFinal(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, 2, test.CountSpans(actualResp.Trace))
+		require.Equal(t, tempopb.PartialStatus_PARTIAL, actualResp.Status)
+		require.Contains(t, actualResp.Message, "already pruned before it reached Tempo")
+		require.Equal(t, tempopb.PruneStatus_PRUNED_ON_WRITE, actualResp.PruneStatus)
+	})
 
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	actualResp := &tempopb.TraceByIDResponse{}
-	require.NoError(t, proto.Unmarshal(body, actualResp))
+	// Re-querying can't recover spans that were never stored, so the prune status is reported
+	// whatever the request asked for. Status and message describe this request's own handling, which
+	// did nothing, so they stay unset.
+	t.Run("pruning disabled", func(t *testing.T) {
+		actualResp := finalize(t, TraceByIDV2Options{})
 
-	require.Equal(t, 2, test.CountSpans(actualResp.Trace))
-	require.Equal(t, tempopb.PartialStatus_PARTIAL, actualResp.Status)
-	require.Contains(t, actualResp.Message, "already pruned before it reached Tempo")
+		require.Equal(t, 2, test.CountSpans(actualResp.Trace))
+		require.Equal(t, tempopb.PruneStatus_PRUNED_ON_WRITE, actualResp.PruneStatus)
+		require.Equal(t, tempopb.PartialStatus_COMPLETE, actualResp.Status)
+		require.Empty(t, actualResp.Message)
+	})
 }
 
 func TestNewTraceByIDV2SizeAndFilterPartialMessage(t *testing.T) {
