@@ -35,8 +35,9 @@ type Stats struct {
 	EvictionWeight uint64
 	// LoadSuccesses is the number of times otter.Cache lookup methods have successfully loaded a new value.
 	LoadSuccesses uint64
-	// LoadFailures is the number of times otter.Cache lookup methods failed to load a new value, either
-	// because no value was found or an error was returned while loading.
+	// LoadFailures is the number of times otter.Cache lookup methods failed to load a new value: the
+	// loader returned an error other than otter.ErrNotFound, or panicked. A load that returns
+	// otter.ErrNotFound is counted in LoadSuccesses: it found that there is no value.
 	LoadFailures uint64
 	// TotalLoadTime returns the time the cache has spent loading new values.
 	TotalLoadTime time.Duration

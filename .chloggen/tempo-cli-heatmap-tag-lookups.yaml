@@ -1,0 +1,5 @@
+change_type: enhancement
+component: tempo-cli
+note: Add tag names and tag values lookups to `tempo-cli view heatmap`, with the TraceQL query as a filter and a mode selector in the UI.
+issues: []
+user: mdisibio

@@ -20,6 +20,8 @@ func createNowFunction[K any](_ ottl.FunctionContext, _ ottl.Arguments) (ottl.Ex
 	return now[K]()
 }
 
+// NewNowFactory returns a factory for the Now OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#now
 func NewNowFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("Now", nil, createNowFunction[K])
 }

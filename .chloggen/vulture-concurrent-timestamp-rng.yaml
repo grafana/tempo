@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: tempo-vulture
+note: Prevent panics during concurrent timestamp selection.
+issues: []
+subtext:
+user: ruslan-mikhailov

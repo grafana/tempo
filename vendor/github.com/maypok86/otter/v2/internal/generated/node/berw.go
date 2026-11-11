@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// BERW is a cache entry that provide the following features:
+// BERW is the header of a cache entry that provide the following features:
 //
 // 1. Base
 //
@@ -17,183 +17,255 @@ import (
 // 3. Refresh
 //
 // 4. Weight
-type BERW[K comparable, V any] struct {
-	key           K
-	value         V
-	prev          *BERW[K, V]
-	next          *BERW[K, V]
-	prevExp       *BERW[K, V]
-	nextExp       *BERW[K, V]
+//
+// A node is allocated as one of the layouts that follow the header with the key and the
+// value (BERWInline...), so that a pointer to the header is a pointer to the whole node. The
+// header does not depend on the key and value types: its methods are compiled once,
+// whatever caches a program creates, and only the layouts are instantiated per cache type.
+type BERW struct {
+	prev          *BERW
+	next          *BERW
+	prevExp       *BERW
+	nextExp       *BERW
 	expiresAt     atomic.Int64
 	refreshableAt atomic.Int64
-	weight        uint32
+	weight        atomic.Uint32
+	policyWeight  uint32
 	state         atomic.Uint32
 	queueType     uint8
+	variant       uint8
 }
 
-// NewBERW creates a new BERW.
-func NewBERW[K comparable, V any](key K, value V, expiresAt, refreshableAt int64, weight uint32) Node[K, V] {
-	n := &BERW[K, V]{
-		key:    key,
-		value:  value,
-		weight: weight,
+// BERWInline is the layout of a BERW whose value is kept inline and never changed. The first
+// update of a live entry replaces the node with a BERWBoxed.
+type BERWInline[K comparable, V any] struct {
+	header BERW
+	key    K
+	value  V
+}
+
+// BERWBoxed is the layout of a BERW whose value lives behind an atomic pointer and is
+// replaced in place.
+type BERWBoxed[K comparable, V any] struct {
+	header BERW
+	key    K
+	value  atomic.Pointer[V]
+}
+
+// BERWP is the layout of a BERW whose pointer-shaped value is kept in an atomic pointer.
+type BERWP[K comparable, V any] struct {
+	header BERW
+	key    K
+	value  unsafe.Pointer
+}
+
+// BERWU64 is the layout of a BERW whose value, without pointers and of at most 8 bytes,
+// is kept in an atomic.Uint64.
+type BERWU64[K comparable, V any] struct {
+	header BERW
+	key    K
+	value  atomic.Uint64
+}
+
+// BERWEmpty is the layout of a BERW without a value field, for values of zero size.
+type BERWEmpty[K comparable, V any] struct {
+	header BERW
+	key    K
+}
+
+// allocBERW allocates a node as the given variant's layout and returns its header; nodes
+// without state have a single layout and ignore the variant.
+func allocBERW[K comparable, V any](variant uint8) unsafe.Pointer {
+	switch variant {
+	case boxedVariant:
+		return unsafe.Pointer(new(BERWBoxed[K, V]))
+	case pointerVariant:
+		return unsafe.Pointer(new(BERWP[K, V]))
+	case wordVariant:
+		return unsafe.Pointer(new(BERWU64[K, V]))
+	case emptyVariant:
+		return unsafe.Pointer(new(BERWEmpty[K, V]))
+	default:
+		return unsafe.Pointer(new(BERWInline[K, V]))
 	}
+}
+
+// layoutBERW returns the offsets of the key and of the value of every variant's layout.
+func layoutBERW[K comparable, V any]() (key uintptr, values [variantCount]uintptr) {
+	key = unsafe.Offsetof(BERWInline[K, V]{}.key)
+	values[inlineVariant] = unsafe.Offsetof(BERWInline[K, V]{}.value)
+	values[boxedVariant] = unsafe.Offsetof(BERWBoxed[K, V]{}.value)
+	values[pointerVariant] = unsafe.Offsetof(BERWP[K, V]{}.value)
+	values[wordVariant] = unsafe.Offsetof(BERWU64[K, V]{}.value)
+	return key, values
+}
+
+// initBERW initializes the header of a node allocated by allocBERW.
+func initBERW(ptr unsafe.Pointer, expiresAt, refreshableAt int64, weight uint32, variant uint8) Node {
+	n := (*BERW)(ptr)
+	n.variant = variant
+	n.policyWeight = weight
+	n.weight.Store(weight)
 	n.expiresAt.Store(expiresAt)
 	n.refreshableAt.Store(refreshableAt)
 	n.state.Store(aliveState)
-
 	return n
 }
 
 // CastPointerToBERW casts a pointer to BERW.
-func CastPointerToBERW[K comparable, V any](ptr unsafe.Pointer) Node[K, V] {
-	return (*BERW[K, V])(ptr)
+func CastPointerToBERW(ptr unsafe.Pointer) Node {
+	if ptr == nil {
+		return nil
+	}
+	return (*BERW)(ptr)
 }
 
-func (n *BERW[K, V]) Key() K {
-	return n.key
+var berwKind = Kind{
+	fromPointer:    CastPointerToBERW,
+	init:           initBERW,
+	newHeader:      func() unsafe.Pointer { return unsafe.Pointer(new(BERW)) },
+	variantOffset:  unsafe.Offsetof(BERW{}.variant),
+	withState:      true,
+	linksOffset:    unsafe.Offsetof(BERW{}.prev),
+	hasLinks:       true,
+	expLinksOffset: unsafe.Offsetof(BERW{}.prevExp),
+	hasExpLinks:    true,
 }
 
-func (n *BERW[K, V]) Value() V {
-	return n.value
-}
-
-func (n *BERW[K, V]) AsPointer() unsafe.Pointer {
+func (n *BERW) AsPointer() unsafe.Pointer {
 	return unsafe.Pointer(n)
 }
 
-func (n *BERW[K, V]) Prev() Node[K, V] {
+func (n *BERW) Prev() Node {
+	if n.prev == nil {
+		return nil
+	}
 	return n.prev
 }
 
-func (n *BERW[K, V]) SetPrev(v Node[K, V]) {
+func (n *BERW) SetPrev(v Node) {
 	if v == nil {
 		n.prev = nil
 		return
 	}
-	n.prev = (*BERW[K, V])(v.AsPointer())
+	n.prev = (*BERW)(v.AsPointer())
 }
 
-func (n *BERW[K, V]) Next() Node[K, V] {
+func (n *BERW) Next() Node {
+	if n.next == nil {
+		return nil
+	}
 	return n.next
 }
 
-func (n *BERW[K, V]) SetNext(v Node[K, V]) {
+func (n *BERW) SetNext(v Node) {
 	if v == nil {
 		n.next = nil
 		return
 	}
-	n.next = (*BERW[K, V])(v.AsPointer())
+	n.next = (*BERW)(v.AsPointer())
 }
 
-func (n *BERW[K, V]) PrevExp() Node[K, V] {
-	return n.prevExp
-}
-
-func (n *BERW[K, V]) SetPrevExp(v Node[K, V]) {
-	if v == nil {
-		n.prevExp = nil
-		return
-	}
-	n.prevExp = (*BERW[K, V])(v.AsPointer())
-}
-
-func (n *BERW[K, V]) NextExp() Node[K, V] {
-	return n.nextExp
-}
-
-func (n *BERW[K, V]) SetNextExp(v Node[K, V]) {
-	if v == nil {
-		n.nextExp = nil
-		return
-	}
-	n.nextExp = (*BERW[K, V])(v.AsPointer())
-}
-
-func (n *BERW[K, V]) HasExpired(now int64) bool {
+func (n *BERW) HasExpired(now int64) bool {
 	return n.ExpiresAt() <= now
 }
 
-func (n *BERW[K, V]) ExpiresAt() int64 {
+func (n *BERW) ExpiresAt() int64 {
 	return n.expiresAt.Load()
 }
 
-func (n *BERW[K, V]) CASExpiresAt(old, new int64) bool {
+func (n *BERW) CASExpiresAt(old, new int64) bool {
 	return n.expiresAt.CompareAndSwap(old, new)
 }
 
-func (n *BERW[K, V]) SetExpiresAt(new int64) {
+func (n *BERW) SetExpiresAt(new int64) {
 	n.expiresAt.Store(new)
 }
 
-func (n *BERW[K, V]) RefreshableAt() int64 {
+func (n *BERW) RefreshableAt() int64 {
 	return n.refreshableAt.Load()
 }
 
-func (n *BERW[K, V]) CASRefreshableAt(old, new int64) bool {
+func (n *BERW) CASRefreshableAt(old, new int64) bool {
 	return n.refreshableAt.CompareAndSwap(old, new)
 }
 
-func (n *BERW[K, V]) SetRefreshableAt(new int64) {
+func (n *BERW) SetRefreshableAt(new int64) {
 	n.refreshableAt.Store(new)
 }
 
-func (n *BERW[K, V]) IsFresh(now int64) bool {
+func (n *BERW) IsFresh(now int64) bool {
 	return n.IsAlive() && n.RefreshableAt() > now
 }
 
-func (n *BERW[K, V]) Weight() uint32 {
-	return n.weight
+func (n *BERW) Weight() uint32 {
+	return n.weight.Load()
 }
 
-func (n *BERW[K, V]) IsAlive() bool {
+func (n *BERW) SetWeight(weight uint32) {
+	n.weight.Store(weight)
+}
+
+func (n *BERW) PolicyWeight() uint32 {
+	return n.policyWeight
+}
+
+func (n *BERW) SetPolicyWeight(weight uint32) {
+	n.policyWeight = weight
+}
+
+func (n *BERW) IsAlive() bool {
 	return n.state.Load() == aliveState
 }
 
-func (n *BERW[K, V]) IsRetired() bool {
+func (n *BERW) IsRetired() bool {
 	return n.state.Load() == retiredState
 }
 
-func (n *BERW[K, V]) Retire() {
+func (n *BERW) Retire() {
 	n.state.Store(retiredState)
 }
 
-func (n *BERW[K, V]) IsDead() bool {
+func (n *BERW) IsDead() bool {
 	return n.state.Load() == deadState
 }
 
-func (n *BERW[K, V]) Die() {
+func (n *BERW) Die() {
 	n.state.Store(deadState)
 }
 
-func (n *BERW[K, V]) GetQueueType() uint8 {
+func (n *BERW) GetQueueType() uint8 {
 	return n.queueType
 }
 
-func (n *BERW[K, V]) SetQueueType(queueType uint8) {
+func (n *BERW) SetQueueType(queueType uint8) {
 	n.queueType = queueType
 }
 
-func (n *BERW[K, V]) InWindow() bool {
+func (n *BERW) InWindow() bool {
 	return n.GetQueueType() == InWindowQueue
 }
 
-func (n *BERW[K, V]) MakeWindow() {
+func (n *BERW) MakeWindow() {
 	n.SetQueueType(InWindowQueue)
 }
 
-func (n *BERW[K, V]) InMainProbation() bool {
+func (n *BERW) InMainProbation() bool {
 	return n.GetQueueType() == InMainProbationQueue
 }
 
-func (n *BERW[K, V]) MakeMainProbation() {
+func (n *BERW) MakeMainProbation() {
 	n.SetQueueType(InMainProbationQueue)
 }
 
-func (n *BERW[K, V]) InMainProtected() bool {
+func (n *BERW) InMainProtected() bool {
 	return n.GetQueueType() == InMainProtectedQueue
 }
 
-func (n *BERW[K, V]) MakeMainProtected() {
+func (n *BERW) MakeMainProtected() {
 	n.SetQueueType(InMainProtectedQueue)
+}
+
+func (n *BERW) CanSetValue() bool {
+	return n.variant != inlineVariant
 }

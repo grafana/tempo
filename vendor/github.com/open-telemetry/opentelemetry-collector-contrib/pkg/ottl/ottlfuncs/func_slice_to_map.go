@@ -13,20 +13,22 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type SliceToMapArguments[K any] struct {
+type sliceToMapArguments[K any] struct {
 	Target    ottl.PSliceGetter[K]
 	KeyPath   ottl.Optional[[]string]
 	ValuePath ottl.Optional[[]string]
 }
 
+// NewSliceToMapFactory returns a factory for the SliceToMap OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#slicetomap
 func NewSliceToMapFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("SliceToMap", &SliceToMapArguments[K]{}, sliceToMapFunction[K])
+	return ottl.NewFactory("SliceToMap", &sliceToMapArguments[K]{}, sliceToMapFunction[K])
 }
 
 func sliceToMapFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*SliceToMapArguments[K])
+	args, ok := oArgs.(*sliceToMapArguments[K])
 	if !ok {
-		return nil, errors.New("SliceToMapFactory args must be of type *SliceToMapArguments[K")
+		return nil, errors.New("SliceToMapFactory args must be of type *sliceToMapArguments[K")
 	}
 
 	return getSliceToMapFunc(args.Target, args.KeyPath, args.ValuePath), nil

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlerror"
 )
 
 func (p *parseContext[K]) evaluateMathExpression(expr *mathExpression) (Getter[K], error) {
@@ -51,15 +53,15 @@ func (p *parseContext[K]) evaluateMathValue(val *mathValue) (Getter[K], error) {
 		if val.Literal.Float != nil {
 			neg := -(*val.Literal.Float)
 			newLit := &mathExprLiteral{Float: &neg}
-			return p.newGetter(value{Literal: newLit})
+			return p.newGetter(value{Pos: val.Pos, Literal: newLit})
 		}
 		if val.Literal.Int != nil {
 			neg := -(*val.Literal.Int)
 			newLit := &mathExprLiteral{Int: &neg}
-			return p.newGetter(value{Literal: newLit})
+			return p.newGetter(value{Pos: val.Pos, Literal: newLit})
 		}
 		// Non-numeric literals fall back to dynamic negation
-		baseGetter, err := p.newGetter(value{Literal: val.Literal})
+		baseGetter, err := p.newGetter(value{Pos: val.Pos, Literal: val.Literal})
 		if err != nil {
 			return nil, err
 		}
@@ -72,16 +74,16 @@ func (p *parseContext[K]) evaluateMathValue(val *mathValue) (Getter[K], error) {
 		return negateGetter(baseGetter), nil
 	case val.UnaryOp != nil && *val.UnaryOp == add && val.Literal != nil:
 		// Unary plus: no-op to be explicit about it
-		return p.newGetter(value{Literal: val.Literal})
+		return p.newGetter(value{Pos: val.Pos, Literal: val.Literal})
 	case val.UnaryOp != nil && *val.UnaryOp == add && val.SubExpression != nil:
 		// Unary plus: no-op to be explicit about it
 		return p.evaluateMathExpression(val.SubExpression)
 	case val.Literal != nil:
-		return p.newGetter(value{Literal: val.Literal})
+		return p.newGetter(value{Pos: val.Pos, Literal: val.Literal})
 	case val.SubExpression != nil:
 		return p.evaluateMathExpression(val.SubExpression)
 	default:
-		return nil, fmt.Errorf("unsupported mathematical value %v", val)
+		return nil, ottlerror.Errorf(val.Pos, "unsupported mathematical value %v", val)
 	}
 }
 

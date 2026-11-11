@@ -76,7 +76,7 @@ Mark an error non-retriable with `backoff.Permanent(err)`; `Retry` stops immedia
 Two independent limits cap how long `Retry` runs, and they behave differently:
 
 - A **context deadline** (`context.WithTimeout`) is reactive: it interrupts the wait between attempts and — if your operation observes the context — can abort an in-flight attempt. `Retry` reports it as `context.DeadlineExceeded`.
-- **`WithMaxElapsedTime`** bounds only retry scheduling: it is checked between attempts, never interrupts a running operation, and is reported as `ErrMaxElapsedTime`.
+- **`WithMaxElapsedTime`** bounds only retry scheduling: it is checked between attempts, never interrupts a running operation, and is reported as `ErrMaxElapsedTime`. It counts from when `Retry` is called and includes the attempts' own runtime, so an operation that fails only after running past the limit is not retried.
 
 `WithMaxElapsedTime` defaults to 15 minutes, so **both limits are active unless you override it** — pass `backoff.WithMaxElapsedTime(0)` to rely solely on the context.
 

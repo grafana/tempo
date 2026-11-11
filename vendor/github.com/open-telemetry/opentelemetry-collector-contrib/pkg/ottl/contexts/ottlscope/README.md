@@ -10,6 +10,8 @@ In general, the Instrumentation Scope Context supports accessing pdata using the
 
 The following paths are supported.
 
+Setting a path to `nil` is handled based on the path's type: `pcommon.Map` and `pcommon.Slice` fields are set to empty, `pcommon.Value` fields become an empty value, and scalar and struct-typed fields return an error.
+
 | path                              | field accessed                                                                                                                                             | type                                                                    |
 |-----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | scope.cache                       | the value of the current transform context's temporary cache. cache can be used as a temporary placeholder for data during complex transformations         | pcommon.Map                                                             |

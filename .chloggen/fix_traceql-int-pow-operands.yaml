@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: traceql
+
+note: Fix the `^` operator swapping base and exponent for integer operands, e.g. `2^10` evaluated to `100` instead of `1024`.
+
+issues: []
+
+subtext:
+
+user: stoewer

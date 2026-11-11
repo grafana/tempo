@@ -173,6 +173,7 @@ func (c *PubSub) releaseConn(ctx context.Context, cn *pool.Conn, err error, allo
 
 	if !cn.IsUsable() || cn.ShouldHandoff() {
 		c.reconnect(ctx, fmt.Errorf("pubsub: connection is not usable"))
+		return
 	}
 
 	if isBadConn(err, allowTimeout, c.opt.Addr) {
@@ -658,6 +659,25 @@ func WithChannelSendTimeout(d time.Duration) ChannelOption {
 	}
 }
 
+// WithChannelPingTimeout specifies the timeout for the health-check ping.
+//
+// The default is 5 seconds.
+func WithChannelPingTimeout(d time.Duration) ChannelOption {
+	return func(c *channel) {
+		c.pingTimeout = d
+	}
+}
+
+// WithChannelReconnectTimeout specifies the timeout for reconnecting after
+// a failed health-check ping.
+//
+// The default is 10 seconds.
+func WithChannelReconnectTimeout(d time.Duration) ChannelOption {
+	return func(c *channel) {
+		c.reconnectTimeout = d
+	}
+}
+
 type channel struct {
 	pubSub *PubSub
 
@@ -665,18 +685,22 @@ type channel struct {
 	allCh chan interface{}
 	ping  chan struct{}
 
-	chanSize        int
-	chanSendTimeout time.Duration
-	checkInterval   time.Duration
+	chanSize         int
+	chanSendTimeout  time.Duration
+	checkInterval    time.Duration
+	pingTimeout      time.Duration
+	reconnectTimeout time.Duration
 }
 
 func newChannel(pubSub *PubSub, opts ...ChannelOption) *channel {
 	c := &channel{
 		pubSub: pubSub,
 
-		chanSize:        100,
-		chanSendTimeout: time.Minute,
-		checkInterval:   3 * time.Second,
+		chanSize:         100,
+		chanSendTimeout:  time.Minute,
+		checkInterval:    3 * time.Second,
+		pingTimeout:      5 * time.Second,
+		reconnectTimeout: 10 * time.Second,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -688,7 +712,6 @@ func newChannel(pubSub *PubSub, opts ...ChannelOption) *channel {
 }
 
 func (c *channel) initHealthCheck() {
-	ctx := context.TODO()
 	c.ping = make(chan struct{}, 1)
 
 	go func() {
@@ -699,13 +722,20 @@ func (c *channel) initHealthCheck() {
 			timer.Reset(c.checkInterval)
 			select {
 			case <-c.ping:
-				if !timer.Stop() {
-					<-timer.C
+				select {
+				case <-timer.C:
+				default:
 				}
 			case <-timer.C:
-				if pingErr := c.pubSub.Ping(ctx); pingErr != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), c.pingTimeout)
+				pingErr := c.pubSub.Ping(ctx)
+				cancel()
+
+				if pingErr != nil {
 					c.pubSub.mu.Lock()
-					c.pubSub.reconnect(ctx, pingErr)
+					reconnectCtx, reconnectCancel := context.WithTimeout(context.Background(), c.reconnectTimeout)
+					c.pubSub.reconnect(reconnectCtx, pingErr)
+					reconnectCancel()
 					c.pubSub.mu.Unlock()
 				}
 			case <-c.pubSub.exit:

@@ -273,10 +273,6 @@ func validateSpanLimits(plain *SpanLimits) error {
 	return nil
 }
 
-func ptr[T any](v T) *T {
-	return &v
-}
-
 // validateOTLPHTTPEncoding validates the encoding configuration.
 // The Go SDK only supports protobuf encoding for OTLP HTTP exporters.
 func validateOTLPHTTPEncoding(encoding *OTLPHttpEncoding) error {
@@ -302,6 +298,9 @@ func createHeadersConfig(headers []NameStringValuePair, headersList *string) (ma
 	// Headers take precedence over HeadersList, so this has to be after HeadersList is processed.
 	for _, kv := range headers {
 		if kv.Value != nil {
+			if kv.Name == "" {
+				return nil, newErrInvalid("invalid header: empty name")
+			}
 			result[kv.Name] = *kv.Value
 		}
 	}

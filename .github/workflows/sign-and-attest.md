@@ -32,7 +32,7 @@ These are distinct and answer different questions:
 | --- | --- | --- |
 | **Signature** (`cosign sign`) | Was this image produced by a trusted identity, untampered? | ✅ |
 | **Provenance** (SLSA attestation) | How / from what was it built — which commit, workflow, run? | ✅ |
-| **SBOM** | What packages/versions are inside it? | ❌ (possible follow-up) |
+| **SBOM** | What packages/versions are inside it? | ❌ — produced separately by [`sbom-on-release.yml`](sbom-on-release.md) and attached to the GitHub release as an asset, not to the image |
 
 ## How keyless signing works
 

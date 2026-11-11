@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	conventions "go.opentelemetry.io/otel/semconv/v1.40.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.43.0"
 )
 
 const (

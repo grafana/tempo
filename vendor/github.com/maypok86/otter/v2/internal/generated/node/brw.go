@@ -8,178 +8,256 @@ import (
 	"unsafe"
 )
 
-// BRW is a cache entry that provide the following features:
+// BRW is the header of a cache entry that provide the following features:
 //
 // 1. Base
 //
 // 2. Refresh
 //
 // 3. Weight
-type BRW[K comparable, V any] struct {
-	key           K
-	value         V
-	prev          *BRW[K, V]
-	next          *BRW[K, V]
+//
+// A node is allocated as one of the layouts that follow the header with the key and the
+// value (BRWInline...), so that a pointer to the header is a pointer to the whole node. The
+// header does not depend on the key and value types: its methods are compiled once,
+// whatever caches a program creates, and only the layouts are instantiated per cache type.
+type BRW struct {
+	prev          *BRW
+	next          *BRW
 	refreshableAt atomic.Int64
-	weight        uint32
+	weight        atomic.Uint32
+	policyWeight  uint32
 	state         atomic.Uint32
 	queueType     uint8
+	variant       uint8
 }
 
-// NewBRW creates a new BRW.
-func NewBRW[K comparable, V any](key K, value V, expiresAt, refreshableAt int64, weight uint32) Node[K, V] {
-	n := &BRW[K, V]{
-		key:    key,
-		value:  value,
-		weight: weight,
+// BRWInline is the layout of a BRW whose value is kept inline and never changed. The first
+// update of a live entry replaces the node with a BRWBoxed.
+type BRWInline[K comparable, V any] struct {
+	header BRW
+	key    K
+	value  V
+}
+
+// BRWBoxed is the layout of a BRW whose value lives behind an atomic pointer and is
+// replaced in place.
+type BRWBoxed[K comparable, V any] struct {
+	header BRW
+	key    K
+	value  atomic.Pointer[V]
+}
+
+// BRWP is the layout of a BRW whose pointer-shaped value is kept in an atomic pointer.
+type BRWP[K comparable, V any] struct {
+	header BRW
+	key    K
+	value  unsafe.Pointer
+}
+
+// BRWU64 is the layout of a BRW whose value, without pointers and of at most 8 bytes,
+// is kept in an atomic.Uint64.
+type BRWU64[K comparable, V any] struct {
+	header BRW
+	key    K
+	value  atomic.Uint64
+}
+
+// BRWEmpty is the layout of a BRW without a value field, for values of zero size.
+type BRWEmpty[K comparable, V any] struct {
+	header BRW
+	key    K
+}
+
+// allocBRW allocates a node as the given variant's layout and returns its header; nodes
+// without state have a single layout and ignore the variant.
+func allocBRW[K comparable, V any](variant uint8) unsafe.Pointer {
+	switch variant {
+	case boxedVariant:
+		return unsafe.Pointer(new(BRWBoxed[K, V]))
+	case pointerVariant:
+		return unsafe.Pointer(new(BRWP[K, V]))
+	case wordVariant:
+		return unsafe.Pointer(new(BRWU64[K, V]))
+	case emptyVariant:
+		return unsafe.Pointer(new(BRWEmpty[K, V]))
+	default:
+		return unsafe.Pointer(new(BRWInline[K, V]))
 	}
+}
+
+// layoutBRW returns the offsets of the key and of the value of every variant's layout.
+func layoutBRW[K comparable, V any]() (key uintptr, values [variantCount]uintptr) {
+	key = unsafe.Offsetof(BRWInline[K, V]{}.key)
+	values[inlineVariant] = unsafe.Offsetof(BRWInline[K, V]{}.value)
+	values[boxedVariant] = unsafe.Offsetof(BRWBoxed[K, V]{}.value)
+	values[pointerVariant] = unsafe.Offsetof(BRWP[K, V]{}.value)
+	values[wordVariant] = unsafe.Offsetof(BRWU64[K, V]{}.value)
+	return key, values
+}
+
+// initBRW initializes the header of a node allocated by allocBRW.
+func initBRW(ptr unsafe.Pointer, expiresAt, refreshableAt int64, weight uint32, variant uint8) Node {
+	n := (*BRW)(ptr)
+	n.variant = variant
+	n.policyWeight = weight
+	n.weight.Store(weight)
 	n.refreshableAt.Store(refreshableAt)
 	n.state.Store(aliveState)
-
 	return n
 }
 
 // CastPointerToBRW casts a pointer to BRW.
-func CastPointerToBRW[K comparable, V any](ptr unsafe.Pointer) Node[K, V] {
-	return (*BRW[K, V])(ptr)
+func CastPointerToBRW(ptr unsafe.Pointer) Node {
+	if ptr == nil {
+		return nil
+	}
+	return (*BRW)(ptr)
 }
 
-func (n *BRW[K, V]) Key() K {
-	return n.key
+var brwKind = Kind{
+	fromPointer:   CastPointerToBRW,
+	init:          initBRW,
+	newHeader:     func() unsafe.Pointer { return unsafe.Pointer(new(BRW)) },
+	variantOffset: unsafe.Offsetof(BRW{}.variant),
+	withState:     true,
+	linksOffset:   unsafe.Offsetof(BRW{}.prev),
+	hasLinks:      true,
 }
 
-func (n *BRW[K, V]) Value() V {
-	return n.value
-}
-
-func (n *BRW[K, V]) AsPointer() unsafe.Pointer {
+func (n *BRW) AsPointer() unsafe.Pointer {
 	return unsafe.Pointer(n)
 }
 
-func (n *BRW[K, V]) Prev() Node[K, V] {
+func (n *BRW) Prev() Node {
+	if n.prev == nil {
+		return nil
+	}
 	return n.prev
 }
 
-func (n *BRW[K, V]) SetPrev(v Node[K, V]) {
+func (n *BRW) SetPrev(v Node) {
 	if v == nil {
 		n.prev = nil
 		return
 	}
-	n.prev = (*BRW[K, V])(v.AsPointer())
+	n.prev = (*BRW)(v.AsPointer())
 }
 
-func (n *BRW[K, V]) Next() Node[K, V] {
+func (n *BRW) Next() Node {
+	if n.next == nil {
+		return nil
+	}
 	return n.next
 }
 
-func (n *BRW[K, V]) SetNext(v Node[K, V]) {
+func (n *BRW) SetNext(v Node) {
 	if v == nil {
 		n.next = nil
 		return
 	}
-	n.next = (*BRW[K, V])(v.AsPointer())
+	n.next = (*BRW)(v.AsPointer())
 }
 
-func (n *BRW[K, V]) PrevExp() Node[K, V] {
-	panic("not implemented")
-}
-
-func (n *BRW[K, V]) SetPrevExp(v Node[K, V]) {
-	panic("not implemented")
-}
-
-func (n *BRW[K, V]) NextExp() Node[K, V] {
-	panic("not implemented")
-}
-
-func (n *BRW[K, V]) SetNextExp(v Node[K, V]) {
-	panic("not implemented")
-}
-
-func (n *BRW[K, V]) HasExpired(now int64) bool {
+func (n *BRW) HasExpired(now int64) bool {
 	return false
 }
 
-func (n *BRW[K, V]) ExpiresAt() int64 {
+func (n *BRW) ExpiresAt() int64 {
 	panic("not implemented")
 }
 
-func (n *BRW[K, V]) CASExpiresAt(old, new int64) bool {
+func (n *BRW) CASExpiresAt(old, new int64) bool {
 	panic("not implemented")
 }
 
-func (n *BRW[K, V]) SetExpiresAt(new int64) {
+func (n *BRW) SetExpiresAt(new int64) {
 	panic("not implemented")
 }
 
-func (n *BRW[K, V]) RefreshableAt() int64 {
+func (n *BRW) RefreshableAt() int64 {
 	return n.refreshableAt.Load()
 }
 
-func (n *BRW[K, V]) CASRefreshableAt(old, new int64) bool {
+func (n *BRW) CASRefreshableAt(old, new int64) bool {
 	return n.refreshableAt.CompareAndSwap(old, new)
 }
 
-func (n *BRW[K, V]) SetRefreshableAt(new int64) {
+func (n *BRW) SetRefreshableAt(new int64) {
 	n.refreshableAt.Store(new)
 }
 
-func (n *BRW[K, V]) IsFresh(now int64) bool {
+func (n *BRW) IsFresh(now int64) bool {
 	return n.IsAlive() && n.RefreshableAt() > now
 }
 
-func (n *BRW[K, V]) Weight() uint32 {
-	return n.weight
+func (n *BRW) Weight() uint32 {
+	return n.weight.Load()
 }
 
-func (n *BRW[K, V]) IsAlive() bool {
+func (n *BRW) SetWeight(weight uint32) {
+	n.weight.Store(weight)
+}
+
+func (n *BRW) PolicyWeight() uint32 {
+	return n.policyWeight
+}
+
+func (n *BRW) SetPolicyWeight(weight uint32) {
+	n.policyWeight = weight
+}
+
+func (n *BRW) IsAlive() bool {
 	return n.state.Load() == aliveState
 }
 
-func (n *BRW[K, V]) IsRetired() bool {
+func (n *BRW) IsRetired() bool {
 	return n.state.Load() == retiredState
 }
 
-func (n *BRW[K, V]) Retire() {
+func (n *BRW) Retire() {
 	n.state.Store(retiredState)
 }
 
-func (n *BRW[K, V]) IsDead() bool {
+func (n *BRW) IsDead() bool {
 	return n.state.Load() == deadState
 }
 
-func (n *BRW[K, V]) Die() {
+func (n *BRW) Die() {
 	n.state.Store(deadState)
 }
 
-func (n *BRW[K, V]) GetQueueType() uint8 {
+func (n *BRW) GetQueueType() uint8 {
 	return n.queueType
 }
 
-func (n *BRW[K, V]) SetQueueType(queueType uint8) {
+func (n *BRW) SetQueueType(queueType uint8) {
 	n.queueType = queueType
 }
 
-func (n *BRW[K, V]) InWindow() bool {
+func (n *BRW) InWindow() bool {
 	return n.GetQueueType() == InWindowQueue
 }
 
-func (n *BRW[K, V]) MakeWindow() {
+func (n *BRW) MakeWindow() {
 	n.SetQueueType(InWindowQueue)
 }
 
-func (n *BRW[K, V]) InMainProbation() bool {
+func (n *BRW) InMainProbation() bool {
 	return n.GetQueueType() == InMainProbationQueue
 }
 
-func (n *BRW[K, V]) MakeMainProbation() {
+func (n *BRW) MakeMainProbation() {
 	n.SetQueueType(InMainProbationQueue)
 }
 
-func (n *BRW[K, V]) InMainProtected() bool {
+func (n *BRW) InMainProtected() bool {
 	return n.GetQueueType() == InMainProtectedQueue
 }
 
-func (n *BRW[K, V]) MakeMainProtected() {
+func (n *BRW) MakeMainProtected() {
 	n.SetQueueType(InMainProtectedQueue)
+}
+
+func (n *BRW) CanSetValue() bool {
+	return n.variant != inlineVariant
 }

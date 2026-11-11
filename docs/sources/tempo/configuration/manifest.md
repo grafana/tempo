@@ -397,6 +397,10 @@ query_frontend:
         max_regex_conditions: 1
     mcp_server:
         enabled: false
+    query_tracker:
+        enabled: false
+        max_queries_per_tenant: 100
+        max_query_text_bytes: 4096
     max_grpc_streaming_packet_size: 1048576
     max_query_expression_size_bytes: 131072
     query_end_cutoff: 30s
@@ -583,6 +587,7 @@ block_builder:
     partitions_per_instance: 0
     consume_cycle_duration: 5m0s
     max_consuming_bytes: 5000000000
+    flush_concurrency: 4
     block:
         max_block_bytes: 20971520
     wal:

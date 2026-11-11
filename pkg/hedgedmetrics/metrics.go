@@ -11,23 +11,38 @@ const (
 	hedgedMetricsPublishDuration = 10 * time.Second
 )
 
-type diffCounter struct {
-	previous uint64
-	counter  prometheus.Counter
-}
-
-func (d *diffCounter) addAbsoluteToCounter(value uint64) {
-	diff := float64(value - d.previous)
-	if value < d.previous {
-		diff = float64(value)
-	}
-	d.counter.Add(diff)
-	d.previous = value
-}
-
 // statsProvider defines the interface that wraps hedgedhttp.Stats for ease of testing
 type statsProvider interface {
-	Snapshot() hedgedhttp.StatsSnapshot
+	ActualRoundTrips() uint64
+	RequestedRoundTrips() uint64
+}
+
+// hedgedCounter publishes the number of hedged requests (actual minus requested round trips) to a
+// prometheus counter.
+type hedgedCounter struct {
+	published uint64 // highest number of hedged requests published so far
+	counter   prometheus.Counter
+}
+
+func (h *hedgedCounter) update(s statsProvider) {
+	// hedgedhttp increments RequestedRoundTrips before dispatching a request but ActualRoundTrips only
+	// once each sub-request starts, so in-flight requests can make actual lower than requested, or the
+	// difference lower than a previous one. Loading actual first means a newer request can only lower
+	// the difference, never raise it above the real number of hedged requests. Only publish increases
+	// over the highest value published so far.
+	actual := s.ActualRoundTrips()
+	requested := s.RequestedRoundTrips()
+	if actual <= requested {
+		return
+	}
+
+	hedged := actual - requested
+	if hedged <= h.published {
+		return
+	}
+
+	h.counter.Add(float64(hedged - h.published))
+	h.published = hedged
 }
 
 // Publish flushes metrics from hedged requests every tickerDur
@@ -37,14 +52,11 @@ func Publish(s *hedgedhttp.Stats, counter prometheus.Counter) {
 
 func publishWithDuration(s statsProvider, counter prometheus.Counter, duration time.Duration) {
 	ticker := time.NewTicker(duration)
-	diff := &diffCounter{previous: 0, counter: counter}
+	hc := &hedgedCounter{counter: counter}
 
 	go func() {
 		for range ticker.C {
-			snap := s.Snapshot()
-
-			hedgedRequests := snap.ActualRoundTrips - snap.RequestedRoundTrips
-			diff.addAbsoluteToCounter(hedgedRequests)
+			hc.update(s)
 		}
 	}()
 }

@@ -4,6 +4,7 @@
 package queuebatch // import "go.opentelemetry.io/collector/exporter/exporterhelper/internal/queuebatch"
 import (
 	"context"
+	"errors"
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru/v2/simplelru"
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper/internal/queue"
 	"go.opentelemetry.io/collector/exporter/exporterhelper/internal/request"
 	"go.opentelemetry.io/collector/exporter/exporterhelper/internal/sender"
+	queuebatchtelemetry "go.opentelemetry.io/collector/internal/telemetry/queuebatch"
 )
 
 type multiBatcher struct {
@@ -31,24 +33,22 @@ func newMultiBatcher(
 	bCfg BatchConfig,
 	sizer request.Sizer,
 	wp *workerPool,
-	partitioner Partitioner[request.Request],
-	mergeCtx func(context.Context, context.Context) context.Context,
-	next sender.SendFunc[request.Request],
-	logger *zap.Logger,
+	set batcherSettings[request.Request],
 ) (*multiBatcher, error) {
 	mb := &multiBatcher{
 		cfg:         bCfg,
 		wp:          wp,
 		sizer:       sizer,
-		partitioner: partitioner,
-		mergeCtx:    mergeCtx,
-		consumeFunc: next,
-		logger:      logger,
+		partitioner: set.partitioner,
+		mergeCtx:    set.mergeCtx,
+		consumeFunc: set.next,
+		logger:      set.logger,
 	}
 
+	cacheSize := bCfg.Partition.CacheSize
+
 	// Create LRU cache with eviction callback
-	// TODO: make maxActivePartitionsCount configurable
-	cache, err := lru.NewLRU[string, *partitionBatcher](10000, func(_ string, pb *partitionBatcher) {
+	cache, err := lru.NewLRU[string, *partitionBatcher](cacheSize, func(_ string, pb *partitionBatcher) {
 		// Flush the partition when evicted
 		mb.wp.execute(pb.shutdownInternal)
 	})
@@ -57,6 +57,14 @@ func newMultiBatcher(
 	}
 
 	mb.partitions = cache
+
+	if err := errors.Join(
+		set.obsMetrics.RegisterInt(queuebatchtelemetry.MetricPartitionCacheSize, mb.getActivePartitionsCount),
+		set.obsMetrics.RegisterInt(queuebatchtelemetry.MetricPartitionCacheCapacity, func() int64 { return int64(cacheSize) }),
+	); err != nil {
+		return nil, err
+	}
+
 	return mb, nil
 }
 
@@ -91,7 +99,6 @@ func (mb *multiBatcher) Consume(ctx context.Context, req request.Request, done q
 	shard.Consume(ctx, req, done)
 }
 
-// getActivePartitionsCount is test only method
 func (mb *multiBatcher) getActivePartitionsCount() int64 {
 	mb.lock.Lock()
 	defer mb.lock.Unlock()

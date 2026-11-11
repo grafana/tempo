@@ -115,7 +115,8 @@ Actions workflows that reuse the existing `release.yml` and `docker.yml` build p
 - **`release-prep`** (`workflow_dispatch`) — prepares the changelog, sets the `VERSION`
   file, and (for non-RC releases) bumps the image tag, then opens a labeled `release-prep` PR.
 - **`release-tag`** (triggered when that PR is merged) — tags the merge commit, builds
-  binaries and multi-arch images, then publishes the GitHub Release.
+  binaries and multi-arch images, publishes the GitHub Release, then exports an SBOM and
+  attaches it to the release.
 
 The release type is detected from the version string passed to `release-prep`:
 
@@ -144,9 +145,11 @@ The release type is detected from the version string passed to `release-prep`:
 3. **`release-tag` takes over** (triggered by the merge): it verifies the PR is a genuine
    release-prep PR (see Security below), tags the merge commit, builds binaries and
    multi-arch images, then un-drafts and publishes the GitHub Release — `--latest` for
-   minor/patch, `--prerelease` for RCs — using the `CHANGELOG.md` section.
-4. **Verify** the `release-tag` run succeeded and the images appear in GAR, then on Docker
-   Hub after the mirror catches up.
+   minor/patch, `--prerelease` for RCs — using the `CHANGELOG.md` section. After publishing,
+   its `export_sbom` job runs `sbom-on-release.yml` to attach an SBOM to the release.
+4. **Verify** the `release-tag` run succeeded, the images appear in GAR, then on Docker
+   Hub after the mirror catches up, and the `.spdx.json` SBOM asset is attached to the
+   release.
 
 ## Security
 

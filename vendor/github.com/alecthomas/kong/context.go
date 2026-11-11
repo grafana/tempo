@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Path records the nodes and parsed values from the current command-line.
@@ -86,10 +87,12 @@ type Context struct {
 	// Error that occurred during trace, if any.
 	Error error
 
-	values    map[*Value]reflect.Value // Temporary values during tracing.
-	bindings  bindings
-	resolvers []Resolver // Extra context-specific resolvers.
-	scan      *Scanner
+	values        map[*Value]reflect.Value // Temporary values during tracing.
+	resetErrors   map[*Value]error         // Default errors that a resolver may override.
+	bindings      bindings
+	resolvers     []Resolver // Extra context-specific resolvers.
+	scan          *Scanner
+	lastWinsPeers map[*Flag][]*Flag // Other members of each flag's lastwins group.
 }
 
 // Trace path of "args" through the grammar tree.
@@ -106,12 +109,104 @@ func Trace(k *Kong, args []string) (*Context, error) {
 		Path: []*Path{
 			{App: k.Model, Flags: k.Model.Flags, remainder: s.PeekAll()},
 		},
-		values:   map[*Value]reflect.Value{},
-		scan:     s,
-		bindings: bindings{},
+		values:        map[*Value]reflect.Value{},
+		scan:          s,
+		bindings:      bindings{},
+		lastWinsPeers: lastWinsPeers(k.Model.Node),
 	}
 	c.Error = c.trace(c.Model.Node)
+	if c.Error == nil {
+		c.filterLastWins()
+	}
 	return c, nil
+}
+
+// filterLastWins removes trace occurrences overridden by a later occurrence of
+// another flag in the same lastwins group, as if they had never been given.
+// Their values were already discarded during the trace (see parseFlag).
+func (c *Context) filterLastWins() {
+	if len(c.lastWinsPeers) == 0 {
+		return
+	}
+	drop := map[*Path]bool{}
+	visited := map[*Flag]bool{}
+	for _, path := range c.Path {
+		flag := path.Flag
+		if flag == nil || visited[flag] {
+			continue
+		}
+		peers, ok := c.lastWinsPeers[flag]
+		if !ok {
+			continue
+		}
+		members := map[*Flag]bool{flag: true}
+		visited[flag] = true
+		for _, peer := range peers {
+			members[peer] = true
+			visited[peer] = true
+		}
+		occurrences := []*Path{}
+		for _, occurrence := range c.Path {
+			if occurrence.Flag != nil && members[occurrence.Flag] {
+				occurrences = append(occurrences, occurrence)
+			}
+		}
+		// Only the trailing run of occurrences of a single flag survives:
+		// everything before the last occurrence of any other member was
+		// overridden.
+		winner := occurrences[len(occurrences)-1].Flag
+		overridden := 0
+		for i, occurrence := range occurrences {
+			if occurrence.Flag != winner {
+				overridden = i + 1
+			}
+		}
+		for _, occurrence := range occurrences[:overridden] {
+			drop[occurrence] = true
+		}
+	}
+	if len(drop) == 0 {
+		return
+	}
+	path := c.Path[:0]
+	for _, trace := range c.Path {
+		if !drop[trace] {
+			path = append(path, trace)
+		}
+	}
+	c.Path = path
+}
+
+// lastWinsPeers maps each member of a lastwins group to the other members of
+// its group. Groups are scoped to the node their flags are declared on.
+func lastWinsPeers(node *Node) map[*Flag][]*Flag {
+	peers := map[*Flag][]*Flag{}
+	_ = Visit(node, func(v Visitable, next Next) error {
+		if n, ok := v.(*Node); ok {
+			groups := map[string][]*Flag{}
+			for _, flag := range n.Flags {
+				for _, group := range flag.LastWins {
+					groups[group] = append(groups[group], flag)
+				}
+			}
+			for _, members := range groups {
+				if len(members) < 2 {
+					continue
+				}
+				for _, member := range members {
+					others := make([]*Flag, 0, len(members)-1)
+					for _, other := range members {
+						if other != member {
+							others = append(others, other)
+						}
+					}
+					peers[member] = others
+				}
+			}
+		}
+		return next(nil)
+	})
+	return peers
 }
 
 // Bind adds bindings to the Context.
@@ -187,28 +282,21 @@ func (c *Context) Empty() bool {
 
 // Validate the current context.
 func (c *Context) Validate() error { //nolint: gocyclo
-	err := Visit(c.Model, func(node Visitable, next Next) error {
-		switch node := node.(type) {
-		case *Value:
-			ok := atLeastOneEnvSet(node.Tag.Envs)
-			if node.Enum != "" && (!node.Required || node.HasDefault || (len(node.Tag.Envs) != 0 && ok)) {
-				if err := checkEnum(node, node.Target); err != nil {
-					return err
-				}
-			}
-
-		case *Flag:
-			ok := atLeastOneEnvSet(node.Tag.Envs)
-			if node.Enum != "" && (!node.Required || node.HasDefault || (len(node.Tag.Envs) != 0 && ok)) {
-				if err := checkEnum(node.Value, node.Target); err != nil {
+	// Only check nodes on the selected command path: an envar shared with
+	// another command may hold a value that is invalid there.
+	for _, path := range c.Path {
+		node := path.Node()
+		if node == nil {
+			continue
+		}
+		for _, value := range node.Values() {
+			ok := atLeastOneEnvSet(value.Tag.Envs)
+			if value.Enum != "" && (!value.Required || value.HasDefault || (len(value.Tag.Envs) != 0 && ok)) {
+				if err := checkEnum(value, value.Target); err != nil {
 					return err
 				}
 			}
 		}
-		return next(nil)
-	})
-	if err != nil {
-		return err
 	}
 	for _, el := range c.Path {
 		var (
@@ -232,7 +320,7 @@ func (c *Context) Validate() error { //nolint: gocyclo
 			value = node.Target
 			desc = node.Path()
 		}
-		if validate := isValidatable(value); validate != nil {
+		for _, validate := range getValidators(value) {
 			if err := validate.Validate(c); err != nil {
 				if desc != "" {
 					return fmt.Errorf("%s: %w", desc, err)
@@ -349,12 +437,42 @@ func (c *Context) FlagValue(flag *Flag) any {
 
 // Reset recursively resets values to defaults (as specified in the grammar) or the zero value.
 func (c *Context) Reset() error {
+	selected := c.selectedValues()
+	c.resetErrors = map[*Value]error{}
 	return Visit(c.Model.Node, func(node Visitable, next Next) error {
-		if value, ok := node.(*Value); ok {
-			return next(value.Reset())
+		value, ok := node.(*Value)
+		if !ok {
+			return next(nil)
 		}
-		return next(nil)
+		err := value.Reset()
+		if err != nil && !selected[value] {
+			// An envar shared with a node outside the selected command path
+			// may not parse there; that must not fail this parse.
+			value.Target.Set(reflect.Zero(value.Target.Type()))
+			err = nil
+		}
+		if err != nil && len(c.combineResolvers()) != 0 {
+			// A resolver may supply a valid value after defaults are reset.
+			// Keep the error so Resolve can return it if no value overrides it.
+			c.resetErrors[value] = err
+			err = nil
+		}
+		return next(err)
 	})
+}
+
+// selectedValues returns the set of values attached to nodes on the traced
+// command path.
+func (c *Context) selectedValues() map[*Value]bool {
+	selected := map[*Value]bool{}
+	for _, path := range c.Path {
+		if node := path.Node(); node != nil {
+			for _, value := range node.Values() {
+				selected[value] = true
+			}
+		}
+	}
+	return selected
 }
 
 func (c *Context) endParsing() {
@@ -520,6 +638,9 @@ func (c *Context) trace(node *Node) (err error) { //nolint: gocyclo
 					candidates = append(candidates, branch.Name)
 				}
 				if branch.Type == CommandNode && branch.Name == token.Value {
+					if err := c.checkDefaultCmdFlags(node, branch); err != nil {
+						return err
+					}
 					c.scan.Pop()
 					c.Path = append(c.Path, &Path{
 						Parent:    node,
@@ -536,6 +657,9 @@ func (c *Context) trace(node *Node) (err error) { //nolint: gocyclo
 				if branch.Type == ArgumentNode {
 					arg := branch.Argument
 					if err := arg.Parse(c.scan, c.getValue(arg)); err == nil {
+						if err := c.checkDefaultCmdFlags(node, branch); err != nil {
+							return err
+						}
 						c.Path = append(c.Path, &Path{
 							Parent:    node,
 							Argument:  branch,
@@ -565,6 +689,31 @@ func (c *Context) trace(node *Node) (err error) { //nolint: gocyclo
 		}
 	}
 	return c.maybeSelectDefault(flags, node)
+}
+
+// checkDefaultCmdFlags rejects flags that were parsed into node's "withargs"
+// default command when a different child, selected, has been chosen instead.
+//
+// trace() offers the default command's flags while parsing node's own tokens,
+// so a flag given before an explicitly named sibling is parsed into the default
+// command. The default command is then never selected, so without this check
+// the value would be silently dropped. The value is not moved to a same-named
+// flag on selected because the two flags may differ in type or meaning.
+func (c *Context) checkDefaultCmdFlags(node, selected *Node) error {
+	defaultCmd := node.DefaultCmd
+	if defaultCmd == nil || defaultCmd.Tag.Default != "withargs" || selected == defaultCmd {
+		return nil
+	}
+	defaultFlags := map[*Flag]bool{}
+	for _, flag := range defaultCmd.Flags {
+		defaultFlags[flag] = true
+	}
+	for _, path := range c.Path {
+		if path.Flag != nil && defaultFlags[path.Flag] {
+			return fmt.Errorf("flag --%s applies to the default command %q, not %q", path.Flag.Name, defaultCmd.Name, selected.Name)
+		}
+	}
+	return nil
 }
 
 // IgnoreDefault can be implemented by flags that want to be applied before any default commands.
@@ -637,6 +786,11 @@ func (c *Context) Resolve() error {
 		}
 	}
 	c.Path = append(c.Path, inserted...)
+	for value, err := range c.resetErrors {
+		if _, ok := c.values[value]; !ok {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -717,22 +871,6 @@ func (c *Context) Apply() (string, error) {
 	return strings.Join(path, " "), nil
 }
 
-func flipBoolValue(value reflect.Value) error {
-	if value.Kind() == reflect.Bool {
-		value.SetBool(!value.Bool())
-		return nil
-	}
-
-	if value.Kind() == reflect.Ptr {
-		if !value.IsNil() {
-			return flipBoolValue(value.Elem())
-		}
-		return nil
-	}
-
-	return fmt.Errorf("cannot negate a value of %s", value.Type().String())
-}
-
 func (c *Context) parseFlag(flags []*Flag, match string) (err error) {
 	candidates := []string{}
 
@@ -746,9 +884,12 @@ func (c *Context) parseFlag(flags []*Flag, match string) (err error) {
 			candidates = append(candidates, short)
 		}
 		for _, alias := range flag.Aliases {
-			alias = "--" + alias
-			matched = matched || (alias == match)
-			candidates = append(candidates, alias)
+			aliasFlag := "--" + alias
+			if utf8.RuneCountInString(alias) == 1 {
+				aliasFlag = "-" + alias
+			}
+			matched = matched || (aliasFlag == match)
+			candidates = append(candidates, aliasFlag)
 		}
 
 		neg := negatableFlagName(flag.Name, flag.Tag.Negatable)
@@ -757,8 +898,28 @@ func (c *Context) parseFlag(flags []*Flag, match string) (err error) {
 		}
 		// Found a matching flag.
 		c.scan.Pop()
-		if match == neg && flag.Tag.Negatable != "" {
-			flag.Negated = true
+		flag.Negated = match == neg && flag.Tag.Negatable != ""
+		if flag.Negated {
+			negatedValue := true
+			if c.scan.Peek().Type == FlagValueToken {
+				token, err := c.scan.PopValue("bool")
+				if err != nil {
+					return err
+				}
+				negatedValue, err = parseBoolToken(token)
+				if err != nil {
+					return err
+				}
+			}
+			// Invert the boolean token before Decode so custom bool mappers
+			// keep ownership of their field representation.
+			c.scan.PushTyped(!negatedValue, FlagValueToken)
+		}
+		// An occurrence of a lastwins group member overrides the accumulated
+		// state of the other members, as if they had never been given.
+		for _, peer := range c.lastWinsPeers[flag] {
+			peer.Set = false
+			delete(c.values, peer.Value)
 		}
 		err := flag.Parse(c.scan, c.getValue(flag.Value))
 		if err != nil {
@@ -767,14 +928,6 @@ func (c *Context) parseFlag(flags []*Flag, match string) (err error) {
 				return fmt.Errorf("%s; perhaps try %s=%q?", err.Error(), flag.ShortSummary(), expected.token)
 			}
 			return err
-		}
-		if flag.Negated {
-			value := c.getValue(flag.Value)
-			err := flipBoolValue(value)
-			if err != nil {
-				return err
-			}
-			flag.Value.Apply(value)
 		}
 		c.Path = append(c.Path, &Path{
 			Flag:      flag,
@@ -891,9 +1044,27 @@ func (c *Context) printHelp(options HelpOptions) error {
 	return c.help(options, c)
 }
 
+// choiceGroup identifies a group of flags of which one is expected to be
+// chosen: an xor group or a lastwins group.
+type choiceGroup struct {
+	kind string
+	name string
+}
+
+func flagChoiceGroups(flag *Flag) []choiceGroup {
+	groups := make([]choiceGroup, 0, len(flag.Xor)+len(flag.LastWins))
+	for _, name := range flag.Xor {
+		groups = append(groups, choiceGroup{kind: "xor", name: name})
+	}
+	for _, name := range flag.LastWins {
+		groups = append(groups, choiceGroup{kind: "lastwins", name: name})
+	}
+	return groups
+}
+
 func checkMissingFlags(flags []*Flag) error {
-	xorGroupSet := map[string]bool{}
-	xorGroup := map[string][]string{}
+	choiceGroupSet := map[choiceGroup]bool{}
+	choiceGroups := map[choiceGroup][]string{}
 	andGroupSet := map[string]bool{}
 	andGroup := map[string][]string{}
 	missing := []string{}
@@ -902,9 +1073,10 @@ func checkMissingFlags(flags []*Flag) error {
 		for _, and := range flag.And {
 			flag.Required = andGroupRequired[and]
 		}
+		groups := flagChoiceGroups(flag)
 		if flag.Set {
-			for _, xor := range flag.Xor {
-				xorGroupSet[xor] = true
+			for _, group := range groups {
+				choiceGroupSet[group] = true
 			}
 			for _, and := range flag.And {
 				andGroupSet[and] = true
@@ -913,12 +1085,12 @@ func checkMissingFlags(flags []*Flag) error {
 		if !flag.Required || flag.Set {
 			continue
 		}
-		if len(flag.Xor) > 0 || len(flag.And) > 0 {
-			for _, xor := range flag.Xor {
-				if xorGroupSet[xor] {
+		if len(groups) > 0 || len(flag.And) > 0 {
+			for _, group := range groups {
+				if choiceGroupSet[group] {
 					continue
 				}
-				xorGroup[xor] = append(xorGroup[xor], flag.Summary())
+				choiceGroups[group] = append(choiceGroups[group], flag.Summary())
 			}
 			for _, and := range flag.And {
 				andGroup[and] = append(andGroup[and], flag.Summary())
@@ -927,8 +1099,8 @@ func checkMissingFlags(flags []*Flag) error {
 			missing = append(missing, flag.Summary())
 		}
 	}
-	for xor, flags := range xorGroup {
-		if !xorGroupSet[xor] && len(flags) > 1 {
+	for group, flags := range choiceGroups {
+		if !choiceGroupSet[group] && len(flags) > 1 {
 			missing = append(missing, strings.Join(flags, " or "))
 		}
 	}
@@ -972,6 +1144,10 @@ func checkMissingChildren(node *Node) error {
 		missing = append(missing, strconv.Quote(strings.Join(missingArgs, " ")))
 	}
 
+	// A node with a Run() method may run on its own, so it does not require one
+	// of its subcommands to be selected.
+	runnable := node.Target.IsValid() && getMethod(node.Target, "Run").IsValid()
+
 	for _, child := range node.Children {
 		if child.Hidden {
 			continue
@@ -981,7 +1157,7 @@ func checkMissingChildren(node *Node) error {
 				continue
 			}
 			missing = append(missing, strconv.Quote(child.Summary()))
-		} else {
+		} else if !runnable {
 			missing = append(missing, strconv.Quote(child.Name))
 		}
 	}
@@ -1176,6 +1352,17 @@ func isValidatable(v reflect.Value) extendedValidatable {
 		return isValidatable(v.Addr())
 	}
 	return nil
+}
+
+// getValidators returns validators implemented by v and by any embedded fields,
+// matching how hooks are discovered (see getMethods).
+func getValidators(v reflect.Value) (validators []extendedValidatable) {
+	walkEmbedded(v, func(v reflect.Value) {
+		if validate := isValidatable(v); validate != nil {
+			validators = append(validators, validate)
+		}
+	})
+	return
 }
 
 func atLeastOneEnvSet(envs []string) bool {

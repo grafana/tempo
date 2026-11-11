@@ -47,6 +47,12 @@ batch settings, use `batch: {}`. When `batch` is defined, the settings are:
 - `sizer`: see below.
 - `partition`: see below.
 
+At startup, the Collector warns when the same pipeline contains both a batch processor and an
+exporter exposing exporterhelper's sending queue batching capability with batching enabled.
+This detection is local to each pipeline and does not cross connectors. Exporters returned directly
+by exporterhelper expose this capability. Wrappers are detected only if they preserve the
+`ExporterHelperBatchingEnabled() bool` method; opaque wrappers can hide batching from this check.
+
 The `batch::sizer` field is given special treatment because the queue itself also defines a `sizer`. This field supports using different size limits for the queue and batch-related logic.
 
 If the `batch::sizer` field is not set, it takes its value from the parent structure.
@@ -66,6 +72,15 @@ Available `batch::partition` options:
   separate batches. When empty, a single batcher instance is used. When set, one batcher will be used
   per distinct combination of values for the listed metadata keys. Empty value and unset metadata are
   treated as distinct cases. Entries are case-insensitive. Duplicated entries will trigger a validation error. Default is empty.
+- `cache_size` (default = 10000): maximum number of active partition batchers kept in
+  the LRU cache when partitioning is enabled. Must be positive.
+  When the limit is reached, the least recently used partition is flushed
+  and removed. The current size and configured capacity are exported as
+  `otelcol_exporter_queue_batch_partition_cache_size` and
+  `otelcol_exporter_queue_batch_partition_cache_capacity`.
+- `idle_timeout` (default = 90s): how long a partition may stay empty before it is removed.
+  Keep it above the data arrival interval to avoid churning partitions on every scrape. Must be
+  positive.
 
 ### Timeout
 

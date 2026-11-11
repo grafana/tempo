@@ -77,6 +77,12 @@ func WithMaxTries(n uint) RetryOption {
 // a backoff wait already in progress, and Retry stops early rather than
 // starting a backoff that would overrun the limit.
 //
+// The elapsed time includes the runtime of the attempts themselves, not only
+// the waits between them. An operation that runs longer than the limit before
+// it fails (a long poll or a blocking receive, for example) is therefore not
+// retried at all. Such operations need a bound of their own, such as a
+// BackOff that returns Stop once failures have lasted too long.
+//
 // This differs from bounding Retry with a context deadline (e.g.
 // context.WithTimeout): a context deadline is reactive — it interrupts the
 // backoff wait and, if the operation observes the context, can abort an
@@ -139,9 +145,10 @@ func Retry[T any](ctx context.Context, operation Operation[T], opts ...RetryOpti
 		// carries an underlying error, that is the meaningful error to report as
 		// LastErr should retrying stop (mirrors how a permanent error surfaces its
 		// inner error). errors.As matches it whether returned directly or wrapped.
+		// A typed-nil *RetryAfterError also matches; treat it as a plain error.
 		lastErr := err
 		var retryAfter *RetryAfterError
-		if errors.As(err, &retryAfter) && retryAfter.err != nil {
+		if errors.As(err, &retryAfter) && retryAfter != nil && retryAfter.err != nil {
 			lastErr = retryAfter.err
 		}
 
@@ -167,20 +174,32 @@ func Retry[T any](ctx context.Context, operation Operation[T], opts ...RetryOpti
 			args.BackOff.Reset()
 		}
 
+		// A negative delay (e.g. a Retry-After date already in the past) means retry now.
+		// Clamp it so it cannot stretch the elapsed-time budget.
+		if next < 0 {
+			next = 0
+		}
+
 		// Stop retrying if maximum elapsed time exceeded.
-		if args.MaxElapsedTime > 0 && time.Since(startedAt)+next > args.MaxElapsedTime {
+		if args.MaxElapsedTime > 0 && next > args.MaxElapsedTime-time.Since(startedAt) {
 			return res, &RetryError{LastErr: lastErr, Cause: ErrMaxElapsedTime}
 		}
 
 		// Notify on error if a notifier function is provided.
 		if args.Notify != nil {
 			args.Notify(err, next)
+			if cerr := context.Cause(ctx); cerr != nil {
+				return res, &RetryError{LastErr: lastErr, Cause: cerr}
+			}
 		}
 
 		// Wait for the next backoff period or context cancellation.
 		args.Timer.Start(next)
 		select {
 		case <-args.Timer.C():
+			if cerr := context.Cause(ctx); cerr != nil {
+				return res, &RetryError{LastErr: lastErr, Cause: cerr}
+			}
 		case <-ctx.Done():
 			return res, &RetryError{LastErr: lastErr, Cause: context.Cause(ctx)}
 		}

@@ -335,14 +335,16 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 				switch j.GetType() {
 				case tempopb.JobType_JOB_TYPE_RETENTION:
 					// A redaction may have been submitted after this job was emitted.
-					// Drop and retry to avoid running retention over a mid-redaction
-					// tenant. Gate on the batch barrier (TenantPending), not just
-					// in-flight redaction jobs, so a batch in its rescan-wait window
-					// (no jobs in flight) still blocks retention.
+					// Drop it to avoid running retention over a mid-redaction tenant,
+					// and release its registration so the provider can emit a fresh
+					// job once the batch completes. Gate on the batch barrier
+					// (TenantPending), not just in-flight redaction jobs, so a batch
+					// in its rescan-wait window (no jobs in flight) still blocks retention.
 					if s.work.TenantPending(j.Tenant()) {
 						level.Debug(log.Logger).Log("msg", "dropping stale retention job: tenant has active redaction batch",
 							"job_id", j.ID, "tenant", j.Tenant())
 						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+						s.work.UnregisterJob(j)
 						drop = true
 					}
 				case tempopb.JobType_JOB_TYPE_REDACTION:
@@ -457,6 +459,8 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 		if err != nil {
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
+
+		metricLastSuccessfulJobTimestamp.WithLabelValues(j.GetType().String()).SetToCurrentTime()
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
 		s.work.FailJob(req.JobId)
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()

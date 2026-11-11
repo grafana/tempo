@@ -26,23 +26,28 @@ const (
 	addReason
 	deleteReason
 	updateReason
+	// reconcileReason reports a weight changed by an in-place update, or an expiration time
+	// moved earlier by SetExpiresAfter.
+	reconcileReason
 )
 
 // task is a set of information to update the cache:
 // node, reason for write, difference after node weight change, etc.
-type task[K comparable, V any] struct {
-	n             node.Node[K, V]
-	old           node.Node[K, V]
-	writeReason   reason
-	deletionCause DeletionCause
+type task struct {
+	n           node.Node
+	old         node.Node
+	writeReason reason
+	// quiet reports an update that is not an access: the completion of a refresh, whose
+	// request was counted by the read that started it.
+	quiet bool
 }
 
 // node returns the node contained in the task. If node was not specified, it returns nil.
-func (t *task[K, V]) node() node.Node[K, V] {
+func (t *task) node() node.Node {
 	return t.n
 }
 
 // oldNode returns the old node contained in the task. If old node was not specified, it returns nil.
-func (t *task[K, V]) oldNode() node.Node[K, V] {
+func (t *task) oldNode() node.Node {
 	return t.old
 }

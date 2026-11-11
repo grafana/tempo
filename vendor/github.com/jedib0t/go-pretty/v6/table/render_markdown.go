@@ -18,6 +18,7 @@ func (t *Table) RenderMarkdown() string {
 
 	var out strings.Builder
 	if t.numColumns > 0 {
+		out.Grow(t.estimatedRenderLength())
 		t.markdownRenderTitle(&out)
 		t.markdownRenderRowsHeader(&out)
 		t.markdownRenderRows(&out, t.rows, renderHint{})

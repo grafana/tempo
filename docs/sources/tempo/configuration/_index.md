@@ -451,7 +451,8 @@ For architectural details, refer to the [Kafka architecture](/docs/tempo/<TEMPO_
 ingest:
 
     kafka:
-        # The Kafka backend address.
+        # The Kafka bootstrap addresses (host:port). A single address or a
+        # comma-separated list of brokers.
         [address: <string> | default = "localhost:9092"]
 
         # The Kafka topic name.
@@ -597,6 +598,9 @@ block_builder:
     # Maximum number of bytes that can be consumed in a single cycle. 0 to disable.
     [max_consuming_bytes: <uint64> | default = 5000000000]
 
+    # Maximum number of tenants to flush concurrently per partition section. Must be positive.
+    [flush_concurrency: <int> | default = 4]
+
     # Block configuration for the block builder.
     block: <Block config>
       [max_block_bytes: <uint64> | default = 20971520]
@@ -605,6 +609,12 @@ block_builder:
     wal: <WAL config>
       [path: <string> | default = "/var/tempo/block-builder/traces"]
 ```
+
+Increase `block_builder.flush_concurrency` when tenant flushes on a high-latency object store
+prevent the block-builder from keeping up with its consumption cycles.
+Higher concurrency increases the number of simultaneous block builds and uploads,
+so monitor memory usage and object-store throttling when tuning this setting.
+The equivalent CLI flag is `-block-builder.flush-concurrency`.
 
 ## Live-store
 
@@ -1118,6 +1128,16 @@ query_frontend:
         # (default: 168h)
         [max_duration: <duration>]
 
+        # The maximum bytes of backend blocks a search may scan. The allowed range is the longest
+        # range ending at the query end whose blocks fit, raised to min_duration and capped at max_duration.
+        # Data newer than query_backend_after isn't counted. 0 disables this limit.
+        [max_scanned_bytes: <int> | default = 0 ]
+
+        # A search of this range or shorter is always allowed, even if it scans more than max_scanned_bytes.
+        # Has no effect when max_scanned_bytes is 0. Tempo fails to start if min_duration is above max_duration.
+        # 0 means no minimum.
+        [min_duration: <duration> | default = 0s]
+
         # query_backend_after controls where the query-frontend searches for traces.
         # Time ranges newer than query_backend_after will be searched in the live-stores only.
         # Time ranges older than query_backend_after will be searched in the backend/object storage only.
@@ -1207,6 +1227,16 @@ query_frontend:
         # 0 disables this limit.
         [max_duration: <duration> | default = 24h ]
 
+        # The maximum bytes of backend blocks a metrics query may scan. The allowed range is the longest
+        # range ending at the query end whose blocks fit, raised to min_duration and capped at max_duration.
+        # Data newer than query_backend_after isn't counted. 0 disables this limit.
+        [max_scanned_bytes: <int> | default = 0 ]
+
+        # A metrics query of this range or shorter is always allowed, even if it scans more than max_scanned_bytes.
+        # Has no effect when max_scanned_bytes is 0. Tempo fails to start if min_duration is above max_duration.
+        # 0 means no minimum.
+        [min_duration: <duration> | default = 0s ]
+
         # Maximum number of exemplars per range query.
         # Set to 0 to disable exemplars.
         [max_exemplars: <int> | default = 100 ]
@@ -1240,6 +1270,12 @@ query_frontend:
     # to be exposed to LLM-based tools. Requires explicit opt-in.
     mcp_server:
         [enabled: <bool> | default = false]
+
+    # Query tracker configuration. Enable it to expose active query status pages.
+    query_tracker:
+        [enabled: <bool> | default = false]
+        [max_queries_per_tenant: <int> | default = 100]
+        [max_query_text_bytes: <int> | default = 4096]
 
 ```
 
@@ -1884,18 +1920,18 @@ storage:
         # How often to repoll the backend for new blocks. Default is 5m
         [blocklist_poll: <duration>]
 
-        # Number of blocks to process in parallel during polling. Default is 50.
+        # Number of unknown blocks to process in parallel per tenant during a full poll. Default is 50.
         [blocklist_poll_concurrency: <int>]
 
         # By default components will pull the blocklist from the tenant index. If that fails the component can
         # fallback to scanning the entire bucket. Set to false to disable this behavior. Default is true.
         [blocklist_poll_fallback: <bool>]
 
-        # Maximum number of workers that should build the tenant index. All other components will download
-        # the index. Default 2.
+        # Maximum number of workers selected to build each tenant's index when the worker ring is enabled.
+        # Other pollers download the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
-        # Number of tenants to poll concurrently. Default is 1.
+        # Number of tenants to poll concurrently in each process. Default is 1.
         [blocklist_poll_tenant_concurrency: <int>]
 
         # The oldest allowable tenant index. If an index is pulled that is older than this duration,
@@ -1905,9 +1941,8 @@ storage:
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
 
-        # Offsets the concurrent blocklist polling by a random amount. The maximum amount of offset
-        # is the provided value in milliseconds. This configuration value can be used if the polling
-        # cycle is overwhelming your backend with concurrent requests.
+        # Delays each unknown block metadata read by a random amount, up to the provided value in milliseconds.
+        # Does not delay tenant-index reads or enforce a cluster-wide request rate limit.
         # Default 0 (disabled)
         [blocklist_poll_jitter_ms: <int>]
 
@@ -2480,10 +2515,30 @@ overrides:
       #  in the front-end configuration is used.
       [max_search_duration: <duration> | default = 0s]
 
+      # Per-tenant search max_scanned_bytes. Limits the search range by the bytes of backend blocks it scans.
+      # A value of 0 (default) falls back to the value configured by query_frontend.search.max_scanned_bytes.
+      [max_search_scanned_bytes: <int> | default = 0]
+
+      # Per-tenant search min_duration. Replaces query_frontend.search.min_duration for this tenant.
+      #  A search of this range or shorter is always allowed, unless the tenant's max_duration is lower.
+      #  Must not be above max_search_duration when both are set.
+      # 0 (default) uses the front-end configuration.
+      [min_search_duration: <duration> | default = 0s]
+
       # Per-user max duration for metrics queries. If this value is set to 0 (default), then metrics max_duration
       #  in the front-end configuration is used. This limit is enforced against the user-provided time range,
       #  not the post-alignment range. Queries whose entire window falls within query_end_cutoff are rejected.
       [max_metrics_duration: <duration> | default = 0s]
+
+      # Per-tenant metrics max_scanned_bytes. Limits the metrics query range by the bytes of backend blocks it scans.
+      # A value of 0 (default) falls back to the value configured by query_frontend.metrics.max_scanned_bytes.
+      [max_metrics_scanned_bytes: <int> | default = 0]
+
+      # Per-tenant metrics min_duration. Replaces query_frontend.metrics.min_duration for this tenant.
+      #  A metrics query of this range or shorter is always allowed, unless the tenant's max_duration is lower.
+      #  Must not be above max_metrics_duration when both are set.
+      # 0 (default) uses the front-end configuration.
+      [min_metrics_duration: <duration> | default = 0s]
 
       # Per-user option to left-pad trace IDs with zeros to 32 hex characters in search API responses.
       # When enabled, trace IDs like "8efff798038103d269b633813fc703" will be returned as
@@ -3079,6 +3134,17 @@ cache:
             # idle for longer than two minutes are closed.
             # (default: -1)
             [min_idle_conns_headroom_percentage: <float>]
+
+            # Optional
+            # How long a free connection can sit unused and still count as
+            # recently used when reaping idle connections. Recently used
+            # connections are never closed and set the headroom kept by
+            # min_idle_conns_headroom_percentage, so a longer value keeps more
+            # connections after a burst. Idle connections are checked once a
+            # minute. Only applies if min_idle_conns_headroom_percentage is not
+            # negative. If 0, the default of 2m is used.
+            # (default: 2m)
+            [recently_used_conns_threshold: <duration>]
 
             # Optional
             # Period with which to poll DNS for memcache servers.

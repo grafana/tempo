@@ -8,172 +8,247 @@ import (
 	"unsafe"
 )
 
-// BS is a cache entry that provide the following features:
+// BS is the header of a cache entry that provide the following features:
 //
 // 1. Base
 //
 // 2. Size
-type BS[K comparable, V any] struct {
-	key       K
-	value     V
-	prev      *BS[K, V]
-	next      *BS[K, V]
+//
+// A node is allocated as one of the layouts that follow the header with the key and the
+// value (BSInline...), so that a pointer to the header is a pointer to the whole node. The
+// header does not depend on the key and value types: its methods are compiled once,
+// whatever caches a program creates, and only the layouts are instantiated per cache type.
+type BS struct {
+	prev      *BS
+	next      *BS
 	state     atomic.Uint32
 	queueType uint8
+	variant   uint8
 }
 
-// NewBS creates a new BS.
-func NewBS[K comparable, V any](key K, value V, expiresAt, refreshableAt int64, weight uint32) Node[K, V] {
-	n := &BS[K, V]{
-		key:   key,
-		value: value,
-	}
-	n.state.Store(aliveState)
+// BSInline is the layout of a BS whose value is kept inline and never changed. The first
+// update of a live entry replaces the node with a BSBoxed.
+type BSInline[K comparable, V any] struct {
+	header BS
+	key    K
+	value  V
+}
 
+// BSBoxed is the layout of a BS whose value lives behind an atomic pointer and is
+// replaced in place.
+type BSBoxed[K comparable, V any] struct {
+	header BS
+	key    K
+	value  atomic.Pointer[V]
+}
+
+// BSP is the layout of a BS whose pointer-shaped value is kept in an atomic pointer.
+type BSP[K comparable, V any] struct {
+	header BS
+	key    K
+	value  unsafe.Pointer
+}
+
+// BSU64 is the layout of a BS whose value, without pointers and of at most 8 bytes,
+// is kept in an atomic.Uint64.
+type BSU64[K comparable, V any] struct {
+	header BS
+	key    K
+	value  atomic.Uint64
+}
+
+// BSEmpty is the layout of a BS without a value field, for values of zero size.
+type BSEmpty[K comparable, V any] struct {
+	header BS
+	key    K
+}
+
+// allocBS allocates a node as the given variant's layout and returns its header; nodes
+// without state have a single layout and ignore the variant.
+func allocBS[K comparable, V any](variant uint8) unsafe.Pointer {
+	switch variant {
+	case boxedVariant:
+		return unsafe.Pointer(new(BSBoxed[K, V]))
+	case pointerVariant:
+		return unsafe.Pointer(new(BSP[K, V]))
+	case wordVariant:
+		return unsafe.Pointer(new(BSU64[K, V]))
+	case emptyVariant:
+		return unsafe.Pointer(new(BSEmpty[K, V]))
+	default:
+		return unsafe.Pointer(new(BSInline[K, V]))
+	}
+}
+
+// layoutBS returns the offsets of the key and of the value of every variant's layout.
+func layoutBS[K comparable, V any]() (key uintptr, values [variantCount]uintptr) {
+	key = unsafe.Offsetof(BSInline[K, V]{}.key)
+	values[inlineVariant] = unsafe.Offsetof(BSInline[K, V]{}.value)
+	values[boxedVariant] = unsafe.Offsetof(BSBoxed[K, V]{}.value)
+	values[pointerVariant] = unsafe.Offsetof(BSP[K, V]{}.value)
+	values[wordVariant] = unsafe.Offsetof(BSU64[K, V]{}.value)
+	return key, values
+}
+
+// initBS initializes the header of a node allocated by allocBS.
+func initBS(ptr unsafe.Pointer, expiresAt, refreshableAt int64, weight uint32, variant uint8) Node {
+	n := (*BS)(ptr)
+	n.variant = variant
+	n.state.Store(aliveState)
 	return n
 }
 
 // CastPointerToBS casts a pointer to BS.
-func CastPointerToBS[K comparable, V any](ptr unsafe.Pointer) Node[K, V] {
-	return (*BS[K, V])(ptr)
+func CastPointerToBS(ptr unsafe.Pointer) Node {
+	if ptr == nil {
+		return nil
+	}
+	return (*BS)(ptr)
 }
 
-func (n *BS[K, V]) Key() K {
-	return n.key
+var bsKind = Kind{
+	fromPointer:   CastPointerToBS,
+	init:          initBS,
+	newHeader:     func() unsafe.Pointer { return unsafe.Pointer(new(BS)) },
+	variantOffset: unsafe.Offsetof(BS{}.variant),
+	withState:     true,
+	linksOffset:   unsafe.Offsetof(BS{}.prev),
+	hasLinks:      true,
 }
 
-func (n *BS[K, V]) Value() V {
-	return n.value
-}
-
-func (n *BS[K, V]) AsPointer() unsafe.Pointer {
+func (n *BS) AsPointer() unsafe.Pointer {
 	return unsafe.Pointer(n)
 }
 
-func (n *BS[K, V]) Prev() Node[K, V] {
+func (n *BS) Prev() Node {
+	if n.prev == nil {
+		return nil
+	}
 	return n.prev
 }
 
-func (n *BS[K, V]) SetPrev(v Node[K, V]) {
+func (n *BS) SetPrev(v Node) {
 	if v == nil {
 		n.prev = nil
 		return
 	}
-	n.prev = (*BS[K, V])(v.AsPointer())
+	n.prev = (*BS)(v.AsPointer())
 }
 
-func (n *BS[K, V]) Next() Node[K, V] {
+func (n *BS) Next() Node {
+	if n.next == nil {
+		return nil
+	}
 	return n.next
 }
 
-func (n *BS[K, V]) SetNext(v Node[K, V]) {
+func (n *BS) SetNext(v Node) {
 	if v == nil {
 		n.next = nil
 		return
 	}
-	n.next = (*BS[K, V])(v.AsPointer())
+	n.next = (*BS)(v.AsPointer())
 }
 
-func (n *BS[K, V]) PrevExp() Node[K, V] {
-	panic("not implemented")
-}
-
-func (n *BS[K, V]) SetPrevExp(v Node[K, V]) {
-	panic("not implemented")
-}
-
-func (n *BS[K, V]) NextExp() Node[K, V] {
-	panic("not implemented")
-}
-
-func (n *BS[K, V]) SetNextExp(v Node[K, V]) {
-	panic("not implemented")
-}
-
-func (n *BS[K, V]) HasExpired(now int64) bool {
+func (n *BS) HasExpired(now int64) bool {
 	return false
 }
 
-func (n *BS[K, V]) ExpiresAt() int64 {
+func (n *BS) ExpiresAt() int64 {
 	panic("not implemented")
 }
 
-func (n *BS[K, V]) CASExpiresAt(old, new int64) bool {
+func (n *BS) CASExpiresAt(old, new int64) bool {
 	panic("not implemented")
 }
 
-func (n *BS[K, V]) SetExpiresAt(new int64) {
+func (n *BS) SetExpiresAt(new int64) {
 	panic("not implemented")
 }
 
-func (n *BS[K, V]) RefreshableAt() int64 {
+func (n *BS) RefreshableAt() int64 {
 	panic("not implemented")
 }
 
-func (n *BS[K, V]) CASRefreshableAt(old, new int64) bool {
+func (n *BS) CASRefreshableAt(old, new int64) bool {
 	panic("not implemented")
 }
 
-func (n *BS[K, V]) SetRefreshableAt(new int64) {
+func (n *BS) SetRefreshableAt(new int64) {
 	panic("not implemented")
 }
 
-func (n *BS[K, V]) IsFresh(now int64) bool {
+func (n *BS) IsFresh(now int64) bool {
 	return true
 }
 
-func (n *BS[K, V]) Weight() uint32 {
+func (n *BS) Weight() uint32 {
 	return 1
 }
 
-func (n *BS[K, V]) IsAlive() bool {
+func (n *BS) SetWeight(weight uint32) {
+	panic("not implemented")
+}
+
+func (n *BS) PolicyWeight() uint32 {
+	return 1
+}
+
+func (n *BS) SetPolicyWeight(weight uint32) {
+}
+
+func (n *BS) IsAlive() bool {
 	return n.state.Load() == aliveState
 }
 
-func (n *BS[K, V]) IsRetired() bool {
+func (n *BS) IsRetired() bool {
 	return n.state.Load() == retiredState
 }
 
-func (n *BS[K, V]) Retire() {
+func (n *BS) Retire() {
 	n.state.Store(retiredState)
 }
 
-func (n *BS[K, V]) IsDead() bool {
+func (n *BS) IsDead() bool {
 	return n.state.Load() == deadState
 }
 
-func (n *BS[K, V]) Die() {
+func (n *BS) Die() {
 	n.state.Store(deadState)
 }
 
-func (n *BS[K, V]) GetQueueType() uint8 {
+func (n *BS) GetQueueType() uint8 {
 	return n.queueType
 }
 
-func (n *BS[K, V]) SetQueueType(queueType uint8) {
+func (n *BS) SetQueueType(queueType uint8) {
 	n.queueType = queueType
 }
 
-func (n *BS[K, V]) InWindow() bool {
+func (n *BS) InWindow() bool {
 	return n.GetQueueType() == InWindowQueue
 }
 
-func (n *BS[K, V]) MakeWindow() {
+func (n *BS) MakeWindow() {
 	n.SetQueueType(InWindowQueue)
 }
 
-func (n *BS[K, V]) InMainProbation() bool {
+func (n *BS) InMainProbation() bool {
 	return n.GetQueueType() == InMainProbationQueue
 }
 
-func (n *BS[K, V]) MakeMainProbation() {
+func (n *BS) MakeMainProbation() {
 	n.SetQueueType(InMainProbationQueue)
 }
 
-func (n *BS[K, V]) InMainProtected() bool {
+func (n *BS) InMainProtected() bool {
 	return n.GetQueueType() == InMainProtectedQueue
 }
 
-func (n *BS[K, V]) MakeMainProtected() {
+func (n *BS) MakeMainProtected() {
 	n.SetQueueType(InMainProtectedQueue)
+}
+
+func (n *BS) CanSetValue() bool {
+	return n.variant != inlineVariant
 }

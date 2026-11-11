@@ -15,7 +15,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type FlattenArguments[K any] struct {
+type flattenArguments[K any] struct {
 	Target           ottl.PMapGetSetter[K]
 	Prefix           ottl.Optional[string]
 	Depth            ottl.Optional[int64]
@@ -29,15 +29,17 @@ type flattenData struct {
 	maxDepth        int64
 }
 
+// NewFlattenFactory returns a factory for the flatten OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#flatten
 func NewFlattenFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("flatten", &FlattenArguments[K]{}, createFlattenFunction[K])
+	return ottl.NewFactory("flatten", &flattenArguments[K]{}, createFlattenFunction[K])
 }
 
 func createFlattenFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*FlattenArguments[K])
+	args, ok := oArgs.(*flattenArguments[K])
 
 	if !ok {
-		return nil, errors.New("FlattenFactory args must be of type *FlattenArguments[K]")
+		return nil, errors.New("FlattenFactory args must be of type *flattenArguments[K]")
 	}
 
 	return flatten(args.Target, args.Prefix, args.Depth, args.ResolveConflicts)
