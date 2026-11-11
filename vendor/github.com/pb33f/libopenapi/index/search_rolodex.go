@@ -4,8 +4,8 @@
 package index
 
 import (
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 // FindNodeOriginWithValue searches all indexes for the origin of a node with a specific value. If the node is found, a NodeOrigin
