@@ -32,24 +32,26 @@ func TestValidateQueryRangeReqScannedBytesLimit(t *testing.T) {
 		wantCalls       int
 	}{
 		{
-			name:            "over max_duration with a too small step keeps the max_duration error",
+			// The step check is cheap, so a bad step skips the blocklist read.
+			name:            "over max_duration with a too small step gets the step error",
 			start:           hoursAgo(8),
 			maxScannedBytes: 350,
 			maxDuration:     6 * time.Hour,
 			maxIntervals:    10,
-			wantErr:         "metrics query time range exceeds the maximum allowed duration of 6h0m0s",
-			wantResult:      queryRejectedMaxDuration,
-			wantCalls:       1,
-			wantLog: `level=info msg="scanned bytes limit" tenant=foo op=metrics max_duration=21600 min_duration=0 max_scanned_bytes=350 requested_seconds=28800 estimated_scanned_bytes=900 estimated_range_seconds=0 result=rejected_max_duration
-`,
+			wantErr:         "step of 1m0s is too small, minimum step for given range is 48m0s",
 		},
 		{
-			// The range limits replace the upstream max_duration check, which ran before the step check.
-			name:            "step error comes after the range limits",
+			name:            "step error comes before the range limits",
 			start:           hoursAgo(2),
 			maxScannedBytes: 350,
 			maxIntervals:    10,
 			wantErr:         "step of 1m0s is too small, minimum step for given range is 12m0s",
+		},
+		{
+			name:            "a valid step reaches the range limits",
+			start:           hoursAgo(2),
+			maxScannedBytes: 350,
+			maxIntervals:    1000,
 			wantResult:      queryAllowed,
 			wantCalls:       1,
 			wantLog: `level=info msg="scanned bytes limit" tenant=foo op=metrics max_duration=0 min_duration=0 max_scanned_bytes=350 requested_seconds=7200 estimated_scanned_bytes=300 estimated_range_seconds=0 result=allowed
