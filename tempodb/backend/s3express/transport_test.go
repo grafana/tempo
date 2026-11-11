@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -241,32 +240,71 @@ func TestTransportErrors(t *testing.T) {
 	}
 }
 
-func TestTransportDropsRejectedSessions(t *testing.T) {
+func TestTransportDropsExpiredSessions(t *testing.T) {
+	// by the clock of AWS, which the local clock matches here
+	created := time.Date(2026, 11, 11, 14, 0, 0, 0, time.UTC)
+	expiration := created.Add(5 * time.Minute)
+
 	tests := []struct {
+		name string
+		// status and date of the response to the first request
 		status           int
+		date             time.Time
 		expectedSessions int
 	}{
-		// the session may have expired or been revoked
-		{status: http.StatusBadRequest, expectedSessions: 2},
-		{status: http.StatusForbidden, expectedSessions: 2},
-		// errors about the object or the bucket keep it
-		{status: http.StatusNotFound, expectedSessions: 1},
-		{status: http.StatusPreconditionFailed, expectedSessions: 1},
-		{status: http.StatusInternalServerError, expectedSessions: 1},
+		{
+			// AWS denies requests signed with an expired session with a 403 AccessDenied
+			name:             "denied after the session expired",
+			status:           http.StatusForbidden,
+			date:             expiration.Add(time.Second),
+			expectedSessions: 2,
+		},
+		{
+			// the same 403 AccessDenied while the session is valid is about permissions, which a
+			// new session doesn't change
+			name:             "denied while the session is valid",
+			status:           http.StatusForbidden,
+			date:             expiration.Add(-time.Minute),
+			expectedSessions: 1,
+		},
+		{
+			name:             "denied without a date",
+			status:           http.StatusForbidden,
+			expectedSessions: 1,
+		},
+		{
+			name:             "invalid request after the session expired",
+			status:           http.StatusBadRequest,
+			date:             expiration.Add(time.Second),
+			expectedSessions: 1,
+		},
+		{
+			name:             "missing object",
+			status:           http.StatusNotFound,
+			date:             created,
+			expectedSessions: 1,
+		},
 	}
 
 	for _, tc := range tests {
-		t.Run(strconv.Itoa(tc.status), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			var sessions int
 			status := tc.status
 			next := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.URL.Query().Has("session") {
 					sessions++
-					return response(http.StatusOK, sessionResponseBody(t, sessions)), nil
+					resp := response(http.StatusOK, sessionResponseBody(t, sessions, expiration))
+					resp.Header.Set("Date", created.Format(http.TimeFormat))
+					return resp, nil
 				}
-				return response(status, ""), nil
+				resp := response(status, "")
+				if !tc.date.IsZero() {
+					resp.Header.Set("Date", tc.date.Format(http.TimeFormat))
+				}
+				return resp, nil
 			})
 			transport := newTransport(next, iamCredentials(), "eu-central-1", testBucketURL())
+			transport.now = func() time.Time { return created }
 
 			roundTrip := func(expectedStatus int) {
 				req, err := http.NewRequest(http.MethodGet, testBucketURL().String()+"object", nil)
@@ -293,6 +331,36 @@ func TestTransportDropsRejectedSessions(t *testing.T) {
 		transport.dropSession("new")
 		assert.Empty(t, transport.session.SessionToken)
 	})
+}
+
+func TestTransportTimesSessionsByTheirLifetime(t *testing.T) {
+	// the clock of the bucket, and the clock of the transport, two minutes behind it
+	var elapsed atomic.Int64
+	start := time.Now()
+	bucketNow := func() time.Time { return start.Add(time.Duration(elapsed.Load())) }
+
+	bucket, server := newFakeBucket(t)
+	bucket.update(func(b *fakeBucket) { b.now = bucketNow })
+	transport := newTransport(server.Client().Transport, iamCredentials(), "eu-central-1", fakeBucketURL(server))
+	transport.now = func() time.Time { return bucketNow().Add(-2 * time.Minute) }
+
+	list := func() {
+		req, err := http.NewRequest(http.MethodGet, fakeBucketURL(server).String()+"?list-type=2", nil)
+		require.NoError(t, err)
+		resp, err := transport.RoundTrip(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+
+	list()
+	// the first session expired by the clock of the bucket, but it would have another two minutes
+	// by the clock of the transport, if it went by the Expiration of the session
+	elapsed.Store(int64(5*time.Minute + 30*time.Second))
+	list()
+
+	assert.Equal(t, 2, bucket.createdSessions())
+	assert.Empty(t, bucket.rejectedRequests())
 }
 
 func TestVerifySignature(t *testing.T) {
@@ -342,13 +410,14 @@ func iamCredentials() *credentials.Credentials {
 	return credentials.NewStaticV4(iamAccessKey, iamSecretKey, "")
 }
 
-// sessionResponseBody returns a CreateSession response for the nth session.
-func sessionResponseBody(t *testing.T, n int) string {
+// sessionResponseBody returns a CreateSession response for the nth session, which expires at
+// expiration.
+func sessionResponseBody(t *testing.T, n int, expiration time.Time) string {
 	var result createSessionResult
 	result.Credentials.AccessKeyID = fmt.Sprintf("session-access-key-%d", n)
 	result.Credentials.SecretAccessKey = fmt.Sprintf("session-secret-key-%d", n)
 	result.Credentials.SessionToken = fmt.Sprintf("session-token-%d", n)
-	result.Credentials.Expiration = time.Now().Add(5 * time.Minute)
+	result.Credentials.Expiration = expiration
 	body, err := xml.Marshal(result)
 	require.NoError(t, err)
 	return string(body)

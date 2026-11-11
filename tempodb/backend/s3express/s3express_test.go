@@ -530,55 +530,53 @@ func TestHedgedRequests(t *testing.T) {
 	assert.Empty(t, bucket.rejectedRequests())
 }
 
-func TestRejectedSessionsAreReplaced(t *testing.T) {
-	tests := []struct {
-		name          string
-		status        int
-		code          string
-		expectedError bool
-	}{
-		{
-			// minio-go retries the request, with a new session
-			name:   "expired session",
-			status: http.StatusBadRequest,
-			code:   "ExpiredToken",
-		},
-		{
-			// the request fails, the next one gets a new session
-			name:          "revoked session",
-			status:        http.StatusForbidden,
-			code:          "AccessDenied",
-			expectedError: true,
-		},
+func TestDeniedRequests(t *testing.T) {
+	ctx := context.Background()
+	requireAccessDenied := func(t *testing.T, err error) {
+		var errResp minio.ErrorResponse
+		require.ErrorAs(t, err, &errResp)
+		assert.Equal(t, "AccessDenied", errResp.Code)
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			bucket, server := newFakeBucket(t, "tenant-1/index.json.gz")
-			r, _, _, err := NewNoConfirm(fakeConfig(server))
-			require.NoError(t, err)
+	t.Run("expired session is replaced", func(t *testing.T) {
+		bucket, server := newFakeBucket(t, "tenant-1/index.json.gz")
+		r, _, _, err := NewNoConfirm(fakeConfig(server))
+		require.NoError(t, err)
+		_, err = r.List(ctx, nil)
+		require.NoError(t, err)
 
-			_, err = r.List(ctx, nil)
-			require.NoError(t, err)
-			require.Equal(t, 1, bucket.createdSessions())
-
-			bucket.rejectSessions(tc.status, tc.code)
-			_, err = r.List(ctx, nil)
-			if tc.expectedError {
-				var errResp minio.ErrorResponse
-				require.ErrorAs(t, err, &errResp)
-				assert.Equal(t, tc.code, errResp.Code)
-			} else {
-				require.NoError(t, err)
-			}
-
-			tenants, err := r.List(ctx, nil)
-			require.NoError(t, err)
-			assert.Equal(t, []string{"tenant-1"}, tenants)
-			assert.Equal(t, 2, bucket.createdSessions())
+		// the clock of the bucket moves past the expiry of the session, as if the clock of the
+		// transport had paused
+		bucket.update(func(b *fakeBucket) {
+			now := b.now
+			b.now = func() time.Time { return now().Add(6 * time.Minute) }
 		})
-	}
+		_, err = r.List(ctx, nil)
+		requireAccessDenied(t, err)
+
+		// the denial came after the session expired, so the next request gets a new session
+		tenants, err := r.List(ctx, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"tenant-1"}, tenants)
+		assert.Equal(t, 2, bucket.createdSessions())
+	})
+
+	t.Run("denied request keeps the session", func(t *testing.T) {
+		bucket, server := newFakeBucket(t, "tenant-1/index.json.gz")
+		r, _, _, err := NewNoConfirm(fakeConfig(server))
+		require.NoError(t, err)
+		_, err = r.List(ctx, nil)
+		require.NoError(t, err)
+
+		// requests the session isn't allowed to make get the same 403 AccessDenied, but while
+		// the session is valid
+		bucket.rejectSessions(http.StatusForbidden, "AccessDenied")
+		for range 2 {
+			_, err = r.List(ctx, nil)
+			requireAccessDenied(t, err)
+		}
+		assert.Equal(t, 1, bucket.createdSessions())
+	})
 }
 
 func TestRequestHosts(t *testing.T) {

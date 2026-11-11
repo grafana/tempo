@@ -46,6 +46,9 @@ type createSessionResult struct {
 type session struct {
 	credentials.Value
 	response []byte
+	// expires is when the session expires by the local clock: its Expiration is by the clock of
+	// AWS, which the local clock may be behind.
+	expires time.Time
 }
 
 // transport authenticates requests to an S3 directory bucket the way the AWS SDKs do: it creates a
@@ -123,13 +126,19 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	signed.Header.Set("X-Amz-S3session-Token", s.SessionToken)
 
 	resp, err := t.next.RoundTrip(signer.SignV4Express(*signed, s.AccessKeyID, s.SecretAccessKey, s.SessionToken, t.region))
-	if err == nil && (resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusForbidden) {
-		// The session may have expired early, for example if the local clock is behind, or been
-		// revoked. The next request creates a new one, which also covers minio-go retrying an
-		// ExpiredToken error. Other errors, like a missing object, aren't about the session.
+	if err == nil && resp.StatusCode == http.StatusForbidden && expiredAt(resp, s) {
+		// Requests signed with an expired session get the same 403 AccessDenied as requests the
+		// session isn't allowed to make, only the time tells them apart. Sessions are replaced
+		// before they expire, so this takes the local clock pausing, like a suspended machine.
 		t.dropSession(s.SessionToken)
 	}
 	return resp, err
+}
+
+// expiredAt reports whether s had expired when AWS answered with resp, by the clock of AWS.
+func expiredAt(resp *http.Response, s session) bool {
+	date, err := http.ParseTime(resp.Header.Get("Date"))
+	return err == nil && !date.Before(s.Expiration)
 }
 
 // getSession returns the current session, creating a new session when the current one is about to
@@ -138,7 +147,7 @@ func (t *transport) getSession(ctx context.Context, iam credentials.Value) (sess
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
 
-	if t.session.Expiration.After(t.now().Add(sessionLeeway)) {
+	if t.session.expires.After(t.now().Add(sessionLeeway)) {
 		return t.session, nil
 	}
 
@@ -200,6 +209,13 @@ func (t *transport) createSession(ctx context.Context, iam credentials.Value) (s
 		return session{}, errors.New("error decoding CreateSession response: no session credentials")
 	}
 
+	// Time the session by the lifetime AWS gives it, the Expiration after the Date of the
+	// response, so that a local clock that's behind doesn't keep an expired session.
+	expires := c.Expiration
+	if date, err := http.ParseTime(resp.Header.Get("Date")); err == nil {
+		expires = t.now().Add(c.Expiration.Sub(date))
+	}
+
 	return session{
 		Value: credentials.Value{
 			AccessKeyID:     c.AccessKeyID,
@@ -209,6 +225,7 @@ func (t *transport) createSession(ctx context.Context, iam credentials.Value) (s
 			SignerType:      credentials.SignatureV4,
 		},
 		response: body,
+		expires:  expires,
 	}, nil
 }
 

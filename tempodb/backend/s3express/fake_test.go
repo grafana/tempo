@@ -195,6 +195,8 @@ func (b *fakeBucket) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 	b.hosts = append(b.hosts, r.Host)
+	// by the clock of the bucket, which the clock of the transport may be behind
+	w.Header().Set("Date", b.now().UTC().Format(http.TimeFormat))
 
 	if err := b.authorize(r, isCreateSession); err != nil {
 		writeS3Error(w, err.status, err.code, err.message)
@@ -306,7 +308,9 @@ func (b *fakeBucket) authorize(r *http.Request, isCreateSession bool) *fakeError
 		case s.rejection != nil:
 			return s.rejection
 		case !b.now().Before(s.expiration):
-			return reject("ExpiredToken", "the session expired")
+			// like AWS, which denies requests signed with an expired session like requests the
+			// session isn't allowed to make
+			return reject("AccessDenied", "Access Denied")
 		}
 		secretKey = s.secretKey
 	}
