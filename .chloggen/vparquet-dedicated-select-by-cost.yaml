@@ -8,7 +8,7 @@ change_type: enhancement
 component: traceql
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: "Reduce the data read by `select()` and `by()` on dedicated columns when no values of another type are stored."
+note: "Reduce the data read by `select()` and `by()` on dedicated columns."
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.
