@@ -136,6 +136,7 @@ func TestMetricsRangeLimiter(t *testing.T) {
 			}
 			return blocks
 		}(),
+		"f-subsec": {{StartTime: hoursAgo(1), EndTime: scannedBytesTestEnd.Add(-500 * time.Millisecond), Size_: 300, ReplicationFactor: backend.MetricsGeneratorReplicationFactor}},
 	}
 
 	tcs := []struct {
@@ -308,6 +309,21 @@ level=info msg="scanned bytes limit" tenant=b-fits op=metrics max_duration=3600 
 			end:       math.MaxUint64,
 			wantErr:   "metrics query time range of 2562047h47m16s reads too much data, the allowed range for tenant foo is 2562047h47m16s",
 			wantSpans: map[string]string{"foo": queryRejectedBytes},
+		},
+		{
+			name:      "requested rounds up in the error",
+			cfg:       QueryRangeSharderConfig{MaxScannedBytes: 350},
+			start:     uint64(hoursAgo(4).Add(-500 * time.Millisecond).UnixNano()),
+			wantErr:   "metrics query time range of 4h0m1s reads too much data, the allowed range for tenant foo is 2h59m59s",
+			wantSpans: map[string]string{"foo": queryRejectedBytes},
+		},
+		{
+			// Truncating to whole seconds would print 0s.
+			name:      "allowed range under 1s stays exact in the error",
+			orgID:     "f-subsec",
+			cfg:       QueryRangeSharderConfig{MaxScannedBytes: 250},
+			wantErr:   "metrics query time range of 4h0m0s reads too much data, the allowed range for tenant f-subsec is 499.999999ms",
+			wantSpans: map[string]string{"f-subsec": queryRejectedBytes},
 		},
 	}
 
