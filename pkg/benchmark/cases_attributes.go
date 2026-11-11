@@ -36,7 +36,7 @@ func attributeCases(prof *profile.BlockProfile) []benchCase {
 	var cases []benchCase
 	for i, p := range ranked {
 		for _, v := range bandValues(p) {
-			cases = append(cases, searchCase("search/"+rankedGroup(p)+"/"+v.band+"/"+rankedIDs[i], valueFilter(p, v.value.Value)))
+			cases = append(cases, searchCase("search/"+rankedGroup(p)+"/"+v.band+"/"+rankedIDs[i], valueFilter(p, "=", v.value.Value)))
 		}
 	}
 
@@ -44,7 +44,7 @@ func attributeCases(prof *profile.BlockProfile) []benchCase {
 		for i, p := range ranked {
 			for _, v := range bandValues(p) {
 				id := "metrics/" + rankedGroup(p) + "/" + m.id + "/" + v.band + "/" + rankedIDs[i]
-				cases = append(cases, metricsCase(id, valueFilter(p, v.value.Value)+" | "+m.pipeline))
+				cases = append(cases, metricsCase(id, valueFilter(p, "=", v.value.Value)+" | "+m.pipeline))
 			}
 		}
 	}
@@ -81,7 +81,7 @@ func existenceCases(prof *profile.BlockProfile) []benchCase {
 		)
 		// != the most common value matches nothing when it is the only one.
 		if vs := bandValues(p); len(vs) > 1 {
-			filter := strings.Replace(valueFilter(p, vs[0].value.Value), " = ", " != ", 1)
+			filter := valueFilter(p, "!=", vs[0].value.Value)
 			cases = append(cases, metricsCase("metrics/"+group+"/filtered-rate-by/"+rankedIDs[i],
 				fmt.Sprintf("%s | rate() by (%s)", filter, attr)))
 		}
