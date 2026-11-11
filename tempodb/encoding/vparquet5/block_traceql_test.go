@@ -194,9 +194,9 @@ func TestOne(t *testing.T) {
 
 	t.Log(q)
 	t.Log("-----------Fetch-----------")
-	t.Log(spanset.Results.(*reportingIterator[*traceql.Spanset]).CommonIterator.(*spansetIterator).iter)
+	t.Log(spanset.Results.(*spansetIterator).iter)
 	t.Log("-----------FetchSpans-----------")
-	t.Log(spanOnly.Results.(*reportingIterator[traceql.Span]).CommonIterator.(*spanOnlyIterator).iter)
+	t.Log(spanOnly.Results.(*spanOnlyIterator).iter)
 	t.Log("-----------")
 }
 
@@ -581,7 +581,7 @@ func TestDedicatedExistenceIteratorSelectSkipsNilSync(t *testing.T) {
 	cond := traceql.Condition{Attribute: traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "mixed")}
 
 	_, err := createDedicatedExistenceIterator(makeIter, makeNilIter, cond, "dedicated", DefinitionLevelResourceSpansILSSpan, columnPathSpanAttrKey,
-		func() (pq.Iterator, error) { return nil, nil }, nil)
+		func() (pq.Iterator, error) { return nil, nil })
 	require.NoError(t, err)
 }
 

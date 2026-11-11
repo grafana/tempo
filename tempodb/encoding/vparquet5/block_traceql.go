@@ -1128,7 +1128,6 @@ var wellKnownColumnLookups = map[string]struct {
 // internal consistencies:  operand count matches the operation, all operands in each condition are identical
 // types, and the operand type is compatible with the operation.
 func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
-	callerCtx := ctx
 	ctx, span := tracer.Start(ctx, "parquet.backendBlock.Fetch", trace.WithAttributes(
 		attribute.String("blockID", b.meta.BlockID.String()),
 		attribute.String("tenantID", b.meta.TenantID),
@@ -1153,8 +1152,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 
 	rgs := rowGroupsFromFile(pf, opts)
 
-	reads := &otherTypeReads{}
-	iter, err := fetch(ctx, req, pf, rgs, b.meta.DedicatedColumns, reads)
+	iter, err := fetch(ctx, req, pf, rgs, b.meta.DedicatedColumns)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter: %w", err)
 	}
@@ -1170,7 +1168,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 	}()
 
 	return traceql.FetchSpansResponse{
-		Results: &reportingIterator[*traceql.Spanset]{CommonIterator: iter, report: func() { reads.report(callerCtx, b.meta) }},
+		Results: iter,
 		Stats: func() traceql.FetchSpansStats {
 			// TODO(issue/1274): populate per-iterator and per-role counters.
 			return traceql.FetchSpansStats{Bytes: rr.BytesRead()}
@@ -1674,8 +1672,8 @@ func (i *spansetIterator) Close() {
 //                                                            |
 //                                                            V
 
-func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns, reads *otherTypeReads) (*spansetIterator, error) {
-	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.TraceStartTimeUnixNanos, req.TraceEndTimeUnixNanos, rowGroups, pf, dc, false, req.TraceSampler, req.SpanSampler, reads)
+func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns) (*spansetIterator, error) {
+	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.TraceStartTimeUnixNanos, req.TraceEndTimeUnixNanos, rowGroups, pf, dc, false, req.TraceSampler, req.SpanSampler)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -1683,7 +1681,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	if req.SecondPass != nil {
 		iter = newBridgeIterator(newRebatchIterator(iter), req.SecondPass)
 
-		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, rowGroups, pf, dc, req.SecondPassSelectAll, nil, nil, reads)
+		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, rowGroups, pf, dc, req.SecondPassSelectAll, nil, nil)
 		if err != nil {
 			return nil, fmt.Errorf("error creating second pass iterator: %w", err)
 		}
@@ -1751,7 +1749,6 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	pf *parquet.File, dc backend.DedicatedColumns, selectAll bool,
 	traceSampler traceql.Sampler,
 	spanSampler traceql.Sampler,
-	reads *otherTypeReads,
 ) (parquetquery.Iterator, error) {
 	// categorize conditions by scope
 	catConditions, mingledConditions, err := categorizeConditions(conditions)
@@ -1786,7 +1783,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, primaryIter)
 	}
 
-	eventIter, err := createEventIterator(makeIter, makeNilIter, catConditions.event, allConditions, dc, selectAll, reads)
+	eventIter, err := createEventIterator(makeIter, makeNilIter, catConditions.event, allConditions, dc, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating event iterator: %w", err)
 	}
@@ -1802,7 +1799,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, linkIter)
 	}
 
-	spanIter, err := createSpanIterator(makeIter, makeNilIter, innerIterators, catConditions.span, allConditions, dc, selectAll, spanSampler, reads)
+	spanIter, err := createSpanIterator(makeIter, makeNilIter, innerIterators, catConditions.span, allConditions, dc, selectAll, spanSampler)
 	if err != nil {
 		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
@@ -1812,7 +1809,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		return nil, fmt.Errorf("creating scope iterator: %w", err)
 	}
 
-	resourceIter, err := createResourceIterator(makeIter, makeNilIter, instrumentationIter, catConditions.resource, batchRequireAtLeastOneMatchOverall, allConditions, dc, selectAll, reads)
+	resourceIter, err := createResourceIterator(makeIter, makeNilIter, instrumentationIter, catConditions.resource, batchRequireAtLeastOneMatchOverall, allConditions, dc, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
@@ -1820,7 +1817,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	return createTraceIterator(makeIter, resourceIter, catConditions.trace, start, end, allConditions, selectAll, traceSampler)
 }
 
-func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool, reads *otherTypeReads) (parquetquery.Iterator, error) {
+func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
 	if len(conditions) == 0 {
 		return nil, nil
 	}
@@ -1866,7 +1863,7 @@ func createEventIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.
 					DefinitionLevelResourceSpansILSSpanEvent, columnPathEventAttrKey, func() (parquetquery.Iterator, error) {
 						return createAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceSpansILSSpanEventAttrs,
 							columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool, false, false)
-					}, reads)
+					})
 				if err != nil {
 					return nil, fmt.Errorf("creating event existence iterator: %w", err)
 				}
@@ -2028,7 +2025,7 @@ func createLinkIterator(makeIter, makeNilIter makeIterFn, conditions []traceql.C
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
 func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool,
-	sampler traceql.Sampler, reads *otherTypeReads,
+	sampler traceql.Sampler,
 ) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs          = map[string]string{}
@@ -2238,7 +2235,7 @@ func createSpanIterator(makeIter, makeNilIter makeIterFn, innerIterators []parqu
 					DefinitionLevelResourceSpansILSSpan, columnPathSpanAttrKey, func() (parquetquery.Iterator, error) {
 						return createAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceSpansILSSpanAttrs,
 							columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, false, false)
-					}, reads)
+					})
 				if err != nil {
 					return nil, fmt.Errorf("creating span existence iterator: %w", err)
 				}
@@ -2456,7 +2453,7 @@ func createInstrumentationIterator(makeIter, makeNilIter makeIterFn, spanIterato
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets. Spansets are returned that match any of the given conditions.
-func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool, reads *otherTypeReads) (parquetquery.Iterator, error) {
+func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -2517,7 +2514,7 @@ func createResourceIterator(makeIter, makeNilIter makeIterFn, instrumentationIte
 					DefinitionLevelResourceSpans, columnPathResourceAttrKey, func() (parquetquery.Iterator, error) {
 						return createAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceAttrs,
 							columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, false, false)
-					}, reads)
+					})
 				if err != nil {
 					return nil, fmt.Errorf("creating resource existence iterator: %w", err)
 				}
@@ -3183,7 +3180,7 @@ func hasAttr(attrs []attrVal, a traceql.Attribute) bool {
 
 // createDedicatedExistenceIterator also reads generic attributes for != nil, = nil and select/by, because values of another type than the dedicated column are written there.
 func createDedicatedExistenceIterator(makeIter, makeNilIter makeIterFn, cond traceql.Condition, columnPath string,
-	definitionLevel int, keyPath string, newGenericIter func() (parquetquery.Iterator, error), reads *otherTypeReads,
+	definitionLevel int, keyPath string, newGenericIter func() (parquetquery.Iterator, error),
 ) (parquetquery.Iterator, error) {
 	switch cond.Op {
 	case traceql.OpExists:
@@ -3196,7 +3193,7 @@ func createDedicatedExistenceIterator(makeIter, makeNilIter makeIterFn, cond tra
 			// Only rows with a nil dedicated column can hold the value in generic attributes, so the rest are skipped.
 			parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{
 				makeIter(columnPath, parquetquery.NewNilValuePredicate(), ""),
-				reads.wrap(genericIter),
+				genericIter,
 			}, nil),
 		}, nil), nil
 	case traceql.OpNotExists:
@@ -3216,7 +3213,7 @@ func createDedicatedExistenceIterator(makeIter, makeNilIter makeIterFn, cond tra
 			makeIter(columnPath, nil, cond.Attribute.Name),
 			parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{
 				makeIter(columnPath, parquetquery.NewNilValuePredicate(), ""),
-				reads.wrap(genericIter),
+				genericIter,
 			}, nil),
 		}, nil), nil
 	default:
