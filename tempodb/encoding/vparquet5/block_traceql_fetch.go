@@ -18,6 +18,7 @@ import (
 )
 
 func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	callerCtx := ctx
 	ctx, span := tracer.Start(ctx, "parquet.backendBlock.FetchSpans", trace.WithAttributes(
 		attribute.String("blockID", b.meta.BlockID.String()),
 		attribute.String("tenantID", b.meta.TenantID),
@@ -32,7 +33,8 @@ func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansReq
 	if err != nil {
 		return traceql.FetchSpansOnlyResponse{}, err
 	}
-	iter, err := fetchSpans(ctx, req, pf, rowGroupsFromFile(pf, opts), b.meta.DedicatedColumns)
+	reads := &otherTypeReads{}
+	iter, err := fetchSpans(ctx, req, pf, rowGroupsFromFile(pf, opts), b.meta.DedicatedColumns, reads)
 	if err != nil {
 		return traceql.FetchSpansOnlyResponse{}, err
 	}
@@ -44,7 +46,7 @@ func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansReq
 	}()
 
 	return traceql.FetchSpansOnlyResponse{
-		Results: iter,
+		Results: &reportingIterator[traceql.Span]{CommonIterator: iter, report: func() { reads.report(callerCtx, b.meta) }},
 		Stats: func() traceql.FetchSpansStats {
 			// TODO(issue/1274): populate per-iterator and per-role counters.
 			return traceql.FetchSpansStats{Bytes: rr.BytesRead()}
@@ -53,15 +55,15 @@ func (b *backendBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansReq
 }
 
 // fetchSpans is the core logic for span-only fetch, like fetch is for Fetch. Callers open the parquet file and pass row groups.
-func fetchSpans(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns) (*spanOnlyIterator, error) {
+func fetchSpans(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns, reads *otherTypeReads) (*spanOnlyIterator, error) {
 	makeIter := makeIterFunc(ctx, rowGroups, pf)
 	makeNilIter := makeNilIterFunc(ctx, rowGroups, pf)
-	iter, span, err := create(makeIter, makeNilIter, nil, req.Conditions, req.SecondPass, req.TraceStartTimeUnixNanos, req.TraceEndTimeUnixNanos, req.SpanStartTimeUnixNanos, req.SpanEndTimeUnixNanos, req.AllConditions, false, dc, req.SpanSampler)
+	iter, span, err := create(makeIter, makeNilIter, nil, req.Conditions, req.SecondPass, req.TraceStartTimeUnixNanos, req.TraceEndTimeUnixNanos, req.SpanStartTimeUnixNanos, req.SpanEndTimeUnixNanos, req.AllConditions, false, dc, req.SpanSampler, reads)
 	if err != nil {
 		return nil, err
 	}
 	if len(req.SecondPassConditions) > 0 || req.SecondPassSelectAll {
-		iter, span, err = create(makeIter, makeNilIter, iter, req.SecondPassConditions, nil, 0, 0, 0, 0, false, req.SecondPassSelectAll, dc, nil)
+		iter, span, err = create(makeIter, makeNilIter, iter, req.SecondPassConditions, nil, 0, 0, 0, 0, false, req.SecondPassSelectAll, dc, nil, reads)
 		if err != nil {
 			return nil, err
 		}
@@ -106,6 +108,7 @@ func create(makeIter, makeNilIter makeIterFn,
 	selectAll bool,
 	dedicatedColumns backend.DedicatedColumns,
 	sampler traceql.Sampler,
+	reads *otherTypeReads,
 ) (parquetquery.Iterator, *span, error) {
 	catConditions, mingledConditions, err := categorizeConditions(conditions)
 	if err != nil {
@@ -126,17 +129,17 @@ func create(makeIter, makeNilIter makeIterFn,
 		return nil, nil, err
 	}
 
-	resIters, resOptional, err := createResourceIterators(makeIter, makeNilIter, catConditions.resource, allConditions, dedicatedColumns, selectAll)
+	resIters, resOptional, err := createResourceIterators(makeIter, makeNilIter, catConditions.resource, allConditions, dedicatedColumns, selectAll, reads)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	alternateDriver, spanIters, spanOptional, err := createSpanIterators(makeIter, makeNilIter, driver == nil, catConditions.span, spanStart, spanEnd, allConditions, selectAll, dedicatedColumns, sampler)
+	alternateDriver, spanIters, spanOptional, err := createSpanIterators(makeIter, makeNilIter, driver == nil, catConditions.span, spanStart, spanEnd, allConditions, selectAll, dedicatedColumns, sampler, reads)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	eventIters, eventOptional, err := createEventIterators(makeIter, makeNilIter, catConditions.event, allConditions, dedicatedColumns, selectAll)
+	eventIters, eventOptional, err := createEventIterators(makeIter, makeNilIter, catConditions.event, allConditions, dedicatedColumns, selectAll, reads)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -339,6 +342,7 @@ func createResourceIterators(
 	allConditions bool,
 	dedicatedColumns backend.DedicatedColumns,
 	selectAll bool,
+	reads *otherTypeReads,
 ) (required, optional []parquetquery.Iterator, err error) {
 	var (
 		columnSelectAs    = map[string]string{}
@@ -401,7 +405,7 @@ func createResourceIterators(
 						return detachScopedAttributes(createScopedAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceAttrs,
 							columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool,
 							false, false, traceql.AttributeScopeResource))
-					})
+					}, reads)
 				if err != nil {
 					return nil, nil, fmt.Errorf("creating resource existence iterator: %w", err)
 				}
@@ -493,6 +497,7 @@ func createSpanIterators(
 	selectAll bool,
 	dedicatedColumns backend.DedicatedColumns,
 	sampler traceql.Sampler,
+	reads *otherTypeReads,
 ) (driver parquetquery.Iterator, required, optional []parquetquery.Iterator, err error) {
 	var (
 		columnSelectAs    = map[string]string{}
@@ -705,7 +710,7 @@ func createSpanIterators(
 						return detachScopedAttributes(createScopedAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceSpansILSSpanAttrs,
 							columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool,
 							false, false, traceql.AttributeScopeSpan))
-					})
+					}, reads)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("creating span existence iterator: %w", err)
 				}
@@ -865,6 +870,7 @@ func createEventIterators(
 	allConditions bool,
 	dedicatedColumns backend.DedicatedColumns,
 	selectAll bool,
+	reads *otherTypeReads,
 ) (required, optional []parquetquery.Iterator, err error) {
 	// TODO - Preserving compatibility with original fetch.
 	// If there are no event-level conditions we do nothing.
@@ -914,7 +920,7 @@ func createEventIterators(
 						return detachScopedAttributes(createScopedAttributeIterator(makeIter, []traceql.Condition{existsCond}, DefinitionLevelResourceSpansILSSpanEventAttrs,
 							columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool,
 							false, false, traceql.AttributeScopeEvent))
-					})
+					}, reads)
 				if err != nil {
 					return nil, nil, fmt.Errorf("creating event existence iterator: %w", err)
 				}

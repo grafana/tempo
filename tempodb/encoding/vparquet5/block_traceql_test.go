@@ -194,9 +194,9 @@ func TestOne(t *testing.T) {
 
 	t.Log(q)
 	t.Log("-----------Fetch-----------")
-	t.Log(spanset.Results.(*spansetIterator).iter)
+	t.Log(spanset.Results.(*reportingIterator[*traceql.Spanset]).CommonIterator.(*spansetIterator).iter)
 	t.Log("-----------FetchSpans-----------")
-	t.Log(spanOnly.Results.(*spanOnlyIterator).iter)
+	t.Log(spanOnly.Results.(*reportingIterator[traceql.Span]).CommonIterator.(*spanOnlyIterator).iter)
 	t.Log("-----------")
 }
 

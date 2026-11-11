@@ -713,6 +713,7 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 }
 
 func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansResponse, error) {
+	callerCtx := ctx
 	ctx, span := tracer.Start(ctx, "walBlock.Fetch", oteltrace.WithAttributes(
 		attribute.String("blockID", b.meta.BlockID.String()),
 		attribute.String("tenantID", b.meta.TenantID),
@@ -732,6 +733,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 		blockFlushes = b.readFlushes()
 		readers      = make([]*walReaderAt, 0, len(blockFlushes))
 		iters        = make([]traceql.CommonIterator[*traceql.Spanset], 0, len(blockFlushes))
+		reads        = &otherTypeReads{}
 	)
 
 	for _, page := range blockFlushes {
@@ -740,7 +742,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 			return traceql.FetchSpansResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
 
-		iter, err := fetch(ctx, req, file.parquetFile, file.parquetFile.RowGroups(), b.meta.DedicatedColumns)
+		iter, err := fetch(ctx, req, file.parquetFile, file.parquetFile.RowGroups(), b.meta.DedicatedColumns, reads)
 		if err != nil {
 			return traceql.FetchSpansResponse{}, fmt.Errorf("creating fetch iter: %w", err)
 		}
@@ -750,8 +752,9 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 	}
 
 	return traceql.FetchSpansResponse{
-		Results: &mergeIterator[*traceql.Spanset]{
-			iters: iters,
+		Results: &reportingIterator[*traceql.Spanset]{
+			CommonIterator: &mergeIterator[*traceql.Spanset]{iters: iters},
+			report:         func() { reads.report(callerCtx, b.meta) },
 		},
 		// FIXME: can this be simplified with the common.MetadataCallback?? and Metrics Collector??
 		Stats: func() traceql.FetchSpansStats {
@@ -766,6 +769,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 }
 
 func (b *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest, _ common.SearchOptions) (traceql.FetchSpansOnlyResponse, error) {
+	callerCtx := ctx
 	ctx, span := tracer.Start(ctx, "walBlock.FetchSpans", oteltrace.WithAttributes(
 		attribute.String("blockID", b.meta.BlockID.String()),
 		attribute.String("tenantID", b.meta.TenantID),
@@ -783,13 +787,14 @@ func (b *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest
 		blockFlushes = b.readFlushes()
 		readers      = make([]*walReaderAt, 0, len(blockFlushes))
 		iters        = make([]traceql.CommonIterator[traceql.Span], 0, len(blockFlushes))
+		reads        = &otherTypeReads{}
 	)
 	for _, page := range blockFlushes {
 		file, err := page.file(ctx)
 		if err != nil {
 			return traceql.FetchSpansOnlyResponse{}, fmt.Errorf("error opening file %s: %w", page.path, err)
 		}
-		iter, err := fetchSpans(ctx, req, file.parquetFile, file.parquetFile.RowGroups(), b.meta.DedicatedColumns)
+		iter, err := fetchSpans(ctx, req, file.parquetFile, file.parquetFile.RowGroups(), b.meta.DedicatedColumns, reads)
 		if err != nil {
 			return traceql.FetchSpansOnlyResponse{}, fmt.Errorf("creating fetch spans iter: %w", err)
 		}
@@ -798,7 +803,10 @@ func (b *walBlock) FetchSpans(ctx context.Context, req traceql.FetchSpansRequest
 	}
 
 	return traceql.FetchSpansOnlyResponse{
-		Results: &mergeIterator[traceql.Span]{iters: iters},
+		Results: &reportingIterator[traceql.Span]{
+			CommonIterator: &mergeIterator[traceql.Span]{iters: iters},
+			report:         func() { reads.report(callerCtx, b.meta) },
+		},
 		Stats: func() traceql.FetchSpansStats {
 			// TODO(issue/1274): populate per-iterator and per-role counters.
 			var totalBytesRead uint64
