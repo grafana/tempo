@@ -123,6 +123,21 @@ func (j *TraceContextPropagator) UnmarshalJSON(b []byte) error {
 }
 
 // UnmarshalJSON implements json.Unmarshaler.
+func (j *ExperimentalAWSEC2ResourceDetector) UnmarshalJSON(b []byte) error {
+	type plain ExperimentalAWSEC2ResourceDetector
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return errors.Join(newErrUnmarshal(j), err)
+	}
+	if p == nil {
+		*j = ExperimentalAWSEC2ResourceDetector{}
+	} else {
+		*j = ExperimentalAWSEC2ResourceDetector(p)
+	}
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
 func (j *ExperimentalGCPResourceDetector) UnmarshalJSON(b []byte) error {
 	type plain ExperimentalGCPResourceDetector
 	var p plain
@@ -252,6 +267,7 @@ func (j *ExperimentalResourceDetector) UnmarshalJSON(b []byte) error {
 	type Plain ExperimentalResourceDetector
 	type shadow struct {
 		Plain
+		AWSEC2    json.RawMessage `json:"aws.ec2"`
 		GCP       json.RawMessage `json:"gcp"`
 		AWSECS    json.RawMessage `json:"aws.ecs"`
 		AWSEKS    json.RawMessage `json:"aws.eks"`
@@ -264,6 +280,17 @@ func (j *ExperimentalResourceDetector) UnmarshalJSON(b []byte) error {
 	var sh shadow
 	if err := json.Unmarshal(b, &sh); err != nil {
 		return errors.Join(newErrUnmarshal(j), err)
+	}
+
+	if sh.AWSEC2 != nil {
+		var c ExperimentalAWSEC2ResourceDetector
+		if err := json.Unmarshal(sh.AWSEC2, &c); err != nil {
+			return errors.Join(newErrUnmarshal(j), err)
+		}
+		if c == nil {
+			c = ExperimentalAWSEC2ResourceDetector{}
+		}
+		sh.Plain.AWSEC2 = c
 	}
 
 	if sh.GCP != nil {
@@ -628,7 +655,7 @@ func (j *OpenTelemetryConfiguration) UnmarshalJSON(b []byte) error {
 	} else {
 		// Configure if the SDK is disabled or not.
 		// If omitted or null, false is used.
-		sh.Plain.Disabled = ptr(false)
+		sh.Plain.Disabled = new(false)
 	}
 
 	if sh.LogLevel != nil {
@@ -638,7 +665,7 @@ func (j *OpenTelemetryConfiguration) UnmarshalJSON(b []byte) error {
 	} else {
 		// Configure the log level of the internal logger used by the SDK.
 		// If omitted, info is used.
-		sh.Plain.LogLevel = ptr(SeverityNumberInfo)
+		sh.Plain.LogLevel = new(SeverityNumberInfo)
 	}
 
 	*j = OpenTelemetryConfiguration(sh.Plain)

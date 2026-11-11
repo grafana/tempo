@@ -223,6 +223,9 @@ func createHeadersConfig(headers []NameStringValuePair, headersList *string) (ma
 	if len(headers) > 0 {
 		for _, kv := range headers {
 			if kv.Value != nil {
+				if kv.Name == "" {
+					return nil, errors.New("invalid header: empty name")
+				}
 				result[kv.Name] = *kv.Value
 			}
 		}
