@@ -1657,27 +1657,29 @@ func (c *spanCollector2) Collect(res *parquetquery.IteratorResult, param any) {
 				}
 			}
 
-			// A dedicated column nil must not hide a value of another type read from generic attributes.
-			if kv.Value.IsNull() && (hasAttr(sp.spanAttrs, x.a) || hasAttr(sp.resourceAttrs, x.a) || hasAttr(sp.eventAttrs, x.a)) {
-				return
-			}
-
+			var attrs *[]attrVal
 			switch scope {
 			case traceql.AttributeScopeTrace:
-				sp.traceAttrs = append(sp.traceAttrs, x)
+				attrs = &sp.traceAttrs
 			case traceql.AttributeScopeResource:
-				sp.resourceAttrs = append(sp.resourceAttrs, x)
+				attrs = &sp.resourceAttrs
 			case traceql.AttributeScopeSpan:
-				sp.spanAttrs = append(sp.spanAttrs, x)
+				attrs = &sp.spanAttrs
 			case traceql.AttributeScopeEvent:
-				sp.eventAttrs = append(sp.eventAttrs, x)
+				attrs = &sp.eventAttrs
 			case traceql.AttributeScopeLink:
-				sp.linkAttrs = append(sp.linkAttrs, x)
+				attrs = &sp.linkAttrs
 			case traceql.AttributeScopeInstrumentation:
-				sp.instrumentationAttrs = append(sp.instrumentationAttrs, x)
+				attrs = &sp.instrumentationAttrs
 			default:
 				panic("unhandled scopedAttribute: " + scope.String())
 			}
+
+			// A dedicated column nil must not hide a value of another type read from generic attributes.
+			if kv.Value.IsNull() && hasAttr(*attrs, x.a) {
+				return
+			}
+			*attrs = append(*attrs, x)
 		}
 	}
 }
