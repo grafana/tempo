@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -181,7 +181,6 @@ func main() {
 		panic(err)
 	}
 	startTime := time.Now()
-	r := rand.New(rand.NewSource(startTime.Unix()))
 	interval := vultureConfig.tempoWriteBackoffDuration
 
 	selectRecentTimestamp := func(now time.Time) (newStart, ts time.Time, skip bool) {
@@ -189,7 +188,7 @@ func main() {
 		if oldest.Before(startTime) { // if vulture's just started
 			oldest = startTime
 		}
-		newStart, ts = selectPastTimestamp(oldest, now, interval, vultureConfig.tempoRetentionDuration, r)
+		newStart, ts = selectPastTimestamp(oldest, now, interval, vultureConfig.tempoRetentionDuration)
 		return newStart, ts, skip
 	}
 
@@ -199,7 +198,7 @@ func main() {
 			skip = true
 			return newStart, ts, skip
 		}
-		newStart, ts = selectPastTimestamp(startTime, newest, interval, vultureConfig.tempoRetentionDuration, r)
+		newStart, ts = selectPastTimestamp(startTime, newest, interval, vultureConfig.tempoRetentionDuration)
 		return newStart, ts, skip
 	}
 
@@ -458,7 +457,7 @@ func pushVultureMetrics(metrics traceMetrics) {
 	metricTracesErrors.WithLabelValues("notfound_search_attribute").Add(float64(metrics.notFoundSearchAttribute))
 }
 
-func selectPastTimestamp(start, stop time.Time, interval, retention time.Duration, r *rand.Rand) (newStart, ts time.Time) {
+func selectPastTimestamp(start, stop time.Time, interval, retention time.Duration) (newStart, ts time.Time) {
 	oldest := stop.Add(-retention)
 
 	if oldest.After(start) {
@@ -467,12 +466,12 @@ func selectPastTimestamp(start, stop time.Time, interval, retention time.Duratio
 		newStart = start
 	}
 
-	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix(), r), 0)
+	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix()), 0)
 
 	return newStart.Round(interval), ts.Round(interval)
 }
 
-func generateRandomInt(minVal, maxVal int64, r *rand.Rand) int64 {
+func generateRandomInt(minVal, maxVal int64) int64 {
 	minVal++
 	var duration int64
 	duration = 1
@@ -480,7 +479,7 @@ func generateRandomInt(minVal, maxVal int64, r *rand.Rand) int64 {
 	if minVal < maxVal {
 		duration = maxVal - minVal
 	}
-	number := minVal + r.Int63n(duration)
+	number := minVal + rand.Int64N(duration) // nolint:gosec // G404: no need for secure random here
 	return number
 }
 
