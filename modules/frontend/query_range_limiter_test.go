@@ -296,7 +296,7 @@ func TestEstimateBackendBytes(t *testing.T) {
 				backendAfter = scannedBytesTestEnd
 			}
 
-			s := scannedBytesLimit{op: metricsOp, reader: &mockReader{metas: tc.metas}, filterFn: isRF1Block}
+			s := scannedBytesLimit{reader: &mockReader{metas: tc.metas}, filterFn: isRF1Block}
 			got := checkResult{estimatedBytes: s.estimateBackendBytes(tc.metas, start, scannedBytesTestEnd, backendAfter)}
 			if got.estimatedBytes > tc.limits.maxScannedBytes {
 				got.estimatedAllowedRange = s.estimateAllowedRange(tc.metas, tc.limits, start, scannedBytesTestEnd, backendAfter)
@@ -369,7 +369,6 @@ func TestScannedBytesLimitOrder(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rdr := &countingMockReader{mockReader: mockReader{metas: hourlyMetricsBlocks(scannedBytesTestEnd)}}
 			s := scannedBytesLimit{
-				op:       metricsOp,
 				reader:   rdr,
 				filterFn: isRF1Block,
 				metrics:  metricsRangeLimitMetrics,
@@ -506,7 +505,7 @@ func BenchmarkDecideTenantRange(b *testing.B) {
 			{name: "over_limit", maxScannedBytes: uint64(n) * blockSize / 4},
 		} {
 			l := rangeLimits{maxDuration: 14 * 24 * time.Hour, maxScannedBytes: bc.maxScannedBytes}
-			s := scannedBytesLimit{op: metricsOp, reader: &blocklistReader{list: list}, filterFn: isRF1Block}
+			s := scannedBytesLimit{reader: &blocklistReader{list: list}, filterFn: isRF1Block}
 			b.Run(fmt.Sprintf("blocks=%d/%s", n, bc.name), func(b *testing.B) {
 				b.ReportAllocs()
 				for b.Loop() {

@@ -323,7 +323,6 @@ var _ rangeLimiter = (*searchRangeLimiter)(nil)
 
 func newSearchRangeLimiter(cfg SearchSharderConfig, o overrides.Interface, reader tempodb.Reader) *searchRangeLimiter {
 	return &searchRangeLimiter{
-		op:        searchOp,
 		reader:    reader,
 		filterFn:  acceptAllBlocks,
 		metrics:   searchRangeLimitMetrics,
