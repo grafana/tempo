@@ -134,8 +134,8 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric
 # github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.62.0
 ## explicit; go 1.26.0
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping
-# github.com/KimMachineGun/automemlimit v0.7.5
-## explicit; go 1.22.0
+# github.com/KimMachineGun/automemlimit v1.0.1
+## explicit; go 1.21.0
 github.com/KimMachineGun/automemlimit/memlimit
 # github.com/Microsoft/go-winio v0.6.4
 ## explicit; go 1.26.0
