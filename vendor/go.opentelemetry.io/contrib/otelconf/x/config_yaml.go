@@ -33,6 +33,9 @@ func (j *ExperimentalResourceDetector) UnmarshalYAML(node *yaml.Node) error {
 	if err := node.Decode(&plain); err != nil {
 		return errors.Join(newErrUnmarshal(j), err)
 	}
+	if hasYAMLMapKey(node, "aws.ec2") && plain.AWSEC2 == nil {
+		plain.AWSEC2 = ExperimentalAWSEC2ResourceDetector{}
+	}
 	if hasYAMLMapKey(node, "gcp") && plain.GCP == nil {
 		plain.GCP = ExperimentalGCPResourceDetector{}
 	}
@@ -45,19 +48,15 @@ func (j *ExperimentalResourceDetector) UnmarshalYAML(node *yaml.Node) error {
 	if hasYAMLMapKey(node, "azure.vm") && plain.AzureVM == nil {
 		plain.AzureVM = ExperimentalAzureVMResourceDetector{}
 	}
-	// container can be nil, must check and set here
 	if hasYAMLMapKey(node, "container") && plain.Container == nil {
 		plain.Container = ExperimentalContainerResourceDetector{}
 	}
-	// host can be nil, must check and set here
 	if hasYAMLMapKey(node, "host") && plain.Host == nil {
 		plain.Host = ExperimentalHostResourceDetector{}
 	}
-	// process can be nil, must check and set here
 	if hasYAMLMapKey(node, "process") && plain.Process == nil {
 		plain.Process = ExperimentalProcessResourceDetector{}
 	}
-	// service can be nil, must check and set here
 	if hasYAMLMapKey(node, "service") && plain.Service == nil {
 		plain.Service = ExperimentalServiceResourceDetector{}
 	}
@@ -115,7 +114,7 @@ func (j *OpenTelemetryConfiguration) UnmarshalYAML(node *yaml.Node) error {
 	} else {
 		// Configure the log level of the internal logger used by the SDK.
 		// If omitted, info is used.
-		sh.Plain.Disabled = ptr(false)
+		sh.Plain.Disabled = new(false)
 	}
 	if sh.LoggerProvider != nil {
 		sh.Plain.LoggerProvider = sh.LoggerProvider
@@ -141,7 +140,7 @@ func (j *OpenTelemetryConfiguration) UnmarshalYAML(node *yaml.Node) error {
 	} else {
 		// Configure the log level of the internal logger used by the SDK.
 		// If omitted, info is used.
-		sh.Plain.LogLevel = ptr(SeverityNumberInfo)
+		sh.Plain.LogLevel = new(SeverityNumberInfo)
 	}
 
 	*j = OpenTelemetryConfiguration(sh.Plain)

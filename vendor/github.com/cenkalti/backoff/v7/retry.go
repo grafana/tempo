@@ -188,12 +188,18 @@ func Retry[T any](ctx context.Context, operation Operation[T], opts ...RetryOpti
 		// Notify on error if a notifier function is provided.
 		if args.Notify != nil {
 			args.Notify(err, next)
+			if cerr := context.Cause(ctx); cerr != nil {
+				return res, &RetryError{LastErr: lastErr, Cause: cerr}
+			}
 		}
 
 		// Wait for the next backoff period or context cancellation.
 		args.Timer.Start(next)
 		select {
 		case <-args.Timer.C():
+			if cerr := context.Cause(ctx); cerr != nil {
+				return res, &RetryError{LastErr: lastErr, Cause: cerr}
+			}
 		case <-ctx.Done():
 			return res, &RetryError{LastErr: lastErr, Cause: context.Cause(ctx)}
 		}

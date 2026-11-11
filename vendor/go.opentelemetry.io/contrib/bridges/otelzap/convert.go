@@ -16,6 +16,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+const (
+	maxConvertDepth  = 100
+	maxDepthExceeded = "<max-depth-exceeded>"
+)
+
 // convertValue converts various types to attribute.Value.
 func convertValue(v any) attribute.Value {
 	// Handling the most common types without reflect is a small perf win.
@@ -70,6 +75,8 @@ func convertValue(v any) attribute.Value {
 		return val
 	}
 
+	// Keep the first reflective level here so shallow values do not pay an
+	// additional non-inlineable helper call. Descendants use the bounded helper.
 	t := reflect.TypeOf(v)
 	if t == nil {
 		return attribute.Value{}
@@ -81,7 +88,11 @@ func convertValue(v any) attribute.Value {
 	case reflect.Slice, reflect.Array:
 		items := make([]attribute.Value, 0, val.Len())
 		for i := range val.Len() {
-			items = append(items, convertValue(val.Index(i).Interface()))
+			item, ok := convertValueDepth(val.Index(i), maxConvertDepth-1)
+			if !ok {
+				return attribute.StringValue(maxDepthExceeded)
+			}
+			items = append(items, item)
 		}
 		return attribute.SliceValue(items...)
 	case reflect.Map:
@@ -94,17 +105,25 @@ func convertValue(v any) attribute.Value {
 			default:
 				key = fmt.Sprintf("%+v", k.Interface())
 			}
+			value, ok := convertValueDepth(val.MapIndex(k), maxConvertDepth-1)
+			if !ok {
+				return attribute.StringValue(maxDepthExceeded)
+			}
 			kvs = append(kvs, attribute.KeyValue{
 				Key:   attribute.Key(key),
-				Value: convertValue(val.MapIndex(k).Interface()),
+				Value: value,
 			})
 		}
 		return attribute.MapValue(kvs...)
-	case reflect.Pointer, reflect.Interface:
+	case reflect.Pointer:
 		if val.IsNil() {
 			return attribute.Value{}
 		}
-		return convertValue(val.Elem().Interface())
+		value, ok := convertValueDepth(val.Elem(), maxConvertDepth-1)
+		if !ok {
+			return attribute.StringValue(maxDepthExceeded)
+		}
+		return value
 	}
 
 	// Try to handle this as gracefully as possible.
@@ -113,6 +132,133 @@ func convertValue(v any) attribute.Value {
 	// asking why their attributes have a "unhandled: " prefix than
 	// say that their code is panicking.
 	return attribute.StringValue(fmt.Sprintf("unhandled: (%s) %+v", t, v))
+}
+
+// convertValueDepth converts descendants while bounding converter-owned
+// recursion. Its conversion cases intentionally mirror convertValue: splitting
+// the common cases into another helper adds overhead when it is not inlined.
+func convertValueDepth(val reflect.Value, remaining int) (attribute.Value, bool) {
+	if val.Kind() == reflect.Interface {
+		if val.IsNil() {
+			return attribute.Value{}, true
+		}
+		val = val.Elem()
+	}
+
+	v := val.Interface()
+	switch val := v.(type) {
+	case bool:
+		return attribute.BoolValue(val), true
+	case string:
+		return attribute.StringValue(val), true
+	case int:
+		return attribute.Int64Value(int64(val)), true
+	case int8:
+		return attribute.Int64Value(int64(val)), true
+	case int16:
+		return attribute.Int64Value(int64(val)), true
+	case int32:
+		return attribute.Int64Value(int64(val)), true
+	case int64:
+		return attribute.Int64Value(val), true
+	case uint:
+		return convertUintValue(uint64(val)), true
+	case uint8:
+		return attribute.Int64Value(int64(val)), true
+	case uint16:
+		return attribute.Int64Value(int64(val)), true
+	case uint32:
+		return attribute.Int64Value(int64(val)), true
+	case uint64:
+		return convertUintValue(val), true
+	case uintptr:
+		return convertUintValue(uint64(val)), true
+	case float32:
+		return attribute.Float64Value(float64(val)), true
+	case float64:
+		return attribute.Float64Value(val), true
+	case time.Duration:
+		return attribute.Int64Value(val.Nanoseconds()), true
+	case complex64:
+		r := attribute.Float64("r", real(complex128(val)))
+		i := attribute.Float64("i", imag(complex128(val)))
+		return attribute.MapValue(r, i), true
+	case complex128:
+		r := attribute.Float64("r", real(val))
+		i := attribute.Float64("i", imag(val))
+		return attribute.MapValue(r, i), true
+	case time.Time:
+		return attribute.Int64Value(val.UnixNano()), true
+	case []byte:
+		return attribute.ByteSliceValue(val), true
+	case error:
+		return attribute.StringValue(val.Error()), true
+	case attribute.Value:
+		return val, true
+	}
+
+	t := val.Type()
+	switch t.Kind() {
+	case reflect.Struct:
+		return attribute.StringValue(fmt.Sprintf("%+v", v)), true
+	case reflect.Slice, reflect.Array:
+		if val.Len() == 0 {
+			return attribute.SliceValue(), true
+		}
+		if remaining == 0 {
+			return attribute.Value{}, false
+		}
+		items := make([]attribute.Value, 0, val.Len())
+		for i := range val.Len() {
+			item, ok := convertValueDepth(val.Index(i), remaining-1)
+			if !ok {
+				return attribute.Value{}, false
+			}
+			items = append(items, item)
+		}
+		return attribute.SliceValue(items...), true
+	case reflect.Map:
+		if val.Len() == 0 {
+			return attribute.MapValue(), true
+		}
+		if remaining == 0 {
+			return attribute.Value{}, false
+		}
+		kvs := make([]attribute.KeyValue, 0, val.Len())
+		for _, k := range val.MapKeys() {
+			var key string
+			switch k.Kind() {
+			case reflect.String:
+				key = k.String()
+			default:
+				key = fmt.Sprintf("%+v", k.Interface())
+			}
+			value, ok := convertValueDepth(val.MapIndex(k), remaining-1)
+			if !ok {
+				return attribute.Value{}, false
+			}
+			kvs = append(kvs, attribute.KeyValue{
+				Key:   attribute.Key(key),
+				Value: value,
+			})
+		}
+		return attribute.MapValue(kvs...), true
+	case reflect.Pointer:
+		if val.IsNil() {
+			return attribute.Value{}, true
+		}
+		if remaining == 0 {
+			return attribute.Value{}, false
+		}
+		return convertValueDepth(val.Elem(), remaining-1)
+	}
+
+	// Try to handle this as gracefully as possible.
+	//
+	// Don't panic here. it is preferable to have user's open issue
+	// asking why their attributes have a "unhandled: " prefix than
+	// say that their code is panicking.
+	return attribute.StringValue(fmt.Sprintf("unhandled: (%s) %+v", t, v)), true
 }
 
 // convertUintValue converts a uint64 to an attribute.Value.
