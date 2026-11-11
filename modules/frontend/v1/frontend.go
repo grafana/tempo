@@ -303,7 +303,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 
 		// the jobs execute from the moment the batch is handed to the querier until
 		// the responses are reported, the stream fails or the requests are canceled
-		jobsDone := f.trackExecuting(reqBatch)
+		executing := f.incExecuting(reqBatch)
 
 		// Handle the stream sending & receiving on a goroutine so we can
 		// monitoring the contexts in a select and cancel things appropriately.
@@ -352,7 +352,11 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		}()
 
 		err = func() error {
-			defer jobsDone()
+			defer func() {
+				for _, g := range executing {
+					g.Dec()
+				}
+			}()
 			return reportResponseUpstream(reqBatch, errs, resps)
 		}()
 		if err != nil {
@@ -361,8 +365,9 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 	}
 }
 
-// trackExecuting counts the jobs of the batch as executing. The returned function stops counting them.
-func (f *Frontend) trackExecuting(batch *requestBatch) func() {
+// incExecuting counts the jobs of the batch as executing and returns the incremented gauges. The
+// caller decrements them when the jobs are done.
+func (f *Frontend) incExecuting(batch *requestBatch) []prometheus.Gauge {
 	gauges := make([]prometheus.Gauge, 0, batch.len())
 	for _, r := range batch.pipelineRequests {
 		userID, err := tenantIDFromContext(r.request.Context())
@@ -375,12 +380,7 @@ func (f *Frontend) trackExecuting(batch *requestBatch) func() {
 		g.Inc()
 		gauges = append(gauges, g)
 	}
-
-	return func() {
-		for _, g := range gauges {
-			g.Dec()
-		}
-	}
+	return gauges
 }
 
 func reportResponseUpstream(reqBatch *requestBatch, errs chan error, resps chan *frontendv1pb.ClientToFrontend) error {
