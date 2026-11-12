@@ -12,15 +12,9 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxerror"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ctxutil"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/metadata"
 )
 
-var errOTelColContextDisabled = errors.New("OTTL `otelcol` context requires the `ottl.contexts.enableOTelColContext` feature gate to be enabled")
-
 func PathGetSetter[K any](path ottl.Path[K]) (ottl.GetSetter[K], error) {
-	if !metadata.OttlContextsEnableOTelColContextFeatureGate.IsEnabled() {
-		return nil, errOTelColContextDisabled
-	}
 	switch path.Name() {
 	case "client":
 		return accessClient[K](path)

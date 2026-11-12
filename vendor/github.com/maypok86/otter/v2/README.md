@@ -182,7 +182,7 @@ The benchmark code can be found [here](./benchmarks).
 
 ### 🚀 Throughput <a id="throughput" />
 
-Throughput benchmarks are a Go port of the caffeine [benchmarks](https://github.com/ben-manes/caffeine/blob/master/caffeine/src/jmh/java/com/github/benmanes/caffeine/cache/GetPutBenchmark.java). This microbenchmark compares the throughput of caches on a zipf distribution, which allows to show various inefficient places in implementations.
+Throughput benchmarks are a Go port of the caffeine [benchmarks](https://github.com/ben-manes/caffeine/blob/master/caffeine/src/jmh/java/com/github/benmanes/caffeine/cache/GetPutBenchmark.java). This microbenchmark compares the throughput of caches on a zipf distribution, which allows to show various inefficient places in implementations. It also runs on 1 to 8 threads and with eviction, expiration, loading and a million entries.
 
 You can find results [here](https://maypok86.github.io/otter/performance/throughput/).
 
@@ -209,6 +209,7 @@ Below is a list of known projects that use Otter:
 - [FrankenPHP](https://github.com/php/frankenphp): The modern PHP app server.
 - [Unkey](https://github.com/unkeyed/unkey): Open source API management platform.
 - [Nuclei](https://github.com/projectdiscovery/nuclei): A fast, open-source, and highly customizable vulnerability scanner.
+- [git-pages](https://codeberg.org/git-pages/git-pages): Scalable static page server for Git forges (like GitHub Pages or Netlify).
 
 ## 🗃 Related works <a id="related-works" />
 

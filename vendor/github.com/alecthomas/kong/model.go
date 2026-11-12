@@ -130,6 +130,20 @@ func (n *Node) Leaves(hide bool) (out []*Node) {
 	return
 }
 
+// Values returns the values directly attached to this node: its argument
+// value, flag values and positionals.
+func (n *Node) Values() []*Value {
+	values := []*Value{}
+	if n.Argument != nil {
+		values = append(values, n.Argument)
+	}
+	for _, flag := range n.Flags {
+		values = append(values, flag.Value)
+	}
+	values = append(values, n.Positional...)
+	return values
+}
+
 // Depth of the command from the application root.
 func (n *Node) Depth() int {
 	depth := 0
@@ -409,6 +423,7 @@ type Flag struct {
 	*Value
 	Group       *Group // Logical grouping when displaying. May also be used by configuration loaders to group options logically.
 	Xor         []string
+	LastWins    []string
 	And         []string
 	PlaceHolder string
 	Envs        []string

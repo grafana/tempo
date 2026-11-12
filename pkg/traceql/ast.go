@@ -662,6 +662,11 @@ type BinaryOperation struct {
 }
 
 func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
+	if op == OpAnd || op == OpOr {
+		lhs = impliedBoolOperand(lhs)
+		rhs = impliedBoolOperand(rhs)
+	}
+
 	binop := &BinaryOperation{
 		Op:  op,
 		LHS: lhs,
@@ -691,6 +696,16 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 	}
 
 	return binop
+}
+
+// impliedBoolOperand rewrites a bare attribute used as an operand of && or ||
+// into `.foo = true`. This always gives the operand a boolean result, even when
+// the attribute is missing, and lets the fetch layer search only for bools.
+func impliedBoolOperand(e FieldExpression) FieldExpression {
+	if attr, ok := e.(Attribute); ok && attr.impliedType() == TypeAttribute {
+		return newBinaryOperation(OpEqual, attr, StaticTrue)
+	}
+	return e
 }
 
 // normalizeTraceIDOperand normalizes a Static operand for trace ID
@@ -1189,6 +1204,17 @@ func (s Static) BooleanArray() ([]bool, bool) {
 		return []bool{}, true
 	}
 	return unsafe.Slice((*bool)(unsafe.Pointer(&s.valBytes[0])), len(s.valBytes)), true
+}
+
+// Clone returns a copy of s that shares no array memory with s.
+func (s Static) Clone() Static {
+	switch s.Type {
+	case TypeIntArray, TypeFloatArray, TypeBooleanArray:
+		s.valBytes = bytes.Clone(s.valBytes)
+	case TypeStringArray:
+		s.valStrings = slices.Clone(s.valStrings)
+	}
+	return s
 }
 
 func (s Static) isNumeric() bool {

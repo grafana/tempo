@@ -222,7 +222,7 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		}
 	}
 
-	s.ingestPartitionLifecycler = ring.NewPartitionInstanceLifecycler(
+	s.ingestPartitionLifecycler, err = ring.NewPartitionInstanceLifecycler(
 		s.cfg.PartitionRing.ToLifecyclerConfig(s.ingestPartitionID, cfg.Ring.InstanceID),
 		PartitionRingName,
 		PartitionRingKey,
@@ -230,6 +230,9 @@ func New(cfg Config, overridesService overrides.Interface, completeBlockFlusher 
 		logger,
 		prometheus.WrapRegistererWithPrefix("tempo_", reg),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("create livestore partition ring lifecycler: %w", err)
+	}
 
 	// setup live store read ring
 	ringStore := cfg.Ring.KVStore.Mock
@@ -625,7 +628,6 @@ func (s *LiveStore) calculateTimeLag(lagShortcutThreshold int64) *time.Duration 
 }
 
 func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (*kadm.Offset, error) {
-	defer s.decoder.Reset()
 	ctx, span := tracer.Start(ctx, "LiveStore.consume")
 	defer span.End()
 
@@ -648,7 +650,6 @@ func (s *LiveStore) consume(ctx context.Context, rs recordIter, now time.Time) (
 			continue
 		}
 
-		s.decoder.Reset()
 		pushReq, err := s.decoder.Decode(record.Value)
 		if err != nil {
 			metricRecordsDropped.WithLabelValues(tenant, droppedRecordReasonDecodingFailed).Inc()

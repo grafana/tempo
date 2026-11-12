@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: storage
+
+note: Fix the s3 backend requesting one byte past the end of a range read, which broke compaction on S3 implementations that do not clamp the range.
+
+issues: []
+
+subtext:
+
+user: lazerg

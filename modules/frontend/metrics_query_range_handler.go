@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
-	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/util/tracing"
 	"google.golang.org/grpc/codes"
 
@@ -29,7 +28,7 @@ import (
 var errQueryWindowWithinEndCutoff = errors.New("query window falls entirely within query_end_cutoff")
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryRangeHandler {
+func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], rl rangeLimiter, apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryRangeHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -60,7 +59,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
-		if err := validateQueryRangeReq(ctx, cfg, o, req); err != nil {
+		if err := validateQueryRangeReq(ctx, cfg, rl, logger, req); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
@@ -85,7 +84,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse
-		c, err := combiner.NewTypedQueryRange(req, cfg.Metrics.Sharder.MaxResponseSeries)
+		c, err := combiner.NewTypedQueryRange(req, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, metricsJobInspectedBytes, tenant))
 		if err != nil {
 			return err
 		}
@@ -111,7 +110,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 }
 
 // newMetricsQueryRangeHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], rl rangeLimiter, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -146,7 +145,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 			return httpInvalidRequest(err), nil
 		}
 
-		if err := validateQueryRangeReq(req.Context(), cfg, o, queryRangeReq); err != nil {
+		if err := validateQueryRangeReq(req.Context(), cfg, rl, logger, queryRangeReq); err != nil {
 			return httpInvalidRequest(err), nil
 		}
 
@@ -162,7 +161,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		req = api.BuildQueryRangeRequest(req, queryRangeReq, "")
 
 		// build and use roundtripper
-		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries)
+		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, metricsJobInspectedBytes, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
 			return httpInvalidRequest(err), nil
@@ -174,7 +173,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
 		// todo: is there a way to remove this? it can be costly for large responses
 		var bytesProcessed uint64
-		queryRangeResp, finalErr := combiner.GRPCFinal()
+		queryRangeResp, finalErr := combiner.GRPCFinal(req.Context())
 		if queryRangeResp != nil && queryRangeResp.Metrics != nil {
 			bytesProcessed = queryRangeResp.Metrics.InspectedBytes
 		}
@@ -276,6 +275,7 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
+			"range", time.Duration(req.End-req.Start),
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
 			"error", err,
@@ -289,6 +289,7 @@ func logQueryRangeResult(ctx context.Context, logger log.Logger, tenantID string
 		"tenant", tenantID,
 		"traceID", traceID,
 		"query", req.Query,
+		"range", time.Duration(req.End-req.Start),
 		"range_nanos", req.End-req.Start,
 		"max_series", req.MaxSeries,
 		"duration_seconds", durationSeconds,
@@ -312,6 +313,7 @@ func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.Query
 		"msg", "query range request",
 		"tenant", tenantID,
 		"query", req.Query,
+		"range", time.Duration(req.End-req.Start),
 		"range_nanos", req.End-req.Start,
 		"mode", req.QueryMode,
 		"step", req.Step,

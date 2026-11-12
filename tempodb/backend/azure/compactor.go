@@ -133,7 +133,7 @@ func (rw *Azure) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backen
 	out := &backend.CompactedBlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
-		return nil, err
+		return nil, backend.MetaDecodeError(err)
 	}
 	out.CompactedTime = modTime
 

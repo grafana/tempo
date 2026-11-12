@@ -21,7 +21,6 @@ import (
 	"github.com/grafana/tempo/v3/pkg/parquetquery"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 	"github.com/grafana/tempo/v3/tempodb/backend"
-	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
 )
@@ -48,27 +47,6 @@ type scopeAttributePath struct {
 
 func pathsForVersion(v string) attributePaths {
 	switch v {
-	case vparquet3.VersionString:
-		return attributePaths{
-			span: scopeAttributePath{
-				defLevel:              vparquet3.DefinitionLevelResourceSpansILSSpanAttrs,
-				keyPath:               vparquet3.FieldSpanAttrKey,
-				valPath:               vparquet3.FieldSpanAttrVal,
-				intPath:               vparquet3.FieldSpanAttrValInt,
-				dedicatedColScope:     backend.DedicatedColumnScopeSpan,
-				dedicatedColsPaths:    vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeString],
-				dedicatedColsPathsInt: vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeSpan][backend.DedicatedColumnTypeInt],
-			},
-			res: scopeAttributePath{
-				defLevel:              vparquet3.DefinitionLevelResourceAttrs,
-				keyPath:               vparquet3.FieldResourceAttrKey,
-				valPath:               vparquet3.FieldResourceAttrVal,
-				intPath:               vparquet3.FieldResourceAttrValInt,
-				dedicatedColScope:     backend.DedicatedColumnScopeResource,
-				dedicatedColsPaths:    vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeString],
-				dedicatedColsPathsInt: vparquet3.DedicatedResourceColumnPaths[backend.DedicatedColumnScopeResource][backend.DedicatedColumnTypeInt],
-			},
-		}
 	case vparquet4.VersionString:
 		return attributePaths{
 			span: scopeAttributePath{
@@ -269,8 +247,6 @@ func processBlock(r backend.Reader, tenantID, blockID string, includeWellKnown b
 
 	var reader io.ReaderAt
 	switch meta.Version {
-	case vparquet3.VersionString:
-		reader = vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
 	case vparquet4.VersionString:
 		reader = vparquet4.NewBackendReaderAt(context.Background(), r, vparquet4.DataFileName, meta)
 	case vparquet5.VersionString:

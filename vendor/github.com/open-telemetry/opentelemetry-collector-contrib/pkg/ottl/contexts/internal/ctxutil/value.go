@@ -16,6 +16,9 @@ import (
 
 func SetValue(value pcommon.Value, val any) error {
 	if val == nil {
+		// A pcommon.Value can represent nil, so the most meaningful outcome is an
+		// empty value (ValueTypeEmpty) rather than an error.
+		pcommon.NewValueEmpty().CopyTo(value)
 		return nil
 	}
 	var err error

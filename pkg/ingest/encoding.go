@@ -22,14 +22,15 @@ var encoderPool = sync.Pool{
 	},
 }
 
+// resetPushBytesRequest empties req but keeps its slice capacity.
+// It clears the slices first so the previous contents can be GC'd.
 func resetPushBytesRequest(req *tempopb.PushBytesRequest) {
-	traces := req.Traces
-	ids := req.Ids
-	clear(traces)
-	clear(ids)
-	req.Reset()
-	req.Traces = traces[:0]
-	req.Ids = ids[:0]
+	clear(req.Traces)
+	clear(req.Ids)
+	*req = tempopb.PushBytesRequest{
+		Traces: req.Traces[:0],
+		Ids:    req.Ids[:0],
+	}
 }
 
 func encoderPoolPut(req *tempopb.PushBytesRequest) {
@@ -53,16 +54,21 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 	batch := encoderPool.Get().(*tempopb.PushBytesRequest)
 	defer encoderPoolPut(batch)
 
-	currentSize := 0
+	batch.SkipMetricsGeneration = req.SkipMetricsGeneration
+	metadataSize := 0
+	if batch.SkipMetricsGeneration {
+		metadataSize = 2 // if enabled, proto writes 2 bytes
+	}
+	currentSize := metadataSize
 
 	for i, entry := range req.Traces {
-		l := entry.Size() + len(req.Ids[i])
-		// Size of the entry in the req
-		entrySize := 1 + l + sovPush(uint64(l))
+		traceSize := entry.Size()
+		idSize := len(req.Ids[i])
+		entrySize := 1 + traceSize + sovPush(uint64(traceSize))
+		entrySize += 1 + idSize + sovPush(uint64(idSize)) // trace id field
 
-		// Check if a single entry is too big
-		if entrySize > maxSize || (i == 0 && currentSize+entrySize > maxSize) {
-			return nil, fmt.Errorf("single entry size (%d) exceeds maximum allowed size (%d)", entrySize, maxSize)
+		if entrySize+metadataSize > maxSize {
+			return nil, fmt.Errorf("single entry size (%d) exceeds maximum allowed size (%d)", entrySize+metadataSize, maxSize)
 		}
 
 		if currentSize+entrySize > maxSize {
@@ -77,7 +83,7 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 			// Reset currentStream
 			batch.Traces = batch.Traces[:0]
 			batch.Ids = batch.Ids[:0]
-			currentSize = 0
+			currentSize = metadataSize
 		}
 		batch.Traces = append(batch.Traces, entry)
 		batch.Ids = append(batch.Ids, req.Ids[i])
@@ -127,19 +133,14 @@ func NewDecoder() *Decoder {
 }
 
 // Decode converts a Kafka record's byte data back into a tempopb.Trace.
+// It resets the decoder first, so entries from a previous Decode never leak into the result.
 func (d *Decoder) Decode(data []byte) (*tempopb.PushBytesRequest, error) {
+	resetPushBytesRequest(d.req)
 	err := d.req.Unmarshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal record: %w", err)
 	}
 	return d.req, nil
-}
-
-func (d *Decoder) Reset() {
-	// Retain slice capacity
-	d.req.Ids = d.req.Ids[:0]
-	d.req.Traces = d.req.Traces[:0]
-	d.req.SkipMetricsGeneration = false
 }
 
 // sovPush calculates the size of varint-encoded uint64.
@@ -166,7 +167,6 @@ func NewPushBytesDecoder() *PushBytesDecoder {
 
 // Decode implements GeneratorCodec.
 func (d *PushBytesDecoder) Decode(data []byte) (iter.Seq2[*tempopb.PushSpansRequest, error], error) {
-	d.dec.Reset()
 	spanBytes, err := d.dec.Decode(data)
 	if err != nil {
 		return nil, err

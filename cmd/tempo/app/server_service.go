@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -20,6 +22,9 @@ import (
 
 	util_log "github.com/grafana/tempo/v3/pkg/util/log"
 )
+
+// how often shutdown names the dependent services it is still waiting on
+const shutdownStallLogPeriod = 5 * time.Second
 
 func init() {
 	// overwriting default buckets []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10, 25, 50, 100} to have more granularity around 1s
@@ -159,7 +164,7 @@ func NewServerService(serv *server.Server, servicesToWaitFor func() []services.S
 	stoppingFn := func(_ error) error {
 		// wait until all modules are done, and then shutdown server.
 		for _, s := range servicesToWaitFor() {
-			_ = s.AwaitTerminated(context.Background())
+			awaitTerminatedWithLogs(s)
 		}
 
 		// shutdown HTTP and gRPC servers (this also unblocks Run)
@@ -172,6 +177,22 @@ func NewServerService(serv *server.Server, servicesToWaitFor func() []services.S
 	}
 
 	return services.NewBasicService(nil, runFn, stoppingFn)
+}
+
+// awaitTerminatedWithLogs waits indefinitely, since the server must outlive its dependents, but it logs which service we are waiting on.
+func awaitTerminatedWithLogs(s services.Service) {
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownStallLogPeriod)
+		err := s.AwaitTerminated(ctx)
+		cancel()
+
+		if !errors.Is(err, context.DeadlineExceeded) {
+			return
+		}
+
+		level.Warn(util_log.Logger).Log("msg", "waiting for service to terminate before shutting down server",
+			"service", services.DescribeService(s), "state", s.State())
+	}
 }
 
 // DisableSignalHandling puts a dummy signal handler

@@ -21,7 +21,13 @@ type InProcessTransport struct {
 	onNotification func(mcp.JSONRPCNotification)
 	notifyMu       sync.RWMutex
 	started        bool
+	starting       bool
+	startDone      chan struct{}
+	closed         bool
 	startedMu      sync.Mutex
+
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 type InProcessOption func(*InProcessTransport)
@@ -46,7 +52,9 @@ func WithRootsHandler(handler server.RootsHandler) InProcessOption {
 
 func NewInProcessTransport(server *server.MCPServer) *InProcessTransport {
 	return &InProcessTransport{
-		server: server,
+		server:    server,
+		sessionID: server.GenerateInProcessSessionID(),
+		done:      make(chan struct{}),
 	}
 }
 
@@ -54,6 +62,7 @@ func NewInProcessTransportWithOptions(server *server.MCPServer, opts ...InProces
 	t := &InProcessTransport{
 		server:    server,
 		sessionID: server.GenerateInProcessSessionID(),
+		done:      make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -64,25 +73,79 @@ func NewInProcessTransportWithOptions(server *server.MCPServer, opts ...InProces
 }
 
 func (c *InProcessTransport) Start(ctx context.Context) error {
-	c.startedMu.Lock()
-	if c.started {
-		c.startedMu.Unlock()
-		return nil
-	}
-	c.started = true
-	c.startedMu.Unlock()
-
-	// Create and register session if we have handlers
-	if c.samplingHandler != nil || c.elicitationHandler != nil || c.rootsHandler != nil {
-		c.session = server.NewInProcessSessionWithHandlers(c.sessionID, c.samplingHandler, c.elicitationHandler, c.rootsHandler)
-		if err := c.server.RegisterSession(ctx, c.session); err != nil {
-			c.startedMu.Lock()
-			c.started = false
+	for {
+		c.startedMu.Lock()
+		if c.closed {
 			c.startedMu.Unlock()
+			return ErrTransportClosed
+		}
+		if c.started {
+			c.startedMu.Unlock()
+			return nil
+		}
+		if c.starting {
+			done := c.startDone
+			c.startedMu.Unlock()
+			select {
+			case <-done:
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		c.starting = true
+		c.startDone = make(chan struct{})
+		session := server.NewInProcessSessionWithHandlers(c.sessionID, c.samplingHandler, c.elicitationHandler, c.rootsHandler)
+		c.startedMu.Unlock()
+
+		// Registration invokes user hooks, which may close this transport.
+		// Keep callbacks outside startedMu and recheck closure before publishing
+		// the session. Concurrent Start callers wait for this attempt to finish.
+		err := c.server.RegisterSession(ctx, session)
+		c.startedMu.Lock()
+		closed := c.closed
+		if err == nil && !closed {
+			c.session = session
+			c.started = true
+		}
+		c.starting = false
+		close(c.startDone)
+		c.startedMu.Unlock()
+
+		if err != nil {
 			return fmt.Errorf("failed to register session: %w", err)
 		}
+		if closed {
+			c.server.UnregisterSession(context.Background(), c.sessionID)
+			return ErrTransportClosed
+		}
+		go c.forwardNotifications()
+		return nil
 	}
-	return nil
+}
+
+// forwardNotifications drains the session's notification channel and
+// forwards each notification to the registered client handler, mirroring
+// the equivalent readResponses notification path in the stdio transport.
+// Runs until Close() closes the done channel.
+func (c *InProcessTransport) forwardNotifications() {
+	notifications := c.session.ClientNotifications()
+	for {
+		select {
+		case <-c.done:
+			return
+		case notification, ok := <-notifications:
+			if !ok {
+				return
+			}
+			c.notifyMu.RLock()
+			handler := c.onNotification
+			c.notifyMu.RUnlock()
+			if handler != nil {
+				handler(notification)
+			}
+		}
+	}
 }
 
 func (c *InProcessTransport) SendRequest(ctx context.Context, request JSONRPCRequest) (*JSONRPCResponse, error) {
@@ -117,6 +180,9 @@ func (c *InProcessTransport) SendNotification(ctx context.Context, notification 
 		return fmt.Errorf("failed to marshal notification: %w", err)
 	}
 	notificationBytes = append(notificationBytes, '\n')
+	if c.session != nil {
+		ctx = c.server.WithContext(ctx, c.session)
+	}
 	c.server.HandleMessage(ctx, notificationBytes)
 
 	return nil
@@ -129,8 +195,18 @@ func (c *InProcessTransport) SetNotificationHandler(handler func(notification mc
 }
 
 func (c *InProcessTransport) Close() error {
-	if c.session != nil {
-		c.server.UnregisterSession(context.Background(), c.sessionID)
+	c.startedMu.Lock()
+	c.closed = true
+	session := c.session
+	sessionID := c.sessionID
+	c.startedMu.Unlock()
+
+	c.closeOnce.Do(func() {
+		close(c.done)
+	})
+
+	if session != nil {
+		c.server.UnregisterSession(context.Background(), sessionID)
 	}
 	return nil
 }

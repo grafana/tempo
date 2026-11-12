@@ -33,7 +33,9 @@ const (
 	EnvVarIndexEnabledValue = "1"
 )
 
-func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
+// checkBloom reports whether the bloom filter of the block may contain the trace ID. It also returns the
+// number of bytes read to find out, which is 0 if the bloom filter could not be read.
+func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, bytesRead uint64, err error) {
 	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.checkBloom",
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
@@ -50,22 +52,25 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 		Role: cache.RoleBloom,
 	})
 	if err != nil {
-		return false, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantID, b.meta.BlockID, err)
+		return false, 0, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantID, b.meta.BlockID, err)
 	}
 
 	filter := &bloom.BloomFilter{}
 	_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
 	if err != nil {
-		return false, fmt.Errorf("error parsing bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, 0, fmt.Errorf("error parsing bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
-	return filter.Test(id), nil
+	return filter.Test(id), uint64(len(bloomBytes)), nil
 }
 
-func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int, error) {
+// checkIndex reports whether the trace ID index of the block may contain the trace ID and in which row group.
+// The row group is -1 if unknown. It also returns the number of bytes read, which is 0 if the index is
+// disabled or missing, or if an error is returned.
+func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int, uint64, error) {
 	if os.Getenv(EnvVarIndexName) != EnvVarIndexEnabledValue {
 		// Index lookup disabled
-		return true, -1, nil
+		return true, -1, 0, nil
 	}
 
 	derivedCtx, span := tracer.Start(ctx, "parquet4.backendBlock.checkIndex",
@@ -80,24 +85,26 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 		Role: cache.RoleTraceIDIdx,
 	})
 	if errors.Is(err, backend.ErrDoesNotExist) {
-		return true, -1, nil
+		return true, -1, 0, nil
 	}
 	if err != nil {
-		return false, -1, fmt.Errorf("error retrieving index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, -1, 0, fmt.Errorf("error retrieving index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
+
+	bytesRead := uint64(len(indexBytes))
 
 	index, err := unmarshalIndex(indexBytes)
 	if err != nil {
-		return false, -1, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, -1, 0, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
 	rowGroup := index.Find(id)
 	if rowGroup == -1 {
 		// Ruled out by index
-		return false, -1, nil
+		return false, -1, bytesRead, nil
 	}
 
-	return true, rowGroup, nil
+	return true, rowGroup, bytesRead, nil
 }
 
 func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.TraceByIDResponse, err error) {
@@ -109,26 +116,34 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		))
 	defer span.End()
 
-	found, err := b.checkBloom(derivedCtx, traceID)
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageBloomChecked).Inc()
+	found, bloomBytes, err := b.checkBloom(derivedCtx, traceID)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
-		return nil, nil
+		return notFoundResponse(span, bloomBytes), nil
 	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageBloomPass).Inc()
 
-	ok, rowGroup, err := b.checkIndex(derivedCtx, traceID)
+	ok, rowGroup, indexBytes, err := b.checkIndex(derivedCtx, traceID)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		return nil, nil
+		return notFoundResponse(span, bloomBytes+indexBytes), nil
+	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageIndexPass).Inc()
+
+	if opts.TraceByIDReadBufferSize > 0 {
+		opts.ReadBufferSize = opts.TraceByIDReadBufferSize
 	}
 
 	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageRead).Inc()
 
 	foundTrace, err := findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
 
@@ -136,11 +151,20 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		Trace:   foundTrace,
 		Metrics: &tempopb.TraceByIDMetrics{},
 	}
-	bytesRead := rr.BytesRead()
+	bytesRead := bloomBytes + indexBytes + rr.BytesRead()
 	result.Metrics.InspectedBytes += bytesRead
 	span.SetAttributes(attribute.Int64("inspectedBytes", int64(bytesRead)))
 
 	return result, err
+}
+
+// notFoundResponse is returned for blocks ruled out by the bloom filter or the index. It has no trace,
+// but reports the bytes read to rule the block out.
+func notFoundResponse(span trace.Span, bytesRead uint64) *tempopb.TraceByIDResponse {
+	span.SetAttributes(attribute.Int64("inspectedBytes", int64(bytesRead)))
+	return &tempopb.TraceByIDResponse{
+		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: bytesRead},
+	}
 }
 
 func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {

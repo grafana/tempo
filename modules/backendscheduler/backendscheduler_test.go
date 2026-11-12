@@ -892,3 +892,68 @@ func TestCleanupOrphanedBatchesAfterDeadJobTimeout(t *testing.T) {
 	})
 	require.NoError(t, err, "SubmitRedaction must not return AlreadyExists after batch cleanup")
 }
+
+// TestNextDroppedRetentionJobReleasesRegistration verifies that when Next drops a
+// queued retention job because a redaction batch was submitted after the job was
+// emitted, the job's registration is released.
+//
+// Regression test for the bug where the drop left the job in registeredJobs, so
+// HasJobsForTenant(tenant, RETENTION) stayed true forever and the retention provider
+// skipped the tenant on every tick until the scheduler restarted.
+func TestNextDroppedRetentionJobReleasesRegistration(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	// Next waits up to JobTimeout for another job after the drop; keep it short.
+	cfg.JobTimeout = 100 * time.Millisecond
+
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	ctx, cancel := context.WithCancel(context.Background())
+	store, rr, ww := newStore(ctx, t, tmpDir)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	testTenant := "tenant-retention-drop"
+	writeTenantBlocks(ctx, t, backend.NewWriter(ww), testTenant, 2)
+	time.Sleep(300 * time.Millisecond)
+
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+	// Do NOT call s.starting — the providers would race with the manual job feed below.
+
+	// The retention provider registers a job and then sends it into the pipeline.
+	retJob := &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_RETENTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:    testTenant,
+			Retention: &tempopb.RetentionDetail{},
+		},
+	}
+	s.work.RegisterJob(retJob)
+	s.mergedJobs <- retJob
+	require.True(t, s.work.HasJobsForTenant(testTenant, tempopb.JobType_JOB_TYPE_RETENTION))
+
+	// A redaction is submitted while the retention job is queued.
+	_, err = s.SubmitRedaction(user.InjectOrgID(ctx, testTenant), &tempopb.SubmitRedactionRequest{
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	})
+	require.NoError(t, err)
+	require.True(t, s.work.TenantPending(testTenant))
+
+	// Next drops the stale retention job and finds nothing else to hand out.
+	resp, err := s.Next(ctx, &tempopb.NextJobRequest{WorkerId: "test-worker"})
+	require.Error(t, err)
+	require.Equal(t, codes.NotFound, status.Code(err))
+	require.Empty(t, resp.JobId, "the stale retention job must not be handed out")
+	require.Nil(t, s.work.GetJob(retJob.ID), "the dropped job must not be promoted to active")
+
+	require.False(t, s.work.HasJobsForTenant(testTenant, tempopb.JobType_JOB_TYPE_RETENTION),
+		"the dropped retention job must not keep the tenant registered")
+}

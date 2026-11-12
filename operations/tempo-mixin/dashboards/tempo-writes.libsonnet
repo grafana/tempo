@@ -133,6 +133,20 @@ dashboard_utils {
             fieldConfig+: { defaults+: { unit: 'ms' } },
           }
         )
+        .addPanel(
+          $.panel('Trace size') +
+          $.queryPanel(
+            [
+              ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
+              ncOrFallback(utils.ncHistogramQuantile('0.50', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
+              ncOrFallback(utils.ncHistogramAverageRate('tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
+            ],
+            ['99th Percentile', '50th Percentile', 'Average']
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
+        )
       )
       .addRow(
         g.row('')
@@ -150,6 +164,29 @@ dashboard_utils {
           $.panel('Push size by tenant (top 10, p99)') +
           $.queryPanel(
             'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
+            '{{tenant}}'
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
+        )
+      )
+      .addRow(
+        g.row('Trace & attribute size')
+        .addPanel(
+          $.panel('Trace size by tenant (top 10, p99)') +
+          $.queryPanel(
+            'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
+            '{{tenant}}'
+          ) + {
+            yaxes: $.yaxes('bytes'),
+            fieldConfig+: { defaults+: { unit: 'bytes' } },
+          }
+        )
+        .addPanel(
+          $.panel('Attribute size by tenant (top 10, p99)') +
+          $.queryPanel(
+            'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_attribute_size_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
             '{{tenant}}'
           ) + {
             yaxes: $.yaxes('bytes'),
@@ -208,26 +245,30 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Memcached - Compactor')
+        g.row('Memcached - Backend worker')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempo_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
+          $.qpsPanel('tempo_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.backend_worker))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempo_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.compactor))
+          $.latencyPanel('tempo_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.backend_worker))
         )
       )
       .addRow(
-        g.row('Backend - Compactor')
+        g.row('Backend - Backend worker')
         .addPanel(
           $.panel('QPS') +
-          $.qpsPanel('tempodb_backend_request_duration_seconds_count{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.compactor))
+          $.qpsPanel('tempodb_backend_request_duration_seconds_count{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.backend_worker))
         )
         .addPanel(
           $.panel('Latency') +
-          $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.compactor))
+          $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.backend_worker))
         )
-      ),
+      )
+      // Autoscaling rows are grouped at the bottom so they don't interleave with the request-path rows.
+      .addRowIf($._config.autoscaling.gateway.enabled, $.autoscalingRow('Gateway', 'gateway'))
+      .addRowIf($._config.autoscaling.distributor.enabled, $.autoscalingRow('Distributor', 'distributor'))
+      .addRowIf($._config.autoscaling.metrics_generator.enabled, $.autoscalingRow('Metrics-generator', 'metrics_generator')),
   },
 }

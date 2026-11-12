@@ -17,7 +17,6 @@ package otter
 import (
 	"context"
 	"iter"
-	"runtime"
 	"time"
 
 	"github.com/maypok86/otter/v2/stats"
@@ -90,10 +89,6 @@ func New[K comparable, V any](o *Options[K, V]) (*Cache[K, V], error) {
 	c := &Cache[K, V]{
 		cache: cacheImpl,
 	}
-	runtime.AddCleanup(c, func(cacheImpl *cache[K, V]) {
-		cacheImpl.StopAllGoroutines()
-	}, cacheImpl)
-
 	return c, nil
 }
 
@@ -118,6 +113,7 @@ func (c *Cache[K, V]) GetEntryQuietly(key K) (Entry[K, V], bool) {
 // Set associates the value with the key in this cache.
 //
 // If the specified key is not already associated with a value, then it returns new value and true.
+// An expired entry that has not been removed yet counts as no value.
 //
 // If the specified key is already associated with a value, then it returns existing value and false.
 func (c *Cache[K, V]) Set(key K, value V) (V, bool) {
@@ -152,8 +148,14 @@ func (c *Cache[K, V]) SetIfAbsent(key K, value V) (V, bool) {
 //
 // This call locks a hash table bucket while the compute function
 // is executed. It means that modifications on other entries in
-// the bucket will be blocked until the remappingFunc executes. Consider
-// this when the function includes long-running operations.
+// the bucket will be blocked until the remappingFunc executes, and so will
+// refreshes of them, a growth of the hash table and an eviction or expiration of an entry in the
+// bucket, during which writes of every key wait.
+// Consider this when the function includes long-running operations.
+//
+// WARNING: The function may only read entries with [Cache.GetIfPresent],
+// [Cache.GetEntry] or [Cache.GetEntryQuietly]. Any other call of this cache,
+// even a write of another key, may deadlock it: its locks are not reentrant.
 func (c *Cache[K, V]) Compute(
 	key K,
 	remappingFunc func(oldValue V, found bool) (newValue V, op ComputeOp),
@@ -173,8 +175,14 @@ func (c *Cache[K, V]) Compute(
 //
 // This call locks a hash table bucket while the compute function
 // is executed. It means that modifications on other entries in
-// the bucket will be blocked until the valueFn executes. Consider
-// this when the function includes long-running operations.
+// the bucket will be blocked until the valueFn executes, and so will
+// refreshes of them, a growth of the hash table and an eviction or expiration of an entry in the
+// bucket, during which writes of every key wait.
+// Consider this when the function includes long-running operations.
+//
+// WARNING: The function may only read entries with [Cache.GetIfPresent],
+// [Cache.GetEntry] or [Cache.GetEntryQuietly]. Any other call of this cache,
+// even a write of another key, may deadlock it: its locks are not reentrant.
 func (c *Cache[K, V]) ComputeIfAbsent(
 	key K,
 	mappingFunc func() (newValue V, cancel bool),
@@ -204,8 +212,14 @@ func (c *Cache[K, V]) ComputeIfAbsent(
 //
 // This call locks a hash table bucket while the compute function
 // is executed. It means that modifications on other entries in
-// the bucket will be blocked until the valueFn executes. Consider
-// this when the function includes long-running operations.
+// the bucket will be blocked until the valueFn executes, and so will
+// refreshes of them, a growth of the hash table and an eviction or expiration of an entry in the
+// bucket, during which writes of every key wait.
+// Consider this when the function includes long-running operations.
+//
+// WARNING: The function may only read entries with [Cache.GetIfPresent],
+// [Cache.GetEntry] or [Cache.GetEntryQuietly]. Any other call of this cache,
+// even a write of another key, may deadlock it: its locks are not reentrant.
 func (c *Cache[K, V]) ComputeIfPresent(
 	key K,
 	remappingFunc func(oldValue V) (newValue V, op ComputeOp),
@@ -214,13 +228,22 @@ func (c *Cache[K, V]) ComputeIfPresent(
 }
 
 // SetExpiresAfter specifies that the entry should be automatically removed from the cache once the duration has
-// elapsed. The expiration policy determines when the entry's age is reset.
+// elapsed. The expiration policy determines when the entry's age is reset. It has no effect on an absent
+// or expired entry.
+//
+// This call locks a hash table bucket, as a write does. Calling it from a function that runs while the
+// cache holds a bucket lock, such as a Compute function, OnAtomicDeletion, a weigher or a calculator,
+// may deadlock.
 func (c *Cache[K, V]) SetExpiresAfter(key K, expiresAfter time.Duration) {
 	c.cache.SetExpiresAfter(key, expiresAfter)
 }
 
 // SetRefreshableAfter specifies that each entry should be eligible for reloading once a fixed duration has elapsed.
 // The refresh policy determines when the entry's age is reset.
+//
+// This call locks a hash table bucket, as a write does. Calling it from a function that runs while the
+// cache holds a bucket lock, such as a Compute function, OnAtomicDeletion, a weigher or a calculator,
+// may deadlock.
 func (c *Cache[K, V]) SetRefreshableAfter(key K, refreshableAfter time.Duration) {
 	c.cache.SetRefreshableAfter(key, refreshableAfter)
 }
@@ -228,7 +251,8 @@ func (c *Cache[K, V]) SetRefreshableAfter(key K, refreshableAfter time.Duration)
 // Get returns the value associated with key in this cache, obtaining that value from loader if necessary.
 // The method improves upon the conventional "if cached, return; otherwise create, cache and return" pattern.
 //
-// Get can return an [ErrNotFound] error if the [Loader] returns it.
+// Get can return an [ErrNotFound] error if the [Loader] returns it, or if Get waits for a [Cache.BulkGet]
+// whose [BulkLoader] leaves the key out of its result.
 // This means that the entry was not found in the data source.
 // This allows the cache to recognize when a record is missing from the data source
 // and subsequently delete the cached entry.
@@ -238,11 +262,16 @@ func (c *Cache[K, V]) SetRefreshableAfter(key K, refreshableAfter time.Duration)
 // simply waits for that goroutine to finish and returns its loaded value. Note that
 // multiple goroutines can concurrently load values for distinct keys.
 //
+// A write or an invalidation of key during the load discards the loaded value: Get then returns
+// the value key has or loads key again, until ctx is done, so the loader may be called more than
+// once. A Get whose ctx is already done returns a cached value but does not load a missing one.
+//
 // No observable state associated with this cache is modified until loading completes.
 //
 // WARNING: When performing a refresh (see [RefreshCalculator]),
 // the [Loader] will receive a context wrapped in [context.WithoutCancel].
 // If you need to control refresh cancellation, you can use closures or values stored in the context.
+// A Get that starts a refresh may wait for a lock of the cache, see [Options.RefreshCalculator].
 //
 // WARNING: [Loader] must not attempt to update any mappings of this cache directly.
 //
@@ -262,6 +291,11 @@ func (c *Cache[K, V]) Get(ctx context.Context, key K, loader Loader[K, V]) (V, e
 // simply waits for that goroutine to finish and returns its loaded value. Note that
 // multiple goroutines can concurrently load values for distinct keys.
 //
+// A write or an invalidation of a key during the load discards its loaded value: BulkGet then
+// takes the value the key has or loads the key again, until ctx is done, so the bulk loader may be
+// called more than once. A BulkGet whose ctx is already done returns the cached values but does not
+// load the missing ones.
+//
 // No observable state associated with this cache is modified until loading completes.
 //
 // NOTE: duplicate elements in keys will be ignored.
@@ -269,6 +303,7 @@ func (c *Cache[K, V]) Get(ctx context.Context, key K, loader Loader[K, V]) (V, e
 // WARNING: When performing a refresh (see [RefreshCalculator]),
 // the [BulkLoader] will receive a context wrapped in [context.WithoutCancel].
 // If you need to control refresh cancellation, you can use closures or values stored in the context.
+// A BulkGet that starts a refresh may wait for a lock of the cache, see [Options.RefreshCalculator].
 //
 // WARNING: [BulkLoader] must not attempt to update any mappings of this cache directly.
 //
@@ -284,9 +319,14 @@ func (c *Cache[K, V]) BulkGet(ctx context.Context, keys []K, bulkLoader BulkLoad
 // Refresh loads a new value for the key, asynchronously. While the new value is loading the
 // previous value (if any) will continue to be returned by any Get unless it is evicted.
 // If the new value is loaded successfully, it will replace the previous value in the cache;
-// If refreshing returned an error, the previous value will remain,
-// and the error will be logged using [Logger] (if it's not [ErrNotFound]) and swallowed. If another goroutine is currently
-// loading the value for key, then this method does not perform an additional load.
+// If refreshing returned an error, the previous value will remain, and the error will be logged
+// using [Logger] and swallowed, except for [ErrNotFound], which removes the entry. If a load or refresh of the
+// key that started from its current state is in flight, this method joins it instead of loading again.
+// A joined load by Get or BulkGet whose loader returns an error other than [ErrNotFound] after its
+// caller's context has ended is loaded again, unless the key was written or invalidated since the
+// refresh was requested.
+// If the key is written, invalidated or expires after the refresh was requested, the loaded
+// value is discarded and the cache keeps the newer state.
 //
 // [Cache] will call Loader.Reload if the cache currently contains a value for the key,
 // and Loader.Load otherwise.
@@ -314,9 +354,15 @@ func (c *Cache[K, V]) Refresh(ctx context.Context, key K, loader Loader[K, V]) <
 // BulkRefresh loads a new value for each key, asynchronously. While the new value is loading the
 // previous value (if any) will continue to be returned by any Get unless it is evicted.
 // If the new value is loaded successfully, it will replace the previous value in the cache;
-// If refreshing returned an error, the previous value will remain,
-// and the error will be logged using [Logger] and swallowed. If another goroutine is currently
-// loading the value for key, then this method does not perform an additional load.
+// If refreshing returned an error, the previous values will remain, and the error will be logged
+// using [Logger] and swallowed, an [ErrNotFound] for the whole bulk included. A key that the
+// [BulkLoader] leaves out of its result is not found, and its entry is removed. If a load or refresh of the
+// key that started from its current state is in flight, this method joins it instead of loading again.
+// A joined load by Get or BulkGet whose loader returns an error other than [ErrNotFound] after its
+// caller's context has ended is loaded again, unless the key was written or invalidated since the
+// refresh was requested.
+// If the key is written, invalidated or expires after the refresh was requested, the loaded
+// value is discarded and the cache keeps the newer state.
 //
 // [Cache] will call BulkLoader.BulkReload for existing keys, and BulkLoader.BulkLoad otherwise.
 // Loading is asynchronous by delegating to the configured Executor.
@@ -345,7 +391,7 @@ func (c *Cache[K, V]) BulkRefresh(ctx context.Context, keys []K, bulkLoader Bulk
 // Invalidate discards any cached value for the key.
 //
 // Returns previous value if any. The invalidated result reports whether the key was
-// present.
+// present; an expired entry that has not been removed yet is not.
 func (c *Cache[K, V]) Invalidate(key K) (value V, invalidated bool) {
 	return c.cache.Invalidate(key)
 }
@@ -414,7 +460,7 @@ func (c *Cache[K, V]) EstimatedSize() int {
 	return c.cache.EstimatedSize()
 }
 
-// IsWeighted returns whether the cache is bounded by a maximum size or maximum weight.
+// IsWeighted returns whether the cache is bounded by a maximum weight.
 func (c *Cache[K, V]) IsWeighted() bool {
 	return c.cache.IsWeighted()
 }
@@ -448,7 +494,13 @@ func (c *Cache[K, V]) Stats() stats.Stats {
 //
 // WARNING: Beware that this iteration is performed within the eviction policy's exclusive lock, so the
 // iteration should be short and simple. While the iteration is in progress further eviction
-// maintenance will be halted.
+// maintenance will be halted. The loop body may read entries without loading them, but must not
+// write to the cache or call [Cache.CleanUp], [Cache.InvalidateAll], [Cache.SetMaximum],
+// [Cache.GetMaximum], [Cache.WeightedSize], [Cache.Hottest], [Cache.Coldest] or [SaveCacheTo],
+// which take this lock. To change the cache based on this order, collect the keys first.
+//
+// If the cache has no size bound, the entries come in no particular order, as from [Cache.All], and
+// the eviction policy's lock is not held.
 func (c *Cache[K, V]) Hottest() iter.Seq[Entry[K, V]] {
 	return c.cache.Hottest()
 }
@@ -460,17 +512,33 @@ func (c *Cache[K, V]) Hottest() iter.Seq[Entry[K, V]] {
 //
 // WARNING: Beware that this iteration is performed within the eviction policy's exclusive lock, so the
 // iteration should be short and simple. While the iteration is in progress further eviction
-// maintenance will be halted.
+// maintenance will be halted. The loop body may read entries without loading them, but must not
+// write to the cache or call [Cache.CleanUp], [Cache.InvalidateAll], [Cache.SetMaximum],
+// [Cache.GetMaximum], [Cache.WeightedSize], [Cache.Hottest], [Cache.Coldest] or [SaveCacheTo],
+// which take this lock. To change the cache based on this order, collect the keys first.
+//
+// If the cache has no size bound, the entries come in no particular order, as from [Cache.All], and
+// the eviction policy's lock is not held.
 func (c *Cache[K, V]) Coldest() iter.Seq[Entry[K, V]] {
 	return c.cache.Coldest()
 }
 
-// StopAllGoroutines stops all goroutines launched by the cache.
-// It returns true if the call stops goroutines, false if goroutines have already been stopped.
+// StopAllGoroutines stops the goroutine that periodically cleans up a cache with expiration.
+// It returns false if an earlier call has stopped it or the cache has no expiration, and true
+// otherwise, also when the goroutine has already returned by itself.
+// It neither stops nor waits for the tasks given to the Executor (loads, refreshes, OnDeletion
+// calls), and later operations still submit them.
 //
-// NOTE: In the vast majority of cases, you do not need to call this method, and it will be called automatically.
-// However, it can sometimes be useful, for example when using synctest.
+// NOTE: In the vast majority of cases, you do not need to call this method: once the cache is no
+// longer reachable, the goroutine stops at the next tick of the Clock. However, it can sometimes be
+// useful, for example with a Clock that does not tick. With testing/synctest, call it before the
+// bubble's function returns: time in the bubble stops then, and the goroutine would never see its
+// next tick.
 // You can think of this method as analogous to the Stop method of [time.Timer].
+// It does not stop the goroutine of a [CoarseClock], which belongs to the clock.
+//
+// WARNING: StopAllGoroutines must not be called from a function that the cache runs, such as a
+// deletion listener: it waits for the periodic clean-up goroutine, which may be the one running it.
 //
 // NOTE: This method only stops the goroutines and does not invalidate entries in the cache.
 // To invalidate entries, you can use the Invalidate / InvalidateAll methods.

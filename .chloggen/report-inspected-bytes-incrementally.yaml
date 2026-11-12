@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: query-frontend
+
+note: Report `tempo_query_frontend_bytes_inspected_total` as querier jobs complete instead of at request end, so streaming queries are visible to autoscaling while running
+
+issues: []
+
+subtext:
+
+user: zhxiaogg

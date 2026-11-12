@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/tracing"
 )
 
@@ -33,6 +34,27 @@ func WithPropagator(p tracing.Propagator) ClientOption {
 	}
 }
 
+// WithMetaPropagator installs a propagator that injects trace context into
+// the MCP _meta property bag of outgoing requests (per SEP-414). It covers
+// all transports including stdio, where HTTP headers are unavailable.
+// A nil propagator is treated as a no-op.
+func WithMetaPropagator(p tracing.MetaPropagator) ClientOption {
+	if p == nil {
+		p = tracing.NoopMetaPropagator()
+	}
+	return func(c *Client) {
+		c.metaPropagator = p
+	}
+}
+
+func (c *Client) injectMeta(ctx context.Context, meta *mcp.Meta) *mcp.Meta {
+	p := c.metaPropagator
+	if p == nil {
+		return meta
+	}
+	return p.InjectMeta(ctx, meta)
+}
+
 func (c *Client) startSendSpan(
 	ctx context.Context,
 	method string,
@@ -53,6 +75,8 @@ func (c *Client) startSendSpan(
 
 	if header == nil {
 		header = make(http.Header)
+	} else {
+		header = header.Clone()
 	}
 	propagator.Inject(ctx, header)
 

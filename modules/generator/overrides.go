@@ -36,6 +36,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorSpanMetricsEnableInstanceLabel(userID string) (bool, bool)
 	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
 	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
+	MetricsGeneratorProcessorServiceGraphsMaxItems(userID string) (int, bool)
 	MetricsGeneratorProcessorServiceGraphsSpanMultiplierKey(userID string) string
 	MetricsGeneratorProcessorServiceGraphsEnableTraceStateSpanMultiplier(userID string) (bool, bool)
 	MetricsGeneratorProcessorSpanMetricsSpanMultiplierKey(userID string) string

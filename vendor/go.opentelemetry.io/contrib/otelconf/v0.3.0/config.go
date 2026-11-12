@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package otelconf provides an OpenTelemetry declarative configuration SDK.
-package otelconf // import "go.opentelemetry.io/contrib/otelconf/v0.3.0"
+package otelconf
 
 import (
 	"context"
@@ -223,6 +223,9 @@ func createHeadersConfig(headers []NameStringValuePair, headersList *string) (ma
 	if len(headers) > 0 {
 		for _, kv := range headers {
 			if kv.Value != nil {
+				if kv.Name == "" {
+					return nil, errors.New("invalid header: empty name")
+				}
 				result[kv.Name] = *kv.Value
 			}
 		}

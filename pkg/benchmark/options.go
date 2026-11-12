@@ -27,21 +27,24 @@ const (
 // because they are what an experiment varies between its groups.
 type RunOptions struct {
 	Repeat int `json:"repeat"`
-	// Warmup passes run and are discarded before a case is measured. It has no
-	// default so 0 stays expressible, but without it the first case pays the
-	// block's cold-read cost and every later case runs warm, a bias repetition
-	// does not average out.
-	Warmup int `json:"warmup"`
+
+	Cases []string `json:"cases,omitempty"`
 
 	TargetBytesPerRequest int `json:"targetBytesPerRequest"`
 	SearchLimit           int `json:"searchLimit"`
 	MaxSeries             int `json:"maxSeries"`
 	Exemplars             int `json:"exemplars"`
+	// Tempo has no defaults for a tag-value request's limit and maxStaleValues,
+	// so 0 means unlimited, as for a request without them.
+	MaxTagValues        uint32 `json:"maxTagValues,omitempty"`
+	StaleValueThreshold uint32 `json:"staleValueThreshold,omitempty"`
 
-	ReadBufferSize     int    `json:"readBufferSize,omitempty"`
-	ReadBufferCount    int    `json:"readBufferCount,omitempty"`
-	ChunkSizeBytes     uint32 `json:"chunkSizeBytes,omitempty"`
-	PrefetchTraceCount int    `json:"prefetchTraceCount,omitempty"`
+	ReadBufferSize int `json:"readBufferSize,omitempty"`
+
+	// BackendLatency and BackendBandwidth, in bytes per second, charge every
+	// backend request as an object store would. Zero leaves local reads as is.
+	BackendLatency   time.Duration `json:"backendLatencyNs,omitempty"`
+	BackendBandwidth int64         `json:"backendBandwidth,omitempty"`
 }
 
 func (opts *RunOptions) applyDefaults() {
@@ -62,15 +65,6 @@ func (opts RunOptions) searchOptions() common.SearchOptions {
 	readOpts := common.DefaultSearchOptions()
 	if opts.ReadBufferSize > 0 {
 		readOpts.ReadBufferSize = opts.ReadBufferSize
-	}
-	if opts.ReadBufferCount > 0 {
-		readOpts.ReadBufferCount = opts.ReadBufferCount
-	}
-	if opts.ChunkSizeBytes > 0 {
-		readOpts.ChunkSizeBytes = opts.ChunkSizeBytes
-	}
-	if opts.PrefetchTraceCount > 0 {
-		readOpts.PrefetchTraceCount = opts.PrefetchTraceCount
 	}
 	return readOpts
 }

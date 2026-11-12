@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
@@ -39,6 +40,10 @@ func TestLiveStoreBasicConsume(t *testing.T) {
 	liveStore, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
 	require.NotNil(t, liveStore)
+	t.Cleanup(func() {
+		// t.Context is canceled before cleanup; wait for shutdown before TempDir removal.
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), liveStore))
+	})
 
 	// Push 10 traces and store their IDs and expected traces
 	expectedTraces := make(map[string]*tempopb.Trace)
@@ -317,6 +322,7 @@ func TestLiveStoreReplaysTraceInLiveTraces(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
@@ -346,6 +352,7 @@ func TestLiveStoreReplaysTraceInHeadBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
@@ -379,6 +386,7 @@ func TestLiveStoreReplaysTraceInWalBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 1, completeBlocks: 0})
 }
 
@@ -416,6 +424,7 @@ func TestLiveStoreReplaysTraceInCompleteBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	requireTraceInLiveStore(t, liveStore, expectedID, expectedTrace)
+	require.Nil(t, liveStore.instances[testTenantID].blocks.Load().headBlock)
 	requireInstanceState(t, liveStore.instances[testTenantID], instanceState{liveTraces: 0, walBlocks: 0, completeBlocks: 1})
 }
 
@@ -727,7 +736,7 @@ func TestLiveStoreQueryMethodsBeforeStarted(t *testing.T) {
 	const testTopic = "traces"
 	_, kafkaAddr := testkafka.CreateCluster(t, 1, testTopic)
 
-	cfg.IngestConfig.Kafka.Address = kafkaAddr
+	cfg.IngestConfig.Kafka.Address = flagext.StringSliceCSV{kafkaAddr}
 	cfg.IngestConfig.Kafka.Topic = testTopic
 	cfg.IngestConfig.Kafka.ConsumerGroup = "test-consumer-group"
 
@@ -1335,7 +1344,9 @@ func TestShouldForceFromLookback_NoInstancesNonInactivePartition(t *testing.T) {
 
 	ls, err := liveStoreWithConfig(t, cfg)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), ls))
+	})
 
 	require.Empty(t, ls.getInstances())
 
@@ -1349,7 +1360,9 @@ func TestShouldForceFromLookback_NoInstancesInactivePartition(t *testing.T) {
 
 	ls, err := liveStoreWithConfig(t, cfg)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), ls))
+	})
 
 	require.Empty(t, ls.getInstances())
 
@@ -1368,7 +1381,9 @@ func TestShouldForceFromLookback_InstancesExist(t *testing.T) {
 	tmpDir := t.TempDir()
 	ls, err := defaultLiveStore(t, tmpDir)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = services.StopAndAwaitTerminated(t.Context(), ls) })
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(context.Background(), ls))
+	})
 
 	pushToLiveStore(t, ls)
 	require.NotEmpty(t, ls.getInstances())

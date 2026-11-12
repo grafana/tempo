@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"bytes"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -51,7 +52,6 @@ func TestEncoderDecoder(t *testing.T) {
 			var decodedIDs [][]byte
 
 			for _, record := range records {
-				decoder.Reset()
 				req, err := decoder.Decode(record.Value)
 				require.NoError(t, err)
 				decodedEntries = append(decodedEntries, req.Traces...)
@@ -64,6 +64,57 @@ func TestEncoderDecoder(t *testing.T) {
 				require.Equal(t, tt.req.Ids[i], decodedIDs[i])
 			}
 		})
+	}
+}
+
+func TestEncodeManySmallTracesStayWithinProducerBatchLimit(t *testing.T) {
+	const traceCount = 15685
+	traceBytes := make([]byte, 1000)
+	req := &tempopb.PushBytesRequest{
+		Traces: make([]tempopb.PreallocBytes, traceCount),
+		Ids:    make([][]byte, traceCount),
+	}
+	for i := range req.Traces {
+		req.Traces[i].Slice = traceBytes
+		id := make([]byte, 16)
+		id[14] = byte(i >> 8)
+		id[15] = byte(i)
+		req.Ids[i] = id
+	}
+
+	records, err := Encode(0, "1395099", req, maxProducerRecordDataBytesLimit)
+	require.NoError(t, err)
+
+	decoder := NewDecoder()
+	decodedTraces := 0
+	for _, record := range records {
+		require.LessOrEqual(t, len(record.Value), maxProducerRecordDataBytesLimit)
+		require.Less(t, len(record.Value)+len(record.Key), producerBatchMaxBytes)
+		decoded, err := decoder.Decode(record.Value)
+		require.NoError(t, err)
+		decodedTraces += len(decoded.Traces)
+	}
+	require.Equal(t, traceCount, decodedTraces)
+}
+
+func TestEncodeSplitPreservesSkipMetricsGeneration(t *testing.T) {
+	req := &tempopb.PushBytesRequest{
+		Traces: []tempopb.PreallocBytes{
+			{Slice: []byte("trace-a")},
+			{Slice: []byte("trace-b")},
+		},
+		Ids:                   [][]byte{[]byte("trace-id-0000001"), []byte("trace-id-0000002")},
+		SkipMetricsGeneration: true,
+	}
+
+	records, err := Encode(0, "tenant", req, 32)
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	decoder := NewDecoder()
+	for _, record := range records {
+		decoded, err := decoder.Decode(record.Value)
+		require.NoError(t, err)
+		require.True(t, decoded.SkipMetricsGeneration)
 	}
 }
 
@@ -80,6 +131,59 @@ func TestDecoderInvalidData(t *testing.T) {
 
 	_, err := decoder.Decode([]byte("invalid data"))
 	require.Error(t, err)
+}
+
+func TestDecoderDecodeResetsState(t *testing.T) {
+	decoder := NewDecoder()
+
+	data, err := generateRequest(3, 100).Marshal()
+	require.NoError(t, err)
+
+	got, err := decoder.Decode(data)
+	require.NoError(t, err)
+	require.Len(t, got.Traces, 3)
+	require.Len(t, got.Ids, 3)
+
+	// Decoding again without an intervening Reset must not accumulate entries.
+	got, err = decoder.Decode(data)
+	require.NoError(t, err)
+	require.Len(t, got.Traces, 3, "Decode must reset state, entries must not accumulate")
+	require.Len(t, got.Ids, 3, "Decode must reset state, entries must not accumulate")
+}
+
+func TestDecoderDecodeAfterFailure(t *testing.T) {
+	// A record that unmarshals some entries before failing leaves partial
+	// state behind. The next successful Decode must not include it.
+	valid, err := generateRequest(2, 100).Marshal()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		corrupt []byte
+	}{
+		// Every entry decodes, then the trailing bytes fail.
+		{"trailing garbage", append(bytes.Clone(valid), 0xFF, 0xFF)},
+		// Traces are encoded before IDs, so cutting the last byte leaves
+		// more traces than IDs behind.
+		{"truncated id", valid[:len(valid)-1]},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decoder := NewDecoder()
+
+			_, err := decoder.Decode(tt.corrupt)
+			require.Error(t, err)
+
+			want := generateRequest(1, 100)
+			data, err := want.Marshal()
+			require.NoError(t, err)
+
+			got, err := decoder.Decode(data)
+			require.NoError(t, err)
+			require.Equal(t, want.Traces, got.Traces, "failed Decode must not leak partial entries into the next Decode")
+			require.Equal(t, want.Ids, got.Ids, "failed Decode must not leak partial entries into the next Decode")
+		})
+	}
 }
 
 func TestEncoderDecoderEmptyStream(t *testing.T) {

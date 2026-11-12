@@ -13,13 +13,18 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
+	"strings"
 	"time"
+
+	"github.com/elastic/lunes"
 )
 
 var (
 	ctimeRegexp                      = regexp.MustCompile(`%.`)
 	invalidFractionalSecondsStrptime = regexp.MustCompile(`[^.,]%[Lfs]`)
 	decimalsRegexp                   = regexp.MustCompile(`\d`)
+	leadingSpaceRegexp               = regexp.MustCompile(`^\s+`)
 )
 
 var ctimeSubstitutes = map[string]string{
@@ -102,34 +107,150 @@ var ctimeSubstitutes = map[string]string{
 //	%% - A % sign
 //	%c - Date and time representation (Mon Jan 02 15:04:05 2006)
 func Format(format string, t time.Time) (string, error) {
-	native, err := ToNative(format)
+	native, err := toNative(format)
 	if err != nil {
 		return "", err
 	}
 	return t.Format(native), nil
 }
 
-// Parse parses a ctime-like formatted string (e.g. "%Y-%m-%d ...") and returns
-// the time value it represents.
+type ParseFunc func(layout string) (time.Time, error)
+
+// Parse parses a ctime-like formatted string (e.g. "%Y-%m-%d ...")
+// and returns the time value it represents and the Go layout string
+// that successfully parsed the input.
 //
-// Refer to Format() function documentation for possible directives.
-func Parse(format, value string) (time.Time, error) {
-	native, err := ToNative(format)
-	if err != nil {
-		return time.Time{}, nil
+// It differs from Format in that it will attempt to parse the string
+// multiple times in order to handle format specifiers that can have
+// multiple valid formats such as %z. Notable differences include:
+//
+// - Leading whitespace before a digit is ignored
+// - Numbers may or may not have leading zero digits
+// - Multiple time zone formats are supported
+//
+// Refer to strptime(3) and Format() function documentation for possible directives.
+//
+// Note: The returned ParseError will indicate the ctime directive that failed to parse.
+func Parse(format string, parse ParseFunc) (time.Time, string, error) {
+	indexes := ctimeRegexp.FindAllStringIndex(format, -1)
+	t, layout, err := iterativeParse("", format, 0, indexes, parse)
+	if timeErr, ok := errors.AsType[*time.ParseError](err); ok {
+		timeErr.Layout = format
 	}
-	return time.Parse(native, value)
+	return t, layout, err
 }
 
-// ToNative converts ctime-like format string to Go native layout
+// Alternative formats that allow more flexible ctime-compatible parsing.
+// The values are split into discrete time.Parse elements so they can be identified in ParseError.LayoutElem.
+var ctimeParseSubstitutes = map[string][][]string{
+	"%m": {{"1"}},
+	"%o": {{"1"}},
+	"%q": {{"1"}},
+	"%d": {{"2"}},
+	"%e": {{"2"}},
+	"%g": {{"2"}},
+	"%I": {{"3"}},
+	"%M": {{"4"}},
+	"%S": {{"5"}},
+	"%D": {
+		// N.B. The docs above say that %D is equivalent to %m/%d/%y, but the implementation of Format uses %m/%d/%Y. We try to parse as both.
+		{"1", "/", "2", "/", "2006"},
+		{"1", "/", "2", "/", "06"},
+	},
+	"%x": {
+		{"1", "/", "2", "/", "2006"},
+		{"1", "/", "2", "/", "06"},
+	},
+	"%F": {{"2006", "-", "1", "-", "2"}},
+	"%T": {{"15", ":", "4", ":", "5"}},
+	"%X": {{"15", ":", "4", ":", "5"}},
+	"%r": {{"3", ":", "4", ":", "5", " ", "pm"}},
+	"%R": {{"15", ":", "4"}},
+	"%c": {{"Mon", " ", "Jan", " ", "2", " ", "15", ":", "4", ":", "5", " ", "2006"}},
+}
+
+func iterativeParse(partialLayout, format string, startIndex int, indexes [][]int, parse ParseFunc) (out time.Time, layout string, err error) {
+	if len(indexes) == 0 {
+		layout = partialLayout + format[startIndex:]
+		out, err = parse(layout)
+		return out, layout, err
+	}
+	partialLayout += format[startIndex:indexes[0][0]]
+	directive := format[indexes[0][0]:indexes[0][1]]
+	// tryElements will attempt to match the time with elements.
+	// It returns the index of the failing element and the remaining unparsed input, or -1 if none of the elements were responsible for a failure.
+	tryElements := func(elements ...string) (int, string) {
+		out, layout, err = iterativeParse(partialLayout+strings.Join(elements, ""), format, indexes[0][1], indexes[1:], parse)
+		var timeErr *time.ParseError
+		if errors.As(err, &timeErr) && timeErr.LayoutElem != "" {
+			if i := slices.Index(elements, timeErr.LayoutElem); i >= 0 {
+				timeErr.LayoutElem = directive
+				return i, timeErr.ValueElem
+			}
+		}
+		var lunesErr *lunes.ErrLayoutMismatch
+		if errors.As(err, &lunesErr) && lunesErr.LayoutElem != "" {
+			if i := slices.Index(elements, lunesErr.LayoutElem); i >= 0 {
+				lunesErr.LayoutElem = directive
+				return i, "unknown"
+			}
+		}
+		return -1, ""
+	}
+	// try will attempt to match the time with elements and optional leading spaces
+	try := func(elements ...string) (int, string) {
+		for {
+			i, remainder := tryElements(elements...)
+			if i >= 0 {
+				switch elements[i][0] {
+				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Z':
+					space := leadingSpaceRegexp.FindString(remainder)
+					if space != "" {
+						elements = slices.Insert(append([]string{}, elements...), i, space)
+						continue
+					}
+				}
+			}
+			return i, remainder
+		}
+	}
+	if directive == "%z" {
+		if i, _ := try("Z0700"); i < 0 {
+			return out, layout, err
+		}
+		if i, _ := try("Z07:00"); i < 0 {
+			return out, layout, err
+		}
+		if i, _ := try("Z07"); i < 0 {
+			return out, layout, err
+		}
+		return out, layout, err
+	}
+	if substs, ok := ctimeParseSubstitutes[directive]; ok {
+		for _, subst := range substs {
+			if i, _ := try(subst...); i < 0 {
+				break
+			}
+		}
+		// Don't fall back to the original substitutes, or we will generate incorrect error messages.
+		return out, layout, err
+	}
+	if subst, ok := ctimeSubstitutes[directive]; ok {
+		try(subst)
+		return out, layout, err
+	}
+	return time.Time{}, "", fmt.Errorf("unsupported ctimefmt.FlexibleParse() directive: %s", directive)
+}
+
+// toNative converts ctime-like format string to Go native layout
 // (which is used by time.Time.Format() and time.Parse() functions).
-func ToNative(format string) (string, error) {
+func toNative(format string) (string, error) {
 	var errs []error
 	replaceFunc := func(directive string) string {
 		if subst, ok := ctimeSubstitutes[directive]; ok {
 			return subst
 		}
-		errs = append(errs, errors.New("unsupported ctimefmt.ToNative() directive: "+directive))
+		errs = append(errs, errors.New("unsupported ctimefmt.toNative() directive: "+directive))
 		return ""
 	}
 
@@ -155,25 +276,11 @@ func Validate(format string) error {
 	var errs []error
 	for _, directive := range directives {
 		if _, ok := ctimeSubstitutes[directive]; !ok {
-			errs = append(errs, errors.New("unsupported ctimefmt.ToNative() directive: "+directive))
+			errs = append(errs, errors.New("unsupported ctimefmt.toNative() directive: "+directive))
 		}
 	}
 	if len(errs) != 0 {
 		return fmt.Errorf("invalid strptime format: %v", errs)
 	}
 	return nil
-}
-
-// GetNativeSubstitutes analyzes the provided format string and returns a map where each
-// key is a Go native layout element (as used in time.Format) found in the format, and
-// each value is the corresponding ctime-like directive.
-func GetNativeSubstitutes(format string) map[string]string {
-	nativeDirectives := map[string]string{}
-	directives := ctimeRegexp.FindAllString(format, -1)
-	for _, directive := range directives {
-		if val, ok := ctimeSubstitutes[directive]; ok {
-			nativeDirectives[val] = directive
-		}
-	}
-	return nativeDirectives
 }

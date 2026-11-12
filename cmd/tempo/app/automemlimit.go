@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,7 +19,7 @@ func InitAutoMemLimit(config *Config) {
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-	limit, err := memlimit.SetGoMemLimitWithOpts(
+	limit, err := memlimit.Set(
 		memlimit.WithRatio(config.Memory.AutoMemLimitRatio),
 		memlimit.WithProvider(
 			memlimit.ApplyFallback(
@@ -26,7 +27,7 @@ func InitAutoMemLimit(config *Config) {
 				memlimit.FromSystem,
 			),
 		),
-		memlimit.WithRefreshInterval(15*time.Second),
+		memlimit.WithRefreshInterval(context.Background(), 15*time.Second),
 		memlimit.WithLogger(logger),
 	)
 	if err != nil {

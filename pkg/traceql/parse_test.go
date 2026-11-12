@@ -888,28 +888,28 @@ func TestSpansetFilterOperatorPrecedence(t *testing.T) {
 			expected: newBinaryOperation(OpAnd,
 				NewAttribute("a"),
 				newBinaryOperation(OpEqual, NewAttribute("b"), NewAttribute("c"))),
-			expectedStr: "{ .a && (.b = .c) }",
+			expectedStr: "{ (.a = true) && (.b = .c) }",
 		},
 		{
 			in: "{ .a = .b && .c }",
 			expected: newBinaryOperation(OpAnd,
 				newBinaryOperation(OpEqual, NewAttribute("a"), NewAttribute("b")),
 				NewAttribute("c")),
-			expectedStr: "{ (.a = .b) && .c }",
+			expectedStr: "{ (.a = .b) && (.c = true) }",
 		},
 		{
 			in: "{ .a = !.b && .c }",
 			expected: newBinaryOperation(OpAnd,
 				newBinaryOperation(OpEqual, NewAttribute("a"), newUnaryOperation(OpNot, NewAttribute("b"))),
 				NewAttribute("c")),
-			expectedStr: "{ (.a = (!.b)) && .c }",
+			expectedStr: "{ (.a = (!.b)) && (.c = true) }",
 		},
 		{
 			in: "{ .a = !( .b && .c ) }",
 			expected: newBinaryOperation(OpEqual,
 				NewAttribute("a"),
 				newUnaryOperation(OpNot, newBinaryOperation(OpAnd, NewAttribute("b"), NewAttribute("c")))),
-			expectedStr: "{ .a = (!(.b && .c)) }",
+			expectedStr: "{ .a = (!((.b = true) && (.c = true))) }",
 		},
 		{
 			in: "{ .a = .b || .c = .d}",
@@ -1091,6 +1091,7 @@ func TestBinaryAndUnaryOperationsRewrites(t *testing.T) {
 	}{
 		// collapse to statics
 		{in: "{ duration > 1 + 2}", expected: newBinaryOperation(OpGreater, NewIntrinsic(IntrinsicDuration), NewStaticInt(3))},
+		{in: "{ duration > 2 ^ 10 }", expected: newBinaryOperation(OpGreater, NewIntrinsic(IntrinsicDuration), NewStaticInt(1024))},
 		{in: "{ -1 }", expected: NewStaticInt(-1)},
 		{in: "{ 1 + 1 > 1 }", expected: NewStaticBool(true)},
 		{in: "{ `foo` = `bar` }", expected: NewStaticBool(false)},

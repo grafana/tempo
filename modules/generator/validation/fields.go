@@ -152,6 +152,13 @@ func ValidateHistogramBuckets(buckets []float64, field string) error {
 	return nil
 }
 
+func ValidateServiceGraphsMaxItems(maxItems int) error {
+	if maxItems <= 0 {
+		return fmt.Errorf("metrics_generator.processor.service_graphs.max_items must be greater than zero, got %d", maxItems)
+	}
+	return nil
+}
+
 func ValidateNativeHistogramBucketFactor(factor float64) error {
 	if factor <= 1 {
 		return fmt.Errorf("metrics_generator.native_histogram_bucket_factor must be greater than 1")

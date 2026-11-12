@@ -65,7 +65,7 @@ func BenchmarkRequestsByTraceIDScenarios(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, traces, _, _, err := requestsByTraceID(batches, "test", spanCount, 0)
+				_, traces, _, _, err := requestsByTraceID(batches, "test", spanCount, 0, 0)
 				if err != nil {
 					b.Fatal(err)
 				}

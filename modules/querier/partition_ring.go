@@ -2,11 +2,27 @@ package querier
 
 import (
 	"context"
+	"fmt"
 	"math/rand/v2"
+	"time"
 
 	"github.com/grafana/dskit/concurrency"
 	"github.com/grafana/dskit/ring"
 )
+
+// liveStoreReplicationSets filters expired INACTIVE partitions before resolving their owners.
+func (q *Querier) liveStoreReplicationSets(now time.Time) ([]ring.ReplicationSet, error) {
+	partitions := q.partitionRing
+	if lookback := q.cfg.PartitionRing.ReadLookbackPeriod; lookback > 0 {
+		// Size zero retains the full read-eligible ring, so use one cache key for all tenants.
+		var err error
+		partitions, err = partitions.ShuffleShardWithLookback("live-store-read", 0, lookback, now)
+		if err != nil {
+			return nil, fmt.Errorf("error filtering partition ring: %w", err)
+		}
+	}
+	return partitions.GetReplicationSetsForOperation(ring.Read)
+}
 
 // forPartitionRingReplicaSets runs f, in parallel, for all live-store instances in the input replicationSets.
 // Return an error if any f fails for any of the input replicationSets.

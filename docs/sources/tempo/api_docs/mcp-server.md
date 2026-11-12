@@ -47,6 +47,12 @@ The MCP server exposes the following tools that AI assistants can use to interac
 | `docs-traceql`            | Retrieve TraceQL documentation (basic, aggregates, structural, metrics) |
 | `docs-config`             | Retrieve Tempo configuration documentation (overview, reference)        |
 
+### Retrieve a trace
+
+The `get-trace` tool takes a `trace_id`. The optional `start` and `end` arguments limit the
+lookup to an RFC3339 time range; both must be provided together. Tempo searches all blocks
+for the trace when the range is omitted, so provide a range when it is known.
+
 ### Compare traces
 
 The experimental `traces-diff` tool compares a baseline trace with another complete trace.

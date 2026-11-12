@@ -7,28 +7,20 @@ import (
 	"context"
 	"fmt"
 
-	"go.opentelemetry.io/collector/featuregate"
-
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/expr"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterconfig"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filtermatcher"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/filterset"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/internal/metadata"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
-)
-
-var useOTTLBridge = featuregate.GlobalRegistry().MustRegister(
-	"filter.filterlog.useOTTLBridge",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterDescription("When enabled, filterlog will convert filterlog configuration to OTTL and use filterottl evaluation"),
-	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/18642"),
 )
 
 // NewSkipExpr creates a BoolExpr that on evaluation returns true if a log should NOT be processed or kept.
 // The logic determining if a log should be processed is based on include and exclude settings.
 // Include properties are checked before exclude settings are checked.
 func NewSkipExpr(mp *filterconfig.MatchConfig) (expr.BoolExpr[*ottllog.TransformContext], error) {
-	if useOTTLBridge.IsEnabled() {
+	if metadata.FilterFilterlogUseOTTLBridgeFeatureGate.IsEnabled() {
 		return filterottl.NewLogSkipExprBridge(mp)
 	}
 	var matchers []expr.BoolExpr[*ottllog.TransformContext]

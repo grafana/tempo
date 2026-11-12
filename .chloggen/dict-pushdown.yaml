@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: storage
+
+note: Improve TraceQL search and metrics performance by evaluating filters once per dictionary entry instead of once per row.
+
+issues: []
+
+subtext:
+
+user: zhxiaogg

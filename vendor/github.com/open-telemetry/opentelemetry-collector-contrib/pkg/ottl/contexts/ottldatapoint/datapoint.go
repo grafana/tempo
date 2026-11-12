@@ -31,7 +31,6 @@ var tcPool = sync.Pool{
 }
 
 // ContextName is the name of the context for datapoints.
-// Experimental: *NOTE* this constant is subject to change or removal in the future.
 const ContextName = ctxdatapoint.Name
 
 var (
@@ -48,6 +47,7 @@ type TransformContext struct {
 	metric          pmetric.Metric
 	dataPoint       any
 	cache           pcommon.Map
+	externalCache   *pcommon.Map
 }
 
 // MarshalLogObject serializes the TransformContext into a zapcore.ObjectEncoder for logging.
@@ -55,27 +55,33 @@ func (tCtx *TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) er
 	err := encoder.AddObject("resource", logging.Resource(tCtx.GetResource()))
 	err = errors.Join(err, encoder.AddObject("scope", logging.InstrumentationScope(tCtx.GetInstrumentationScope())))
 	err = errors.Join(err, encoder.AddObject("metric", logging.Metric(tCtx.metric)))
-
-	switch dp := tCtx.dataPoint.(type) {
-	case pmetric.NumberDataPoint:
-		err = encoder.AddObject("datapoint", logging.NumberDataPoint(dp))
-	case pmetric.HistogramDataPoint:
-		err = encoder.AddObject("datapoint", logging.HistogramDataPoint(dp))
-	case pmetric.ExponentialHistogramDataPoint:
-		err = encoder.AddObject("datapoint", logging.ExponentialHistogramDataPoint(dp))
-	case pmetric.SummaryDataPoint:
-		err = encoder.AddObject("datapoint", logging.SummaryDataPoint(dp))
-	}
-
-	err = errors.Join(err, encoder.AddObject("cache", logging.Map(tCtx.cache)))
+	err = errors.Join(err, encoder.AddObject("datapoint", logging.DataPoint(tCtx.dataPoint)))
+	err = errors.Join(err, encoder.AddObject("cache", logging.Map(getCache(tCtx))))
 	return err
 }
 
 type TransformContextOption func(*TransformContext)
 
-// NewTransformContextPtr returns a new TransformContext with the provided parameters from a pool of contexts.
+// WithCache sets an external shared cache on the TransformContext.
+// When set, the cache is shared across multiple TransformContext instances.
+// The caller owns the cache: TransformContext.Close does not clear it, so the caller
+// is responsible for clearing or discarding it when it is no longer needed.
+// pcommon.Map is not safe for concurrent use, so a shared cache must not be used by
+// multiple goroutines at the same time.
+// If cache is nil, the option has no effect and the TransformContext uses its own cache.
+func WithCache(cache *pcommon.Map) TransformContextOption {
+	return func(tCtx *TransformContext) {
+		if cache != nil {
+			tCtx.externalCache = cache
+		}
+	}
+}
+
+// NewTransformContext returns a new TransformContext with the provided parameters from a pool of contexts.
 // Caller must call TransformContext.Close on the returned TransformContext.
-func NewTransformContextPtr(resourceMetrics pmetric.ResourceMetrics, scopeMetrics pmetric.ScopeMetrics, metric pmetric.Metric, dataPoint any, options ...TransformContextOption) *TransformContext {
+// dataPoint must be one of pmetric.NumberDataPoint, pmetric.HistogramDataPoint,
+// pmetric.ExponentialHistogramDataPoint, or pmetric.SummaryDataPoint.
+func NewTransformContext(resourceMetrics pmetric.ResourceMetrics, scopeMetrics pmetric.ScopeMetrics, metric pmetric.Metric, dataPoint any, options ...TransformContextOption) *TransformContext {
 	tCtx := tcPool.Get().(*TransformContext)
 	tCtx.resourceMetrics = resourceMetrics
 	tCtx.scopeMetrics = scopeMetrics
@@ -95,10 +101,13 @@ func (tCtx *TransformContext) Close() {
 	tCtx.metric = pmetric.Metric{}
 	tCtx.dataPoint = nil
 	tCtx.cache.Clear()
+	tCtx.externalCache = nil
 	tcPool.Put(tCtx)
 }
 
 // GetDataPoint returns the datapoint from the TransformContext.
+// The returned value is one of pmetric.NumberDataPoint, pmetric.HistogramDataPoint,
+// pmetric.ExponentialHistogramDataPoint, or pmetric.SummaryDataPoint.
 func (tCtx *TransformContext) GetDataPoint() any {
 	return tCtx.dataPoint
 }
@@ -124,20 +133,18 @@ func (tCtx *TransformContext) GetMetrics() pmetric.MetricSlice {
 }
 
 // GetScopeSchemaURLItem returns the scope schema URL item from the TransformContext.
-func (tCtx *TransformContext) GetScopeSchemaURLItem() ctxcommon.SchemaURLItem {
+func (tCtx *TransformContext) GetScopeSchemaURLItem() ottl.SchemaURLItem {
 	return tCtx.scopeMetrics
 }
 
 // GetResourceSchemaURLItem returns the resource schema URL item from the TransformContext.
-func (tCtx *TransformContext) GetResourceSchemaURLItem() ctxcommon.SchemaURLItem {
+func (tCtx *TransformContext) GetResourceSchemaURLItem() ottl.SchemaURLItem {
 	return tCtx.resourceMetrics
 }
 
 // EnablePathContextNames enables the support for path's context names on statements.
 // When this option is configured, all statement's paths must have a valid context prefix,
 // otherwise an error is reported.
-//
-// Experimental: *NOTE* this option is subject to change or removal in the future.
 func EnablePathContextNames() ottl.Option[*TransformContext] {
 	return func(p *ottl.Parser[*TransformContext]) {
 		ottl.WithPathContextNames[*TransformContext]([]string{
@@ -213,6 +220,9 @@ func parseEnum(val *ottl.EnumSymbol) (*ottl.Enum, error) {
 }
 
 func getCache(tCtx *TransformContext) pcommon.Map {
+	if tCtx.externalCache != nil {
+		return *tCtx.externalCache
+	}
 	return tCtx.cache
 }
 
@@ -228,5 +238,6 @@ func pathExpressionParser(cacheGetter ctxcache.Getter[*TransformContext]) ottl.P
 			ctxmetric.Name:      ctxmetric.PathGetSetter[*TransformContext],
 			ctxdatapoint.Name:   ctxdatapoint.PathGetSetter[*TransformContext],
 			ctxotelcol.Name:     ctxotelcol.PathGetSetter[*TransformContext],
-		})
+		},
+	)
 }

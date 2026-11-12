@@ -38,7 +38,9 @@ const (
 	DefaultPrefetchTraceCount   = 1000
 	DefaultSearchChunkSizeBytes = 1_000_000
 	DefaultReadBufferCount      = 32
-	DefaultReadBufferSize       = 1 * 1024 * 1024
+	DefaultReadBufferSize       = 2 * 1024 * 1024
+
+	DefaultTraceByIDReadBufferSize = 512 * 1024
 )
 
 // Config holds the entirety of tempodb configuration
@@ -94,6 +96,8 @@ type SearchConfig struct {
 	// vParquet blocks
 	ReadBufferCount     int `yaml:"read_buffer_count"`
 	ReadBufferSizeBytes int `yaml:"read_buffer_size_bytes"`
+	// TraceByIDReadBufferSizeBytes overrides read_buffer_size_bytes for trace-by-ID lookups.
+	TraceByIDReadBufferSizeBytes int `yaml:"trace_by_id_read_buffer_size_bytes"`
 	// todo: consolidate caching config in one spot
 	CacheControl CacheControlConfig `yaml:"cache_control"`
 }
@@ -103,6 +107,7 @@ func (c *SearchConfig) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	c.PrefetchTraceCount = DefaultPrefetchTraceCount
 	c.ReadBufferCount = DefaultReadBufferCount
 	c.ReadBufferSizeBytes = DefaultReadBufferSize
+	c.TraceByIDReadBufferSizeBytes = DefaultTraceByIDReadBufferSize
 }
 
 func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
@@ -110,6 +115,7 @@ func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
 	o.PrefetchTraceCount = c.PrefetchTraceCount
 	o.ReadBufferCount = c.ReadBufferCount
 	o.ReadBufferSize = c.ReadBufferSizeBytes
+	o.TraceByIDReadBufferSize = c.TraceByIDReadBufferSizeBytes
 
 	if o.ChunkSizeBytes == 0 {
 		o.ChunkSizeBytes = DefaultSearchChunkSizeBytes
@@ -122,6 +128,9 @@ func (c SearchConfig) ApplyToOptions(o *common.SearchOptions) {
 	}
 	if o.ReadBufferCount <= 0 {
 		o.ReadBufferCount = DefaultReadBufferCount
+	}
+	if o.TraceByIDReadBufferSize <= 0 {
+		o.TraceByIDReadBufferSize = DefaultTraceByIDReadBufferSize
 	}
 }
 

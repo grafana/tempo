@@ -17,6 +17,7 @@ import (
 
 var defaultContextInferPriority = []string{
 	"log",
+	"exemplar",
 	"datapoint",
 	"metric",
 	"spanevent",
@@ -145,6 +146,7 @@ func (s *priorityContextInferrer) inferFromHints(hints []priorityContextInferrer
 
 	requiredFunctions := map[string]struct{}{}
 	requiredEnums := map[enumSymbol]struct{}{}
+	ambiguousEnums := map[enumSymbol]struct{}{}
 
 	var inferredContextPriority int
 	for _, hint := range hints {
@@ -165,6 +167,9 @@ func (s *priorityContextInferrer) inferFromHints(hints []priorityContextInferrer
 		for enum := range hint.enumsSymbols {
 			requiredEnums[enum] = struct{}{}
 		}
+		for enum := range hint.ambiguousEnums {
+			ambiguousEnums[enum] = struct{}{}
+		}
 	}
 	// No inferred context
 	if inferredContext == "" {
@@ -175,10 +180,10 @@ func (s *priorityContextInferrer) inferFromHints(hints []priorityContextInferrer
 	if len(requiredFunctions) == 0 && len(requiredEnums) == 0 {
 		return inferredContext, nil
 	}
-	if err = s.validateContextCandidate(inferredContext, requiredFunctions, requiredEnums); err == nil {
+	if err = s.validateContextCandidate(inferredContext, requiredFunctions, requiredEnums, ambiguousEnums); err == nil {
 		return inferredContext, nil
 	}
-	if inferredFromLowerContexts, lowerContextErr := s.inferFromLowerContexts(inferredContext, requiredFunctions, requiredEnums); lowerContextErr == nil {
+	if inferredFromLowerContexts, lowerContextErr := s.inferFromLowerContexts(inferredContext, requiredFunctions, requiredEnums, ambiguousEnums); lowerContextErr == nil {
 		return inferredFromLowerContexts, nil
 	}
 	return "", err
@@ -190,6 +195,7 @@ func (s *priorityContextInferrer) validateContextCandidate(
 	context string,
 	requiredFunctions map[string]struct{},
 	requiredEnums map[enumSymbol]struct{},
+	ambiguousEnums map[enumSymbol]struct{},
 ) error {
 	s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Validating selected context candidate: %q`, context))
 	candidate, ok := s.contextCandidate[context]
@@ -205,9 +211,16 @@ func (s *priorityContextInferrer) validateContextCandidate(
 		}
 	}
 	for enum := range requiredEnums {
-		if !candidate.hasEnumSymbol((*EnumSymbol)(&enum)) {
-			return fmt.Errorf(`inferred context "%s" does not support the enum symbol "%s"`, context, string(enum))
+		if candidate.hasEnumSymbol((*EnumSymbol)(&enum)) {
+			continue
 		}
+		// The grammar parses all-uppercase function arguments, e.g. a converter named SHA256, as enums.
+		// Without the function's argument types, an argument may be either an enum symbol or a
+		// function name, so it's accepted if the candidate supports it as a function.
+		if _, ambiguous := ambiguousEnums[enum]; ambiguous && candidate.hasFunctionName(string(enum)) {
+			continue
+		}
+		return fmt.Errorf(`inferred context "%s" does not support the enum symbol "%s"`, context, string(enum))
 	}
 	return nil
 }
@@ -220,6 +233,7 @@ func (s *priorityContextInferrer) inferFromLowerContexts(
 	context string,
 	requiredFunctions map[string]struct{},
 	requiredEnums map[enumSymbol]struct{},
+	ambiguousEnums map[enumSymbol]struct{},
 ) (inferredContext string, err error) {
 	s.telemetrySettings.Logger.Debug(fmt.Sprintf(`Trying to infer context using %q lower contexts`, context))
 
@@ -241,7 +255,7 @@ func (s *priorityContextInferrer) inferFromLowerContexts(
 
 	s.sortContextCandidates(lowerContextCandidates)
 	for _, lowerCandidate := range lowerContextCandidates {
-		if candidateErr := s.validateContextCandidate(lowerCandidate, requiredFunctions, requiredEnums); candidateErr == nil {
+		if candidateErr := s.validateContextCandidate(lowerCandidate, requiredFunctions, requiredEnums, ambiguousEnums); candidateErr == nil {
 			return lowerCandidate, nil
 		}
 		s.telemetrySettings.Logger.Debug(fmt.Sprintf(`lower context %q is not a valid candidate`, lowerCandidate), zap.Error(err))
@@ -320,30 +334,52 @@ func (*priorityContextInferrer) getValueExpressionsHints(exprs []string) ([]prio
 	return hints, nil
 }
 
+var _ localIdentifierScopeVisitor = (*priorityContextInferrerHints)(nil)
+
 // priorityContextInferrerHints is a grammarVisitor implementation that collects
-// all path, function names (converter.Function and editor.Function), and enumSymbol.
+// all path (except localIdentifierDecl), function names (converter.Function, editor.Function),
+// and enumSymbol.
 type priorityContextInferrerHints struct {
 	paths        []path
 	functions    map[string]struct{}
 	enumsSymbols map[enumSymbol]struct{}
+	// ambiguousEnums holds the enum symbols used as direct function arguments, which may
+	// also be function names. See priorityContextInferrer.validateContextCandidate.
+	ambiguousEnums map[enumSymbol]struct{}
+	scopes         localScopeStack
 }
 
 func newGrammarContextInferrerVisitor() priorityContextInferrerHints {
 	return priorityContextInferrerHints{
-		paths:        []path{},
-		functions:    make(map[string]struct{}),
-		enumsSymbols: make(map[enumSymbol]struct{}),
+		paths:          []path{},
+		functions:      make(map[string]struct{}),
+		enumsSymbols:   make(map[enumSymbol]struct{}),
+		ambiguousEnums: make(map[enumSymbol]struct{}),
 	}
 }
 
 func (*priorityContextInferrerHints) visitMathExprLiteral(*mathExprLiteral) {}
+func (*priorityContextInferrerHints) visitLambdaBody(*lambdaBody)           {}
 
 func (v *priorityContextInferrerHints) visitEditor(e *editor) {
 	v.functions[e.Function] = struct{}{}
+	v.visitArguments(e.Arguments)
 }
 
 func (v *priorityContextInferrerHints) visitConverter(c *converter) {
 	v.functions[c.Function] = struct{}{}
+	v.visitArguments(c.Arguments)
+}
+
+func (v *priorityContextInferrerHints) visitArguments(args []argument) {
+	for i := range args {
+		switch {
+		case args[i].FunctionName != nil:
+			v.functions[*args[i].FunctionName] = struct{}{}
+		case args[i].Value.Enum != nil:
+			v.ambiguousEnums[*args[i].Value.Enum] = struct{}{}
+		}
+	}
 }
 
 func (v *priorityContextInferrerHints) visitValue(va *value) {
@@ -353,5 +389,15 @@ func (v *priorityContextInferrerHints) visitValue(va *value) {
 }
 
 func (v *priorityContextInferrerHints) visitPath(value *path) {
-	v.paths = append(v.paths, *value)
+	if !value.inScope(v.scopes) {
+		v.paths = append(v.paths, *value)
+	}
+}
+
+func (v *priorityContextInferrerHints) pushLocalIdentifiers(params []localIdentifierDecl) {
+	v.scopes.push(localIdentifiersDeclToFrame(params))
+}
+
+func (v *priorityContextInferrerHints) popLocalIdentifiers() {
+	v.scopes.pop()
 }

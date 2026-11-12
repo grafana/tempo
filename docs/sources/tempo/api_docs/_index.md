@@ -42,6 +42,7 @@ For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 | [TraceQL Metrics](#traceql-metrics)                                                   | Query-frontend                            | HTTP | `GET /api/metrics/query_range`                            |
 | [TraceQL Metrics (instant)](#instant)                                                 | Query-frontend                            | HTTP | `GET /api/metrics/query`                                  |
 | [Traces diff](#traces-diff) (\*)                                                        | Query-frontend                            | HTTP | `POST /api/v2/traces/diff`                                |
+| [Active queries](#active-queries)                                                      | Query-frontend                            | HTTP | `GET /status/active-queries`                              |
 | [Query Echo Endpoint](#query-echo-endpoint)                                           | Query-frontend                            | HTTP | `GET /api/echo`                                           |
 | [Overrides API](#overrides-api)                                                       | Query-frontend                            | HTTP | `GET,POST,PATCH,DELETE /api/overrides`                    |
 | Memberlist                                                                            | Distributor, Querier, Live store          | HTTP | `GET /memberlist`                                         |
@@ -135,6 +136,11 @@ Parameters:
   Optional. Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
   Optional. Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` includes traces for the specified time range only. If the parameters aren't provided then Tempo checks for the trace across all blocks in backend. If the parameters are provided, it only checks in the blocks within the specified time range, this can result in trace not being found or partial results if it doesn't fall in the specified time range.
+
+When span pruning is applied, the response also includes a `pruneStatus` field. It's omitted when the trace wasn't pruned.
+
+- `PRUNED_ON_READ`: Tempo pruned the trace while serving this request. The original spans remain in storage, and querying again with `span_pruning=false` returns them.
+- `PRUNED_ON_WRITE`: the trace was already pruned before it reached Tempo, for example by an upstream collector. The original spans were never stored, so querying with `span_pruning=false` can't recover them.
 
 The following query API is also provided on the querier service for _debugging_ purposes.
 
@@ -834,6 +840,24 @@ Returns status code 200 and body `echo` when the query frontend is up and ready 
 
 {{< admonition type="note" >}}
 Meant to be used in a Query Visualization UI like Grafana to test that the Tempo data source is working.
+{{< /admonition >}}
+
+### Active queries
+
+```
+GET /status/active-queries
+```
+
+Lists tenants with queries currently being processed by this query-frontend instance.
+Open `GET /status/active-queries/{tenant}` to view that tenant's active queries.
+Each query includes its ID, request method and path, query details, and start time.
+The pages render HTML by default and return JSON when the request accepts `application/json`.
+Query tracking is disabled by default.
+
+Enable it by setting `query_frontend.query_tracker.enabled: true`.
+
+{{< admonition type="note" >}}
+In a distributed deployment, query each query-frontend instance to see its active queries.
 {{< /admonition >}}
 
 ### Overrides API

@@ -1,0 +1,6 @@
+change_type: enhancement
+component: cache
+note: Split the `timeout` reason of `tempo_memcache_request_errors_total` into `timeout` and `timeout_value`, the latter for timeouts while reading an item's value.
+issues: []
+subtext:
+user: zalegrala

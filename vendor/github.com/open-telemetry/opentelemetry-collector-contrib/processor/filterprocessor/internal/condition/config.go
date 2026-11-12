@@ -58,7 +58,7 @@ func toContextConditions(conditions any) (*ContextConditions, error) {
 }
 
 func getErrorMode[T any](pc *ottl.ParserCollection[T], contextConditions *ContextConditions) ottl.ErrorMode {
-	errorMode := pc.ErrorMode
+	errorMode := pc.ErrorMode()
 	if contextConditions.ErrorMode != "" {
 		errorMode = contextConditions.ErrorMode
 	}

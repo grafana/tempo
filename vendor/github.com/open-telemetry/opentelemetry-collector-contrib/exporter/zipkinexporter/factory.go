@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter/internal/metadata"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/coredistro"
 )
 
 const (
@@ -30,7 +31,8 @@ func NewFactory() exporter.Factory {
 	return exporter.NewFactory(
 		metadata.Type,
 		createDefaultConfig,
-		exporter.WithTraces(createTracesExporter, metadata.TracesStability))
+		exporter.WithTraces(createTracesExporter, metadata.TracesStability),
+	)
 }
 
 func createDefaultConfig() component.Config {
@@ -51,6 +53,7 @@ func createTracesExporter(
 	set exporter.Settings,
 	cfg component.Config,
 ) (exporter.Traces, error) {
+	coredistro.WarnRemoval(set.TelemetrySettings, set.BuildInfo, "v0.167.0", coredistro.JaegerZipkinCoda)
 	zc := cfg.(*Config)
 
 	ze, err := createZipkinExporter(zc, set.TelemetrySettings)
@@ -66,5 +69,6 @@ func createTracesExporter(
 		// explicitly disable since we rely on http.Client timeout logic.
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithQueue(zc.QueueSettings),
-		exporterhelper.WithRetry(zc.BackOffConfig))
+		exporterhelper.WithRetry(zc.BackOffConfig),
+	)
 }

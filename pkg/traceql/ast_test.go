@@ -438,6 +438,48 @@ func TestStatic_BooleanArray(t *testing.T) {
 	}
 }
 
+func TestStatic_Clone(t *testing.T) {
+	ints := []int{1, 2}
+	floats := []float64{1.1, 2.2}
+	strs := []string{"aa", "bb"}
+	bools := []bool{true, false}
+
+	tests := []struct {
+		arg    any
+		mutate func()
+	}{
+		{arg: nil},
+		{arg: 1},
+		{arg: 3.14},
+		{arg: "test"},
+		{arg: true},
+		{arg: time.Second},
+		{arg: StatusOk},
+		{arg: KindClient},
+		{arg: []int(nil)},
+		{arg: []int{}},
+		{arg: ints, mutate: func() { ints[0] = 9 }},
+		{arg: floats, mutate: func() { floats[0] = 9.9 }},
+		{arg: strs, mutate: func() { strs[0] = "zz" }},
+		{arg: bools, mutate: func() { bools[0] = false }},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			want := static.String()
+			clone := static.Clone()
+			require.Equal(t, static, clone)
+
+			if tt.mutate != nil {
+				tt.mutate()
+				require.NotEqual(t, want, static.String())
+				require.Equal(t, want, clone.String())
+			}
+		})
+	}
+}
+
 func TestStatic_MapKey(t *testing.T) {
 	staticVals := []Static{
 		NewStaticNil(),

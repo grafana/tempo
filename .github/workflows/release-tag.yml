@@ -59,7 +59,7 @@ jobs:
           echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout merge commit
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Tag the exact PR merge commit, not the branch tip (main moves under RCs).
           ref: ${{ github.event.pull_request.merge_commit_sha }}
@@ -116,7 +116,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.guard-and-tag.outputs.tag }}
           persist-credentials: false
@@ -151,3 +151,14 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --notes-file release-notes.md \
             "${flags[@]}"
+
+  export_sbom:
+    # A release published with GITHUB_TOKEN does not fire `release: published`, so call the
+    # SBOM workflow directly once the release is public.
+    needs: [guard-and-tag, publish]
+    permissions:
+      contents: write # to upload the SBOM as a release asset
+      id-token: write # to authenticate to Vault
+    uses: ./.github/workflows/sbom-on-release.yml
+    with:
+      version: ${{ needs.guard-and-tag.outputs.tag }}

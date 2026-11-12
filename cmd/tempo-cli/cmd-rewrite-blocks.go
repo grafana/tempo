@@ -117,7 +117,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 			// parquet fields
 			RowGroupSizeBytes: 100_000_000, // default
 
-			// vParquet3 fields
+			// dedicated columns
 			DedicatedColumns: meta.DedicatedColumns,
 		},
 		OutputBlocks:     1,
@@ -253,7 +253,8 @@ func isInBlock(ctx context.Context, r backend.Reader, background bool, blockNum 
 			return nil, err
 		}
 
-		if trace == nil {
+		// blocks ruled out by the bloom filter or index respond without a trace
+		if trace.GetTrace() == nil {
 			continue
 		}
 

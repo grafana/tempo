@@ -7,17 +7,18 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
 	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/grafana/tempo/v3/pkg/cache"
 	pq "github.com/grafana/tempo/v3/pkg/parquetquery"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
-	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 )
@@ -33,7 +34,9 @@ const (
 	EnvVarIndexEnabledValue = "1"
 )
 
-func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
+// checkBloom reports whether the bloom filter of the block may contain the trace ID. It also returns the
+// number of bytes read to find out, which is 0 if the bloom filter could not be read.
+func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, bytesRead uint64, err error) {
 	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.checkBloom",
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
@@ -50,22 +53,25 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 		Role: cache.RoleBloom,
 	})
 	if err != nil {
-		return false, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantID, b.meta.BlockID, err)
+		return false, 0, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantID, b.meta.BlockID, err)
 	}
 
 	filter := &bloom.BloomFilter{}
 	_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
 	if err != nil {
-		return false, fmt.Errorf("error parsing bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, 0, fmt.Errorf("error parsing bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
-	return filter.Test(id), nil
+	return filter.Test(id), uint64(len(bloomBytes)), nil
 }
 
-func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int, error) {
+// checkIndex reports whether the trace ID index of the block may contain the trace ID and in which row group.
+// The row group is -1 if unknown. It also returns the number of bytes read, which is 0 if the index is
+// disabled or missing, or if an error is returned.
+func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int, uint64, error) {
 	if os.Getenv(EnvVarIndexName) != EnvVarIndexEnabledValue {
 		// Index lookup disabled
-		return true, -1, nil
+		return true, -1, 0, nil
 	}
 
 	derivedCtx, span := tracer.Start(ctx, "parquet4.backendBlock.checkIndex",
@@ -80,24 +86,26 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 		Role: cache.RoleTraceIDIdx,
 	})
 	if errors.Is(err, backend.ErrDoesNotExist) {
-		return true, -1, nil
+		return true, -1, 0, nil
 	}
 	if err != nil {
-		return false, -1, fmt.Errorf("error retrieving index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, -1, 0, fmt.Errorf("error retrieving index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
+
+	bytesRead := uint64(len(indexBytes))
 
 	index, err := unmarshalIndex(indexBytes)
 	if err != nil {
-		return false, -1, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, -1, 0, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
 	}
 
 	rowGroup := index.Find(id)
 	if rowGroup == -1 {
 		// Ruled out by index
-		return false, -1, nil
+		return false, -1, bytesRead, nil
 	}
 
-	return true, rowGroup, nil
+	return true, rowGroup, bytesRead, nil
 }
 
 func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.TraceByIDResponse, err error) {
@@ -109,163 +117,142 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		))
 	defer span.End()
 
-	found, err := b.checkBloom(derivedCtx, traceID)
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageBloomChecked).Inc()
+	found, bloomBytes, err := b.checkBloom(derivedCtx, traceID)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
-		return nil, nil
+		return notFoundResponse(span, bloomBytes), nil
 	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageBloomPass).Inc()
 
-	ok, rowGroup, err := b.checkIndex(derivedCtx, traceID)
+	ok, rowGroup, indexBytes, err := b.checkIndex(derivedCtx, traceID)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		return nil, nil
+		return notFoundResponse(span, bloomBytes+indexBytes), nil
+	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageIndexPass).Inc()
+
+	if opts.TraceByIDReadBufferSize > 0 {
+		opts.ReadBufferSize = opts.TraceByIDReadBufferSize
 	}
 
 	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	common.MetricFindBlocks.WithLabelValues(b.meta.TenantID, common.FindBlocksStageRead).Inc()
 
-	foundTrace, err := findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
+	foundTrace, err := findTraceByID(derivedCtx, traceID, b.meta, pf, rr, rowGroup)
 
 	result := &tempopb.TraceByIDResponse{
 		Trace:   foundTrace,
 		Metrics: &tempopb.TraceByIDMetrics{},
 	}
-	bytesRead := rr.BytesRead()
+	bytesRead := bloomBytes + indexBytes + rr.BytesRead()
 	result.Metrics.InspectedBytes += bytesRead
 	span.SetAttributes(attribute.Int64("inspectedBytes", int64(bytesRead)))
 
 	return result, err
 }
 
-func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {
+// notFoundResponse is returned for blocks ruled out by the bloom filter or the index. It has no trace,
+// but reports the bytes read to rule the block out.
+func notFoundResponse(span trace.Span, bytesRead uint64) *tempopb.TraceByIDResponse {
+	span.SetAttributes(attribute.Int64("inspectedBytes", int64(bytesRead)))
+	return &tempopb.TraceByIDResponse{
+		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: bytesRead},
+	}
+}
+
+func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rr *BackendReaderAt, rowGroup int) (*tempopb.Trace, error) {
 	// traceID column index
 	colIndex, _, maxDef := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if colIndex == -1 {
 		return nil, fmt.Errorf("unable to get index for column: %s", TraceIDColumnName)
 	}
 
-	// If no index then fallback to binary searching the rowgroups.
+	rowGroups := pf.RowGroups()
+
 	if rowGroup == -1 {
-		var (
-			numRowGroups = len(pf.RowGroups())
-			buf          = make(parquet.Row, 1)
-			err          error
-		)
+		var ok bool
+		rowGroup, ok = findRowGroupByStats(pf, colIndex, traceID)
+		if ok && rowGroup == -1 {
+			return nil, nil
+		}
+	}
 
-		// Cache of row group bounds
-		rowGroupMins := make([]common.ID, numRowGroups+1)
-		// todo: restore using meta min/max id once it works
-		//    https://github.com/grafana/tempo/issues/1903
-		rowGroupMins[0] = bytes.Repeat([]byte{0}, 16)
-		rowGroupMins[numRowGroups] = bytes.Repeat([]byte{255}, 16) // This is actually inclusive and the logic is special for the last row group below
+	rowMatch := int64(-1)
 
-		// Gets the minimum trace ID within the row group. Since the column is sorted
-		// ascending we just read the first value from the first page.
-		getRowGroupMin := func(rgIdx int) (common.ID, error) {
-			minID := rowGroupMins[rgIdx]
-			if len(minID) > 0 {
-				// Already loaded
-				return minID, nil
-			}
-
-			pages := pf.RowGroups()[rgIdx].ColumnChunks()[colIndex].Pages()
-			defer pages.Close()
-
-			page, err := pages.ReadPage()
-			if err != nil {
-				return nil, err
-			}
-			defer parquet.Release(page)
-
-			c, err := page.Values().ReadValues(buf)
-			if err != nil && !errors.Is(err, io.EOF) {
-				return nil, err
-			}
-			if c < 1 {
-				return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), meta.BlockID, rgIdx)
-			}
-
-			// Clone ensures that the byte array is disconnected
-			// from the underlying i/o buffers.
-			minID = buf[0].Clone().ByteArray()
-			rowGroupMins[rgIdx] = minID
-			return minID, nil
+	if rowGroup >= 0 {
+		// Load the column index of the trace ID column and the offset indexes
+		// of the row group, so the page containing the trace ID is located via
+		// the indexes instead of scanning the row group.
+		if err := preloadPageIndexes(rr, pf, rowGroup, colIndex); err != nil {
+			return nil, fmt.Errorf("error loading page indexes: %w", err)
 		}
 
-		rowGroup, err = binarySearch(numRowGroups, func(rgIdx int) (int, error) {
-			rgMinID, err := getRowGroupMin(rgIdx)
-			if err != nil {
-				return 0, err
-			}
-
-			if check := bytes.Compare(traceID, rgMinID); check <= 0 {
-				// Trace is before or in this group
-				return check, nil
-			}
-
-			rgMaxID, err := getRowGroupMin(rgIdx + 1)
-			if err != nil {
-				return 0, err
-			}
-
-			// This is actually the min of the next group, so check is exclusive not inclusive like min
-			// Except for the last group, it is inclusive
-			check := bytes.Compare(traceID, rgMaxID)
-			if check > 0 || (check == 0 && rgIdx < (numRowGroups-1)) {
-				// Trace is after this group
-				return 1, nil
-			}
-
-			// Must be in this group
-			return 0, nil
-		})
+		row, ok, err := pq.FindRowByColumnIndex(rowGroups[rowGroup], colIndex, traceID)
 		if err != nil {
-			return nil, fmt.Errorf("error binary searching row groups: %w", err)
+			return nil, fmt.Errorf("error locating trace ID by column index: %w", err)
+		}
+		if ok {
+			if row == -1 {
+				// Ruled out by the column index: the trace is not in this block.
+				return nil, nil
+			}
+			// The row number is relative to the row group, so offset it using
+			// the num rows in all previous groups.
+			rowMatch = row
+			for _, rg := range pf.RowGroups()[:rowGroup] {
+				rowMatch += rg.NumRows()
+			}
 		}
 	}
 
-	if rowGroup == -1 {
-		// Not within the bounds of any row group
-		return nil, nil
-	}
+	if rowMatch == -1 {
+		// The row group is unknown (statistics missing, all row groups scanned)
+		// or its column index can't be used: scan for the trace ID instead.
+		firstRowGroup := 0
+		if rowGroup != -1 {
+			firstRowGroup = rowGroup
+			rowGroups = rowGroups[rowGroup : rowGroup+1]
+		}
 
-	// Now iterate the matching row group
-	iter := pq.NewSyncIterator(
-		ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex,
-		pq.SyncIteratorOptPredicate(pq.NewStringInPredicate([]string{string(traceID)})),
-		pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
-	)
-	defer iter.Close()
+		iter := pq.NewSyncIterator(
+			ctx, rowGroups, colIndex,
+			pq.SyncIteratorOptPredicate(pq.NewStringInPredicate([]string{string(traceID)})),
+			pq.SyncIteratorOptMaxDefinitionLevel(maxDef),
+		)
+		defer iter.Close()
 
-	res, err := iter.Next()
-	if err != nil {
-		return nil, err
-	}
-	if res == nil {
-		// TraceID not found in this block
-		return nil, nil
-	}
+		res, err := iter.Next()
+		if err != nil {
+			return nil, err
+		}
+		if res == nil {
+			// TraceID not found in this block
+			return nil, nil
+		}
 
-	// The row number coming out of the iterator is relative,
-	// so offset it using the num rows in all previous groups
-	rowMatch := int64(0)
-	for _, rg := range pf.RowGroups()[0:rowGroup] {
-		rowMatch += rg.NumRows()
+		// The row number coming out of the iterator is relative,
+		// so offset it using the num rows in all previous groups
+		rowMatch = 0
+		for _, rg := range pf.RowGroups()[0:firstRowGroup] {
+			rowMatch += rg.NumRows()
+		}
+		rowMatch += int64(res.RowNumber[0])
 	}
-	rowMatch += int64(res.RowNumber[0])
 
 	// seek to row and read
 	_, _, readerOptions := SchemaWithDynamicChanges(meta.DedicatedColumns)
 	r := parquet.NewGenericReader[*Trace](pf, readerOptions...)
 	defer r.Close()
 
-	err = r.SeekToRow(rowMatch)
+	err := r.SeekToRow(rowMatch)
 	if err != nil {
 		return nil, fmt.Errorf("seek to row: %w", err)
 	}
@@ -280,29 +267,111 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	return ParquetTraceToTempopbTrace(meta, tr), nil
 }
 
-// binarySearch that finds exact matching entry. Returns non-zero index when found, or -1 when not found
-// Inspired by sort.Search but makes uses of tri-state comparator to eliminate the last comparison when
-// we want to find exact match, not insertion point.
-func binarySearch(n int, compare func(int) (int, error)) (int, error) {
-	i, j := 0, n
-	for i < j {
-		h := int(uint(i+j) >> 1) // avoid overflow when computing h
-		c, err := compare(h)
-		if err != nil {
-			return -1, err
-		}
-		// i ≤ h < j
-		switch c {
-		case 0:
-			// Found exact match
-			return h, nil
-		case -1:
-			j = h
-		case 1:
-			i = h + 1
+// findRowGroupByStats returns the row group whose footer min/max contains traceID, or -1.
+// ok is false if any row group lacks statistics.
+func findRowGroupByStats(pf *parquet.File, colIndex int, traceID common.ID) (rowGroup int, ok bool) {
+	rgs := pf.Metadata().RowGroups
+	for _, rg := range rgs {
+		s := rg.Columns[colIndex].MetaData.Statistics
+		if len(s.MinValue) == 0 || len(s.MaxValue) == 0 {
+			return -1, false
 		}
 	}
 
-	// No match
-	return -1, nil
+	i := sort.Search(len(rgs), func(i int) bool {
+		return bytes.Compare(rgs[i].Columns[colIndex].MetaData.Statistics.MaxValue, traceID) >= 0
+	})
+	if i == len(rgs) || bytes.Compare(traceID, rgs[i].Columns[colIndex].MetaData.Statistics.MinValue) < 0 {
+		return -1, true
+	}
+	return i, true
+}
+
+// preloadPageIndexes loads the column index of the given column and the offset
+// index of every column chunk in the row group.
+// With the column index, the page containing a value is found by binary search
+// on the page min/max bounds, instead of scanning the row group. With the
+// offset indexes, SeekToRow jumps directly to the page containing a row
+// instead of reading and decoding all pages from the start of the row group.
+// A row group's indexes are written contiguously at the end of the file, so
+// each is read in a single request, and the two regions are read concurrently.
+// Column chunks without an index are skipped: SeekToRow reads sequentially for
+// them, and pq.FindRowByColumnIndex falls back to scanning the row group.
+func preloadPageIndexes(r *BackendReaderAt, pf *parquet.File, rowGroup, colIndex int) error {
+	cols := pf.Metadata().RowGroups[rowGroup].Columns
+
+	var g errgroup.Group
+
+	// The column index of the searched column.
+	if offset, length := cols[colIndex].ColumnIndexOffset, int64(cols[colIndex].ColumnIndexLength); offset != 0 {
+		g.Go(func() error {
+			buf := make([]byte, length)
+			if _, err := r.ReadAtWithCache(buf, offset, cache.RoleParquetColumnIdx); err != nil {
+				return err
+			}
+			cc := pf.RowGroups()[rowGroup].ColumnChunks()[colIndex]
+			if fcc, ok := cc.(*parquet.FileColumnChunk); ok {
+				_, err := fcc.ColumnIndexFrom(&regionReaderAt{base: offset, data: buf})
+				if err != nil && !errors.Is(err, parquet.ErrMissingColumnIndex) {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+
+	// The offset index of every column chunk.
+	base, end := int64(-1), int64(0)
+	for i := range cols {
+		offset, length := cols[i].OffsetIndexOffset, cols[i].OffsetIndexLength
+		if offset == 0 {
+			continue
+		}
+		if base == -1 || offset < base {
+			base = offset
+		}
+		if e := offset + int64(length); e > end {
+			end = e
+		}
+	}
+	if base != -1 {
+		g.Go(func() error {
+			buf := make([]byte, end-base)
+			if _, err := r.ReadAtWithCache(buf, base, cache.RoleParquetOffsetIdx); err != nil {
+				return err
+			}
+
+			region := &regionReaderAt{base: base, data: buf}
+			for _, cc := range pf.RowGroups()[rowGroup].ColumnChunks() {
+				fcc, ok := cc.(*parquet.FileColumnChunk)
+				if !ok {
+					continue
+				}
+				if _, err := fcc.OffsetIndexFrom(region); err != nil && !errors.Is(err, parquet.ErrMissingOffsetIndex) {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+
+	return g.Wait()
+}
+
+// regionReaderAt serves ReadAt calls at absolute file offsets from an
+// in-memory copy of a file region starting at base.
+type regionReaderAt struct {
+	base int64
+	data []byte
+}
+
+func (r *regionReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	if off < r.base {
+		return 0, io.EOF
+	}
+	n := copy(p, r.data[off-r.base:])
+	if n < len(p) {
+		return n, io.EOF
+	}
+	return n, nil
 }

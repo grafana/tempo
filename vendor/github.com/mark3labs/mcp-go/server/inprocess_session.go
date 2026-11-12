@@ -56,11 +56,26 @@ func NewInProcessSessionWithHandlers(sessionID string, samplingHandler SamplingH
 	}
 }
 
+// isInProcess marks this session as dispatching server-initiated requests as
+// direct in-process function calls rather than protocol messages, which is why
+// they remain available on connections using protocol version 2026-07-28 or
+// later.
+func (s *InProcessSession) isInProcess() {}
+
 func (s *InProcessSession) SessionID() string {
 	return s.sessionID
 }
 
 func (s *InProcessSession) NotificationChannel() chan<- mcp.JSONRPCNotification {
+	return s.notifications
+}
+
+// ClientNotifications returns the receive-only endpoint of the session's
+// notification channel. In-process transports use this to drain
+// server-to-client notifications (progress, list-changed, resource
+// updates, etc.) queued via NotificationChannel and forward them to the
+// client's registered notification handler.
+func (s *InProcessSession) ClientNotifications() <-chan mcp.JSONRPCNotification {
 	return s.notifications
 }
 
@@ -123,9 +138,13 @@ func (s *InProcessSession) ListRoots(ctx context.Context, request mcp.ListRootsR
 	return handler.ListRoots(ctx, request)
 }
 
+// inProcessSessionCounter numbers in-process sessions: the wall clock alone
+// repeats, as it moves in microseconds on some platforms.
+var inProcessSessionCounter atomic.Uint64
+
 // GenerateInProcessSessionID generates a unique session ID for inprocess clients
 func GenerateInProcessSessionID() string {
-	return fmt.Sprintf("inprocess-%d", time.Now().UnixNano())
+	return fmt.Sprintf("inprocess-%d-%d", time.Now().UnixNano(), inProcessSessionCounter.Add(1))
 }
 
 // Ensure interface compliance

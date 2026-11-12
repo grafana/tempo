@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -145,12 +147,12 @@ func (i *parquetIterator4) Next(_ context.Context) (common.ID, *tempopb.Trace, e
 		fmt.Println(i.i)
 	}
 
-	_, err := i.r.Read(traces)
-	if errors.Is(err, io.EOF) {
-		return nil, nil, io.EOF
-	}
-	if err != nil {
+	n, err := i.r.Read(traces)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, nil, err
+	}
+	if n == 0 {
+		return nil, nil, io.EOF
 	}
 
 	pqTrace := traces[0]
@@ -160,4 +162,48 @@ func (i *parquetIterator4) Next(_ context.Context) (common.ID, *tempopb.Trace, e
 
 func (i *parquetIterator4) Close() {
 	_ = i.r.Close()
+}
+
+func getPathToBlockDir(path string) string {
+	if filepath.Base(path) == "data.parquet" {
+		return filepath.Dir(path)
+	}
+	return path
+}
+
+func openParquetFile(blockPath string) (*os.File, *parquet.File, error) {
+	inFile := filepath.Join(blockPath, "data.parquet")
+	in, err := os.Open(inFile)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	inStat, err := in.Stat()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pf, err := parquet.OpenFile(in, inStat.Size())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return in, pf, nil
+}
+
+func readBlockMeta(blockPath string) (*backend.BlockMeta, error) {
+	metaFile := filepath.Join(blockPath, "meta.json")
+	inMeta, err := os.Open(metaFile)
+	if err != nil {
+		return nil, err
+	}
+	defer inMeta.Close()
+
+	var meta backend.BlockMeta
+	err = json.NewDecoder(inMeta).Decode(&meta)
+	if err != nil {
+		return nil, err
+	}
+
+	return &meta, nil
 }

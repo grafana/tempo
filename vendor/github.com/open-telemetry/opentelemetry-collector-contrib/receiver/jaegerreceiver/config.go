@@ -26,10 +26,10 @@ const (
 
 // RemoteSamplingConfig defines config key for remote sampling fetch endpoint
 type RemoteSamplingConfig struct {
-	HostEndpoint               string        `mapstructure:"host_endpoint"`
-	StrategyFile               string        `mapstructure:"strategy_file"`
-	StrategyFileReloadInterval time.Duration `mapstructure:"strategy_file_reload_interval"`
-	configgrpc.ClientConfig    `mapstructure:",squash"`
+	HostEndpoint               string                  `mapstructure:"host_endpoint"`
+	StrategyFile               string                  `mapstructure:"strategy_file"`
+	StrategyFileReloadInterval time.Duration           `mapstructure:"strategy_file_reload_interval"`
+	ClientConfig               configgrpc.ClientConfig `mapstructure:",squash"`
 
 	// prevent unkeyed literal initialization
 	_ struct{}
@@ -48,8 +48,8 @@ type Protocols struct {
 
 // ProtocolUDP is the configuration for a UDP protocol.
 type ProtocolUDP struct {
-	Endpoint        string `mapstructure:"endpoint"`
-	ServerConfigUDP `mapstructure:",squash"`
+	Endpoint        string          `mapstructure:"endpoint"`
+	ServerConfigUDP ServerConfigUDP `mapstructure:",squash"`
 
 	// prevent unkeyed literal initialization
 	_ struct{}
@@ -78,7 +78,7 @@ func defaultServerConfigUDP() ServerConfigUDP {
 
 // Config defines configuration for Jaeger receiver.
 type Config struct {
-	Protocols      `mapstructure:"protocols"`
+	Protocols      Protocols             `mapstructure:"protocols"`
 	RemoteSampling *RemoteSamplingConfig `mapstructure:"remote_sampling"`
 
 	// prevent unkeyed literal initialization
@@ -89,36 +89,36 @@ var _ component.Config = (*Config)(nil)
 
 // Validate checks the receiver configuration is valid
 func (cfg *Config) Validate() error {
-	if !cfg.GRPC.HasValue() &&
-		!cfg.ThriftHTTP.HasValue() &&
-		!cfg.ThriftBinaryUDP.HasValue() &&
-		!cfg.ThriftCompactUDP.HasValue() {
+	if !cfg.Protocols.GRPC.HasValue() &&
+		!cfg.Protocols.ThriftHTTP.HasValue() &&
+		!cfg.Protocols.ThriftBinaryUDP.HasValue() &&
+		!cfg.Protocols.ThriftCompactUDP.HasValue() {
 		return errors.New("must specify at least one protocol when using the Jaeger receiver")
 	}
 
-	if cfg.GRPC.HasValue() {
-		grpcConfig := cfg.GRPC.Get()
+	if cfg.Protocols.GRPC.HasValue() {
+		grpcConfig := cfg.Protocols.GRPC.Get()
 		if err := checkPortFromEndpoint(grpcConfig.NetAddr.Endpoint); err != nil {
 			return fmt.Errorf("invalid port number for the gRPC endpoint: %w", err)
 		}
 	}
 
-	if cfg.ThriftHTTP.HasValue() {
-		httpConfig := cfg.ThriftHTTP.Get()
+	if cfg.Protocols.ThriftHTTP.HasValue() {
+		httpConfig := cfg.Protocols.ThriftHTTP.Get()
 		if err := checkPortFromEndpoint(httpConfig.NetAddr.Endpoint); err != nil {
 			return fmt.Errorf("invalid port number for the Thrift HTTP endpoint: %w", err)
 		}
 	}
 
-	if cfg.ThriftBinaryUDP.HasValue() {
-		binaryUDPConfig := cfg.ThriftBinaryUDP.Get()
+	if cfg.Protocols.ThriftBinaryUDP.HasValue() {
+		binaryUDPConfig := cfg.Protocols.ThriftBinaryUDP.Get()
 		if err := checkPortFromEndpoint(binaryUDPConfig.Endpoint); err != nil {
 			return fmt.Errorf("invalid port number for the Thrift UDP Binary endpoint: %w", err)
 		}
 	}
 
-	if cfg.ThriftCompactUDP.HasValue() {
-		compactUDPConfig := cfg.ThriftCompactUDP.Get()
+	if cfg.Protocols.ThriftCompactUDP.HasValue() {
+		compactUDPConfig := cfg.Protocols.ThriftCompactUDP.Get()
 		if err := checkPortFromEndpoint(compactUDPConfig.Endpoint); err != nil {
 			return fmt.Errorf("invalid port number for the Thrift UDP Compact endpoint: %w", err)
 		}

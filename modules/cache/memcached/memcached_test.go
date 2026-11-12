@@ -36,10 +36,12 @@ func TestConfigAppliesDefaultsOnUnmarshal(t *testing.T) {
 host: memcached.example.com
 max_idle_conns: 32
 min_idle_conns_headroom_percentage: 50
+recently_used_conns_threshold: 10m
 timeout: 250ms
 connect_timeout: 50ms
 update_interval: 5m
 consistent_hash: false
+pin_servers: 2
 circuit_breaker_consecutive_failures: 0
 circuit_breaker_timeout: 0s
 circuit_breaker_interval: 0s
@@ -48,10 +50,12 @@ circuit_breaker_interval: 0s
 				Host:                           "memcached.example.com",
 				MaxIdleConns:                   32,
 				MinIdleConnsHeadroomPercentage: 50,
+				RecentlyUsedConnsThreshold:     10 * time.Minute,
 				Timeout:                        250 * time.Millisecond,
 				ConnectTimeout:                 50 * time.Millisecond,
 				UpdateInterval:                 5 * time.Minute,
 				ConsistentHash:                 false,
+				PinServers:                     2,
 			},
 		},
 		{

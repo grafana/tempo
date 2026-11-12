@@ -221,9 +221,9 @@ func (t *App) Run() error {
 		sm.StopAsync()
 
 		// let's find out which module failed
+		err := service.FailureCase()
 		for m, s := range serviceMap {
 			if s == service {
-				err := service.FailureCase()
 				if errors.Is(err, modules.ErrStopProcess) {
 					level.Info(log.Logger).Log("msg", "received stop signal via return error", "module", m, "err", err)
 				} else if errors.Is(err, context.Canceled) {
@@ -235,7 +235,7 @@ func (t *App) Run() error {
 			}
 		}
 
-		level.Error(log.Logger).Log("msg", "module failed", "module", "unknown", "err", service.FailureCase())
+		level.Error(log.Logger).Log("msg", "module failed", "module", "unknown", "err", err)
 	}
 	sm.AddListener(services.NewManagerListener(healthy, stopped, serviceFailed))
 
@@ -261,7 +261,35 @@ func (t *App) Run() error {
 		return fmt.Errorf("failed to start service manager: %w", err)
 	}
 
-	return sm.AwaitStopped(context.Background())
+	if err := sm.AwaitStopped(context.Background()); err != nil {
+		return err
+	}
+	// A signal already requested shutdown. A module that fails while stopping
+	// should not turn that into exit 1.
+	if shutdownRequested.Load() {
+		return nil
+	}
+	// The failure listener runs on its own goroutine, so it can still be
+	// pending when the manager reports stopped. The service already stores
+	// the error before that report.
+	return failedModuleError(serviceMap)
+}
+
+func failedModuleError(serviceMap map[string]services.Service) error {
+	names := make([]string, 0, len(serviceMap))
+	for name := range serviceMap {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var errs []error
+	for _, name := range names {
+		err := serviceMap[name].FailureCase()
+		if err == nil || errors.Is(err, modules.ErrStopProcess) || errors.Is(err, context.Canceled) {
+			continue
+		}
+		errs = append(errs, fmt.Errorf("module %s failed: %w", name, err))
+	}
+	return errors.Join(errs...)
 }
 
 // Stop the app. It panics if the app is not running.
@@ -424,6 +452,10 @@ func (t *App) statusHandler() http.HandlerFunc {
 		vars := mux.Vars(r)
 
 		if endpoint, ok := vars["endpoint"]; ok {
+			if _, supported := simpleEndpoints[endpoint]; !supported && endpoint != "runtime_config" && endpoint != "config" {
+				http.NotFound(w, r)
+				return
+			}
 			wrapStatus(endpoint)
 		} else {
 			wrapStatus("version")

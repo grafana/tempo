@@ -32,8 +32,8 @@ Running two Tempo deployments in parallel increases infrastructure costs for the
 
 Confirm the following before you start:
 
-- `vParquet3` is deprecated.
-  Tempo 3.x still reads existing vParquet3 blocks, so you don't need to convert them before migrating.
+- `vParquet3` is deprecated and is removed in Tempo 3.2.
+  Tempo 3.0 and 3.1 still read existing vParquet3 blocks, so you don't need to convert them before migrating, but you must convert them or let them expire before upgrading to 3.2.
   If your configuration still specifies `vParquet3`, change the write format to **vParquet4 or later**.
   Refer to [Change the block format version](/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#change-the-block-format-version).
   Tempo 3.1 writes new blocks as vParquet5 by default.
@@ -343,7 +343,7 @@ Tempo logs errors such as `"the Kafka address has not been configured"`, `"ping 
 
 To resolve this issue:
 
-- Verify that `ingest.kafka.address` in your configuration points to the correct broker address.
+- Verify that `ingest.kafka.address` in your configuration points to the correct bootstrap broker addresses.
 - Confirm the broker is reachable from the Tempo deployment. Check network connectivity and firewall rules.
 - If you use SASL authentication, verify that both `sasl_username` and `sasl_password` are set. Setting only one produces the error `"the SASL username and password must be both configured to enable SASL authentication"`.
 

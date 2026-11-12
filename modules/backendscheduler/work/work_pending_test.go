@@ -346,6 +346,74 @@ func TestIsBlockBusyCompactionLifecycle(t *testing.T) {
 	assertBusy(false)
 }
 
+func TestUnregisterJob(t *testing.T) {
+	t.Run("retention job no longer counts for tenant", func(t *testing.T) {
+		w := New(Config{}).(*Work)
+		j := &Job{
+			ID:   "ret1",
+			Type: tempopb.JobType_JOB_TYPE_RETENTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant:    "tenant-a",
+				Retention: &tempopb.RetentionDetail{},
+			},
+		}
+
+		w.RegisterJob(j)
+		require.True(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_RETENTION))
+
+		w.UnregisterJob(j)
+		require.False(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_RETENTION))
+	})
+
+	t.Run("compaction job releases its blocks", func(t *testing.T) {
+		w := New(Config{}).(*Work)
+		blocks := []string{"block-a", "block-b"}
+		j := createCompactionJob("c1", "tenant-a", blocks)
+
+		w.RegisterJob(j)
+		for _, bid := range blocks {
+			require.True(t, w.IsBlockBusy("tenant-a", bid), "block %s", bid)
+		}
+
+		w.UnregisterJob(j)
+		require.False(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_COMPACTION))
+		busy := w.BusyBlocksForTenant("tenant-a")
+		for _, bid := range blocks {
+			require.False(t, w.IsBlockBusy("tenant-a", bid), "block %s", bid)
+			require.NotContains(t, busy, bid)
+		}
+	})
+
+	t.Run("block claimed by a newer job is left intact", func(t *testing.T) {
+		w := New(Config{}).(*Work)
+		older := createCompactionJob("c1", "tenant-a", []string{"block-a", "block-b"})
+		newer := createCompactionJob("c2", "tenant-a", []string{"block-b"})
+
+		w.RegisterJob(older)
+		w.RegisterJob(newer) // block-b now points to the newer job
+
+		w.UnregisterJob(older)
+		require.False(t, w.IsBlockBusy("tenant-a", "block-a"))
+		require.True(t, w.IsBlockBusy("tenant-a", "block-b"))
+		busy := w.BusyBlocksForTenant("tenant-a")
+		require.NotContains(t, busy, "block-a")
+		require.Equal(t, newer.ID, busy["block-b"])
+		require.True(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_COMPACTION))
+	})
+
+	t.Run("unregistered job is a no-op", func(t *testing.T) {
+		w := New(Config{}).(*Work)
+		j := createCompactionJob("c1", "tenant-a", []string{"block-a"})
+		w.RegisterJob(j)
+
+		// Never registered, but claims the same block.
+		w.UnregisterJob(createCompactionJob("c2", "tenant-a", []string{"block-a"}))
+		require.True(t, w.IsBlockBusy("tenant-a", "block-a"))
+		require.Equal(t, j.ID, w.BusyBlocksForTenant("tenant-a")["block-a"])
+		require.True(t, w.HasJobsForTenant("tenant-a", tempopb.JobType_JOB_TYPE_COMPACTION))
+	})
+}
+
 func TestLoadFromLocal_RebuildsPendingIndex(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()

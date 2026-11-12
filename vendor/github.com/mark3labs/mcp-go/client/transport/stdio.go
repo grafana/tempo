@@ -2,21 +2,23 @@ package transport
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/util"
 )
 
 var (
@@ -43,6 +45,8 @@ type Stdio struct {
 	stdinMu          sync.Mutex
 	stdout           *bufio.Reader
 	stderr           io.ReadCloser
+	stderrWriter     io.Writer
+	stderrRing       *stderrBuffer
 	responses        map[string]chan *JSONRPCResponse
 	mu               sync.RWMutex
 	done             chan struct{}
@@ -54,15 +58,85 @@ type Stdio struct {
 	requestMu        sync.RWMutex
 	ctx              context.Context
 	ctxMu            sync.RWMutex
-	logger           util.Logger
+	logger           *slog.Logger
 	started          bool
 	startedMu        sync.Mutex
+	resourcesReady   bool // guarded by startedMu
 }
 
 const (
 	gracefulShutdownTimeout = 2 * time.Second
 	forceKillTimeout        = 3 * time.Second
+
+	// stderrBufferSize bounds how much recent stderr output the transport
+	// keeps available through Stderr(). The OS pipe itself is only ~64KB, so
+	// a larger buffer would not add fidelity once the child outruns readers.
+	stderrBufferSize = 64 * 1024
 )
+
+// stderrBuffer is a bounded, drop-oldest buffer of the subprocess's stderr
+// output. The transport writes into it continuously so the OS pipe never
+// fills up and blocks the child, while callers can still read recent stderr
+// through Stderr(). Reads block until data is available or the stream ends.
+type stderrBuffer struct {
+	mu   sync.Mutex
+	cond *sync.Cond
+	buf  bytes.Buffer
+	done bool
+}
+
+// newStderrBuffer returns an empty, open stderr buffer ready for writing.
+func newStderrBuffer() *stderrBuffer {
+	b := &stderrBuffer{}
+	b.cond = sync.NewCond(&b.mu)
+	return b
+}
+
+// Write appends p to the buffer, dropping the oldest data when the buffer is
+// full. It never blocks, so a child writing to stderr can never deadlock the
+// transport.
+func (b *stderrBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.done {
+		return 0, io.ErrClosedPipe
+	}
+	// Report the original length per the io.Writer contract even when the
+	// tail truncation below drops the leading bytes.
+	written := len(p)
+	if len(p) > stderrBufferSize {
+		p = p[len(p)-stderrBufferSize:]
+	}
+	if overflow := b.buf.Len() + len(p) - stderrBufferSize; overflow > 0 {
+		b.buf.Next(overflow)
+	}
+	b.buf.Write(p)
+	b.cond.Broadcast()
+	return written, nil
+}
+
+// Read returns buffered data, blocking until data is available or the stream
+// is marked done.
+func (b *stderrBuffer) Read(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for b.buf.Len() == 0 && !b.done {
+		b.cond.Wait()
+	}
+	if b.buf.Len() == 0 {
+		return 0, io.EOF
+	}
+	return b.buf.Read(p)
+}
+
+// Close marks the stream as ended and wakes up blocked readers.
+func (b *stderrBuffer) Close() error {
+	b.mu.Lock()
+	b.done = true
+	b.cond.Broadcast()
+	b.mu.Unlock()
+	return nil
+}
 
 func waitForProcessExit(waitErrCh <-chan error, timeout time.Duration) (error, bool) {
 	select {
@@ -91,26 +165,27 @@ func WithCommandFunc(f CommandFunc) StdioOption {
 	}
 }
 
-// WithCommandLogger sets a custom logger for the stdio transport.
-func WithCommandLogger(logger util.Logger) StdioOption {
+// WithCommandLogger sets a custom structured logger for the stdio transport.
+// A nil logger falls back to slog.Default().
+func WithCommandLogger(logger *slog.Logger) StdioOption {
 	return func(s *Stdio) {
+		if logger == nil {
+			s.logger = slog.Default()
+			return
+		}
 		s.logger = logger
 	}
 }
 
-// NewIO returns a new stdio-based transport using existing input, output, and
-// logging streams instead of spawning a subprocess.
-// This is useful for testing and simulating client behavior.
-func NewIO(input io.Reader, output io.WriteCloser, logging io.ReadCloser) *Stdio {
-	return &Stdio{
-		stdin:  output,
-		stdout: bufio.NewReader(input),
-		stderr: logging,
-
-		responses: make(map[string]chan *JSONRPCResponse),
-		done:      make(chan struct{}),
-		ctx:       context.Background(),
-		logger:    util.DefaultLogger(),
+// WithCommandStderrWriter sets the destination for the subprocess's stderr
+// output. The default destination is io.Discard: the transport drains stderr
+// continuously so that the OS pipe (about 64KB) can never fill up and block
+// the child process, which would deadlock the whole stdio channel.
+// Pass os.Stderr, a log file, or an in-memory buffer to capture the child's
+// stderr instead.
+func WithCommandStderrWriter(w io.Writer) StdioOption {
+	return func(s *Stdio) {
+		s.stderrWriter = w
 	}
 }
 
@@ -144,7 +219,7 @@ func NewStdioWithOptions(
 		responses: make(map[string]chan *JSONRPCResponse),
 		done:      make(chan struct{}),
 		ctx:       context.Background(),
-		logger:    util.DefaultLogger(),
+		logger:    slog.Default(),
 	}
 
 	for _, opt := range opts {
@@ -154,8 +229,31 @@ func NewStdioWithOptions(
 	return s
 }
 
+// NewIO returns a new stdio-based transport using existing input, output, and
+// logging streams instead of spawning a subprocess.
+// This is useful for testing and simulating client behavior.
+func NewIO(input io.Reader, output io.WriteCloser, logging io.ReadCloser) *Stdio {
+	return &Stdio{
+		stdin:          output,
+		stdout:         bufio.NewReader(input),
+		stderr:         logging,
+		resourcesReady: true,
+
+		responses: make(map[string]chan *JSONRPCResponse),
+		done:      make(chan struct{}),
+		ctx:       context.Background(),
+		logger:    slog.Default(),
+	}
+}
+
 func (c *Stdio) Start(ctx context.Context) error {
 	c.startedMu.Lock()
+	select {
+	case <-c.done:
+		c.startedMu.Unlock()
+		return ErrTransportClosed
+	default:
+	}
 	if c.started {
 		c.startedMu.Unlock()
 		return nil
@@ -173,6 +271,11 @@ func (c *Stdio) Start(ctx context.Context) error {
 		c.started = false
 		c.startedMu.Unlock()
 		return err
+	}
+	select {
+	case <-c.done:
+		return errors.Join(ErrTransportClosed, c.Close())
+	default:
 	}
 
 	ready := make(chan struct{})
@@ -203,6 +306,11 @@ func (c *Stdio) spawnCommand(ctx context.Context) error {
 	} else if cmd, err = c.cmdFunc(ctx, c.command, c.env, c.args); err != nil {
 		return err
 	}
+	select {
+	case <-c.done:
+		return ErrTransportClosed
+	default:
+	}
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -214,21 +322,98 @@ func (c *Stdio) spawnCommand(ctx context.Context) error {
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	// Respect a stderr destination configured by a custom command factory;
+	// otherwise capture stderr so it can be drained below.
+	var stderr io.ReadCloser
+	if cmd.Stderr == nil {
+		stderr, err = cmd.StderrPipe()
+		if err != nil {
+			return fmt.Errorf("failed to create stderr pipe: %w", err)
+		}
 	}
-
-	c.cmd = cmd
-	c.stdin = stdin
-	c.stderr = stderr
-	c.stdout = bufio.NewReader(stdout)
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start command: %w", err)
 	}
 
+	var ring *stderrBuffer
+	if stderr != nil {
+		ring = newStderrBuffer()
+	}
+	c.startedMu.Lock()
+	c.cmd = cmd
+	c.stdin = stdin
+	c.stderr = stderr
+	c.stdout = bufio.NewReader(stdout)
+	c.stderrRing = ring
+	c.resourcesReady = true
+	c.startedMu.Unlock()
+
+	// Drain stderr continuously so the subprocess can never deadlock on a
+	// full pipe, including when Close wins the race with resource publication.
+	if stderr != nil {
+		go drainStderrIntoRing(ring, stderr, c.stderrWriter, c.logger)
+	}
 	return nil
+}
+
+// drainStderrIntoRing copies src into the ring buffer until the stream ends,
+// closing the ring afterwards to wake readers blocked in Stderr().Read.
+//
+// The drain must never stop while the child runs: a full OS pipe blocks the
+// child inside write(2) and deadlocks every request. When dest is nil the
+// stream is drained directly into the ring without any mirroring overhead;
+// otherwise mirroring is decoupled through a bounded queue so a failing or
+// blocked writer cannot stop the pipe drain: once the queue fills up (or the
+// mirror goroutine exits) further chunks are dropped and the loss is logged
+// at debug level. The mirror goroutine is intentionally not waited for: a
+// writer stuck inside Write would otherwise delay ring Close and leave
+// Stderr() readers blocked.
+func drainStderrIntoRing(ring *stderrBuffer, src io.ReadCloser, dest io.Writer, logger *slog.Logger) {
+	defer func() {
+		_ = ring.Close()
+	}()
+
+	// No custom destination configured: drain directly without spawning a
+	// mirror goroutine or allocating mirror chunks.
+	if dest == nil {
+		_, _ = io.Copy(ring, src)
+		return
+	}
+
+	mirror := make(chan []byte, 8)
+	go func() {
+		for chunk := range mirror {
+			if _, err := dest.Write(chunk); err != nil {
+				return
+			}
+		}
+	}()
+
+	buf := make([]byte, 32*1024)
+	for {
+		n, rerr := src.Read(buf)
+		if n > 0 {
+			if _, werr := ring.Write(buf[:n]); werr != nil {
+				break
+			}
+			chunk := make([]byte, n)
+			copy(chunk, buf[:n])
+			select {
+			case mirror <- chunk:
+			default:
+				// Mirror is full or gone; dropping the
+				// chunk keeps the pipe draining.
+				if logger != nil {
+					logger.Debug("stderr mirror queue full; dropping chunk", "bytes", n)
+				}
+			}
+		}
+		if rerr != nil {
+			break
+		}
+	}
+	close(mirror)
 }
 
 // closeDone safely closes the done channel exactly once, unblocking all
@@ -243,6 +428,13 @@ func (c *Stdio) closeDone() {
 func (c *Stdio) Close() error {
 	// Signal all in-flight requests to unblock.
 	c.closeDone()
+	c.startedMu.Lock()
+	resourcesReady := c.resourcesReady
+	c.startedMu.Unlock()
+	if !resourcesReady {
+		// A pending Start will clean up any resources it publishes after Close.
+		return nil
+	}
 
 	// Perform resource cleanup exactly once, even if readResponses already
 	// called closeDone() (e.g. server died). Without this, the old early-return
@@ -273,13 +465,31 @@ func (c *Stdio) Close() error {
 				return
 			}
 
+			forceKilled := false
 			if c.cmd.Process != nil {
-				_ = c.cmd.Process.Signal(syscall.SIGTERM)
+				// SIGTERM is not implemented on Windows. Kill immediately after
+				// the graceful stdin-close wait so Close does not spend an
+				// extra forceKillTimeout waiting for a signal that never lands.
+				if runtime.GOOS == "windows" {
+					if err := c.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) && closeErr == nil {
+						closeErr = fmt.Errorf("failed to kill process: %w", err)
+					}
+					forceKilled = true
+				} else {
+					_ = c.cmd.Process.Signal(syscall.SIGTERM)
+				}
 			}
 
 			if err, done := waitForProcessExit(waitErrCh, forceKillTimeout); done {
 				if err != nil && closeErr == nil {
 					closeErr = err
+				}
+				return
+			}
+
+			if forceKilled {
+				if closeErr == nil {
+					closeErr = ErrChildShutdownTimeout
 				}
 				return
 			}
@@ -346,7 +556,7 @@ func (c *Stdio) readResponses(ready chan struct{}) {
 			line, err := c.stdout.ReadString('\n')
 			if err != nil {
 				if err != io.EOF && !errors.Is(err, context.Canceled) && !errors.Is(err, fs.ErrClosed) {
-					c.logger.Errorf("Error reading from stdout: %v", err)
+					c.logger.Error("Error reading from stdout", "err", err)
 				}
 				// Signal done so in-flight SendRequest calls unblock
 				// instead of hanging forever when the server dies.
@@ -567,7 +777,7 @@ func (c *Stdio) handleIncomingRequest(request JSONRPCRequest) {
 func (c *Stdio) sendResponse(response JSONRPCResponse) {
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		c.logger.Errorf("Error marshaling response: %v", err)
+		c.logger.Error("Error marshaling response", "err", err)
 		return
 	}
 	responseBytes = append(responseBytes, '\n')
@@ -576,12 +786,20 @@ func (c *Stdio) sendResponse(response JSONRPCResponse) {
 	_, err = c.stdin.Write(responseBytes)
 	c.stdinMu.Unlock()
 	if err != nil {
-		c.logger.Errorf("Error writing response: %v", err)
+		c.logger.Error("Error writing response", "err", err)
 	}
 }
 
 // Stderr returns a reader for the stderr output of the subprocess.
 // This can be used to capture error messages or logs from the subprocess.
+//
+// The transport drains the subprocess's stderr into a bounded buffer so the
+// OS pipe never fills up and deadlocks the child. The reader returns the most
+// recent output; older output is dropped once the buffer is full. To capture
+// the full, real-time stream, use WithCommandStderrWriter instead.
 func (c *Stdio) Stderr() io.Reader {
+	if c.stderrRing != nil {
+		return c.stderrRing
+	}
 	return c.stderr
 }

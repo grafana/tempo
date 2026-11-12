@@ -10,18 +10,20 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type CoalesceArguments[K any] struct {
+type coalesceArguments[K any] struct {
 	Values []ottl.Getter[K]
 }
 
+// NewCoalesceFactory returns a factory for the Coalesce OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#coalesce
 func NewCoalesceFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("Coalesce", &CoalesceArguments[K]{}, createCoalesceFunction[K])
+	return ottl.NewFactory("Coalesce", &coalesceArguments[K]{}, createCoalesceFunction[K])
 }
 
 func createCoalesceFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*CoalesceArguments[K])
+	args, ok := oArgs.(*coalesceArguments[K])
 	if !ok {
-		return nil, errors.New("CoalesceFactory args must be of type *CoalesceArguments[K]")
+		return nil, errors.New("CoalesceFactory args must be of type *coalesceArguments[K]")
 	}
 
 	if len(args.Values) == 0 {

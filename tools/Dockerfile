@@ -1,9 +1,9 @@
-FROM golang:1.27.1-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125
+FROM golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf
 
 ARG TARGETOS
 ARG TARGETARCH
 ENV GOOS=$TARGETOS GOARCH=$TARGETARCH
-RUN apk --update add --no-cache make git bash protoc
+RUN apk add --no-cache --upgrade make git bash protoc ca-certificates ca-certificates-bundle
 
 # Install tools with @version to avoid dependency cross-contamination
 # These tools have transitive deps that conflict with the shared tools/go.mod graph

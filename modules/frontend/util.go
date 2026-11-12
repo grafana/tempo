@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -33,6 +35,10 @@ func extractTenant(req *http.Request, logger log.Logger) (string, *http.Response
 }
 
 func acceptAllBlocks(_ *backend.BlockMeta) bool { return true }
+
+func isRF1Block(m *backend.BlockMeta) bool {
+	return m.ReplicationFactor == backend.MetricsGeneratorReplicationFactor
+}
 
 // setQueryShapeSpanAttrs stamps the query-shape attributes on the given span.
 func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
@@ -145,4 +151,18 @@ func logWithShape(logger log.Logger, ctx context.Context, fields ...any) {
 		"query_select_all", qs.SelectAll,
 	)
 	_ = logger.Log(out...)
+}
+
+// ceilSeconds rounds d up to whole seconds, or down where rounding up would overflow.
+func ceilSeconds(d time.Duration) time.Duration {
+	t := d.Truncate(time.Second)
+	if t < d && t <= math.MaxInt64-time.Second {
+		t += time.Second
+	}
+	return t
+}
+
+// unixNanoTime converts a request timestamp without wrapping past math.MaxInt64.
+func unixNanoTime(ns uint64) time.Time {
+	return time.Unix(int64(ns/uint64(time.Second)), int64(ns%uint64(time.Second)))
 }

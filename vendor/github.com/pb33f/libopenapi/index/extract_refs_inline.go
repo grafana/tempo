@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 // buildDefinitionPath assembles absPath + "#/" + seenPath + extra segments joined by

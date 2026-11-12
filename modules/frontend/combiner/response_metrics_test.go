@@ -11,7 +11,8 @@ import (
 // fakePipelineResponse implements PipelineResponse for tests. The cache hit
 // header is what `IsCacheHit` keys on.
 type fakePipelineResponse struct {
-	cacheHit bool
+	cacheHit   bool
+	isMetadata bool
 }
 
 func (f *fakePipelineResponse) HTTPResponse() *http.Response {
@@ -23,7 +24,7 @@ func (f *fakePipelineResponse) HTTPResponse() *http.Response {
 }
 
 func (f *fakePipelineResponse) RequestData() any { return nil }
-func (f *fakePipelineResponse) IsMetadata() bool { return false }
+func (f *fakePipelineResponse) IsMetadata() bool { return f.isMetadata }
 
 func TestSearchMetricsCombiner_SumsNewFields(t *testing.T) {
 	mc := NewSearchMetricsCombiner()
@@ -185,4 +186,36 @@ func TestMergeAdditionalMetrics(t *testing.T) {
 		tempopb.AdditionalMetricEngineBytes: 3,
 	}, true)
 	assert.Equal(t, map[string]int64{tempopb.AdditionalMetricEngineBytes: 3}, dst)
+}
+
+func TestMetricsCombiners_ReportAndObserveInspectedBytes(t *testing.T) {
+	var reported, observed []uint64
+	opt := WithOptions(
+		WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) }),
+		WithJobInspectedBytesObserver(func(b uint64) { observed = append(observed, b) }),
+	)
+
+	traceByID := NewTraceByIDMetricsCombiner(opt)
+	search := NewSearchMetricsCombiner(opt)
+	metadata := NewMetadataMetricsCombiner(opt)
+	queryRange := NewQueryRangeMetricsCombiner(opt)
+
+	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 3}, &fakePipelineResponse{})
+	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 30}, &fakePipelineResponse{cacheHit: true})
+	traceByID.Combine(&tempopb.TraceByIDMetrics{}, &fakePipelineResponse{})
+	traceByID.Combine(nil, &fakePipelineResponse{})
+	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 1}, &fakePipelineResponse{})
+	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 10}, &fakePipelineResponse{cacheHit: true})
+	// the sharder summarizes the jobs of a query, which is not a job
+	search.CombineMetadata(&tempopb.SearchMetrics{TotalJobs: 5, TotalBlocks: 2}, &fakePipelineResponse{})
+	metadata.Combine(&tempopb.MetadataMetrics{InspectedBytes: 100}, &fakePipelineResponse{})
+	queryRange.Combine(&tempopb.SearchMetrics{InspectedBytes: 1000}, &fakePipelineResponse{})
+	queryRange.Combine(&tempopb.SearchMetrics{InspectedBytes: 10000}, &fakePipelineResponse{cacheHit: true})
+	queryRange.Combine(&tempopb.SearchMetrics{}, &fakePipelineResponse{})
+	queryRange.Combine(&tempopb.SearchMetrics{TotalJobs: 5, TotalBlocks: 2, TotalBlockBytes: 100}, &fakePipelineResponse{isMetadata: true})
+
+	// cache hits and zero-byte responses are not reported
+	assert.Equal(t, []uint64{3, 1, 100, 1000}, reported)
+	// cache hits, missing metrics and summaries are not observed, zero-byte responses are
+	assert.Equal(t, []uint64{3, 0, 1, 100, 1000, 0}, observed)
 }

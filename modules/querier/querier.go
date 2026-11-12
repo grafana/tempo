@@ -193,17 +193,25 @@ func (q *Querier) stopping(_ error) error {
 	return nil
 }
 
+// ErrTraceByIDBlocksRequired fails a job with no blocks, because a querier without a blocklist would miss every backend trace.
+var ErrTraceByIDBlocksRequired = errors.New("query-frontend must send the blocks to search when querier blocklist polling is disabled")
+
 // FindTraceByID implements tempopb.Querier.
-func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart, timeEnd time.Time) (resp *tempopb.TraceByIDResponse, err error) {
+func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (resp *tempopb.TraceByIDResponse, err error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, errors.New("invalid trace id")
 	}
 
-	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req, timeStart, timeEnd)
+	ctx, span, userID, err := startTraceByIDSpan(ctx, "Querier.FindTraceByID", req)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}
 	defer func() { finishQuerierSpan(span, err, resp.GetMetrics()) }()
+
+	// TODO: remove with querier blocklist polling, then always require blocks for blocks and all modes
+	if req.Blocks == nil && !q.cfg.BlocklistPolling && (req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll) {
+		return nil, ErrTraceByIDBlocksRequired
+	}
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
 	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
@@ -220,25 +228,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, fmt.Errorf("error querying live-stores in Querier.FindTraceByID: %w", err)
 		}
 
-		var spanCountTotal, traceCountTotal int64
-		found := false
-
-		for _, partialTrace := range partialTraces {
-			resp := partialTrace.(*tempopb.TraceByIDResponse)
-			if resp.Trace == nil {
-				continue
-			}
-
-			found = true
-
-			spanCount, err := combiner.Consume(resp.Trace)
-			if err != nil {
-				return nil, fmt.Errorf("error combining live-store results in Querier.FindTraceByID: %w", err)
-			}
-
-			spanCountTotal += int64(spanCount)
-			traceCountTotal++
-			tempopb.MergeTraceByIDMetrics(metrics, resp.Metrics)
+		found, spanCountTotal, traceCountTotal, err := combineLiveStoreResponses(partialTraces, combiner, metrics)
+		if err != nil {
+			return nil, fmt.Errorf("error combining live-store results in Querier.FindTraceByID: %w", err)
 		}
 
 		span.AddEvent("done searching live-stores", oteltrace.WithAttributes(
@@ -250,14 +242,14 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
 		span.AddEvent("searching store", oteltrace.WithAttributes(
-			attribute.String("timeStart", timeStart.String()),
-			attribute.String("timeEnd", timeEnd.String()),
+			attribute.String("timeStart", req.Start.String()),
+			attribute.String("timeEnd", req.End.String()),
 		))
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 
 		findStart := time.Now()
-		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
+		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req, opts)
 		observeBackendProcessing(api.OpTraceByID, userID, findStart)
 		if err != nil {
 			return nil, fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)
@@ -267,13 +259,14 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, errors.Join(blockErrs...)
 		}
 
-		span.AddEvent("done searching store", oteltrace.WithAttributes(
-			attribute.Int("foundPartialTraces", len(partialTraces)),
-		))
-
+		// blocks without the trace respond with metrics only
+		foundPartialTraces := 0
 		for _, partialTrace := range partialTraces {
 			if partialTrace == nil {
 				continue
+			}
+			if partialTrace.Trace != nil {
+				foundPartialTraces++
 			}
 			_, err = combiner.Consume(partialTrace.Trace)
 			if err != nil {
@@ -281,16 +274,21 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			}
 			tempopb.MergeTraceByIDMetrics(metrics, partialTrace.Metrics)
 		}
+
+		span.AddEvent("done searching store", oteltrace.WithAttributes(
+			attribute.Int("foundPartialTraces", foundPartialTraces),
+			attribute.Int("blockResponses", len(partialTraces)),
+		))
 	}
 
 	if q.externalClient != nil {
 		if req.QueryMode == QueryModeExternal || req.QueryMode == QueryModeAll {
 			span.AddEvent("searching external", oteltrace.WithAttributes(
 				attribute.String("traceID", hex.EncodeToString(req.TraceID)),
-				attribute.String("timeStart", timeStart.String()),
-				attribute.String("timeEnd", timeEnd.String()),
+				attribute.String("timeStart", req.Start.String()),
+				attribute.String("timeEnd", req.End.String()),
 			))
-			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, timeStart, timeEnd)
+			externalResp, err := q.externalClient.TraceByID(ctx, userID, req.TraceID, req.Start, req.End)
 			if err != nil {
 				return nil, fmt.Errorf("error querying external in Querier.FindTraceByID: %w", err)
 			}
@@ -320,6 +318,32 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	return resp, nil
 }
 
+// combineLiveStoreResponses consumes the traces returned by the live-stores into combiner and
+// merges their metrics into metrics. Metrics are merged for every response, including those
+// without a trace, because the live-stores also report the bytes read while looking for it.
+func combineLiveStoreResponses(partialTraces []any, combiner *trace.Combiner, metrics *tempopb.TraceByIDMetrics) (found bool, spanCountTotal, traceCountTotal int64, err error) {
+	for _, partialTrace := range partialTraces {
+		resp := partialTrace.(*tempopb.TraceByIDResponse)
+		tempopb.MergeTraceByIDMetrics(metrics, resp.GetMetrics())
+
+		if resp.GetTrace() == nil {
+			continue
+		}
+
+		found = true
+
+		spanCount, err := combiner.Consume(resp.Trace)
+		if err != nil {
+			return found, spanCountTotal, traceCountTotal, err
+		}
+
+		spanCountTotal += int64(spanCount)
+		traceCountTotal++
+	}
+
+	return found, spanCountTotal, traceCountTotal, nil
+}
+
 // forLiveStoreRing runs f, in parallel, for instances selected from the live-store ring.
 func (q *Querier) forLiveStoreRing(ctx context.Context, f forEachFn) ([]any, error) {
 	if ctx.Err() != nil {
@@ -334,7 +358,7 @@ func (q *Querier) forLiveStoreRing(ctx context.Context, f forEachFn) ([]any, err
 		return nil, errors.New("forLiveStoreRing: partition ring is not configured")
 	}
 
-	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
+	rs, err := q.liveStoreReplicationSets(time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
 	}
@@ -354,7 +378,7 @@ func (q *Querier) forLiveStoreMetricsRing(ctx context.Context, f forEachMetricsF
 	if q.partitionRing == nil {
 		return nil, errors.New("forLiveStoreMetricsRing: partition ring is not configured")
 	}
-	rs, err := q.partitionRing.GetReplicationSetsForOperation(ring.Read)
+	rs, err := q.liveStoreReplicationSets(time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("error finding partition ring replicas: %w", err)
 	}

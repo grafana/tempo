@@ -28,6 +28,12 @@ Spans are grouped by:
 
 Parent spans are eligible for aggregation when all of their children are aggregated, they share the same name, kind, and status code, and they are not root spans.
 
+The processor can also apply **selective pruning** with OTTL conditions so only traces that match your criteria are pruned.
+
+Optionally, the processor can detect **duration outliers** using statistical methods (IQR or MAD) and either annotate summary spans with outlier correlations or **preserve outlier subtrees** for debugging while still aggregating normal spans. Detection runs at every aggregation level, so a slow interior span (for example one slow `handler` among many) is caught and its whole subtree is kept intact.
+
+Optionally, the processor can also randomly preserve a small sub-linear number of **exemplar subtrees** at the top of each aggregation tree. Each sampled span is kept whole (with its descendants) as a sibling of the summary span.
+
 This processor is useful for reducing trace data volume while preserving meaningful information about repeated operations.
 
 ## Use Cases
@@ -38,9 +44,19 @@ This processor is useful for reducing trace data volume while preserving meaning
 
 ## Configuration
 
+> **Note:** This processor was renamed from `spanpruning` to `span_pruning` to match the snake_case naming convention.
+> The deprecated component type `spanpruning` is still accepted as an alias and will log a deprecation warning.
+
 ```yaml
 processors:
-  spanpruning:
+  span_pruning:
+    # OTTL conditions to select which traces to prune
+    # When empty, all traces are pruned (default behavior)
+    # When set, only traces where at least one span matches any condition are pruned
+    # Example: only prune traces from specific services
+    # conditions:
+    #   - 'resource.attributes["service.name"] == "loki-query-engine"'
+
     # Attributes to use for grouping similar leaf spans (supports glob patterns)
     # Spans with the same name AND same values for matching attributes will be grouped
     # Examples:
@@ -69,17 +85,140 @@ processors:
     # Default: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
     # Set to empty list to disable histogram attributes
     aggregation_histogram_buckets: [10ms, 50ms, 100ms, 500ms, 1s]
+
+    # Enable attribute loss analysis during aggregation
+    # Default: false
+    # When enabled, records attribute-loss metrics and adds summary span attributes
+    enable_attribute_loss_analysis: false
+
+    # Attribute loss exemplar sampling rate
+    # Fraction of attribute-loss metric recordings that include trace exemplars
+    # Range: 0.0 (disabled) to 1.0 (always)
+    # Default: 0 (disabled)
+    attribute_loss_exemplar_sample_rate: 0.01
+
+    # Enable measurement of serialized trace sizes before and after pruning
+    # When enabled, records bytes_received, bytes_processed_input,
+    # bytes_processed_output, and bytes_emitted metrics
+    # This serializes each batch (full batch plus matched subset before/after pruning)
+    # and is expensive for large batches
+    # Default: false
+    enable_bytes_metrics: false
+
+    # Enable IQR or MAD outlier detection and attribute correlation
+    # When enabled, adds duration_median_ns and outlier_correlated_attributes
+    # to summary spans
+    # Default: false
+    enable_outlier_analysis: false
+
+    # Outlier analysis configuration (optional)
+    outlier_analysis:
+      # Statistical method for outlier detection
+      # "iqr" (default): Interquartile Range method
+      # "mad": Median Absolute Deviation method (more robust to extreme outliers)
+      method: iqr
+
+      # IQR multiplier for outlier detection threshold (when method=iqr)
+      # Outliers are spans with duration > Q3 + (iqr_multiplier * IQR)
+      # Common values: 1.5 (standard), 3.0 (extreme only)
+      # Default: 1.5
+      iqr_multiplier: 1.5
+
+      # MAD multiplier for outlier detection threshold (when method=mad)
+      # Outliers are spans with duration > median + (mad_multiplier * MAD * 1.4826)
+      # Common values: 2.5-3.0 (standard), 3.5+ (extreme only)
+      # Default: 3.0
+      mad_multiplier: 3.0
+
+      # Minimum group size for reliable IQR/MAD analysis
+      # Groups smaller than this skip outlier analysis
+      # Must be at least 4 (need quartiles)
+      # Default: 7
+      min_group_size: 7
+
+      # Minimum fraction of outliers that must share an attribute value
+      # for it to be reported as correlated
+      # Range: (0.0, 1.0]
+      # Default: 0.75 (75% of outliers must share the value)
+      correlation_min_occurrence: 0.75
+
+      # Maximum fraction of normal spans that can have the correlated value
+      # Lower values mean stronger signal
+      # Range: [0.0, 1.0)
+      # Default: 0.25 (at most 25% of normal spans can have the value)
+      correlation_max_normal_occurrence: 0.25
+
+      # Maximum correlated attributes to report in summary span attribute
+      # Default: 5
+      max_correlated_attributes: 5
+
+      # Preserve outlier subtrees instead of aggregating them
+      # When true, each detected outlier and its whole subtree are kept; only
+      # normal spans are aggregated. Detection runs at every level, so slow
+      # interior spans (not just leaves) are preserved with their subtree.
+      # Default: false
+      preserve_outliers: false
+
+      # Maximum number of outlier subtrees to preserve per aggregation group
+      # Outliers are selected by most extreme duration first
+      # 0 = preserve all detected outliers
+      # Default: 2
+      max_preserved_outliers: 2
+
+      # Only preserve outliers when a strong attribute correlation is found
+      # This avoids preserving outliers that are just random variance
+      # Default: false
+      preserve_only_with_correlation: false
+
+      # Minimum percentage above median required to mark an outlier
+      # Adds a floor to avoid overly sensitive detection when IQR/MAD is near zero
+      # Range: [0.0, 1.0+]
+      # Default: 0.1 (10%)
+      min_outlier_threshold_percent: 0.1
+
+    # Enable random exemplar sampling. When enabled, ceil(precision_multiplier * sqrt(N))
+    # spans are sampled from the top-level group of each aggregation tree and kept as
+    # whole subtrees (siblings of the summary), with their TraceState threshold updated
+    # so consumers can extrapolate.
+    # Default: false
+    enable_exemplar_sampling: false
+
+    # Exemplar sampling configuration (optional)
+    exemplar_sampling:
+      # Multiplier applied to the sqrt(N) sample size. Standard error of cross-trace
+      # estimators scales as 1/sqrt(precision_multiplier). This is a precision knob,
+      # not a strict confidence-interval level.
+      # Default: 1.0
+      precision_multiplier: 1.0
 ```
 
 ## Configuration Options
 
 | Field | Type | Default | Description |
 |-----|--|---------|-------|
+| `conditions` | []string | [] | OTTL conditions for selective pruning; empty = prune all traces |
 | `group_by_attributes` | []string | [] | Attribute patterns for grouping (supports glob patterns like `db.*`) |
 | `min_spans_to_aggregate` | int | 5 | Minimum group size before aggregation occurs |
 | `max_parent_depth` | int | 1 | Max depth of parent aggregation (0=none, -1=unlimited) |
 | `aggregation_attribute_prefix` | string | "aggregation." | Prefix for aggregation statistics attributes |
 | `aggregation_histogram_buckets` | []time.Duration | `[5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]` | Upper bounds for latency histogram buckets |
+| `enable_attribute_loss_analysis` | bool | false | Enable attribute loss analysis (records attribute-loss metrics and adds summary span loss attributes) |
+| `attribute_loss_exemplar_sample_rate` | float64 | 0 (disabled) | Fraction of attribute-loss metric recordings with exemplars (0.0-1.0). Only applies when `enable_attribute_loss_analysis` is true. |
+| `enable_bytes_metrics` | bool | false | Enable measurement of serialized trace sizes (bytes_received/bytes_processed_input/bytes_processed_output/bytes_emitted metrics) |
+| `enable_outlier_analysis` | bool | false | Enable outlier detection and correlation analysis |
+| `outlier_analysis.method` | string | "iqr" | Statistical method: "iqr" or "mad" |
+| `outlier_analysis.iqr_multiplier` | float64 | 1.5 | IQR threshold multiplier (when method=iqr) |
+| `outlier_analysis.mad_multiplier` | float64 | 3.0 | MAD threshold multiplier (when method=mad) |
+| `outlier_analysis.min_group_size` | int | 7 | Minimum group size for outlier analysis |
+| `outlier_analysis.correlation_min_occurrence` | float64 | 0.75 | Minimum outlier occurrence fraction for correlation |
+| `outlier_analysis.correlation_max_normal_occurrence` | float64 | 0.25 | Maximum normal occurrence fraction for correlation |
+| `outlier_analysis.max_correlated_attributes` | int | 5 | Maximum correlated attributes to report |
+| `outlier_analysis.preserve_outliers` | bool | false | Keep outlier subtrees instead of aggregating |
+| `outlier_analysis.max_preserved_outliers` | int | 2 | Max outlier subtrees to preserve per group (0=preserve all) |
+| `outlier_analysis.preserve_only_with_correlation` | bool | false | Only preserve outliers if a strong correlation is found |
+| `outlier_analysis.min_outlier_threshold_percent` | float64 | 0.1 | Minimum percentage above median required before a span is considered an outlier |
+| `enable_exemplar_sampling` | bool | false | Enable random exemplar sampling |
+| `exemplar_sampling.precision_multiplier` | float64 | 1.0 | Multiplier applied to `sqrt(N)` sample size |
 
 ### Glob Pattern Support
 
@@ -138,6 +277,61 @@ The following attributes are added to the summary span (shown with default `aggr
 | `<prefix>histogram_bucket_bounds_s` | []float64 | Bucket upper bounds in seconds (excludes +Inf) |
 | `<prefix>histogram_bucket_counts` | []int64 | Cumulative count per bucket (includes +Inf bucket) |
 
+### Optional Attribute Loss Analysis
+
+When `enable_attribute_loss_analysis: true`, the processor analyzes how attributes vary across aggregated spans and records two loss types:
+
+- **Diversity loss**: Attribute exists on all spans in the group, but values differ across spans.
+- **Missing loss**: Attribute is absent from some spans in the group.
+
+These are added to the summary span as string attributes (with your configured `aggregation_attribute_prefix`):
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `<prefix>diverse_attributes` | string | Attributes with value diversity loss. Format: `key(lost_values),...` |
+| `<prefix>missing_attributes` | string | Attributes missing on some spans. Format: `key(lost_values),...` |
+
+The processor also records leaf and parent histogram metrics for both loss types:
+
+- `processor_spanpruning_leaf_attribute_diversity_loss`
+- `processor_spanpruning_leaf_attribute_loss`
+- `processor_spanpruning_parent_attribute_diversity_loss`
+- `processor_spanpruning_parent_attribute_loss`
+
+Use `attribute_loss_exemplar_sample_rate` to control how often those metric points include exemplars for trace correlation.
+
+### Optional Outlier Analysis Attributes
+
+When `enable_outlier_analysis: true`, the following additional attributes are added:
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `<prefix>duration_median_ns` | int64 | Median duration (more robust than average for skewed distributions) |
+| `<prefix>outlier_correlated_attributes` | string | Attributes that distinguish outliers from normal spans (format: `key=value(outlier%/normal%), ...`) |
+
+### Summary Span Attributes (When Preserving Outliers)
+
+When `outlier_analysis.preserve_outliers: true`, the summary span also includes:
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `<prefix>preserved_outlier_count` | int64 | Number of outlier spans preserved |
+| `<prefix>preserved_outlier_span_ids` | []string | SpanIDs of preserved outliers |
+
+### Preserved Outlier Span Attributes
+
+Preserved outlier spans are annotated with:
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `<prefix>is_preserved_outlier` | bool | Identifies span as a preserved outlier |
+| `<prefix>summary_span_id` | string | SpanID of the associated summary span |
+
+A preserved outlier (the root of its subtree) becomes a sibling of its summary
+span, and its whole subtree moves with it. The outlier keeps everything beneath it,
+but its aggregated ancestors are replaced by the summary it now hangs from
+(linked via `summary_span_id`).
+
 ### Histogram Buckets
 
 When `aggregation_histogram_buckets` is configured, summary spans include latency distribution data as cumulative histogram buckets. Cumulative means each bucket count includes all spans with duration less than or equal to that bucket boundary.
@@ -150,6 +344,241 @@ When `aggregation_histogram_buckets` is configured, summary spans include latenc
   - Bucket 2 (<=100ms): 4 spans (5ms, 15ms, 25ms, 75ms)
   - Bucket 3 (+Inf): 5 spans (all spans)
 
+### Outlier Analysis (Optional)
+
+When `enable_outlier_analysis: true`, the processor detects duration outliers and identifies attributes that correlate with slow spans.
+
+#### Detection Methods
+
+The processor supports two statistical methods for outlier detection:
+
+| Method | Formula | Characteristics |
+|--------|---------|----------------|
+| **IQR** (default) | `threshold = Q3 + (multiplier × IQR)` | Standard method; sensitive to moderate outliers; uses quartiles |
+| **MAD** | `threshold = median + (multiplier × MAD × 1.4826)` | More robust to extreme outliers; uses median |
+
+**When to use each:**
+
+- **IQR**: Best for typical distributions with moderate outliers. Standard choice for most use cases.
+- **MAD**: Better when you have extreme outliers that would skew IQR calculations, or when you need more stable detection thresholds.
+
+#### How It Works
+
+**IQR (Interquartile Range) Method:**
+1. Sort spans by duration
+2. Calculate Q1 (25th percentile) and Q3 (75th percentile)
+3. Calculate IQR = Q3 - Q1
+4. Flag spans with duration > Q3 + (iqr_multiplier × IQR) as outliers
+
+**MAD (Median Absolute Deviation) Method:**
+1. Sort spans by duration and find the median
+2. Calculate \|duration - median\| for each span
+3. MAD = median of those deviations
+4. Flag spans with duration > median + (mad_multiplier × MAD × 1.4826) as outliers
+
+*Note: The 1.4826 scale factor makes MAD comparable to standard deviation for normal distributions.*
+
+**Attribute Correlation** (same for both methods):
+- Compare attribute values between outliers and normal spans
+- Find attribute values that appear frequently in outliers but rarely in normal spans
+- Report the strongest correlations based on the configured thresholds
+
+#### Configuration Example
+
+```yaml
+processors:
+  span_pruning:
+    enable_outlier_analysis: true
+    outlier_analysis:
+      method: iqr                # or "mad" for more robustness
+      iqr_multiplier: 1.5        # Standard outlier threshold (IQR method)
+      mad_multiplier: 3.0        # Standard outlier threshold (MAD method)
+      min_group_size: 7          # Skip groups with <7 spans
+      correlation_min_occurrence: 0.75   # 75% of outliers must share value
+      correlation_max_normal_occurrence: 0.25  # <25% of normal spans can have it
+      max_correlated_attributes: 5       # Report top 5 correlations
+      min_outlier_threshold_percent: 0.1 # Require at least 10% above median
+```
+
+#### Example Output
+
+```
+SELECT (summary, span_count: 20)
+  aggregation.duration_avg_ns: 45000000
+  aggregation.duration_median_ns: 8000000
+  aggregation.outlier_correlated_attributes: "db.cache_hit=false(100%/0%), db.shard=7(80%/10%)"
+```
+
+**Interpretation:**
+- **Median vs Avg**: Large difference (8ms vs 45ms) indicates outliers are skewing the average
+- **Primary correlation**: All outliers (100%) had `cache_hit=false`, while 0% of normal spans did
+- **Secondary correlation**: 80% of outliers hit shard 7, but only 10% of normal spans did
+
+This helps identify root causes of latency issues:
+- Cache misses
+- Specific database shards
+- Failed retries
+- Timeout scenarios
+
+#### When to Use
+
+- **Enable** when you need to understand why some operations are slow
+- **Disable** (default) to minimize overhead when outlier analysis isn't needed
+- Works best with groups of 10+ spans for statistical reliability
+
+#### Performance Impact
+
+- **Computational overhead**: Sorts durations, calculates quartiles, counts attribute occurrences
+- **Minimal when disabled**: Zero overhead (no sorting or calculations)
+- **Recommended**: Use `min_group_size: 7` or higher to skip analysis on small groups
+
+### Preserving Outlier Subtrees (Optional)
+
+When `outlier_analysis.preserve_outliers: true`, each detected outlier is **kept along with its whole subtree** instead of being aggregated. A leaf outlier (e.g. a slow query) is the degenerate single-span case; an interior outlier (e.g. a slow `handler`) keeps every span beneath it. This provides:
+
+- **Full visibility** into slow operations for debugging, including everything the slow span did
+- **Preserved context**: original attributes, events, links, and tree structure remain intact
+- **Selective aggregation**: only prune repetitive normal spans
+
+Preservation keeps everything **beneath** an outlier, not above it: the outlier's subtree is kept, but its ancestors still aggregate normally. The preserved subtree is reparented as a sibling of its summary span (the whole subtree moves with its root), so a slow leaf ends up under the same summary its normal siblings collapsed into, and a slow interior span hangs off the summary that replaced its peers.
+
+#### Configuration
+
+```yaml
+processors:
+  span_pruning:
+    enable_outlier_analysis: true
+    outlier_analysis:
+      preserve_outliers: true         # Keep outliers as individual spans
+      max_preserved_outliers: 2       # Keep top 2 slowest outliers per group
+      preserve_only_with_correlation: false  # Preserve even without correlation
+```
+
+#### Configuration Options
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `preserve_outliers` | bool | false | Keep outlier subtrees instead of aggregating |
+| `max_preserved_outliers` | int | 2 | Max outlier subtrees to preserve per group (0=preserve all detected) |
+| `preserve_only_with_correlation` | bool | false | Only preserve outliers if a strong attribute correlation is found |
+
+#### Example Output
+
+**Before** (10 similar SELECT spans, 2 are outliers):
+```
+handler
+├── SELECT - 5ms (normal)
+├── SELECT - 6ms (normal)
+├── SELECT - 7ms (normal)
+├── SELECT - 8ms (normal)
+├── SELECT - 9ms (normal)
+├── SELECT - 10ms (normal)
+├── SELECT - 11ms (normal)
+├── SELECT - 12ms (normal)
+├── SELECT - 500ms (outlier, cache_hit=false)
+└── SELECT - 600ms (outlier, cache_hit=false)
+```
+
+**After** (with `preserve_outliers: true`, `max_preserved_outliers: 2`):
+```
+handler
+├── SELECT (summary, span_count=8)      ← Normal spans aggregated
+│   - aggregation.preserved_outlier_count: 2
+│   - aggregation.outlier_correlated_attributes: "cache_hit=false(100%/0%)"
+├── SELECT - 500ms                       ← Outlier preserved
+│   - aggregation.is_preserved_outlier: true
+│   - aggregation.summary_span_id: "abc123"
+│   - cache_hit: false
+└── SELECT - 600ms                       ← Outlier preserved
+    - aggregation.is_preserved_outlier: true
+    - aggregation.summary_span_id: "abc123"
+    - cache_hit: false
+```
+
+#### Behavior Notes
+
+- **Multi-level detection**: outliers are detected within each sibling group at every level (leaf groups and eligible parent groups) that meets `min_group_size`.
+- **Subtree, not ancestors**: a preserved outlier keeps everything beneath it (its whole subtree), but its ancestors still aggregate; the subtree is reparented as a sibling of its summary.
+- **Nested outliers**: an outlier already inside a preserved subtree is not preserved (or counted) again, since the enclosing subtree already keeps it.
+- **Skip aggregation**: if protection leaves a group below `min_spans_to_aggregate`, that group is left unchanged.
+- **Selection order**: outliers are preserved starting with the most extreme (longest duration) first, capped by `max_preserved_outliers` subtrees per group.
+
+### Random Exemplar Sampling (Optional)
+
+When `enable_exemplar_sampling: true`, the processor preserves a randomly
+selected, sub-linear sample of **exemplars** at the top of each aggregation
+tree. Sampling runs only on the top-level group (the spans closest to the root
+that would aggregate); each sampled span is kept as a whole subtree, so an
+exemplar is a complete representative tree rather than an isolated span. Lower
+groups in the same tree are not sampled separately. Exemplar roots are kept as
+siblings of the summary span (same parent) and their TraceState threshold is
+updated to reflect the additional sampling step.
+
+This is complementary to outlier preservation: outliers ensure the tail of the
+duration distribution is represented, while exemplars sample the body.
+Cross-trace consumers can then estimate properties of the aggregated-away
+population (e.g. attribute-value frequencies) by pooling exemplars across many
+traces.
+
+#### Sample Size
+
+For a top-level group of `N` spans, the processor draws
+`D = ceil(precision_multiplier * sqrt(N))` spans without replacement and keeps
+each drawn span's whole subtree. `sqrt(N)` is sub-linear in storage and gives
+bounded relative error for cross-trace analysis. The draw is taken over the full
+group (see *Interaction with outliers* below), so the number of spans that
+become exemplars may be slightly below `D` when some draws land on spans already
+preserved as outliers.
+
+#### Configuration
+
+```yaml
+processors:
+  spanpruning:
+    enable_exemplar_sampling: true
+    exemplar_sampling:
+      precision_multiplier: 1.0
+```
+
+#### Exemplar Span Attributes
+
+The root of each preserved exemplar subtree is annotated with:
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `<prefix>is_exemplar` | bool | Identifies span as a sampled exemplar (root of a kept subtree) |
+| `<prefix>summary_span_id` | string | SpanID of the associated summary span |
+
+#### Summary Span Attributes (When Sampling Exemplars)
+
+When at least one exemplar is preserved, the summary span gets:
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `<prefix>exemplar_count` | int64 | Number of exemplar subtrees preserved |
+| `<prefix>exemplar_span_ids` | []string | SpanIDs of the preserved exemplar roots |
+
+#### Behavior Notes
+
+- **Top level only**: Sampling runs once per aggregation tree, on its top-level
+  group. A group is top-level when none of its members' parents are themselves
+  aggregated into a higher group.
+- **Whole subtree**: Each sampled span keeps its entire subtree; nothing beneath
+  an exemplar is aggregated, and deeper outlier detection skips the protected
+  subtree.
+- **Parent aggregation**: The remaining (non-exemplar) top-level spans still
+  aggregate, and exemplar roots become siblings of that summary.
+- **Small groups**: For `N <= 1` no exemplars are sampled. For small `N` where
+  `D >= N`, the whole group is kept and aggregation is skipped.
+- **Interaction with outliers**: When both features are enabled, a span is kept
+  individually if it is a preserved outlier **OR** it is sampled. Outliers in the
+  top-level group are protected first; the draw is then taken over the full group
+  (outliers included), but the keep is an OR: a span that is both an outlier and
+  drawn is kept once, tagged only as an outlier, and its threshold is left
+  untouched (it is kept deterministically, so its effective keep-probability is
+  1). Non-outlier exemplars compose their threshold by `D/N` over the full group,
+  so adjusted counts remain consistent.
+
 ## Pipeline Placement
 
 This processor is designed to work best when placed after processors that ensure complete traces are available:
@@ -159,7 +588,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [groupbytrace, spanpruning, batch]
+      processors: [groupbytrace, span_pruning, batch]
       exporters: [otlp]
 ```
 
@@ -170,7 +599,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [tail_sampling, spanpruning, batch]
+      processors: [tail_sampling, span_pruning, batch]
       exporters: [otlp]
 ```
 
@@ -264,6 +693,68 @@ root
 | worker (OK) | Unchanged | Child not aggregated |
 | SELECT (OK) under worker | Unchanged | Different parent name than other SELECTs |
 
+## OTTL Condition Filtering
+
+The `conditions` field allows selective trace pruning using OTTL (OpenTelemetry Transformation Language) expressions. Only traces where **at least one span matches any condition** will be pruned.
+
+### Behavior
+
+| Conditions | Result |
+|------------|--------|
+| Empty/not configured | All traces are pruned (default behavior) |
+| Configured | Only matching traces are pruned; others pass through unchanged |
+
+### Syntax
+
+Conditions use OTTL span context syntax. Each condition is a boolean expression evaluated against each span in a trace. If any span matches any condition, the entire trace is eligible for pruning.
+
+### Common Examples
+
+**Filter by service name:**
+```yaml
+conditions:
+  - 'resource.attributes["service.name"] == "loki-query-engine"'
+```
+
+**Filter by span attributes:**
+```yaml
+conditions:
+  - 'attributes["db.system"] == "postgresql"'
+```
+
+**Filter by HTTP route:**
+```yaml
+conditions:
+  - 'attributes["http.route"] == "/api/v1/query"'
+```
+
+**Multiple conditions (OR logic):**
+```yaml
+conditions:
+  - 'resource.attributes["service.name"] == "loki-query-engine"'
+  - 'attributes["db.system"] == "postgresql"'
+```
+A trace is pruned if **any** span matches **any** condition.
+
+**Filter by span name:**
+```yaml
+conditions:
+  - 'name == "SELECT"'
+```
+
+**Filter by status:**
+```yaml
+conditions:
+  - 'status.code == 2'  # Error status
+```
+
+### Use Cases
+
+- **Targeted pruning**: Only prune traces from specific services known to generate repetitive spans
+- **Environment filtering**: Prune only production traces while preserving development traces
+- **Operation-specific**: Prune only database-heavy traces while keeping HTTP traces intact
+- **Debugging**: Temporarily disable pruning for specific services to investigate issues
+
 ## Limitations
 
 - Requires complete traces for accurate leaf detection
@@ -298,6 +789,40 @@ The processor emits the following metrics to help monitor its operation:
 | `otelcol_processor_spanpruning_spans_pruned` | Total number of spans removed by aggregation |
 | `otelcol_processor_spanpruning_aggregations_created` | Total number of aggregation summary spans created |
 | `otelcol_processor_spanpruning_traces_processed` | Total number of traces processed |
+| `otelcol_processor_spanpruning_traces_skipped` | Total traces skipped due to conditions not matching |
+| `otelcol_processor_spanpruning_outliers_detected` | Total spans identified as outliers by analysis (when `enable_outlier_analysis: true`) |
+| `otelcol_processor_spanpruning_outliers_preserved` | Total outlier spans kept (when `preserve_outliers: true`) |
+| `otelcol_processor_spanpruning_outliers_correlations_detected` | Total aggregation groups where outliers had correlated attributes |
+| `otelcol_processor_spanpruning_bytes_received` | Total bytes of serialized traces received before pruning (when `enable_bytes_metrics: true`) |
+| `otelcol_processor_spanpruning_bytes_processed_input` | Total bytes of serialized traces in the matched subset, measured before pruning (when `enable_bytes_metrics: true`) |
+| `otelcol_processor_spanpruning_bytes_processed_output` | Total bytes of serialized traces in the matched subset, measured after pruning (when `enable_bytes_metrics: true`) |
+| `otelcol_processor_spanpruning_bytes_emitted` | Total bytes of serialized traces emitted after pruning (when `enable_bytes_metrics: true`) |
+| `otelcol_processor_spanpruning_exemplars_sampled` | Total spans randomly sampled as exemplars (when `enable_exemplar_sampling: true`) |
+
+### Byte metrics semantics
+
+When `enable_bytes_metrics` is enabled, the processor serializes trace data with
+`ptrace.ProtoMarshaler` on each batch. This adds CPU overhead because it measures:
+
+- Full batch bytes before pruning (`bytes_received`)
+- Matched subset bytes before pruning (`bytes_processed_input`)
+- Matched subset bytes after pruning (`bytes_processed_output`)
+- Full batch bytes after pruning (`bytes_emitted`)
+
+When no `conditions` are configured, the matched subset is the full batch, so
+`bytes_processed_input == bytes_received` and `bytes_processed_output == bytes_emitted`.
+When `conditions` are configured, the matched subset may be smaller than the full
+batch, and the matched-subset metrics reflect only traces that matched.
+
+| Comparison | Notes |
+|------------|-------|
+| `bytes_processed_input` vs `bytes_processed_output` | Like-for-like: matched subset before vs after pruning |
+| `bytes_received` vs `bytes_emitted` | Like-for-like: full batch before vs after pruning |
+| `bytes_emitted` vs `bytes_processed_input` | Only comparable when no `conditions` are set (both cover the full batch); with `conditions` this compares the full batch against the matched subset |
+
+After aggregation, `bytes_processed_output` can exceed `bytes_processed_input` when
+summary spans are larger than the leaf spans they replace, so matched-byte savings
+can be negative even when pruning is functioning correctly.
 
 ### Histograms
 
@@ -309,5 +834,7 @@ The processor emits the following metrics to help monitor its operation:
 These metrics can be used to:
 - Monitor the effectiveness of span pruning (compare `spans_received` vs `spans_pruned`)
 - Track the compression ratio achieved by aggregation
+- Track condition selectivity with `traces_skipped`
+- Track byte changes (`bytes_received`/`bytes_emitted` for the full batch, `bytes_processed_input`/`bytes_processed_output` for the matched subset)
 - Identify processing bottlenecks via `processing_duration`
 - Understand aggregation patterns via `aggregation_group_size`

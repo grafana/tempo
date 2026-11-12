@@ -409,7 +409,8 @@ func (t *App) initQuerier() (services.Service, error) {
 	}
 
 	// do not enable polling if this is the single binary. in that case the backend-worker will take care of polling
-	if t.cfg.Target == Querier {
+	// TODO: remove with querier blocklist polling
+	if t.cfg.Target == Querier && t.cfg.Querier.BlocklistPolling {
 		t.store.EnablePolling(context.Background(), nil)
 	}
 
@@ -510,6 +511,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http metrics endpoints
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryInstant), base.Wrap(queryFrontend.MetricsQueryInstantHandler))
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange), base.Wrap(queryFrontend.MetricsQueryRangeHandler))
+	if t.cfg.Frontend.QueryTracker.Enabled {
+		t.registerQueryTrackerHandlers(queryFrontend.QueryTrackerHandler, queryFrontend.QueryTrackerTenantHandler)
+	}
 
 	// http mcp endpoint
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathMCP), base.Wrap(queryFrontend.MCPHandler))
@@ -527,6 +531,11 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 
 	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
+}
+
+func (t *App) registerQueryTrackerHandlers(tenantsHandler, tenantHandler http.Handler) {
+	t.Server.HTTPRouter().Path(api.PathQueryTracker).Methods(http.MethodGet).Handler(tenantsHandler)
+	t.Server.HTTPRouter().Path(api.PathQueryTracker + "/{tenant}").Methods(http.MethodGet).Handler(tenantHandler)
 }
 
 //go:embed static

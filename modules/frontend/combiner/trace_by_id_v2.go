@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -29,14 +30,14 @@ type TraceByIDV2Options struct {
 	TraceFilter TraceFilter
 }
 
-func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options) GRPCCombiner[*tempopb.TraceByIDResponse] {
-	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor, opts).(GRPCCombiner[*tempopb.TraceByIDResponse])
+func NewTypedTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options, copts ...Option) GRPCCombiner[*tempopb.TraceByIDResponse] {
+	return NewTraceByIDV2(maxBytes, marshalingFormat, traceRedactor, opts, copts...).(GRPCCombiner[*tempopb.TraceByIDResponse])
 }
 
-func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options) Combiner {
+func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceRedactor TraceRedactor, opts TraceByIDV2Options, copts ...Option) Combiner {
 	combiner := trace.NewCombiner(maxBytes, true)
 	var partialTrace bool
-	metricsCombiner := NewTraceByIDMetricsCombiner()
+	metricsCombiner := NewTraceByIDMetricsCombiner(copts...)
 	gc := &genericCombiner[*tempopb.TraceByIDResponse]{
 		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, pipelineResp PipelineResponse) error {
 			if partial.Status == tempopb.PartialStatus_PARTIAL {
@@ -48,18 +49,15 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			_, err := combiner.Consume(partial.Trace)
 			return err
 		},
-		finalize: func(resp *tempopb.TraceByIDResponse) (*tempopb.TraceByIDResponse, error) {
+		finalize: func(ctx context.Context, resp *tempopb.TraceByIDResponse) (*tempopb.TraceByIDResponse, error) {
 			traceResult, _ := combiner.Result()
 			if traceResult == nil {
 				traceResult = &tempopb.Trace{}
 			}
 
-			// dedupe duplicate span ids
-			deduper := newDeduper()
-			traceResult = deduper.dedupe(traceResult)
+			traceResult = deduplicateTrace(ctx, traceResult)
 			if traceRedactor != nil {
-				err := traceRedactor.RedactTraceAttributes(traceResult)
-				if err != nil {
+				if err := redactTrace(ctx, traceResult, traceRedactor); err != nil {
 					return nil, err
 				}
 			}
@@ -110,6 +108,11 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			if traceFiltered {
 				messages = append(messages, "Trace filtered, only a subset of spans matching the filter is returned")
 			}
+			resp.PruneStatus = toPruneStatus(pruneStatus)
+			// Even if span pruning is disabled, check whether trace was already pruned on write
+			if opts.SpanPruningConfig == nil && spanpruning.IsPrunedOnWrite(nil, traceResult) {
+				resp.PruneStatus = tempopb.PruneStatus_PRUNED_ON_WRITE
+			}
 			switch pruneStatus {
 			case spanpruning.StatusPrunedOnWrite:
 				messages = append(messages, "Trace was already pruned before it reached Tempo; this is the complete trace Tempo has stored")
@@ -123,11 +126,25 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 
 			return resp, nil
 		},
-		new:     func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
-		current: &tempopb.TraceByIDResponse{},
+		new:         func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
+		current:     &tempopb.TraceByIDResponse{},
+		marshalJSON: tempopb.MarshalTraceByIDResponseToJSON,
 	}
 	initHTTPCombiner(gc, marshalingFormat)
 	return gc
+}
+
+// toPruneStatus maps the internal pruning outcome to its wire representation so the two enums can
+// evolve independently.
+func toPruneStatus(s spanpruning.Status) tempopb.PruneStatus {
+	switch s {
+	case spanpruning.StatusPrunedOnWrite:
+		return tempopb.PruneStatus_PRUNED_ON_WRITE
+	case spanpruning.StatusPrunedOnRead:
+		return tempopb.PruneStatus_PRUNED_ON_READ
+	default:
+		return tempopb.PruneStatus_NOT_PRUNED
+	}
 }
 
 // countTraceSpans returns the total span count across the trace, used to detect whether the q filter

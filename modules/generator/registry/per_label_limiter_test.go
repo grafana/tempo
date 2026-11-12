@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	hll "github.com/axiomhq/hyperloglog"
+	"github.com/cespare/xxhash/v2"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/labels"
@@ -47,9 +49,7 @@ func TestPerLabelLimiter_RuntimeEnableDisable(t *testing.T) {
 	// when disabled, Limit() returns before inserting into sketches, so labelsState
 	// is empty, which means no demand gauge was published as well.
 	triggerDemandUpdate(s)
-	s.mtx.Lock()
-	labelsStateLen := len(s.labelsState)
-	s.mtx.Unlock()
+	labelsStateLen := len(*s.labelsState.Load())
 	require.Equal(t, 0, labelsStateLen, "no label state should exist when disabled")
 
 	// Phase 2: Enable at runtime by changing the override
@@ -306,12 +306,78 @@ func TestPerLabelLimiter_ConcurrentAccess(t *testing.T) {
 	// After all goroutines finish, trigger maintenance and verify the state is consistent
 	triggerDemandUpdate(s)
 
-	s.mtx.Lock()
-	state, ok := s.labelsState["label"]
-	s.mtx.Unlock()
+	state, ok := (*s.labelsState.Load())["label"]
 	require.True(t, ok, "label state should exist after concurrent inserts")
 	// Estimate may be less than 1000 because prune ticks rotate out sketch data during the test
 	require.Greater(t, state.sketch.Estimate(), uint64(0), "sketch should have recorded values")
+}
+
+func TestPerLabelLimiter_RecentValuesCacheKeepsEstimate(t *testing.T) {
+	cached := &labelCardinalityState{sketch: NewCardinality(15*time.Minute, 5*time.Minute)}
+	uncached := NewCardinality(15*time.Minute, 5*time.Minute)
+
+	// repeated values, more distinct ones than cache slots so some collide
+	for round := 0; round < 3; round++ {
+		for i := 0; i < 5000; i++ {
+			h := xxhash.Sum64String(fmt.Sprintf("v-%d", (i*7)%(3*recentValuesSize)))
+			cached.insert(h)
+			uncached.Insert(h)
+		}
+		require.Equal(t, uncached.Estimate(), cached.sketch.Estimate())
+		cached.sketch.Advance()
+		uncached.Advance()
+	}
+
+	// A value cached before Advance must be inserted into the new sketch, so it's
+	// still counted once the sketch it was first inserted into is rotated out.
+	h := xxhash.Sum64String("again")
+	state := &labelCardinalityState{sketch: NewCardinality(15*time.Minute, 5*time.Minute)}
+	state.insert(h)
+	state.sketch.Advance()
+	state.insert(h)
+	for range state.sketch.sketchesLength - 1 {
+		state.sketch.Advance()
+	}
+	require.Equal(t, uint64(1), state.sketch.Estimate())
+	state.sketch.Advance()
+	require.Equal(t, uint64(0), state.sketch.Estimate())
+}
+
+func TestPerLabelLimiter_RecentValuesCacheSkipsRepeatedInserts(t *testing.T) {
+	state := &labelCardinalityState{sketch: NewCardinality(15*time.Minute, 5*time.Minute)}
+	h := xxhash.Sum64String("repeated")
+	state.insert(h)
+	require.Equal(t, uint64(1), state.sketch.Estimate())
+
+	// Empty the current sketch without advancing the generation: a repeated value
+	// hits the cache and isn't inserted again, a new one is.
+	state.sketch.sketches[state.sketch.current], _ = hll.NewSketch(state.sketch.precision, true)
+	state.insert(h)
+	require.Equal(t, uint64(0), state.sketch.Estimate())
+	state.insert(xxhash.Sum64String("new"))
+	require.Equal(t, uint64(1), state.sketch.Estimate())
+}
+
+func TestPerLabelLimiter_ConcurrentNewLabelNames(t *testing.T) {
+	s := NewPerLabelLimiter("test", testMaxCardinality(100), 15*time.Minute)
+	const goroutines, names = 8, 50
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < names; i++ {
+				s.Limit(labels.FromStrings(fmt.Sprintf("label_%d", i), fmt.Sprintf("value_%d", g)))
+			}
+		}()
+	}
+	wg.Wait()
+
+	states := *s.labelsState.Load()
+	require.Len(t, states, names)
+	for i := 0; i < names; i++ {
+		require.Equal(t, uint64(goroutines), states[fmt.Sprintf("label_%d", i)].sketch.Estimate())
+	}
 }
 
 func BenchmarkPerLabelLimiter_Limit(b *testing.B) {
@@ -431,6 +497,55 @@ func BenchmarkPerLabelLimiter_Limit(b *testing.B) {
 			}
 		})
 	})
+
+	// span-metrics shaped series: a few low-cardinality labels and a span name
+	// with more distinct values than the recent values cache holds.
+	spanMetricsLabels := func() []labels.Labels {
+		n := 5000
+		allLbls := make([]labels.Labels, n)
+		for i := 0; i < n; i++ {
+			allLbls[i] = labels.FromStrings(
+				"__name__", "traces_spanmetrics_calls_total",
+				"service", fmt.Sprintf("svc-%d", i%20),
+				"span_name", fmt.Sprintf("GET /api/v1/items/%d", i%2000),
+				"span_kind", "SPAN_KIND_SERVER",
+				"status_code", "STATUS_CODE_UNSET",
+				"http_method", "GET",
+				"http_status_code", fmt.Sprintf("%d", 200+i%5),
+			)
+		}
+		return allLbls
+	}
+
+	b.Run("span_metrics", func(b *testing.B) {
+		s := NewPerLabelLimiter("bench", testMaxCardinality(10000), 15*time.Minute)
+		allLbls := spanMetricsLabels()
+		s.Limit(allLbls[0])
+		triggerDemandUpdate(s)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			s.Limit(allLbls[i%len(allLbls)])
+		}
+	})
+
+	b.Run("span_metrics_parallel", func(b *testing.B) {
+		s := NewPerLabelLimiter("bench", testMaxCardinality(10000), 15*time.Minute)
+		allLbls := spanMetricsLabels()
+		s.Limit(allLbls[0])
+		triggerDemandUpdate(s)
+		b.ReportAllocs()
+		b.ResetTimer()
+		var goroutines atomic.Int64
+		b.RunParallel(func(pb *testing.PB) {
+			// a local index per goroutine, so a shared counter doesn't dominate the result
+			i := int(goroutines.Add(1)) * 7919
+			for pb.Next() {
+				s.Limit(allLbls[i%len(allLbls)])
+				i++
+			}
+		})
+	})
 }
 
 // triggerDemandUpdate force runs the demand-update path of doPeriodicMaintenance,
@@ -479,14 +594,13 @@ func TestPerLabelLimiter_BorrowedLabelNameNotRetained(t *testing.T) {
 	scratch.Overwrite(&second)
 	s.Limit(second)
 
-	s.mtx.Lock()
-	keys := make([]string, 0, len(s.labelsState))
-	for k := range s.labelsState {
+	labelsState := *s.labelsState.Load()
+	keys := make([]string, 0, len(labelsState))
+	for k := range labelsState {
 		keys = append(keys, k)
 	}
-	_, hasFirst := s.labelsState["name_aaaa"]
-	_, hasSecond := s.labelsState["name_bbbb"]
-	s.mtx.Unlock()
+	_, hasFirst := labelsState["name_aaaa"]
+	_, hasSecond := labelsState["name_bbbb"]
 
 	// Both keys must survive as independent, owned strings. Before the fix the
 	// first key aliased the scratch buffer, so overwriting it to "name_bbbb"
@@ -517,9 +631,7 @@ func TestPerLabelLimiter_BorrowedLabelNameNotRetainedInOverflowMetric(t *testing
 		s.Limit(labels.FromStrings(labelName, fmt.Sprintf("v-%d", i)))
 	}
 	triggerDemandUpdate(s)
-	s.mtx.Lock()
-	overLimit := s.labelsState[labelName].overLimit
-	s.mtx.Unlock()
+	overLimit := (*s.labelsState.Load())[labelName].overLimit.Load()
 	require.True(t, overLimit, "label should be over its limit after the demand update")
 
 	// Drive an overflow through a BORROWED label set whose name aliases a

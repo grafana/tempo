@@ -1,27 +1,30 @@
 type: ottl
 
 status:
-  disable_codecov_badge: true
   class: pkg
   stability:
     development: [ profiles ]
-    beta: [ traces, metrics, logs ]
+    stable: [ traces, metrics, logs ]
   codeowners:
-    active: [TylerHelmuth, evan-bradley, edmocosta, bogdandrutu]
-    emeritus: [anuraaga, kentquirk]
+    active: [TylerHelmuth, evan-bradley, edmocosta]
+    emeritus: [anuraaga, kentquirk, bogdandrutu]
     seeking_new: true
 
 feature_gates:
-  - id: "ottl.PanicDuplicateName"
-    description: When enabled, the CreateFactoryMap panics if the name is duplicated.
-    stage: beta
-    from_version: v0.141.0
-    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/44630
-    skip_strict_validation: true
+  - id: "ottl.functions.enableLambda"
+    description: Allow OTTL functions to take lambda arguments. When disabled, lambda arguments are rejected.
+    stage: alpha
+    from_version: v0.155.0
+    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/48227
 
-  - id: "ottl.contexts.enableOTelColContext"
-    description: Enable the `otelcol` context for OTTL. This allows users using `otelcol.*` paths in their OTTL statements and conditions.
+  - id: "pkg.ottl.functions.enableDynamicSliceArguments"
+    description: Allow slice arguments of stable OTTL functions, such as the values of Concat, to be paths or converters that resolve to a slice at runtime. When disabled, these arguments only accept list literals.
     stage: beta
-    from_version: v0.147.0
-    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/46437
-    skip_strict_validation: true
+    from_version: v0.163.0
+    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/27821
+
+  - id: "pkg.ottl.functions.enableExperimental"
+    description: Allow OTTL statements and conditions to use experimental functions. When disabled, experimental functions are rejected.
+    stage: alpha
+    from_version: v0.163.0
+    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/50927

@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/coredistro"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata"
 )
 
@@ -32,11 +33,17 @@ func NewFactory() receiver.Factory {
 	return receiver.NewFactory(
 		metadata.Type,
 		createDefaultConfig,
-		receiver.WithTraces(createTracesReceiver, metadata.TracesStability))
+		receiver.WithTraces(createTracesReceiver, metadata.TracesStability),
+	)
 }
 
 // CreateDefaultConfig creates the default configuration for Jaeger receiver.
 func createDefaultConfig() component.Config {
+	thriftHTTPServerConfig := confighttp.NewDefaultServerConfig()
+	thriftHTTPServerConfig.NetAddr = confignet.AddrConfig{
+		Endpoint:  defaultHTTPEndpoint,
+		Transport: confignet.TransportTypeTCP,
+	}
 	return &Config{
 		Protocols: Protocols{
 			GRPC: configoptional.Default(configgrpc.ServerConfig{
@@ -45,12 +52,7 @@ func createDefaultConfig() component.Config {
 					Transport: confignet.TransportTypeTCP,
 				},
 			}),
-			ThriftHTTP: configoptional.Default(confighttp.ServerConfig{
-				NetAddr: confignet.AddrConfig{
-					Endpoint:  defaultHTTPEndpoint,
-					Transport: confignet.TransportTypeTCP,
-				},
-			}),
+			ThriftHTTP: configoptional.Default(thriftHTTPServerConfig),
 			ThriftBinaryUDP: configoptional.Default(ProtocolUDP{
 				Endpoint:        defaultThriftBinaryEndpoint,
 				ServerConfigUDP: defaultServerConfigUDP(),
@@ -70,6 +72,7 @@ func createTracesReceiver(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (receiver.Traces, error) {
+	coredistro.WarnRemoval(set.TelemetrySettings, set.BuildInfo, "v0.167.0", coredistro.JaegerZipkinCoda)
 	// Convert settings in the source config to configuration struct
 	// that Jaeger receiver understands.
 	// Error handling for the conversion is done in the Validate function from the Config object itself.

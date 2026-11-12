@@ -903,8 +903,12 @@ func (s *scanner) scanName() string {
 }
 
 func isName(r rune) bool {
+	// '*' is not a name character (XPath 1.0 §3.7): a NCName immediately followed by '*'
+	// (e.g. `price*0.01`) must be scanned as name · MultiplyOperator · number, not as a single
+	// name "price*0.01". The '*' of a namespace wildcard (`prefix:*`) is handled explicitly in the
+	// scanner (the ':' branch, `if s.curr == '*'`), so dropping it here does not affect that case.
 	return string(r) != ":" && string(r) != "/" &&
-		(unicode.Is(first, r) || unicode.Is(second, r) || string(r) == "*")
+		(unicode.Is(first, r) || unicode.Is(second, r))
 }
 
 func isDigit(r rune) bool {

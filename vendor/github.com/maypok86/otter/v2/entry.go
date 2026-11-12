@@ -50,8 +50,8 @@ type Entry[K comparable, V any] struct {
 
 // ExpiresAt returns the entry's expiration time.
 //
-// If the cache was not configured with an expiration policy then this value is roughly [math.MaxInt64]
-// nanoseconds away from the SnapshotAt.
+// If the cache was not configured with an expiration policy then ExpiresAtNano is [math.MaxInt64],
+// the latest time an int64 can hold.
 func (e Entry[K, V]) ExpiresAt() time.Time {
 	return time.Unix(0, e.ExpiresAtNano)
 }
@@ -60,20 +60,22 @@ func (e Entry[K, V]) ExpiresAt() time.Time {
 // to elapsing this time bound. An entry is considered fresh if its age is less than this
 // duration, and stale otherwise. The expiration policy determines when the entry's age is reset.
 //
-// If the cache was not configured with an expiration policy then this value is always [math.MaxInt64].
+// If the cache was not configured with an expiration policy then this value is [math.MaxInt64] minus
+// SnapshotAtNano: [math.MaxInt64] if the cache has no time-based policy at all, and still more than
+// 200 years if it has a refresh policy.
 func (e Entry[K, V]) ExpiresAfter() time.Duration {
 	return time.Duration(e.ExpiresAtNano - e.SnapshotAtNano)
 }
 
 // HasExpired returns true if the entry has expired.
 func (e Entry[K, V]) HasExpired() bool {
-	return e.ExpiresAtNano < e.SnapshotAtNano
+	return e.ExpiresAtNano <= e.SnapshotAtNano
 }
 
 // RefreshableAt is the time after which the entry will be reloaded.
 //
-// If the cache was not configured with a refresh policy then this value is roughly [math.MaxInt64]
-// nanoseconds away from the SnapshotAt.
+// If the cache was not configured with a refresh policy then RefreshableAtNano is [math.MaxInt64],
+// the latest time an int64 can hold.
 func (e Entry[K, V]) RefreshableAt() time.Time {
 	return time.Unix(0, e.RefreshableAtNano)
 }
@@ -82,7 +84,9 @@ func (e Entry[K, V]) RefreshableAt() time.Time {
 // to elapsing this time bound. An entry is considered fresh if its age is less than this
 // duration, and stale otherwise. The refresh policy determines when the entry's age is reset.
 //
-// If the cache was not configured with a refresh policy then this value is always [math.MaxInt64].
+// If the cache was not configured with a refresh policy then this value is [math.MaxInt64] minus
+// SnapshotAtNano: [math.MaxInt64] if the cache has no time-based policy at all, and still more than
+// 200 years if it has an expiration policy.
 func (e Entry[K, V]) RefreshableAfter() time.Duration {
 	return time.Duration(e.RefreshableAtNano - e.SnapshotAtNano)
 }

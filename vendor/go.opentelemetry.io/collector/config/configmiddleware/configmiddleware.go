@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configmiddleware/internal/metadata"
 	"go.opentelemetry.io/collector/extension/extensionmiddleware"
 )
 
@@ -22,15 +23,8 @@ var (
 	errNotGRPCServer      = errors.New("requested extension is not a gRPC server middleware")
 	errNotHTTPClient      = errors.New("requested extension is not an HTTP client middleware")
 	errNotGRPCClient      = errors.New("requested extension is not a gRPC client middleware")
+	errNotDialer          = errors.New("requested extension is not a dialer middleware")
 )
-
-// Middleware defines the extension ID for a middleware component.
-type Config struct {
-	// ID specifies the name of the extension to use.
-	ID component.ID `mapstructure:"id,omitempty"`
-	// prevent unkeyed literal initialization
-	_ struct{}
-}
 
 // GetHTTPClientRoundTripper attempts to select the appropriate
 // extensionmiddleware.HTTPClient from the map of extensions, and
@@ -90,4 +84,26 @@ func (m Config) GetGRPCServerOptions(ctx context.Context, extensions map[compone
 	}
 
 	return nil, fmt.Errorf("failed to resolve middleware %q: %w", m.ID, errMiddlewareNotFound)
+}
+
+// GetDialer attempts to select the appropriate
+// extensionmiddleware.Dialer from the map of extensions, and
+// returns the DialContext function. If a middleware is not found, an
+// error is returned. This should only be used by HTTP and gRPC clients.
+func (m Config) GetDialer(ctx context.Context, extensions map[component.ID]component.Component) (extensionmiddleware.DialContextFunc, error) {
+	if !metadata.PkgConfigmiddlewareCustomTCPRoutingFeatureGate.IsEnabled() {
+		return nil, errors.New("use of the dialer_middleware feature requires to enable the feature gate 'pkg.configmiddleware.CustomTCPRouting'")
+	}
+	if ext, found := extensions[m.ID]; found {
+		if dialer, ok := ext.(extensionmiddleware.Dialer); ok {
+			return dialer.GetDialContext(ctx)
+		}
+		return nil, errNotDialer
+	}
+
+	return nil, fmt.Errorf("failed to resolve middleware %q: %w", m.ID, errMiddlewareNotFound)
+}
+
+func IsCustomTCPRoutingEnabled() bool {
+	return metadata.PkgConfigmiddlewareCustomTCPRoutingFeatureGate.IsEnabled()
 }

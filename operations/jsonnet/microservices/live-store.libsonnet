@@ -111,10 +111,10 @@
       'rollout-group': 'live-store',
       // Let the rollout-operator know that it must call the prepare-shutdown endpoint before scaling down
       'grafana.com/prepare-downscale': 'true',
-      // Zones are scaled down at the same time, with no delay between the zones.
-      'grafana.com/min-time-between-zones-downscale': '0',
     }) +
     statefulSet.mixin.metadata.withAnnotations({
+      // Zones are scaled down at the same time, with no delay between the zones.
+      'grafana.com/min-time-between-zones-downscale': '0',
       'rollout-max-unavailable': std.toString($._config.live_store.max_unavailable),
       'grafana.com/rollout-mirror-replicas-from-resource-name': $.tempo_live_store_replica_template.metadata.name,
       'grafana.com/rollout-mirror-replicas-from-resource-kind': $.tempo_live_store_replica_template.kind,

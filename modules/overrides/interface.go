@@ -36,8 +36,11 @@ type Interface interface {
 	MaxBytesPerTrace(userID string) int
 	IngestionArtificialDelay(userID string) (time.Duration, bool)
 	IngestionRetryInfoEnabled(userID string) bool
+	IngestionCreationGracePeriod(userID string) time.Duration
 	MaxCompactionRange(userID string) time.Duration
 	Forwarders(userID string) []string
+	ForwarderQueueSize(userID string) int
+	ForwarderWorkers(userID string) int
 	MaxBytesPerTagValuesQuery(userID string) int
 	MaxBlocksPerTagValuesQuery(userID string) int
 	MaxConditionGroupsPerTagQuery() int
@@ -57,6 +60,7 @@ type Interface interface {
 	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int
 	MetricsGeneratorForwarderWorkers(userID string) int
+	MetricsGeneratorProcessorServiceGraphsMaxItems(userID string) (int, bool)
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string
@@ -87,10 +91,15 @@ type Interface interface {
 	CompactionDisabled(userID string) bool
 	MaxSearchDuration(userID string) time.Duration
 	MaxMetricsDuration(userID string) time.Duration
+	MaxMetricsScannedBytes(userID string) uint64
+	MinMetricsDuration(userID string) time.Duration
+	MaxSearchScannedBytes(userID string) uint64
+	MinSearchDuration(userID string) time.Duration
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	UnsafeQueryHints(userID string) bool
 	LeftPadTraceIDs(userID string) bool
 	MetricsSpanOnlyFetch(userID string) *bool
+	MetricsExtrapolate(userID string) *bool
 	SpanPruningAwareness(userID string) bool
 	EngineBytesTracking(userID string) *bool
 	SpanPruningEnabled(userID string) *bool

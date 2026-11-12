@@ -53,10 +53,14 @@ func RoundUpPowerOf264(x uint64) uint64 {
 	return x
 }
 
+// SaturatedAdd returns a + b, or math.MaxInt64 or math.MinInt64 if the sum overflows.
 func SaturatedAdd(a, b int64) int64 {
 	s := a + b
-	if s < a || s < b {
+	if b > 0 && s < a {
 		return math.MaxInt64
+	}
+	if b < 0 && s > a {
+		return math.MinInt64
 	}
 	return s
 }

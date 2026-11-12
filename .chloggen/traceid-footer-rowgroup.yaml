@@ -1,0 +1,6 @@
+change_type: enhancement
+component: querier
+note: Locate the vParquet5 trace-by-ID row group from footer statistics instead of probing data pages.
+issues: []
+subtext:
+user: zhxiaogg

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/grafana/e2e"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,6 +36,7 @@ const (
 	configIngestPartialSucess = "config-ingest-partial-success.yaml"
 	configQueryRate           = "config-query-rate.yaml"
 	configIngest              = "config-ingest.yaml"
+	configQueryScannedBytes   = "config-query-scanned-bytes.yaml"
 )
 
 func TestIngestionLimits(t *testing.T) {
@@ -330,5 +333,103 @@ func TestQueryRateLimits(t *testing.T) {
 		}
 		require.ErrorContains(t, err, "job queue full")
 		require.ErrorContains(t, err, "code = ResourceExhausted")
+	})
+}
+
+func TestQueryScannedBytesLimits(t *testing.T) {
+	util.RunIntegrationTests(t, util.TestHarnessConfig{
+		ConfigOverlay: configQueryScannedBytes,
+		// The block-builder writes the backend blocks max_scanned_bytes counts.
+		Components: util.ComponentsBackendQuerying,
+	}, func(h *util.TempoHarness) {
+		h.WaitTracesWritable(t)
+
+		require.NoError(t, h.WriteTraceInfo(tempoUtil.NewTraceInfo(time.Now(), ""), ""))
+		h.WaitTracesWrittenToBackend(t, 1)
+
+		apiClient := h.APIClientHTTP("")
+		end := time.Now().Unix()
+		ago := func(d time.Duration) int64 { return end - int64(d/time.Second) }
+
+		// A max_scanned_bytes of 1 makes every backend block overflow, so the 10m min_duration sets the allowed range.
+		_, err := apiClient.MetricsQueryRange("{} | rate()", ago(time.Hour), end, "60s", 0)
+		require.ErrorContains(t, err, "failed with response: 400")
+		require.ErrorContains(t, err, "metrics query time range of 1h0m0s reads too much data, the allowed range for tenant single-tenant is 10m0s")
+
+		_, err = apiClient.SearchTraceQLWithRange("{}", ago(time.Hour), end)
+		require.ErrorContains(t, err, "failed with response: 400")
+		require.ErrorContains(t, err, "search query time range of 1h0m0s reads too much data, the allowed range for tenant single-tenant is 10m0s")
+
+		// A query at min_duration passes.
+		_, err = apiClient.MetricsQueryRange("{} | rate()", ago(10*time.Minute), end, "60s", 0)
+		require.NoError(t, err)
+		_, err = apiClient.SearchTraceQLWithRange("{}", ago(10*time.Minute), end)
+		require.NoError(t, err)
+
+		// A query over max_duration keeps the max_duration error.
+		_, err = apiClient.MetricsQueryRange("{} | rate()", ago(3*time.Hour), end, "60s", 0)
+		require.ErrorContains(t, err, "metrics query time range exceeds the maximum allowed duration of 2h0m0s")
+		_, err = apiClient.SearchTraceQLWithRange("{}", ago(3*time.Hour), end)
+		require.ErrorContains(t, err, "range specified by start and end exceeds 2h0m0s")
+
+		queryFrontend := h.Services[util.ServiceQueryFrontend]
+		waitResult := func(op, result string) {
+			require.NoError(t, queryFrontend.WaitSumMetricsWithOptions(
+				e2e.GreaterOrEqual(1),
+				[]string{"tempo_query_frontend_query_range_queries_total"},
+				e2e.WithLabelMatchers(
+					labels.MustNewMatcher(labels.MatchEqual, "op", op),
+					labels.MustNewMatcher(labels.MatchEqual, "result", result),
+				),
+				e2e.WaitMissingMetrics,
+			), "op=%s result=%s", op, result)
+		}
+		for _, op := range []string{"metrics", "search"} {
+			for _, result := range []string{"rejected_scanned_bytes", "rejected_max_duration"} {
+				waitResult(op, result)
+			}
+		}
+
+		// With a 1s min_duration, the allowed range is the time since the newest block, between min and max.
+		require.NoError(t, h.UpdateOverrides(map[string]*overrides.Overrides{
+			"single-tenant": {
+				Read: overrides.ReadOverrides{
+					MinMetricsDuration: model.Duration(time.Second),
+					MinSearchDuration:  model.Duration(time.Second),
+				},
+			},
+		}))
+		allowedRange := regexp.MustCompile(`the allowed range for tenant \S+ is (\S+)`)
+		end = time.Now().Unix()
+		_, metricsErr := apiClient.MetricsQueryRange("{} | rate()", ago(time.Hour), end, "60s", 0)
+		_, searchErr := apiClient.SearchTraceQLWithRange("{}", ago(time.Hour), end)
+		for _, err := range []error{metricsErr, searchErr} {
+			require.ErrorContains(t, err, "reads too much data")
+			m := allowedRange.FindStringSubmatch(err.Error())
+			require.Len(t, m, 2, err.Error())
+			allowed, parseErr := time.ParseDuration(m[1])
+			require.NoError(t, parseErr)
+			require.Greater(t, allowed, time.Second)
+			require.Less(t, allowed, 10*time.Minute)
+		}
+
+		// A per-tenant max_scanned_bytes, reloaded at runtime, lets a query at max_duration through.
+		require.NoError(t, h.UpdateOverrides(map[string]*overrides.Overrides{
+			"single-tenant": {
+				Read: overrides.ReadOverrides{
+					MaxMetricsScannedBytes: 1024 * 1024 * 1024,
+					MaxSearchScannedBytes:  1024 * 1024 * 1024,
+				},
+			},
+		}))
+
+		end = time.Now().Unix()
+		_, err = apiClient.MetricsQueryRange("{} | rate()", ago(2*time.Hour), end, "60s", 0)
+		require.NoError(t, err)
+		_, err = apiClient.SearchTraceQLWithRange("{}", ago(2*time.Hour), end)
+		require.NoError(t, err)
+
+		waitResult("metrics", "allowed")
+		waitResult("search", "allowed")
 	})
 }

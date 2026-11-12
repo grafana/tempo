@@ -31,7 +31,7 @@ jobs:
       tag: ${{ steps.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
@@ -79,7 +79,7 @@ jobs:
       TAG: ${{ needs.get-tag.outputs.tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
@@ -88,7 +88,7 @@ jobs:
         run: git fetch --tags --force
 
       - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: 'go.mod'
           cache: false
@@ -103,7 +103,7 @@ jobs:
           docker build --provenance false --platform "linux/${{ matrix.runner_arch.arch }}" -f "cmd/${{ matrix.component }}/Dockerfile" -t "$DOCKERHUB_MIRROR_REPOSITORY/${{ matrix.component }}:$TAG_ARCH" .
 
       - name: Login to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
+        uses: grafana/shared-workflows/actions/login-to-gar@afad5c7621e788905e6417f05b492972685ab1eb # login-to-gar/v1.0.4
         with:
           registry: us-docker.pkg.dev
 
@@ -127,13 +127,13 @@ jobs:
       IMAGE_NAME: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror/${{ matrix.component }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
       - name: Login to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
+        uses: grafana/shared-workflows/actions/login-to-gar@afad5c7621e788905e6417f05b492972685ab1eb # login-to-gar/v1.0.4
         with:
           registry: us-docker.pkg.dev
 
@@ -162,7 +162,7 @@ jobs:
       TAG: ${{ needs.get-tag.outputs.tag }}
     steps:
       - name: Login to GAR
-        uses: grafana/shared-workflows/actions/login-to-gar@1f541877ceb22c7be7667d8a8df04984aeac9f9d # login-to-gar/v1.0.3
+        uses: grafana/shared-workflows/actions/login-to-gar@afad5c7621e788905e6417f05b492972685ab1eb # login-to-gar/v1.0.4
         with:
           registry: us-docker.pkg.dev
 
@@ -216,7 +216,7 @@ jobs:
       id-token: write
     steps:
       - name: Trigger Argo Workflow
-        uses: grafana/shared-workflows/actions/trigger-argo-workflow@b513eb1dfd9becfa671a41e55063cdd5c0a08031 # trigger-argo-workflow/v1.2.2
+        uses: grafana/shared-workflows/actions/trigger-argo-workflow@5a212d56e9d224851dc4b3c2643bbc5bac484d5d # trigger-argo-workflow/v2.0
         with:
           namespace: tempo-cd
           workflow_template: tempo-continuous-deployment

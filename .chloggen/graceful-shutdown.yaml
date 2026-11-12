@@ -1,0 +1,24 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: query-frontend
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Shut down query-frontend and querier gracefully instead of hanging until the pod is force killed.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  On SIGTERM the query-frontend now refuses new queries and drains the ones already queued
+  before exiting, waiting up to 10s for queriers to take them. If a rollout still returns
+  5xx, raise the pod's `terminationGracePeriodSeconds` to give in-flight queries more time.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: electron0zero

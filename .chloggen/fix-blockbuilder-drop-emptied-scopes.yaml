@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: block-builder
+
+note: Drop scopes and resources left empty by span dedup instead of writing them to blocks.
+
+issues: []
+
+subtext:
+
+user: zhxiaogg

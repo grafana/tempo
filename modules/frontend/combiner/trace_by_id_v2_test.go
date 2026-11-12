@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"testing"
@@ -55,13 +56,14 @@ func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
 	err = combiner.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
-	res, err := combiner.HTTPFinal()
+	res, err := combiner.HTTPFinal(context.Background())
 	require.NoError(t, err)
 
 	actualResp := &tempopb.TraceByIDResponse{}
 	err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
 	require.NoError(t, err)
 	assert.Equal(t, actualResp.Status, tempopb.PartialStatus_PARTIAL)
+	assert.Equal(t, tempopb.PruneStatus_NOT_PRUNED, actualResp.PruneStatus)
 }
 
 func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *testing.T) {
@@ -83,7 +85,7 @@ func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *te
 	err = combiner.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
-	res, err := combiner.HTTPFinal()
+	res, err := combiner.HTTPFinal(context.Background())
 	require.NoError(t, err)
 
 	actualResp := &tempopb.TraceByIDResponse{}
@@ -113,7 +115,7 @@ func TestTraceByIDV2RedactorHidesTrace(t *testing.T) {
 		err := c.AddResponse(newMockResponse(t))
 		require.NoError(t, err)
 
-		resp, err := c.HTTPFinal()
+		resp, err := c.HTTPFinal(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
@@ -126,7 +128,7 @@ func TestTraceByIDV2RedactorHidesTrace(t *testing.T) {
 		err := c.AddResponse(newMockResponse(t))
 		require.NoError(t, err)
 
-		resp, err := c.GRPCFinal()
+		resp, err := c.GRPCFinal(context.Background())
 		require.Error(t, err)
 		require.Nil(t, resp)
 		st, ok := status.FromError(err)
@@ -156,7 +158,7 @@ func TestNewTraceByIDV2(t *testing.T) {
 		err = combiner.AddResponse(MockResponse{&response})
 		require.NoError(t, err)
 
-		res, err := combiner.HTTPFinal()
+		res, err := combiner.HTTPFinal(context.Background())
 		require.NoError(t, err)
 		assert.Equal(t, api.HeaderAcceptJSON, res.Header.Get(api.HeaderContentType))
 
@@ -169,7 +171,7 @@ func TestNewTraceByIDV2(t *testing.T) {
 		err = combiner.AddResponse(MockResponse{&response})
 		require.NoError(t, err)
 
-		res, err := combiner.HTTPFinal()
+		res, err := combiner.HTTPFinal(context.Background())
 		require.NoError(t, err)
 		require.NotNil(t, res)
 	})
@@ -207,7 +209,7 @@ func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
 	err = c.AddResponse(MockResponse{&response})
 	require.NoError(t, err)
 
-	res, err := c.HTTPFinal()
+	res, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -227,6 +229,7 @@ func TestNewTraceByIDV2WithSpanPruning(t *testing.T) {
 	// response is summarized.
 	require.Equal(t, tempopb.PartialStatus_PARTIAL, actualResp.Status)
 	require.Contains(t, actualResp.Message, "pruned by Tempo while serving this request")
+	require.Equal(t, tempopb.PruneStatus_PRUNED_ON_READ, actualResp.PruneStatus)
 }
 
 // TestNewTraceByIDV2WithSpanPruning_AlreadyPrunedOnWrite verifies that a trace which already
@@ -239,38 +242,56 @@ func TestNewTraceByIDV2WithSpanPruning_AlreadyPrunedOnWrite(t *testing.T) {
 	summary := test.MakeSpanPruningSpan(traceID, test.MakeSpanPruningSpanID(2, 0), parent.SpanId, "SELECT", 0, 0,
 		&commonv1.KeyValue{Key: "aggregation.is_summary", Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_BoolValue{BoolValue: true}}})
 
-	traceResponse := &tempopb.TraceByIDResponse{
-		Trace:   test.WrapSpansAsTrace(parent, summary),
-		Metrics: &tempopb.TraceByIDMetrics{},
+	finalize := func(t *testing.T, opts TraceByIDV2Options) *tempopb.TraceByIDResponse {
+		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
+			Trace:   test.WrapSpansAsTrace(parent, summary),
+			Metrics: &tempopb.TraceByIDMetrics{},
+		})
+		require.NoError(t, err)
+		response := http.Response{
+			StatusCode: 200,
+			Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
+			Body:       io.NopCloser(bytes.NewReader(resBytes)),
+		}
+
+		c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, opts)
+		require.NoError(t, c.AddResponse(MockResponse{&response}))
+
+		res, err := c.HTTPFinal(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		actualResp := &tempopb.TraceByIDResponse{}
+		require.NoError(t, proto.Unmarshal(body, actualResp))
+		return actualResp
 	}
-	resBytes, err := proto.Marshal(traceResponse)
-	require.NoError(t, err)
-	response := http.Response{
-		StatusCode: 200,
-		Header:     map[string][]string{"Content-Type": {"application/protobuf"}},
-		Body:       io.NopCloser(bytes.NewReader(resBytes)),
-	}
 
-	cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
-	cfg.MinSpansToAggregate = 2
-	cfg.MaxParentDepth = 0
+	t.Run("pruning enabled", func(t *testing.T) {
+		cfg := spanpruningprocessor.NewFactory().CreateDefaultConfig().(*spanpruningprocessor.Config)
+		cfg.MinSpansToAggregate = 2
+		cfg.MaxParentDepth = 0
 
-	c := NewTraceByIDV2(100_000, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{SpanPruningConfig: cfg})
-	err = c.AddResponse(MockResponse{&response})
-	require.NoError(t, err)
+		actualResp := finalize(t, TraceByIDV2Options{SpanPruningConfig: cfg})
 
-	res, err := c.HTTPFinal()
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, 2, test.CountSpans(actualResp.Trace))
+		require.Equal(t, tempopb.PartialStatus_PARTIAL, actualResp.Status)
+		require.Contains(t, actualResp.Message, "already pruned before it reached Tempo")
+		require.Equal(t, tempopb.PruneStatus_PRUNED_ON_WRITE, actualResp.PruneStatus)
+	})
 
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	actualResp := &tempopb.TraceByIDResponse{}
-	require.NoError(t, proto.Unmarshal(body, actualResp))
+	// Re-querying can't recover spans that were never stored, so the prune status is reported
+	// whatever the request asked for. Status and message describe this request's own handling, which
+	// did nothing, so they stay unset.
+	t.Run("pruning disabled", func(t *testing.T) {
+		actualResp := finalize(t, TraceByIDV2Options{})
 
-	require.Equal(t, 2, test.CountSpans(actualResp.Trace))
-	require.Equal(t, tempopb.PartialStatus_PARTIAL, actualResp.Status)
-	require.Contains(t, actualResp.Message, "already pruned before it reached Tempo")
+		require.Equal(t, 2, test.CountSpans(actualResp.Trace))
+		require.Equal(t, tempopb.PruneStatus_PRUNED_ON_WRITE, actualResp.PruneStatus)
+		require.Equal(t, tempopb.PartialStatus_COMPLETE, actualResp.Status)
+		require.Empty(t, actualResp.Message)
+	})
 }
 
 func TestNewTraceByIDV2SizeAndFilterPartialMessage(t *testing.T) {
@@ -291,7 +312,7 @@ func TestNewTraceByIDV2SizeAndFilterPartialMessage(t *testing.T) {
 	c := NewTraceByIDV2(10, api.HeaderAcceptProtobuf, nil, TraceByIDV2Options{TraceFilter: &dropAllFilter{}})
 	require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-	res, err := c.HTTPFinal()
+	res, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -364,7 +385,7 @@ func TestNewTraceByIDV2FilterThenPruning(t *testing.T) {
 	})
 	require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-	res, err := c.HTTPFinal()
+	res, err := c.HTTPFinal(context.Background())
 	require.NoError(t, err)
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
@@ -422,7 +443,7 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		response := newResp()
 		require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-		res, err := c.HTTPFinal()
+		res, err := c.HTTPFinal(context.Background())
 		require.NoError(t, err)
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
@@ -440,7 +461,7 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		response := newResp()
 		require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-		res, err := c.GRPCFinal()
+		res, err := c.GRPCFinal(context.Background())
 		require.NoError(t, err)
 		require.True(t, filter.called, "filter must be invoked")
 		require.Empty(t, res.Trace.ResourceSpans, "filtered trace must be reflected in the grpc response")
@@ -453,7 +474,7 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		response := newResp()
 		require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-		res, err := c.HTTPFinal()
+		res, err := c.HTTPFinal(context.Background())
 		require.NoError(t, err)
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
@@ -468,7 +489,7 @@ func TestTraceByIDV2AppliesTraceFilter(t *testing.T) {
 		response := newResp()
 		require.NoError(t, c.AddResponse(MockResponse{&response}))
 
-		_, err := c.HTTPFinal()
+		_, err := c.HTTPFinal(context.Background())
 		require.Error(t, err)
 	})
 }

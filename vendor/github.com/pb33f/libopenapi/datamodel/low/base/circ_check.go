@@ -3,6 +3,8 @@
 
 package base
 
+import "slices"
+
 // CheckSchemaProxyForCircularRefs checks if the provided SchemaProxy has any circular references, extracted from
 // The rolodex attached to the index.
 func CheckSchemaProxyForCircularRefs(s *SchemaProxy) bool {
@@ -13,7 +15,11 @@ func CheckSchemaProxyForCircularRefs(s *SchemaProxy) bool {
 	allCircs := rolo.GetRootIndex().GetCircularReferences()
 	safeCircularRefs := rolo.GetSafeCircularReferences()
 	ignoredCircularRefs := rolo.GetIgnoredCircularReferences()
-	combinedCircularRefs := append(safeCircularRefs, ignoredCircularRefs...)
+	// these getters hand back the index and rolodex's own slices, which carry spare capacity from
+	// the appends the resolver builds them with. clone before extending, or this writes into memory
+	// shared with every other reader.
+	combinedCircularRefs := slices.Clone(safeCircularRefs)
+	combinedCircularRefs = append(combinedCircularRefs, ignoredCircularRefs...)
 	combinedCircularRefs = append(combinedCircularRefs, allCircs...)
 	dup := make(map[string]struct{})
 	for _, ref := range combinedCircularRefs {

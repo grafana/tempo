@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,11 +10,15 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/v3/pkg/api"
 	tempo_io "github.com/grafana/tempo/v3/pkg/io"
 	"github.com/grafana/tempo/v3/pkg/model/trace"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 const (
@@ -32,6 +37,7 @@ type TraceByIDCombiner struct {
 	MetricsCombiner *TraceByIDMetricsCombiner
 
 	traceRedactor TraceRedactor
+	logger        log.Logger
 }
 
 // NewTraceByID returns a trace id combiner. The trace by id combiner has a few different behaviors then the others
@@ -39,18 +45,19 @@ type TraceByIDCombiner struct {
 // - translate tempopb.TraceByIDResponse to tempopb.Trace. all other combiners pass the same object through
 // - runs the zipkin dedupe logic on the fully combined trace
 // - encode the returned trace as either json or proto depending on the request
-func NewTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor) Combiner {
+func NewTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor, logger log.Logger, opts ...Option) Combiner {
 	return &TraceByIDCombiner{
 		c:               trace.NewCombiner(maxBytes, false),
 		code:            http.StatusNotFound,
 		contentType:     contentType,
-		MetricsCombiner: NewTraceByIDMetricsCombiner(),
+		MetricsCombiner: NewTraceByIDMetricsCombiner(opts...),
 		traceRedactor:   traceRedactor,
+		logger:          logger,
 	}
 }
 
-func NewTypedTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor) *TraceByIDCombiner {
-	return NewTraceByID(maxBytes, contentType, traceRedactor).(*TraceByIDCombiner)
+func NewTypedTraceByID(maxBytes int, contentType api.MarshallingFormat, traceRedactor TraceRedactor, logger log.Logger, opts ...Option) *TraceByIDCombiner {
+	return NewTraceByID(maxBytes, contentType, traceRedactor, logger, opts...).(*TraceByIDCombiner)
 }
 
 func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
@@ -63,7 +70,9 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 
 	res := r.HTTPResponse()
 	if res.StatusCode == http.StatusNotFound {
-		// 404s are not considered errors, so we don't need to do anything.
+		// 404s are not considered errors, but the querier still reports the bytes it read
+		// while finding nothing.
+		c.combineNotFoundMetrics(r)
 		return nil
 	}
 	c.code = res.StatusCode
@@ -77,21 +86,14 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 		return nil
 	}
 
-	// Read the body
-	buff, err := tempo_io.ReadAllWithEstimate(res.Body, res.ContentLength)
+	resp, err := decodeResponse(res)
 	if err != nil {
 		c.statusMessage = internalErrorMsg
-		return fmt.Errorf("error reading response body: %w", err)
+		return err
 	}
-	_ = res.Body.Close()
 
-	// Unmarshal the body
-	resp := &tempopb.TraceByIDResponse{}
-	err = resp.Unmarshal(buff)
-	if err != nil {
-		c.statusMessage = internalErrorMsg
-		return fmt.Errorf("error unmarshalling response body: %w", err)
-	}
+	// Combine the metrics first, the bytes were read even if the trace can't be consumed
+	c.MetricsCombiner.Combine(resp.Metrics, r)
 
 	// Consume the trace
 	_, err = c.c.Consume(resp.Trace)
@@ -100,9 +102,30 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 		c.statusMessage = fmt.Sprint(err)
 		return nil
 	}
-	c.MetricsCombiner.Combine(resp.Metrics, r)
 
 	return err
+}
+
+// combineNotFoundMetrics adds the metrics carried by a 404 response, if any. Queriers answer
+// 404 with an encoded TraceByIDResponse that has no trace but still has metrics. A missing or
+// undecodable body is logged and otherwise ignored because 404s are not errors.
+func (c *TraceByIDCombiner) combineNotFoundMetrics(r PipelineResponse) {
+	res := r.HTTPResponse()
+	if res.Body == nil {
+		return
+	}
+
+	resp, err := decodeResponse(res)
+	if err != nil {
+		level.Debug(c.logger).Log("msg", "trace by id: failed to decode the body of a 404 response, its bytes are not counted", "err", err)
+		return
+	}
+	if resp.Metrics == nil {
+		level.Debug(c.logger).Log("msg", "trace by id: 404 response has no metrics, its bytes are not counted")
+		return
+	}
+
+	c.MetricsCombiner.Combine(resp.Metrics, r)
 }
 
 // Result returns the combined trace, or nil if none was found.
@@ -113,7 +136,17 @@ func (c *TraceByIDCombiner) Result() *tempopb.Trace {
 	return t
 }
 
-func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
+func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (resp *http.Response, err error) {
+	ctx, span := tracer.Start(ctx, "combiner.HTTPFinal")
+	defer func() {
+		if err != nil {
+			span.SetStatus(codes.Error, "response finalization failed")
+		} else if resp != nil && (resp.StatusCode == http.StatusOK || resp.Body == http.NoBody) {
+			span.SetAttributes(attribute.Int64("response_bytes", resp.ContentLength))
+		}
+		span.End()
+	}()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -133,12 +166,9 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 		traceResult = &tempopb.Trace{}
 	}
 
-	// dedupe duplicate span ids
-	deduper := newDeduper()
-	traceResult = deduper.dedupe(traceResult)
+	traceResult = deduplicateTrace(ctx, traceResult)
 	if c.traceRedactor != nil {
-		err := c.traceRedactor.RedactTraceAttributes(traceResult)
-		if err != nil {
+		if err := redactTrace(ctx, traceResult, c.traceRedactor); err != nil {
 			if errors.Is(err, ErrTraceHidden) {
 				return &http.Response{
 					StatusCode: http.StatusNotFound,
@@ -151,14 +181,27 @@ func (c *TraceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	}
 
 	// marshal in the requested format
+	encoding := "json"
+	if c.contentType == api.MarshallingFormatProtobuf {
+		encoding = "protobuf"
+	}
+	span.SetAttributes(
+		attribute.String("format", encoding),
+		attribute.Int("span_count", countTraceSpans(traceResult)),
+	)
+	span.AddEvent("trace.marshal.start")
 	var buff []byte
-	var err error
 
 	if c.contentType == api.MarshallingFormatProtobuf {
 		buff, err = proto.Marshal(traceResult)
 	} else {
 		buff, err = tempopb.MarshalToJSONV1(traceResult)
 	}
+	if err != nil {
+		span.SetStatus(codes.Error, "trace marshalling failed")
+	}
+	span.SetAttributes(attribute.Int("response_bytes", len(buff)))
+	span.AddEvent("trace.marshal.done")
 	if err != nil {
 		return &http.Response{}, fmt.Errorf("error marshalling response: %w content type: %s", err, c.contentType)
 	}
@@ -208,4 +251,20 @@ func (c *TraceByIDCombiner) shouldQuit() bool {
 
 	// 2xx and 404 are OK
 	return false
+}
+
+// decodeResponse reads and unmarshals the body of a response of a querier job.
+func decodeResponse(res *http.Response) (*tempopb.TraceByIDResponse, error) {
+	buff, err := tempo_io.ReadAllWithEstimate(res.Body, res.ContentLength)
+	_ = res.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %w", err)
+	}
+
+	resp := &tempopb.TraceByIDResponse{}
+	if err = resp.Unmarshal(buff); err != nil {
+		return nil, fmt.Errorf("error unmarshalling response body: %w", err)
+	}
+
+	return resp, nil
 }

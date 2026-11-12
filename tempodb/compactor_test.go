@@ -14,7 +14,9 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -188,7 +190,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	// now see if we can find our ids
 	for i, id := range allIDs {
 		t.Run(fmt.Sprintf("trace-%d", i), func(t *testing.T) {
-			trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+			trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
 			require.NoError(t, err)
 			require.Nil(t, failedBlocks)
 			require.NotNil(t, trs)
@@ -198,7 +200,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			c := trace.NewCombiner(0, false)
 			for _, tr := range trs {
 				require.NotNil(t, tr)
-				require.NotNil(t, tr.Trace)
+				// blocks without the trace respond with metrics only, Consume ignores their nil trace
 				_, err = c.Consume(tr.Trace)
 				require.NoError(t, err)
 			}
@@ -342,7 +344,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	// search for all ids
 	for i, id := range allIDs {
-		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
+		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 
@@ -426,11 +428,11 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	// Make sure all expected traces are found.
 	for i := 0; i < blockCount; i++ {
 		for j := 0; j < recordCount; j++ {
-			trace, failedBlocks, err := rw.Find(context.TODO(), testTenantID, makeTraceID(i, j), BlockIDMin, BlockIDMax, time.Time{}, time.Time{}, common.DefaultSearchOptions())
-			require.NotNil(t, trace)
-			require.Greater(t, len(trace), 0)
+			trace, failedBlocks, err := rw.Find(context.TODO(), testTenantID, &tempopb.TraceByIDRequest{TraceID: makeTraceID(i, j), BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
 			require.NoError(t, err)
 			require.Nil(t, failedBlocks)
+			// blocks without the trace respond with metrics only
+			require.Positive(t, countTraces(trace))
 		}
 	}
 }
@@ -487,6 +489,9 @@ func TestCompactionMetrics(t *testing.T) {
 	bytesStart, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 
+	traceSizeStart := &dto.Metric{}
+	require.NoError(t, metricCompactionTraceSize.WithLabelValues(testTenantID, "0").(prometheus.Histogram).Write(traceSizeStart))
+
 	// compact everything
 	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	assert.NoError(t, err)
@@ -503,6 +508,11 @@ func TestCompactionMetrics(t *testing.T) {
 	bytesEnd, err := test.GetCounterVecValue(metricCompactionBytesWritten, "0")
 	assert.NoError(t, err)
 	assert.Greater(t, bytesEnd, bytesStart) // calculating the exact bytes requires knowledge of the bytes as written in the blocks.  just make sure it goes up
+
+	traceSizeEnd := &dto.Metric{}
+	require.NoError(t, metricCompactionTraceSize.WithLabelValues(testTenantID, "0").(prometheus.Histogram).Write(traceSizeEnd))
+	require.Equal(t, uint64(blockCount*recordCount), traceSizeEnd.Histogram.GetSampleCount()-traceSizeStart.Histogram.GetSampleCount())
+	require.Greater(t, traceSizeEnd.Histogram.GetSampleSum(), traceSizeStart.Histogram.GetSampleSum())
 }
 
 func TestCompactionIteratesThroughTenants(t *testing.T) {
@@ -742,9 +752,9 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 		require.NoError(t, err)
 
 		if bytes.Equal(id, dropID) {
-			require.Nil(t, tr)
+			require.Nil(t, tr.GetTrace())
 		} else {
-			require.NotNil(t, tr)
+			require.NotNil(t, tr.GetTrace())
 		}
 	}
 }
@@ -960,11 +970,15 @@ type testData struct {
 }
 
 func cutTestBlockWithTraces(t testing.TB, w Writer, data []testData) common.BackendBlock {
+	return cutTestBlockWithDedicatedColumns(t, w, nil, data)
+}
+
+func cutTestBlockWithDedicatedColumns(t testing.TB, w Writer, dc backend.DedicatedColumns, data []testData) common.BackendBlock {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID, DedicatedColumns: dc}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
@@ -1118,4 +1132,15 @@ func TestCompactWithConfigUnsupportedVersion(t *testing.T) {
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "compaction not supported for block version vParquet5-preview6")
+}
+
+// countTraces returns the number of responses that contain a trace.
+func countTraces(resps []*tempopb.TraceByIDResponse) int {
+	n := 0
+	for _, resp := range resps {
+		if resp.GetTrace() != nil {
+			n++
+		}
+	}
+	return n
 }

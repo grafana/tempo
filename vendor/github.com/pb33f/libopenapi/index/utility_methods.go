@@ -14,8 +14,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pb33f/go-yaml"
+	"github.com/pb33f/libopenapi/internal/weakcache"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 func (index *SpecIndex) extractDefinitionsAndSchemas(schemasNode *yaml.Node, pathPrefix string) {
@@ -636,28 +637,18 @@ func syncMapToMap[K comparable, V any](sm *sync.Map) map[K]V {
 	return m
 }
 
-// ClearHashCache clears the hash cache - useful for testing and memory management
+// ClearHashCache invalidates the node hash cache, so hashes of nodes modified in place are recalculated. It is
+// not needed to release memory: cached entries never keep a document alive.
 func ClearHashCache() {
 	nodeHashCache.Clear()
 }
 
-// ClearNodePools replaces the sync.Pool instances that hold *yaml.Node pointers
-// with fresh pools. After a document lifecycle ends, pooled slices and maps
-// still reference the parsed YAML tree, preventing GC from collecting it.
-// Call this (via libopenapi.ClearAllCaches) to release those references.
-func ClearNodePools() {
-	stackPool = sync.Pool{
-		New: func() interface{} {
-			s := make([]*yaml.Node, 0, 128)
-			return &s
-		},
-	}
-	visitedPool = sync.Pool{
-		New: func() interface{} {
-			return make(map[*yaml.Node]struct{}, 64)
-		},
-	}
-}
+// ClearNodePools does nothing. Pooled slices and maps are emptied before they are returned to their pools, so
+// they never hold *yaml.Node pointers between uses and there is nothing to release.
+//
+// Deprecated: there is no longer anything to clear. Replacing the pools while other goroutines used them was
+// also a data race.
+func ClearNodePools() {}
 
 // hasherPool pools maphash.Hash instances to avoid allocations.
 // maphash is ~15x faster than SHA256 and has native WriteString support.
@@ -686,9 +677,9 @@ var visitedPool = sync.Pool{
 	},
 }
 
-// nodeHashCache caches hash results by node pointer for repeated lookups.
-// yaml.Node pointers are stable for the document lifetime.
-var nodeHashCache = sync.Map{} // *yaml.Node -> string
+// nodeHashCache caches hash results by node identity for repeated lookups. Its keys are weak, so it never keeps
+// a released document alive.
+var nodeHashCache weakcache.Cache[yaml.Node, string]
 
 // hashCacheThreshold determines when to cache hash results.
 // lowered from 200 to 20 for more aggressive caching of repeated patterns.
@@ -736,7 +727,7 @@ func HashNode(n *yaml.Node) string {
 
 	// check cache first (by pointer - yaml.Node pointers are stable)
 	if cached, ok := nodeHashCache.Load(n); ok {
-		return cached.(string)
+		return cached
 	}
 
 	// get hasher from pool
@@ -763,7 +754,9 @@ func HashNode(n *yaml.Node) string {
 
 	for len(stack) > 0 {
 		// pop from stack
+		// clear the slot so the pooled slice never keeps a popped node alive.
 		node := stack[len(stack)-1]
+		stack[len(stack)-1] = nil
 		stack = stack[:len(stack)-1]
 
 		if node == nil {

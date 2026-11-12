@@ -10,7 +10,6 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/grafana/tempo/v3/tempodb/encoding/unsupported"
-	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
 )
@@ -56,7 +55,7 @@ type VersionedEncoding interface {
 	// * BlockID
 	// * TenantID
 	// * Encoding
-	// * DedicatedColumns (vParquet3)
+	// * DedicatedColumns
 	// * ReplicationFactor (Optional)
 	CreateWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error)
 
@@ -67,8 +66,6 @@ type VersionedEncoding interface {
 // FromVersion returns a versioned encoding for the provided string
 func FromVersion(v string) (VersionedEncoding, error) {
 	switch v {
-	case vparquet3.VersionString:
-		return vparquet3.Encoding{}, nil
 	case vparquet4.VersionString:
 		return vparquet4.Encoding{}, nil
 	case vparquet5.VersionString:
@@ -96,7 +93,7 @@ func FromVersionForWrites(v string) (VersionedEncoding, error) {
 
 // DefaultEncoding for newly written blocks.
 //
-// The default is vParquet5. Existing vParquet3 and vParquet4 blocks are still
+// The default is vParquet5. Existing vParquet4 blocks are still
 // read without migration; only newly written blocks use this default. Pin
 // storage.trace.block.version to vParquet4 to opt out. See CHANGELOG.md for
 // migration guidance.
@@ -112,7 +109,6 @@ func LatestEncoding() VersionedEncoding {
 // AllEncodings returns all encodings
 func AllEncodings() []VersionedEncoding {
 	return []VersionedEncoding{
-		vparquet3.Encoding{},
 		vparquet4.Encoding{},
 		vparquet5.Encoding{},
 	}

@@ -19,14 +19,13 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
-	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/util/tracing"
 	"google.golang.org/grpc/codes"
 )
 
-func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryInstantHandler {
+func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], rl rangeLimiter, apiPrefix string, logger log.Logger, dataAccessController DataAccessController) streamingQueryInstantHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -65,7 +64,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}
 		qr.Step = qr.End - qr.Start // keep Step == End-Start for instant
 
-		if err := validateQueryRangeReq(ctx, cfg, o, qr); err != nil {
+		if err := validateQueryRangeReq(ctx, cfg, rl, logger, qr); err != nil {
 			return status.Error(codes.InvalidArgument, err.Error())
 		}
 
@@ -77,7 +76,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		httpReq = httpReq.Clone(ctx)
 
 		var finalResponse *tempopb.QueryInstantResponse
-		c, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries)
+		c, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, metricsJobInspectedBytes, tenant))
 		if err != nil {
 			return err
 		}
@@ -106,7 +105,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 
 // newMetricsQueryInstantHTTPHandler handles instant queries.  Internally these are rewritten as query_range with single step
 // to make use of the existing pipeline.
-func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], rl rangeLimiter, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -150,7 +149,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		}
 		qr.Step = qr.End - qr.Start // keep Step == End-Start for instant
 
-		if err := validateQueryRangeReq(req.Context(), cfg, o, qr); err != nil {
+		if err := validateQueryRangeReq(req.Context(), cfg, rl, logger, qr); err != nil {
 			return httpInvalidRequest(err), nil
 		}
 
@@ -159,7 +158,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		req.URL.Path = strings.ReplaceAll(req.URL.Path, api.PathMetricsQueryInstant, api.PathMetricsQueryRange)
 		req = api.BuildQueryRangeRequest(req, qr, "") // dedicated cols are never passed from the caller
 
-		combiner, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries)
+		combiner, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, metricsJobInspectedBytes, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "query instant: query range combiner failed", "err", err)
 			return httpInvalidRequest(err), nil
@@ -178,7 +177,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		// --------------------------------------------------
 		// Get the final data and translate to instant.
 		// --------------------------------------------------
-		qrResp, err := combiner.GRPCFinal()
+		qrResp, err := combiner.GRPCFinal(req.Context())
 		if err != nil {
 			return nil, err
 		}
@@ -288,6 +287,7 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 			"tenant", tenantID,
 			"traceID", traceID,
 			"query", req.Query,
+			"range", time.Duration(req.End-req.Start),
 			"range_nanos", req.End-req.Start,
 			"duration_seconds", durationSeconds,
 			"error", err,
@@ -301,6 +301,7 @@ func logQueryInstantResult(ctx context.Context, logger log.Logger, tenantID stri
 		"tenant", tenantID,
 		"traceID", traceID,
 		"query", req.Query,
+		"range", time.Duration(req.End-req.Start),
 		"range_nanos", req.End-req.Start,
 		"duration_seconds", durationSeconds,
 		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
@@ -323,6 +324,7 @@ func logQueryInstantRequest(logger log.Logger, tenantID string, req *tempopb.Que
 		"msg", "query instant request",
 		"tenant", tenantID,
 		"query", req.Query,
-		"range_seconds", req.End-req.Start,
+		"range", time.Duration(req.End-req.Start),
+		"range_nanos", req.End-req.Start,
 	)
 }

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
-
-	"github.com/google/jsonschema-go/jsonschema"
 )
 
 // SchemaCache stores pre-computed JSON schemas for tool input/output types.
@@ -252,12 +252,61 @@ func LoadSchemaCache(path string) (*SchemaCache, error) {
 }
 
 // TypeKey returns the canonical cache key for the Go type T as derived from
-// reflection. The key is the package-qualified type name (e.g.
-// "main.WeatherInput"). Renaming or moving the type will change this key, so
-// callers that need a stable identifier across refactors should pass an
-// explicit key to [SchemaCache.Warm] and [WithCachedInputSchemaKey].
+// reflection. Named types use their full import path, including inside
+// pointers, slices, arrays, maps, and anonymous structs. Renaming or moving
+// the type will change this key, so callers that need a stable identifier
+// across refactors should pass an explicit key to [SchemaCache.Warm] and
+// [WithCachedInputSchemaKey].
+// Caches saved with the old package-name-only keys are still loadable; a
+// lookup using the new key misses and regenerates the schema.
 func TypeKey[T any]() string {
-	return reflect.TypeFor[T]().String()
+	return schemaTypeKey(reflect.TypeFor[T]())
+}
+
+func schemaTypeKey(t reflect.Type) string {
+	if t.Name() != "" {
+		if t.PkgPath() != "" {
+			return t.PkgPath() + "." + t.Name()
+		}
+		return t.Name()
+	}
+	switch t.Kind() {
+	case reflect.Pointer:
+		return "*" + schemaTypeKey(t.Elem())
+	case reflect.Slice:
+		return "[]" + schemaTypeKey(t.Elem())
+	case reflect.Array:
+		return "[" + strconv.Itoa(t.Len()) + "]" + schemaTypeKey(t.Elem())
+	case reflect.Map:
+		return "map[" + schemaTypeKey(t.Key()) + "]" + schemaTypeKey(t.Elem())
+	case reflect.Struct:
+		var key strings.Builder
+		key.WriteString("struct {")
+		for i := range t.NumField() {
+			field := t.Field(i)
+			if i > 0 {
+				key.WriteString(";")
+			}
+			key.WriteString(" ")
+			if !field.Anonymous {
+				if field.PkgPath != "" {
+					key.WriteString(field.PkgPath)
+					key.WriteString(".")
+				}
+				key.WriteString(field.Name)
+				key.WriteString(" ")
+			}
+			key.WriteString(schemaTypeKey(field.Type))
+			if field.Tag != "" {
+				key.WriteString(" ")
+				key.WriteString(strconv.Quote(string(field.Tag)))
+			}
+		}
+		key.WriteString(" }")
+		return key.String()
+	default:
+		return t.String()
+	}
 }
 
 // SchemaFor returns the JSON schema generated for the Go type T, formatted as
@@ -279,15 +328,7 @@ func SchemaFor[T any]() map[string]any {
 // JSON. It is the lower-level building block underlying [SchemaFor],
 // [WithInputSchema] and [WithOutputSchema].
 func SchemaForRaw[T any]() (json.RawMessage, error) {
-	schema, err := jsonschema.For[T](&jsonschema.ForOptions{IgnoreInvalidTypes: true})
-	if err != nil {
-		return nil, fmt.Errorf("generate schema: %w", err)
-	}
-	raw, err := json.Marshal(schema)
-	if err != nil {
-		return nil, fmt.Errorf("marshal schema: %w", err)
-	}
-	return raw, nil
+	return schemaForRawMessage[T]()
 }
 
 // WarmFor computes the schema for T via reflection and stores it in cache.
@@ -350,6 +391,7 @@ func WithCachedInputSchemaKey[T any](cache *SchemaCache, key string) ToolOption 
 			}
 		}
 		t.InputSchema.Type = ""
+		t.InputSchema.Types = nil
 		t.RawInputSchema = raw
 	}
 }
@@ -388,11 +430,16 @@ func WithCachedOutputSchemaKey[T any](cache *SchemaCache, key string) ToolOption
 				cache.WarmRaw(key, fresh)
 			}
 		}
-		if err := json.Unmarshal(raw, &t.OutputSchema); err != nil {
+		var outputSchema ToolOutputSchema
+		if err := json.Unmarshal(raw, &outputSchema); err != nil {
 			return
 		}
+		t.OutputSchema = outputSchema
 		// Always set the type to "object" as of the current MCP spec.
 		// https://modelcontextprotocol.io/specification/2025-06-18/server/tools#output-schema
 		t.OutputSchema.Type = "object"
+		// Decoding the generated schema recorded struct field order. Clear it
+		// so these tools keep emitting properties sorted by name.
+		t.OutputSchema.PropertyOrder = nil
 	}
 }

@@ -4,6 +4,49 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
+// Option configures optional behavior of the combiners.
+type Option func(*options)
+
+type options struct {
+	reportInspectedBytes     func(uint64)
+	observeJobInspectedBytes func(uint64)
+}
+
+// WithInspectedBytesReporter reports the bytes inspected by each non-cached job response as soon as it is
+// combined, rather than waiting for the request to finish. Bytes are reported even if the request later fails.
+func WithInspectedBytesReporter(fn func(uint64)) Option {
+	return func(o *options) { o.reportInspectedBytes = fn }
+}
+
+// WithJobInspectedBytesObserver observes the bytes inspected by every non-cached job response that has metrics,
+// including responses of jobs that inspected nothing. Responses that only summarize the jobs of a query are not observed.
+func WithJobInspectedBytesObserver(fn func(uint64)) Option {
+	return func(o *options) { o.observeJobInspectedBytes = fn }
+}
+
+// WithOptions combines options into a single one.
+func WithOptions(opts ...Option) Option {
+	return func(o *options) {
+		for _, opt := range opts {
+			opt(o)
+		}
+	}
+}
+
+func optionsFrom(opts []Option) options {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
+}
+
+func report(fn func(uint64), bytes uint64) {
+	if fn != nil && bytes > 0 {
+		fn(bytes)
+	}
+}
+
 // These structs combine response metrics in a single place
 
 // mergeAdditionalMetrics performs an in-place key-by-key sum of src into dst,
@@ -26,11 +69,13 @@ func mergeAdditionalMetrics(dst, src map[string]int64, cacheableOnly bool) map[s
 }
 
 type SearchMetricsCombiner struct {
+	opts    options
 	Metrics *tempopb.SearchMetrics
 }
 
-func NewSearchMetricsCombiner() *SearchMetricsCombiner {
+func NewSearchMetricsCombiner(opts ...Option) *SearchMetricsCombiner {
 	return &SearchMetricsCombiner{
+		opts:    optionsFrom(opts),
 		Metrics: &tempopb.SearchMetrics{},
 	}
 }
@@ -42,6 +87,10 @@ func (mc *SearchMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, resp
 		if !cacheHit {
 			mc.Metrics.InspectedTraces += newMetrics.InspectedTraces
 			mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
+			report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
+			if mc.opts.observeJobInspectedBytes != nil {
+				mc.opts.observeJobInspectedBytes(newMetrics.InspectedBytes)
+			}
 			mc.Metrics.BackendReads += newMetrics.BackendReads
 			mc.Metrics.BackendBytes += newMetrics.BackendBytes
 		}
@@ -62,11 +111,13 @@ func (mc *SearchMetricsCombiner) CombineMetadata(newMetrics *tempopb.SearchMetri
 }
 
 type TraceByIDMetricsCombiner struct {
+	opts    options
 	Metrics *tempopb.TraceByIDMetrics
 }
 
-func NewTraceByIDMetricsCombiner() *TraceByIDMetricsCombiner {
+func NewTraceByIDMetricsCombiner(opts ...Option) *TraceByIDMetricsCombiner {
 	return &TraceByIDMetricsCombiner{
+		opts:    optionsFrom(opts),
 		Metrics: &tempopb.TraceByIDMetrics{},
 	}
 }
@@ -78,6 +129,10 @@ func (mc *TraceByIDMetricsCombiner) Combine(newMetrics *tempopb.TraceByIDMetrics
 	cacheHit := IsCacheHit(resp.HTTPResponse())
 	if !cacheHit {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
+		report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
+		if mc.opts.observeJobInspectedBytes != nil {
+			mc.opts.observeJobInspectedBytes(newMetrics.InspectedBytes)
+		}
 		mc.Metrics.BackendReads += newMetrics.BackendReads
 		mc.Metrics.BackendBytes += newMetrics.BackendBytes
 	}
@@ -85,11 +140,13 @@ func (mc *TraceByIDMetricsCombiner) Combine(newMetrics *tempopb.TraceByIDMetrics
 }
 
 type MetadataMetricsCombiner struct {
+	opts    options
 	Metrics *tempopb.MetadataMetrics
 }
 
-func NewMetadataMetricsCombiner() *MetadataMetricsCombiner {
+func NewMetadataMetricsCombiner(opts ...Option) *MetadataMetricsCombiner {
 	return &MetadataMetricsCombiner{
+		opts:    optionsFrom(opts),
 		Metrics: &tempopb.MetadataMetrics{},
 	}
 }
@@ -101,6 +158,10 @@ func (mc *MetadataMetricsCombiner) Combine(newMetrics *tempopb.MetadataMetrics, 
 	cacheHit := IsCacheHit(resp.HTTPResponse())
 	if !cacheHit {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
+		report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
+		if mc.opts.observeJobInspectedBytes != nil {
+			mc.opts.observeJobInspectedBytes(newMetrics.InspectedBytes)
+		}
 		mc.Metrics.BackendReads += newMetrics.BackendReads
 		mc.Metrics.BackendBytes += newMetrics.BackendBytes
 	}
@@ -108,11 +169,13 @@ func (mc *MetadataMetricsCombiner) Combine(newMetrics *tempopb.MetadataMetrics, 
 }
 
 type QueryRangeMetricsCombiner struct {
+	opts    options
 	Metrics *tempopb.SearchMetrics
 }
 
-func NewQueryRangeMetricsCombiner() *QueryRangeMetricsCombiner {
+func NewQueryRangeMetricsCombiner(opts ...Option) *QueryRangeMetricsCombiner {
 	return &QueryRangeMetricsCombiner{
+		opts:    optionsFrom(opts),
 		Metrics: &tempopb.SearchMetrics{},
 	}
 }
@@ -132,6 +195,12 @@ func (mc *QueryRangeMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, 
 			mc.Metrics.TotalBlocks += newMetrics.TotalBlocks
 			mc.Metrics.TotalBlockBytes += newMetrics.TotalBlockBytes
 			mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
+			report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
+			if !resp.IsMetadata() { // otherwise the response only summarizes the jobs
+				if mc.opts.observeJobInspectedBytes != nil {
+					mc.opts.observeJobInspectedBytes(newMetrics.InspectedBytes)
+				}
+			}
 			mc.Metrics.InspectedTraces += newMetrics.InspectedTraces
 			mc.Metrics.InspectedSpans += newMetrics.InspectedSpans
 			mc.Metrics.BackendReads += newMetrics.BackendReads

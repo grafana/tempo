@@ -250,7 +250,7 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 		}
 
 		return nil
-	})
+	}, codes.NotFound)
 	if err != nil {
 		return fmt.Errorf("failed processing jobs: %w", err)
 	}
@@ -261,6 +261,16 @@ func (w *BackendWorker) processJobs(ctx context.Context) error {
 
 	metricWorkerJobsTotal.WithLabelValues().Inc()
 
+	if err := w.processJob(ctx, resp); err != nil {
+		return err
+	}
+
+	metricWorkerLastSuccessfulJobTimestamp.WithLabelValues(resp.Type.String()).SetToCurrentTime()
+
+	return nil
+}
+
+func (w *BackendWorker) processJob(ctx context.Context, resp *tempopb.NextJobResponse) error {
 	switch resp.Type {
 	case tempopb.JobType_JOB_TYPE_COMPACTION:
 		return w.processCompactionJob(ctx, resp)
@@ -523,7 +533,7 @@ func (w *BackendWorker) MaxCompactionRangeForTenant(tenantID string) time.Durati
 	return w.overrides.MaxCompactionRange(tenantID)
 }
 
-func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(context.Context) error) error {
+func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(context.Context) error, expectedErrors ...codes.Code) error {
 	var (
 		b   = backoff.New(ctx, w.cfg.Backoff)
 		err error
@@ -540,8 +550,12 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 					return nil
 				}
 
-				level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
-				metricWorkerCallRetries.WithLabelValues().Inc()
+				if isExpectedSchedulerError(err, expectedErrors) {
+					level.Debug(log.Logger).Log("msg", "scheduler returned expected error", "err", err, "backoff", b.NextDelay())
+				} else {
+					level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
+					metricWorkerCallRetries.WithLabelValues().Inc()
+				}
 				// Add jitter so all workers don't all retry at once and cause a thundering herd.
 				time.Sleep(time.Duration(rand.Float32() * float32(1*time.Second)))
 				b.Wait()
@@ -554,6 +568,21 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 	}
 
 	return fmt.Errorf("backoff terminated: %w, %w", b.Err(), err)
+}
+
+func isExpectedSchedulerError(err error, expectedErrors []codes.Code) bool {
+	errStatus, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+
+	for _, expectedCode := range expectedErrors {
+		if errStatus.Code() == expectedCode {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (w *BackendWorker) isSharded() bool {

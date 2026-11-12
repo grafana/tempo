@@ -64,6 +64,10 @@ block_retention: 24h
 compaction_window: 4h
 
 max_search_duration: 5m
+max_metrics_scanned_bytes: 200_000_000_000
+min_metrics_duration: 24h
+max_search_scanned_bytes: 500_000_000_000
+min_search_duration: 48h
 `
 	inputJSON := `
 {
@@ -80,7 +84,11 @@ max_search_duration: 5m
 	"block_retention": "24h",
 	"compaction_window": "4h",
 
-	"max_search_duration": "5m"
+	"max_search_duration": "5m",
+	"max_metrics_scanned_bytes": 200000000000,
+	"min_metrics_duration": "24h",
+	"max_search_scanned_bytes": 500000000000,
+	"min_search_duration": "48h"
 }`
 
 	limitsYAML := LegacyOverrides{}
@@ -122,6 +130,7 @@ metrics_generator_forwarder_workers: 7
 metrics_generator_remote_write_headers:
   tenant-id: foo
 metrics_generator_processor_service_graphs_histogram_buckets: [1,2]
+metrics_generator_processor_service_graphs_max_items: 23
 metrics_generator_processor_service_graphs_dimensions: ['foo']
 metrics_generator_processor_service_graphs_peer_attributes: ['foo']
 metrics_generator_processor_service_graphs_enable_client_server_prefix: false
@@ -197,6 +206,7 @@ defaults:
     native_histogram_min_reset_duration: 15m
     processor:
       service_graphs:
+        max_items: 23
         histogram_buckets:
         - 1
         - 2
@@ -397,10 +407,14 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		IngestionArtificialDelay:   durationPtr(5 * time.Minute),
 		IngestionRetryInfoEnabled:  new(true),
 
+		IngestionCreationGracePeriod: durationPtr(15 * time.Minute),
+
 		MaxLocalTracesPerUser:  1000,
 		MaxGlobalTracesPerUser: 2000,
 
-		Forwarders: []string{"forwarder-1", "forwarder-2"},
+		Forwarders:         []string{"forwarder-1", "forwarder-2"},
+		ForwarderQueueSize: 250,
+		ForwarderWorkers:   4,
 
 		MetricsGeneratorRingSize:                                                    3,
 		MetricsGeneratorProcessors:                                                  makeListToMap([]string{"processor-1", "processor-2"}),
@@ -414,6 +428,7 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MetricsGeneratorForwarderQueueSize:                                          100,
 		MetricsGeneratorForwarderWorkers:                                            5,
 		MetricsGeneratorRemoteWriteHeaders:                                          RemoteWriteHeaders{"header-1": "value-1"},
+		MetricsGeneratorProcessorServiceGraphsMaxItems:                              new(256),
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      []float64{1.0, 2.0, 5.0},
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            []string{"dimension-1", "dimension-2"},
 		MetricsGeneratorProcessorServiceGraphsPeerAttributes:                        []string{"attribute-1", "attribute-2"},
@@ -470,13 +485,18 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		MaxBlocksPerTagValuesQuery:    100,
 		MaxConditionGroupsPerTagQuery: 5,
 
-		MaxSearchDuration:    model.Duration(10 * time.Minute),
-		MaxMetricsDuration:   model.Duration(30 * time.Minute),
-		UnsafeQueryHints:     true,
-		MetricsSpanOnlyFetch: boolPtr(true),
-		SpanPruningAwareness: true,
-		EngineBytesTracking:  boolPtr(true),
-		SpanPruningEnabled:   boolPtr(true),
+		MaxSearchDuration:      model.Duration(10 * time.Minute),
+		MaxMetricsDuration:     model.Duration(30 * time.Minute),
+		MaxMetricsScannedBytes: 200 * 1024 * 1024 * 1024,
+		MinMetricsDuration:     model.Duration(15 * time.Minute),
+		MaxSearchScannedBytes:  500 * 1024 * 1024 * 1024,
+		MinSearchDuration:      model.Duration(48 * time.Hour),
+		UnsafeQueryHints:       true,
+		MetricsSpanOnlyFetch:   boolPtr(true),
+		MetricsExtrapolate:     boolPtr(true),
+		SpanPruningAwareness:   true,
+		EngineBytesTracking:    boolPtr(true),
+		SpanPruningEnabled:     boolPtr(true),
 
 		MaxBytesPerTrace: 10 * 1024 * 1024,
 

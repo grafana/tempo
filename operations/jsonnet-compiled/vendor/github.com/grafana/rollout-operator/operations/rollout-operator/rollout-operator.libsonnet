@@ -28,6 +28,7 @@
 
   _config+:: {
     rollout_operator_enabled: true,
+    rollout_operator_leader_election_enabled: false,
 
     // Configure the rollout operator to accept webhook requests made as part of scaling
     // statefulsets up or down. This allows the rollout operator to ensure that stateful
@@ -73,6 +74,8 @@
 
   rollout_operator_args:: {
     'kubernetes.namespace': $._config.namespace,
+    [if $._config.rollout_operator_replica_template_access_enabled then 'replica-templates.watch-enabled']: true,
+    'leader-election.enabled': $._config.rollout_operator_leader_election_enabled,
     'use-zone-tracker': true,
     'zone-tracker.config-map-name': 'rollout-operator-zone-tracker',
   } + if enableWebhooks then {
@@ -84,6 +87,7 @@
   rollout_operator_container::
     container.new('rollout-operator', $._images.rollout_operator) +
     container.withArgsMixin($.util.mapToFlags($.rollout_operator_args)) +
+    container.withEnvMixin([{ name: 'POD_NAME', valueFrom: { fieldRef: { fieldPath: 'metadata.name' } } }]) +
     container.withPorts(
       [$.core.v1.containerPort.new('http-metrics', 8001)] +
       if enableWebhooks then
@@ -110,7 +114,7 @@
   rollout_operator_service: if !enableWebhooks then null else
     service.new(
       'rollout-operator',
-      { name: 'rollout-operator' },
+      { name: 'rollout-operator' } + (if $._config.rollout_operator_leader_election_enabled then { 'rollout-operator.grafana.com/leader': 'true' } else {}),
       servicePort.newNamed('https', 443, 8443) +
       servicePort.withProtocol('TCP'),
     )
@@ -123,7 +127,7 @@
       [
         policyRule.withApiGroups('') +
         policyRule.withResources(['pods']) +
-        policyRule.withVerbs(['list', 'get', 'watch', 'delete']),
+        policyRule.withVerbs(['list', 'get', 'watch', 'delete'] + (if $._config.rollout_operator_leader_election_enabled then ['patch'] else [])),
         policyRule.withApiGroups('apps') +
         policyRule.withResources(['statefulsets']) +
         policyRule.withVerbs(['list', 'get', 'watch', 'patch']),
@@ -134,8 +138,16 @@
         policyRule.withResources(['configmaps']) +
         policyRule.withVerbs(['get', 'update', 'create']),
       ] +
+      (if $._config.rollout_operator_leader_election_enabled then [
+         policyRule.withApiGroups('coordination.k8s.io') +
+         policyRule.withResources(['leases']) +
+         policyRule.withVerbs(['get', 'create', 'update']),
+       ] else []) +
       (
         if $._config.rollout_operator_replica_template_access_enabled then [
+          policyRule.withApiGroups($.replica_template.spec.group) +
+          policyRule.withResources([$.replica_template.spec.names.plural]) +
+          policyRule.withVerbs(['get', 'list', 'watch']),
           policyRule.withApiGroups($.replica_template.spec.group) +
           policyRule.withResources(['%s/scale' % $.replica_template.spec.names.plural, '%s/status' % $.replica_template.spec.names.plural]) +
           policyRule.withVerbs(['get', 'patch']),

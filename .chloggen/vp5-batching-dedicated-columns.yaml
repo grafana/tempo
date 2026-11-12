@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: storage
+note: Fix vParquet5 trace batching to account for all dedicated columns.
+issues: []
+subtext: Rebatching by resource was not updated for the 10 new resource-level dedicated string columns. If a tenant is configured for 11 or more dedicated columns and the first 10 are identical across batches, spans would be incorrectly moved into the wrong batch.
+user: mdisibio

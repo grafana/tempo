@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv"
@@ -30,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -63,6 +65,40 @@ func TestWorker(t *testing.T) {
 
 	err = services.StopAndAwaitTerminated(ctx, w)
 	require.NoError(t, err)
+}
+
+func TestIsExpectedSchedulerError(t *testing.T) {
+	tests := []struct {
+		name          string
+		err           error
+		expectedCodes []codes.Code
+		want          bool
+	}{
+		{
+			name:          "expected not found",
+			err:           status.Error(codes.NotFound, "no jobs found"),
+			expectedCodes: []codes.Code{codes.NotFound},
+			want:          true,
+		},
+		{
+			name:          "unexpected not found",
+			err:           status.Error(codes.NotFound, "job not found"),
+			expectedCodes: []codes.Code{codes.Unavailable},
+			want:          false,
+		},
+		{
+			name:          "non gRPC error",
+			err:           assert.AnError,
+			expectedCodes: []codes.Code{codes.NotFound},
+			want:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isExpectedSchedulerError(tt.err, tt.expectedCodes))
+		})
+	}
 }
 
 func setupDependencies(ctx context.Context, t *testing.T, limits overrides.Config) (Config, backendscheduler_client.Config, overrides.Service, *mockScheduler, storage.Store) {
@@ -274,6 +310,76 @@ func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
 	require.NoError(t, err, "a missing block must complete as a non-fatal no-op")
 	after := testutil.ToFloat64(metricRedactionBlockMissing.WithLabelValues(tenant))
 	require.Equal(t, before+1, after, "a missing redaction block must be counted, not silently dropped")
+}
+
+// TestLastSuccessfulJobTimestamp verifies that the worker records when it last finished a job of each
+// type successfully. A job that fails must not refresh the timestamp, so a worker whose jobs all fail
+// shows as stale on dashboards instead of healthy.
+func TestLastSuccessfulJobTimestamp(t *testing.T) {
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
+
+	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	nextJob := func(resp *tempopb.NextJobResponse) func(context.Context, *tempopb.NextJobRequest, ...grpc.CallOption) (*tempopb.NextJobResponse, error) {
+		return func(_ context.Context, _ *tempopb.NextJobRequest, _ ...grpc.CallOption) (*tempopb.NextJobResponse, error) {
+			return resp, nil
+		}
+	}
+
+	tests := []struct {
+		name      string
+		job       *tempopb.NextJobResponse
+		wantErr   bool
+		wantIsSet bool
+	}{
+		{
+			name: "failed job does not set the timestamp",
+			job: &tempopb.NextJobResponse{
+				JobId: uuid.New().String(),
+				Type:  tempopb.JobType_JOB_TYPE_COMPACTION,
+			},
+			wantErr: true,
+		},
+		{
+			name: "succeeded job sets the timestamp",
+			job: &tempopb.NextJobResponse{
+				JobId:  uuid.New().String(),
+				Type:   tempopb.JobType_JOB_TYPE_RETENTION,
+				Detail: tempopb.JobDetail{Tenant: tenant},
+			},
+			wantIsSet: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			metricWorkerLastSuccessfulJobTimestamp.Reset() // isolate from other tests in this package
+			w.backendScheduler = &mockScheduler{next: nextJob(tt.job), updateJob: updateJobNoop}
+
+			before := time.Now()
+			err := w.processJobs(ctx)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if !tt.wantIsSet {
+				require.Equal(t, 0, testutil.CollectAndCount(metricWorkerLastSuccessfulJobTimestamp))
+				return
+			}
+
+			require.Equal(t, 1, testutil.CollectAndCount(metricWorkerLastSuccessfulJobTimestamp))
+			got := testutil.ToFloat64(metricWorkerLastSuccessfulJobTimestamp.WithLabelValues(tt.job.Type.String()))
+			require.GreaterOrEqual(t, got, float64(before.Unix()))
+			require.LessOrEqual(t, got, float64(time.Now().Unix()+1))
+		})
+	}
 }
 
 func TestIsSharded(t *testing.T) {

@@ -1,0 +1,7 @@
+change_type: change
+component: querier
+note: Move trace by ID block selection from queriers to the query-frontend and deprecate querier blocklist polling.
+issues: []
+subtext: |
+  Upgrade Note: Upgrade all components to this version, then set `querier.blocklist_polling: false` on queriers. Older versions of tempo will fail to start with `blocklist_polling` in their config.
+user: electron0zero

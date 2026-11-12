@@ -119,8 +119,10 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 				}
 			}
 
-			// Deduplicate spans and update block timestamp bounds in one pass.
+			// Deduplicate spans, drop scopes and resources left empty, and update block timestamp bounds in one pass.
+			resourceSpans := tr.ResourceSpans[:0]
 			for _, rs := range tr.ResourceSpans {
+				scopeSpans := rs.ScopeSpans[:0]
 				for _, ss := range rs.ScopeSpans {
 					unique := ss.Spans[:0]
 					for _, s := range ss.Spans {
@@ -138,9 +140,19 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 							i.end = s.EndTimeUnixNano
 						}
 					}
+					if len(unique) == 0 {
+						continue
+					}
 					ss.Spans = unique
+					scopeSpans = append(scopeSpans, ss)
 				}
+				if len(scopeSpans) == 0 {
+					continue
+				}
+				rs.ScopeSpans = scopeSpans
+				resourceSpans = append(resourceSpans, rs)
 			}
+			tr.ResourceSpans = resourceSpans
 			clear(seen)
 
 			tempopb.ReuseByteSlices(entry.Batches)

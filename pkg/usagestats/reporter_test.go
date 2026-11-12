@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/kv"
+	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
@@ -244,6 +246,34 @@ func Test_NextReport(t *testing.T) {
 	}
 }
 
+func TestStopIsCleanWithoutClusterSeed(t *testing.T) {
+	objectClient, err := local.NewBackend(&local.Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	// query-frontend and querier run as followers and never obtain a seed, so they take
+	// running's early return path rather than the report loop
+	r, err := NewReporter(Config{
+		Leader:  false,
+		Enabled: true,
+		Backoff: backoff.Config{MinBackoff: 10 * time.Millisecond, MaxBackoff: 50 * time.Millisecond},
+	}, kv.Config{
+		Store: "inmemory",
+	}, objectClient, objectClient, log.NewNopLogger(), prometheus.NewPedanticRegistry())
+	require.NoError(t, err)
+
+	require.NoError(t, services.StartAndAwaitRunning(context.Background(), r))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// SIGTERM must leave the service Terminated, not Failed, or dskit logs it as a
+	// module failure and the operator cannot tell a clean shutdown from a broken one
+	require.NoError(t, services.StopAndAwaitTerminated(ctx, r))
+	require.Nil(t, r.cluster)
+}
+
 func TestWrongKV(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		objectClient, err := local.NewBackend(&local.Config{
@@ -260,6 +290,6 @@ func TestWrongKV(t *testing.T) {
 			<-time.After(1 * time.Second)
 			cancel()
 		}()
-		require.Equal(t, context.Canceled, r.running(ctx))
+		require.NoError(t, r.running(ctx))
 	})
 }

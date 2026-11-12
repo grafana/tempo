@@ -23,7 +23,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
 	"github.com/grafana/tempo/v3/tempodb/backend/s3"
 	"github.com/grafana/tempo/v3/tempodb/blocklist"
-	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v3/tempodb/encoding/vparquet5"
 )
 
 const (
@@ -343,7 +343,7 @@ func writeBadBlockFiles(t *testing.T, ww backend.RawWriter, rr backend.RawReader
 
 	err = ww.Write(
 		ctx,
-		vparquet3.DataFileName,
+		vparquet5.DataFileName,
 		backend.KeyPath([]string{tenant, uuid.New().String()}),
 		bytes.NewReader(token),
 		int64(len(token)), nil,

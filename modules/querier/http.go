@@ -20,10 +20,6 @@ import (
 )
 
 const (
-	BlockStartKey = "blockStart"
-	BlockEndKey   = "blockEnd"
-	QueryModeKey  = "mode"
-
 	QueryModeIngesters = "ingesters"
 	QueryModeBlocks    = "blocks"
 	QueryModeAll       = "all"
@@ -47,26 +43,22 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ParseTraceByIDRequest(r)
+	req, err := api.ParseTraceByIDRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	req.TraceID = byteID
 	span.AddEvent("validated request", oteltrace.WithAttributes(
-		attribute.String("blockStart", blockStart),
-		attribute.String("blockEnd", blockEnd),
-		attribute.String("queryMode", queryMode),
-		attribute.String("timeStart", timeStart.String()),
-		attribute.String("timeEnd", timeEnd.String()),
+		attribute.String("blockStart", req.BlockStart),
+		attribute.String("blockEnd", req.BlockEnd),
+		attribute.String("queryMode", req.QueryMode),
+		attribute.String("timeStart", req.Start.String()),
+		attribute.String("timeEnd", req.End.String()),
 		attribute.String("apiVersion", "v1"),
 	))
 
-	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-		TraceID:    byteID,
-		BlockStart: blockStart,
-		BlockEnd:   blockEnd,
-		QueryMode:  queryMode,
-	}, timeStart, timeEnd)
+	resp, err := q.FindTraceByID(ctx, req)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -96,27 +88,23 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ParseTraceByIDRequest(r)
+	req, err := api.ParseTraceByIDRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	req.TraceID = byteID
 	span.AddEvent("validated request", oteltrace.WithAttributes(
-		attribute.String("blockStart", blockStart),
-		attribute.String("blockEnd", blockEnd),
-		attribute.String("queryMode", queryMode),
-		attribute.String("timeStart", timeStart.String()),
-		attribute.String("timeEnd", timeEnd.String()),
+		attribute.String("blockStart", req.BlockStart),
+		attribute.String("blockEnd", req.BlockEnd),
+		attribute.String("queryMode", req.QueryMode),
+		attribute.String("timeStart", req.Start.String()),
+		attribute.String("timeEnd", req.End.String()),
 		attribute.String("apiVersion", "v2"),
 	))
 
-	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-		TraceID:           byteID,
-		BlockStart:        blockStart,
-		BlockEnd:          blockEnd,
-		QueryMode:         queryMode,
-		AllowPartialTrace: true,
-	}, timeStart, timeEnd)
+	req.AllowPartialTrace = true
+	resp, err := q.FindTraceByID(ctx, req)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -396,6 +384,11 @@ func handleError(w http.ResponseWriter, err error) {
 	// NOTE: we receive a GRPC error from the ingesters, and so we need to check the string content of error as well.
 	if errors.Is(err, trace.ErrTraceTooLarge) || strings.Contains(err.Error(), trace.ErrTraceTooLarge.Error()) {
 		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	if errors.Is(err, ErrTraceByIDBlocksRequired) {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

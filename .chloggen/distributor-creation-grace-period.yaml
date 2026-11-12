@@ -1,0 +1,14 @@
+change_type: change
+
+component: distributor
+
+note: Discard spans with a start or end time more than `creation_grace_period` (default 10m) in the future, and spans with an end time before their start time. The grace period is configurable per tenant under `ingestion`, `0` disables it. Discarded spans are counted in `tempo_discarded_spans_total` with reason `too_far_in_future` or `invalid_duration`.
+
+issues: []
+
+subtext: |
+  Spans with timestamps far in the future cause issues by overly increasing the time metadata for a block, preventing its retention, and in the cases of values larger than max int64 nanoseconds, also cause integer overflow leading to incorrect query results for other spans in the same block or parquet pages.
+
+  Spans that end before they start have a negative duration that wraps to a huge unsigned value, which causes the same kind of incorrect results for duration filters.
+
+user: mdisibio

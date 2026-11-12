@@ -20,6 +20,8 @@ import (
 	"github.com/grafana/dskit/tenant"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/frontend/queue"
@@ -61,6 +63,8 @@ type Frontend struct {
 
 	// Metrics.
 	queueLength       *prometheus.GaugeVec
+	inflightJobs      *prometheus.GaugeVec
+	executingJobs     *prometheus.GaugeVec
 	discardedRequests *prometheus.CounterVec
 	numClients        prometheus.GaugeFunc
 	queueDuration     *prometheus.HistogramVec
@@ -79,6 +83,11 @@ type request struct {
 
 func (r *request) Weight() int {
 	return r.request.Weight()
+}
+
+// Fail unblocks RoundTrip when the queue stops before this request reaches a querier.
+func (r *request) Fail(err error) {
+	r.err <- err
 }
 
 func (r *request) OriginalContext() context.Context {
@@ -110,6 +119,14 @@ func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Fronten
 			Name: "tempo_query_frontend_queue_length",
 			Help: "Number of queries in the queue.",
 		}, []string{"user"}),
+		inflightJobs: promauto.With(registerer).NewGaugeVec(prometheus.GaugeOpts{
+			Name: "tempo_query_frontend_inflight_jobs",
+			Help: "Number of jobs queued or executing on queriers.",
+		}, []string{"user", "op"}),
+		executingJobs: promauto.With(registerer).NewGaugeVec(prometheus.GaugeOpts{
+			Name: "tempo_query_frontend_executing_jobs",
+			Help: "Number of jobs currently executing on queriers.",
+		}, []string{"user", "op"}),
 		batchWeight: promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
 			Name:                            "tempo_query_frontend_batch_weight",
 			Help:                            "Weight of the batch.",
@@ -191,6 +208,8 @@ func (f *Frontend) stopping(_ error) error {
 func (f *Frontend) cleanupInactiveUserMetrics(user string) {
 	f.queueLength.DeleteLabelValues(user)
 	f.discardedRequests.DeleteLabelValues(user)
+	f.inflightJobs.DeletePartialMatch(prometheus.Labels{"user": user})
+	f.executingJobs.DeletePartialMatch(prometheus.Labels{"user": user})
 }
 
 // RoundTrip a HTTP request
@@ -206,9 +225,17 @@ func (f *Frontend) RoundTrip(req pipeline.Request) (*http.Response, error) {
 	}
 
 	ctx := req.Context()
-	if err := f.queueRequest(ctx, &request); err != nil {
+	userID, err := tenantIDFromContext(ctx)
+	if err != nil {
 		return nil, err
 	}
+	if err := f.queueRequest(ctx, userID, &request); err != nil {
+		return nil, err
+	}
+	// Hold the child so a decrement after user cleanup can't recreate the series.
+	inflight := f.inflightJobs.WithLabelValues(userID, queryOp(req))
+	inflight.Inc()
+	defer inflight.Dec()
 
 	select {
 	case <-ctx.Done():
@@ -274,6 +301,10 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 
 		f.actualBatchSize.Observe(float64(reqBatch.len()))
 
+		// the jobs execute from the moment the batch is handed to the querier until
+		// the responses are reported, the stream fails or the requests are canceled
+		executing := f.incExecuting(reqBatch)
+
 		// Handle the stream sending & receiving on a goroutine so we can
 		// monitoring the contexts in a select and cancel things appropriately.
 		resps := make(chan *frontendv1pb.ClientToFrontend, 1)
@@ -286,16 +317,25 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 			// todo: we are still sending the old Type_HTTP_REQUEST for backwards compat
 			// with queriers that don't support the new Type_HTTP_REQUEST_BATCH. this feature
 			// was introduced in 2.2. We should remove this in a few versions
+			var msg *frontendv1pb.FrontendToClient
 			if reqBatch.len() == 1 {
-				err = server.Send(&frontendv1pb.FrontendToClient{
+				msg = &frontendv1pb.FrontendToClient{
 					Type:        frontendv1pb.Type_HTTP_REQUEST,
 					HttpRequest: reqBatch.httpGrpcRequests()[0],
-				})
+				}
 			} else {
-				err = server.Send(&frontendv1pb.FrontendToClient{
+				msg = &frontendv1pb.FrontendToClient{
 					Type:             frontendv1pb.Type_HTTP_REQUEST_BATCH,
 					HttpRequestBatch: reqBatch.httpGrpcRequests(),
-				})
+				}
+			}
+			err = server.Send(msg)
+			if status.Code(err) == codes.ResourceExhausted {
+				// the gRPC error has the sizes but not which tenant and query sent the oversized batch
+				req := reqBatch.pipelineRequests[0].request
+				userID, _ := tenant.TenantID(req.Context())
+				level.Error(f.log).Log("msg", "batch of requests exceeds the gRPC send limit. lower max_batch_size or blocks_per_shard, or raise grpc_server_max_send_msg_size",
+					"tenant", userID, "op", queryOp(req), "requests", reqBatch.len(), "bytes", msg.Size(), "err", err)
 			}
 			if err != nil {
 				errs <- err
@@ -311,11 +351,36 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 			resps <- resp
 		}()
 
-		err = reportResponseUpstream(reqBatch, errs, resps)
+		err = func() error {
+			defer func() {
+				for _, g := range executing {
+					g.Dec()
+				}
+			}()
+			return reportResponseUpstream(reqBatch, errs, resps)
+		}()
 		if err != nil {
 			return err
 		}
 	}
+}
+
+// incExecuting counts the jobs of the batch as executing and returns the incremented gauges. The
+// caller decrements them when the jobs are done.
+func (f *Frontend) incExecuting(batch *requestBatch) []prometheus.Gauge {
+	gauges := make([]prometheus.Gauge, 0, batch.len())
+	for _, r := range batch.pipelineRequests {
+		userID, err := tenantIDFromContext(r.request.Context())
+		if err != nil {
+			continue
+		}
+
+		// Hold the child so a decrement after user cleanup can't recreate the series.
+		g := f.executingJobs.WithLabelValues(userID, queryOp(r.request))
+		g.Inc()
+		gauges = append(gauges, g)
+	}
+	return gauges
 }
 
 func reportResponseUpstream(reqBatch *requestBatch, errs chan error, resps chan *frontendv1pb.ClientToFrontend) error {
@@ -386,20 +451,23 @@ func getQuerierInfo(server frontendv1pb.Frontend_ProcessServer) (string, int32, 
 	return resp.GetClientID(), resp.Features, err
 }
 
-func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
+// tenantIDFromContext returns the tenant ID in ctx, with multiple tenant IDs joined.
+func tenantIDFromContext(ctx context.Context) (string, error) {
 	tenantIDs, err := tenant.TenantIDs(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
+	return tenant.JoinTenantIDs(tenantIDs), nil
+}
 
+func (f *Frontend) queueRequest(ctx context.Context, userID string, req *request) error {
 	now := time.Now()
 	req.enqueueTime = now
 	_, req.queueSpan = tracer.Start(ctx, "queued")
 
-	joinedTenantID := tenant.JoinTenantIDs(tenantIDs)
-	f.activeUsers.UpdateUserTimestamp(joinedTenantID, now)
+	f.activeUsers.UpdateUserTimestamp(userID, now)
 
-	return f.requestQueue.EnqueueRequest(joinedTenantID, req)
+	return f.requestQueue.EnqueueRequest(userID, req)
 }
 
 // CheckReady determines if the query frontend is ready.  Function parameters/return

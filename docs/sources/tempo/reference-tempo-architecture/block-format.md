@@ -87,7 +87,6 @@ As of Tempo 3.1, new blocks are written in vParquet5 by default.
 
 | Version   | Status                                    |
 | --------- | ----------------------------------------- |
-| vParquet3 | Deprecated in 2.10; writes rejected in 3.1 |
 | vParquet4 | Supported                                   |
 | vParquet5 | Default and latest                        |
 

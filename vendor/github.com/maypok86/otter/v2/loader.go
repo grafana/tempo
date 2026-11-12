@@ -20,7 +20,9 @@ import "context"
 type Loader[K comparable, V any] interface {
 	// Load computes or retrieves the value corresponding to key.
 	//
-	// WARNING: loading must not attempt to update any mappings of this cache directly.
+	// WARNING: loading must not attempt to update any mappings of this cache directly, or load keys of
+	// this cache that are being loaded, its own key included: Cache.Get of such a key waits for its load,
+	// which may be the one that called it or one waiting for it.
 	//
 	// NOTE: The Loader implementation should always return ErrNotFound
 	// if the entry was not found in the data source.
@@ -28,6 +30,8 @@ type Loader[K comparable, V any] interface {
 	// Reload computes or retrieves a replacement value corresponding to an already-cached key.
 	// If the replacement value is not found, then the mapping will be removed if ErrNotFound is returned.
 	// This method is called when an existing cache entry is refreshed by Cache.Get, or through a call to Cache.Refresh.
+	// oldValue is the entry's value when the reload starts, which may be newer than the value
+	// that was found due for a refresh.
 	//
 	// WARNING: loading must not attempt to update any mappings of this cache directly
 	// or block waiting for other cache operations to complete.
@@ -60,18 +64,23 @@ type BulkLoader[K comparable, V any] interface {
 	//
 	// If the returned map doesn't contain all requested keys, then the entries it does
 	// contain will be cached, and Cache.BulkGet will return the partial results. If the returned map
-	// contains extra keys not present in keys then all returned entries will be cached, but
-	// only the entries for keys, will be returned from Cache.BulkGet.
+	// contains extra keys not present in keys, then each extra entry is cached only if its key has
+	// no value in the cache and is not being loaded when the load completes: an extra entry never
+	// replaces a value, including one written during the load. Only the entries for keys are
+	// returned from Cache.BulkGet.
 	//
-	// WARNING: loading must not attempt to update any mappings of this cache directly.
+	// WARNING: loading must not attempt to update any mappings of this cache directly, or load keys of
+	// this cache that are being loaded, as for Loader.Load.
 	BulkLoad(ctx context.Context, keys []K) (map[K]V, error)
 	// BulkReload computes or retrieves replacement values corresponding to already-cached keys.
 	// If the replacement value is not found, then the mapping will be removed.
 	// This method is called when an existing cache entry is refreshed by Cache.BulkGet, or through a call to Cache.BulkRefresh.
+	// oldValues holds, in the order of keys, each entry's value when the reload starts, as for
+	// Loader.Reload.
 	//
 	// If the returned map doesn't contain all requested keys, then the entries it does
-	// contain will be cached. If the returned map
-	// contains extra keys not present in keys then all returned entries will be cached.
+	// contain will be cached. Extra keys not present in keys are cached as described for
+	// BulkLoad, and are not reported in the results of Cache.BulkRefresh.
 	//
 	// WARNING: loading must not attempt to update any mappings of this cache directly
 	// or block waiting for other cache operations to complete.
@@ -101,6 +110,7 @@ type RefreshResult[K comparable, V any] struct {
 	Key K
 	// Value is the value corresponding to the refreshed entry.
 	Value V
-	// Err is the error that Loader / BulkLoader returned.
+	// Err is the error that Loader / BulkLoader returned, or ErrNotFound for a key that
+	// BulkLoader left out of its result.
 	Err error
 }

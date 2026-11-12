@@ -118,6 +118,24 @@ func BenchmarkInstancePushSpansConfigurations(b *testing.B) {
 			request: benchmarkGeneratorSpanmetricsRequest(benchmarkGeneratorProdResource, benchmarkGeneratorProdSpan),
 		},
 		{
+			name: "spanmetrics_prod_7dims_per_label_limit",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.maxCardinalityPerLabel = 10000
+			},
+			request: benchmarkGeneratorSpanmetricsRequest(benchmarkGeneratorProdResource, benchmarkGeneratorProdSpan),
+		},
+		{
+			name: "combined_prod_7dims_per_label_limit",
+			overrides: func(o *mockOverrides) {
+				o.processors = map[string]struct{}{processor.SpanMetricsName: {}, processor.ServiceGraphsName: {}}
+				benchmarkGeneratorProdOverrides(o)
+				o.maxCardinalityPerLabel = 10000
+			},
+			request: benchmarkGeneratorServiceGraphRequest(200, false, benchmarkGeneratorProdResource, benchmarkGeneratorProdSpan),
+		},
+		{
 			name: "servicegraphs_prod_7dims_prefix",
 			overrides: func(o *mockOverrides) {
 				o.processors = map[string]struct{}{processor.ServiceGraphsName: {}}

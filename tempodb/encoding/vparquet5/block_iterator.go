@@ -27,6 +27,7 @@ func (b *backendBlock) openForIteration(ctx context.Context) (*parquet.File, *pa
 	o := []parquet.FileOption{
 		parquet.SkipBloomFilters(true),
 		parquet.SkipPageIndex(true),
+		parquet.OptimisticRead(true),
 		parquet.FileReadMode(parquet.ReadModeAsync),
 		parquet.FileSchema(sch),
 	}

@@ -42,7 +42,7 @@ var defaultExecutor = func(fn func()) {
 //
 //	cache := otter.Must(&Options[string, string]{
 //		MaximumSize:      10_000,
-//	  	ExpiryCalculator: otter.ExpiryWriting[string, string(10 * time.Minute),
+//		ExpiryCalculator: otter.ExpiryWriting[string, string](10 * time.Minute),
 //		StatsRecorder:    stats.NewCounter(),
 //	})
 //
@@ -86,6 +86,8 @@ type Options[K comparable, V any] struct {
 	//
 	// NOTE: If your stats.Recorder implementation doesn't also implement stats.Snapshoter,
 	// Cache.Stats method will always return a zero-value snapshot.
+	//
+	// WARNING: The recorder's methods may run while the cache holds its locks and must not call the cache.
 	StatsRecorder stats.Recorder
 	// InitialCapacity specifies the minimum total size for the internal data structures. Providing a large enough estimate
 	// at construction time avoids the need for expensive resizing operations later, but setting this
@@ -99,10 +101,19 @@ type Options[K comparable, V any] struct {
 	//
 	// When the weight of an entry is zero it will not be considered for size-based eviction (though
 	// it still may be evicted by other means).
+	//
+	// WARNING: The weigher runs under the lock of the entry's hash table bucket. It may only read entries
+	// with Cache.GetIfPresent, Cache.GetEntry or Cache.GetEntryQuietly. Any other call of the cache, even
+	// a write of another key, may deadlock it: its locks are not reentrant.
 	Weigher func(key K, value V) uint32
 	// ExpiryCalculator specifies that each entry should be automatically removed from the cache once a duration has
 	// elapsed after the entry's creation, the most recent replacement of its value, or its last read.
-	// The expiration time is reset by all cache read and write operations.
+	// The calculator decides which operations reset the expiration time: ExpiryWriting resets it on every
+	// write, and ExpiryAccessing also on every read.
+	//
+	// WARNING: The calculator may run under the lock of the entry's hash table bucket. It may only read
+	// entries with Cache.GetIfPresent, Cache.GetEntry or Cache.GetEntryQuietly. Any other call of the
+	// cache, even a write of another key, may deadlock it: its locks are not reentrant.
 	ExpiryCalculator ExpiryCalculator[K, V]
 	// OnDeletion specifies a handler instance that caches should notify each time an entry is deleted for any
 	// DeletionCause reason. The cache will invoke this handler on the configured Executor
@@ -110,12 +121,19 @@ type Options[K comparable, V any] struct {
 	//
 	// An OnAtomicDeletion may be preferred when the handler should be invoked
 	// as part of the atomic operation to delete the entry.
+	//
+	// WARNING: With an Executor that runs tasks on the calling goroutine, the handler may run under the
+	// eviction policy's lock, with the restrictions of the loop body of Cache.Hottest.
 	OnDeletion func(e DeletionEvent[K, V])
 	// OnAtomicDeletion specifies a handler that caches should notify each time an entry is deleted for any
 	// DeletionCause. The cache will invoke this handler during the atomic operation to delete the entry.
 	//
 	// A OnDeletion may be preferred when the handler should be performed outside the atomic operation to
 	// delete the entry, or be delegated to the configured Executor.
+	//
+	// WARNING: The handler runs under the lock of the entry's hash table bucket. It may only read entries
+	// with Cache.GetIfPresent, Cache.GetEntry or Cache.GetEntryQuietly. Any other call of the cache, even
+	// a write of another key, may deadlock it: its locks are not reentrant.
 	OnAtomicDeletion func(e DeletionEvent[K, V])
 	// RefreshCalculator specifies that active entries are eligible for automatic refresh once a duration has
 	// elapsed after the entry's creation, the most recent replacement of its value, or the most recent entry's reload.
@@ -124,33 +142,75 @@ type Options[K comparable, V any] struct {
 	//
 	// Automatic refreshes are performed when the first stale request for an entry occurs. The request
 	// triggering the refresh will make an asynchronous call to Loader.Reload to get a new value.
-	// Until refresh is completed, requests will continue to return the old value.
+	// Until refresh is completed, requests will continue to return the old value. Registering the
+	// refresh locks the entry's hash table bucket, so the triggering request may wait for a
+	// Compute function, OnAtomicDeletion, a weigher or a calculator of another key in the bucket,
+	// or for a growth of the hash table.
 	//
 	// NOTE: all errors returned during refresh will be logged (using Logger) and then swallowed.
+	//
+	// WARNING: The calculator runs under the lock of the entry's hash table bucket. It may only read
+	// entries with Cache.GetIfPresent, Cache.GetEntry or Cache.GetEntryQuietly. Any other call of the
+	// cache, even a write of another key, may deadlock it: its locks are not reentrant.
 	RefreshCalculator RefreshCalculator[K, V]
 	// Executor specifies the executor to use when running asynchronous tasks. The executor is delegated to
 	// when sending deletion events, when asynchronous computations are performed by
 	// Cache.Refresh/Cache.BulkRefresh or for refreshes in Cache.Get/Cache.BulkGet, if RefreshCalculator was specified,
-	// or when performing periodic maintenance. By default, goroutines are used.
+	// or when performing maintenance after reads and writes. Periodic maintenance runs on a goroutine of its
+	// own. By default, goroutines are used.
 	//
 	// The primary intent of this method is to facilitate testing of caches which have been configured
 	// with OnDeletion or utilize asynchronous computations. A test may instead prefer
 	// to configure the cache to execute tasks directly on the same goroutine.
 	//
-	// Beware that configuring a cache with an executor that discards tasks or never runs them may
-	// experience non-deterministic behavior.
+	// Beware that such an executor runs maintenance and OnDeletion on the goroutine that calls the
+	// cache, sometimes while the cache holds its locks: then even a read from a Compute function or
+	// another function that runs under a bucket lock may deadlock, and OnDeletion may run under the
+	// eviction policy's lock.
+	//
+	// With an executor other than the default one, maintenance that a pass leaves unfinished waits
+	// for the next read or write of the cache, or for the next periodic clean-up of a cache with
+	// expiration, so an idle cache may stay above its maximum size until then.
+	//
+	// Beware that the executor must run every task it accepts: one that discards tasks or never runs
+	// them loses deletion events and refreshes, and a lost refresh of an absent key makes each Get
+	// of the key wait for it until the Get's context ends; a queued one makes it wait for the tasks
+	// ahead of it.
+	//
+	// WARNING: The executor must not make the caller wait for other tasks, as a pool that blocks the
+	// submitter while all of its workers are busy does. The cache submits tasks while it holds its locks
+	// and from tasks that run on the executor, so such a pool may deadlock it. A bounded pool should run
+	// fn on the calling goroutine when it is full, with the restrictions described above:
+	//
+	//	sem := make(chan struct{}, 16)
+	//	executor := func(fn func()) {
+	//		select {
+	//		case sem <- struct{}{}:
+	//			go func() {
+	//				defer func() { <-sem }()
+	//				fn()
+	//			}()
+	//		default:
+	//			fn()
+	//		}
+	//	}
+	//
+	// With an errgroup.Group limited by SetLimit, use TryGo and run fn when it returns false.
 	Executor func(fn func())
 	// Clock specifies a nanosecond-precision time source for use in determining when entries should be
 	// expired or refreshed. By default, time.Now().UnixNano() is used.
 	//
 	// The primary intent of this option is to facilitate testing of caches which have been configured
-	// with ExpiryCalculator or RefreshCalculator.
+	// with ExpiryCalculator or RefreshCalculator. Another is to make reads cheaper at the cost of
+	// precision, with a clock created by NewCoarseClock.
 	//
 	// NOTE: this clock is not used when recording statistics.
 	Clock Clock
 	// Logger specifies the Logger implementation that will be used for logging warning and errors.
 	//
 	// The cache will use slog.Default() by default.
+	//
+	// WARNING: The logger may run while the cache holds its locks and must not call the cache.
 	Logger Logger
 }
 

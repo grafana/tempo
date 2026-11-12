@@ -26,6 +26,13 @@ $defs:
         description: The keepalive parameters for gRPC client. See grpc.WithKeepaliveParams. (https://godoc.org/google.golang.org/grpc#WithKeepaliveParams).
         x-optional: true
         $ref: keepalive_client_config
+      dialer_middleware:
+        description: Dialer middleware is a handler customizing how the client will dial connections over TCP.
+        type: object
+        properties:
+          id:
+            type: string
+            description: Specifies the name of the extension to use.
       middlewares:
         description: Middlewares for the gRPC client.
         type: array
@@ -37,6 +44,9 @@ $defs:
       tls:
         description: TLS struct exposes TLS client configuration.
         $ref: /config/configtls.client_config
+      user_agent:
+        description: UserAgent overrides the default user-agent header sent on gRPC requests. The default is derived from the build info. When empty, the caller controls the user-agent via grpc.WithUserAgent or similar options.
+        type: string
       wait_for_ready:
         description: WaitForReady parameter configures client to wait for ready state before sending data. (https://github.com/grpc/grpc/blob/master/doc/wait-for-ready.md)
         type: boolean

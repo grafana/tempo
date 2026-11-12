@@ -12,20 +12,22 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
-type ExtractPatternsArguments[K any] struct {
+type extractPatternsArguments[K any] struct {
 	Target  ottl.StringGetter[K]
 	Pattern ottl.StringGetter[K]
 }
 
+// NewExtractPatternsFactory returns a factory for the ExtractPatterns OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#extractpatterns
 func NewExtractPatternsFactory[K any]() ottl.Factory[K] {
-	return ottl.NewFactory("ExtractPatterns", &ExtractPatternsArguments[K]{}, createExtractPatternsFunction[K])
+	return ottl.NewFactory("ExtractPatterns", &extractPatternsArguments[K]{}, createExtractPatternsFunction[K])
 }
 
 func createExtractPatternsFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
-	args, ok := oArgs.(*ExtractPatternsArguments[K])
+	args, ok := oArgs.(*extractPatternsArguments[K])
 
 	if !ok {
-		return nil, errors.New("ExtractPatternsFactory args must be of type *ExtractPatternsArguments[K]")
+		return nil, errors.New("ExtractPatternsFactory args must be of type *extractPatternsArguments[K]")
 	}
 
 	return extractPatterns(args.Target, args.Pattern)

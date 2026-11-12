@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/go-kit/log"
@@ -118,12 +119,18 @@ type dimensionLabel struct {
 }
 
 func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
-	if cfg.EnableVirtualNodeLabel {
-		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 
-	dimensionLabels := make([]dimensionLabel, len(cfg.Dimensions))
-	for i, dim := range cfg.Dimensions {
+	// Leave cfg unchanged, because the instance compares it with the desired config on every reload.
+	dimensions := cfg.Dimensions
+	if cfg.EnableVirtualNodeLabel {
+		dimensions = append(slices.Clone(cfg.Dimensions), virtualNodeLabel)
+	}
+
+	dimensionLabels := make([]dimensionLabel, len(dimensions))
+	for i, dim := range dimensions {
 		label := validation.SanitizeLabelName(dim)
 		clientKey, serverKey := dim, dim
 		clientLabel, serverLabel := label, label

@@ -1,0 +1,6 @@
+change_type: change
+component: block-builder
+note: Increase the default block-builder `ingestion_time_range_slack` from 2m to 2h.
+issues: []
+subtext:
+user: mdisibio

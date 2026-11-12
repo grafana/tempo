@@ -40,7 +40,7 @@ func (mc MetricsConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 	var condErr error
 	md.ResourceMetrics().RemoveIf(func(rm pmetric.ResourceMetrics) bool {
 		if mc.resourceExpr != nil {
-			rCtx := ottlresource.NewTransformContextPtr(rm.Resource(), rm)
+			rCtx := ottlresource.NewTransformContext(rm.Resource(), rm)
 			rCond, rErr := mc.resourceExpr.Eval(ctx, rCtx)
 			rCtx.Close()
 			if rErr != nil {
@@ -58,7 +58,7 @@ func (mc MetricsConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 
 		rm.ScopeMetrics().RemoveIf(func(sm pmetric.ScopeMetrics) bool {
 			if mc.scopeExpr != nil {
-				sCtx := ottlscope.NewTransformContextPtr(sm.Scope(), rm.Resource(), sm, rm)
+				sCtx := ottlscope.NewTransformContext(sm.Scope(), rm.Resource(), sm, rm)
 				sCond, sErr := mc.scopeExpr.Eval(ctx, sCtx)
 				sCtx.Close()
 				if sErr != nil {
@@ -76,7 +76,7 @@ func (mc MetricsConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 
 			sm.Metrics().RemoveIf(func(metric pmetric.Metric) bool {
 				if mc.metricExpr != nil {
-					tCtx := ottlmetric.NewTransformContextPtr(rm, sm, metric)
+					tCtx := ottlmetric.NewTransformContext(rm, sm, metric)
 					mCond, err := mc.metricExpr.Eval(ctx, tCtx)
 					tCtx.Close()
 					if err != nil {
@@ -146,7 +146,7 @@ func (mc MetricsConsumer) ConsumeMetrics(ctx context.Context, md pmetric.Metrics
 func (mc MetricsConsumer) handleNumberDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.NumberDataPointSlice) error {
 	var errors error
 	dps.RemoveIf(func(datapoint pmetric.NumberDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, datapoint)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, datapoint)
 		cond, err := mc.dataPointExpr.Eval(ctx, tCtx)
 		tCtx.Close()
 		if err != nil {
@@ -161,7 +161,7 @@ func (mc MetricsConsumer) handleNumberDataPoints(ctx context.Context, rm pmetric
 func (mc MetricsConsumer) handleHistogramDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.HistogramDataPointSlice) error {
 	var errors error
 	dps.RemoveIf(func(dp pmetric.HistogramDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, dp)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, dp)
 		cond, err := mc.dataPointExpr.Eval(ctx, tCtx)
 		tCtx.Close()
 		if err != nil {
@@ -176,7 +176,7 @@ func (mc MetricsConsumer) handleHistogramDataPoints(ctx context.Context, rm pmet
 func (mc MetricsConsumer) handleExponentialHistogramDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.ExponentialHistogramDataPointSlice) error {
 	var errors error
 	dps.RemoveIf(func(dp pmetric.ExponentialHistogramDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, dp)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, dp)
 		cond, err := mc.dataPointExpr.Eval(ctx, tCtx)
 		tCtx.Close()
 		if err != nil {
@@ -191,7 +191,7 @@ func (mc MetricsConsumer) handleExponentialHistogramDataPoints(ctx context.Conte
 func (mc MetricsConsumer) handleSummaryDataPoints(ctx context.Context, rm pmetric.ResourceMetrics, sm pmetric.ScopeMetrics, m pmetric.Metric, dps pmetric.SummaryDataPointSlice) error {
 	var errors error
 	dps.RemoveIf(func(dp pmetric.SummaryDataPoint) bool {
-		tCtx := ottldatapoint.NewTransformContextPtr(rm, sm, m, dp)
+		tCtx := ottldatapoint.NewTransformContext(rm, sm, m, dp)
 		cond, err := mc.dataPointExpr.Eval(ctx, tCtx)
 		tCtx.Close()
 		if err != nil {
@@ -259,7 +259,7 @@ type MetricParserCollectionOption ottl.ParserCollectionOption[parsedMetricCondit
 
 func WithMetricParser(functions map[string]ottl.Factory[*ottlmetric.TransformContext]) MetricParserCollectionOption {
 	return func(pc *ottl.ParserCollection[parsedMetricConditions]) error {
-		metricParser, err := ottlmetric.NewParser(functions, pc.Settings, ottlmetric.EnablePathContextNames())
+		metricParser, err := ottlmetric.NewParser(functions, pc.Settings(), ottlmetric.EnablePathContextNames())
 		if err != nil {
 			return err
 		}
@@ -269,7 +269,7 @@ func WithMetricParser(functions map[string]ottl.Factory[*ottlmetric.TransformCon
 
 func WithDataPointParser(functions map[string]ottl.Factory[*ottldatapoint.TransformContext]) MetricParserCollectionOption {
 	return func(pc *ottl.ParserCollection[parsedMetricConditions]) error {
-		dataPointParser, err := ottldatapoint.NewParser(functions, pc.Settings, ottldatapoint.EnablePathContextNames())
+		dataPointParser, err := ottldatapoint.NewParser(functions, pc.Settings(), ottldatapoint.EnablePathContextNames())
 		if err != nil {
 			return err
 		}
@@ -312,7 +312,7 @@ func convertMetricConditions(pc *ottl.ParserCollection[parsedMetricConditions], 
 	errorMode := getErrorMode(pc, contextConditions)
 	return parsedMetricConditions{
 		metricConditions:  parsedConditions,
-		telemetrySettings: pc.Settings,
+		telemetrySettings: pc.Settings(),
 		errorMode:         errorMode,
 	}, nil
 }
@@ -326,7 +326,7 @@ func convertDataPointConditions(pc *ottl.ParserCollection[parsedMetricConditions
 	errorMode := getErrorMode(pc, contextConditions)
 	return parsedMetricConditions{
 		dataPointConditions: parsedConditions,
-		telemetrySettings:   pc.Settings,
+		telemetrySettings:   pc.Settings(),
 		errorMode:           errorMode,
 	}, nil
 }
@@ -371,7 +371,7 @@ func (mpc *MetricParserCollection) ParseContextConditions(contextConditions Cont
 		scopeConditions:     sConditions,
 		metricConditions:    mConditions,
 		dataPointConditions: dConditions,
-		telemetrySettings:   pc.Settings,
+		telemetrySettings:   pc.Settings(),
 		errorMode:           getErrorMode[parsedMetricConditions](&pc, &contextConditions),
 	}
 

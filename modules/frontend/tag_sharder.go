@@ -57,9 +57,10 @@ func (r *tagsSearchRequest) buildSearchTagRequest(subR *http.Request) (*http.Req
 }
 
 func (r *tagsSearchRequest) buildTagSearchBlockRequest(subR *http.Request, blockID string,
-	startPage int, pages int, m *backend.BlockMeta,
+	startPage int, pages int, m *backend.BlockMeta, dedicatedColumnsJSON string,
 ) (*http.Request, error) {
 	return api.BuildSearchTagsBlockRequest(subR, &tempopb.SearchTagsBlockRequest{
+		SearchReq:     &r.request,
 		BlockID:       blockID,
 		StartPage:     uint32(startPage),
 		PagesToSearch: uint32(pages),
@@ -68,7 +69,7 @@ func (r *tagsSearchRequest) buildTagSearchBlockRequest(subR *http.Request, block
 		Version:       m.Version,
 		Size_:         m.Size_,
 		FooterSize:    m.FooterSize,
-	})
+	}, dedicatedColumnsJSON)
 }
 
 /* TagValue V2 handler and request implementation */
@@ -112,9 +113,10 @@ func (r *tagValueSearchRequest) buildSearchTagRequest(subR *http.Request) (*http
 }
 
 func (r *tagValueSearchRequest) buildTagSearchBlockRequest(subR *http.Request, blockID string,
-	startPage int, pages int, m *backend.BlockMeta,
+	startPage int, pages int, m *backend.BlockMeta, dedicatedColumnsJSON string,
 ) (*http.Request, error) {
 	return api.BuildSearchTagValuesBlockRequest(subR, &tempopb.SearchTagValuesBlockRequest{
+		SearchReq:     &r.request,
 		BlockID:       blockID,
 		StartPage:     uint32(startPage),
 		PagesToSearch: uint32(pages),
@@ -123,7 +125,7 @@ func (r *tagValueSearchRequest) buildTagSearchBlockRequest(subR *http.Request, b
 		Version:       m.Version,
 		Size_:         m.Size_,
 		FooterSize:    m.FooterSize,
-	})
+	}, dedicatedColumnsJSON)
 }
 
 func parseTagsRequest(r *http.Request) (tagSearchReq, error) {
@@ -163,7 +165,7 @@ type tagSearchReq interface {
 	end() uint32
 	newWithRange(start, end uint32) tagSearchReq
 	buildSearchTagRequest(subR *http.Request) (*http.Request, error)
-	buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta) (*http.Request, error)
+	buildTagSearchBlockRequest(*http.Request, string, int, int, *backend.BlockMeta, string) (*http.Request, error)
 
 	// funcs for calculating cache keys. this hash should NOT use the start/end ranges of the request and
 	// should only be based on the content the request is searching for
@@ -295,11 +297,19 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 	keyPrefix := searchReq.keyPrefix()
 	startTime := time.Unix(int64(searchReq.start()), 0)
 	endTime := time.Unix(int64(searchReq.end()), 0)
+	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	iterateTagJobs(metas, bytesPerRequest, func(m *backend.BlockMeta, startPage, pages int) bool {
 		blockID := m.BlockID.String()
+
+		dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
+		if err != nil {
+			errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
+			return true
+		}
+
 		pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
-			return searchReq.buildTagSearchBlockRequest(r, blockID, startPage, pages, m)
+			return searchReq.buildTagSearchBlockRequest(r, blockID, startPage, pages, m, dedColsJSON)
 		})
 		if err != nil {
 			errFn(err)

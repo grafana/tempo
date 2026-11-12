@@ -16,6 +16,7 @@ import (
 func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 	original := &ProcessorConfig{
 		ServiceGraphs: servicegraphs.Config{
+			MaxItems:         10_000,
 			HistogramBuckets: []float64{1},
 			Dimensions:       []string{},
 			Subprocessors:    map[servicegraphs.Subprocessor]bool{},
@@ -77,6 +78,25 @@ func TestProcessorConfig_copyWithOverrides(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, *original, copied)
+	})
+
+	t.Run("service graphs max items override", func(t *testing.T) {
+		maxItems := 42
+		o := &mockOverrides{serviceGraphsMaxItems: &maxItems}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+		require.Equal(t, 42, copied.ServiceGraphs.MaxItems)
+		require.Equal(t, 10_000, original.ServiceGraphs.MaxItems)
+	})
+
+	t.Run("zero override is copied as-is", func(t *testing.T) {
+		maxItems := 0
+		o := &mockOverrides{serviceGraphsMaxItems: &maxItems}
+
+		copied, err := original.copyWithOverrides(o, "tenant")
+		require.NoError(t, err)
+		require.Zero(t, copied.ServiceGraphs.MaxItems)
 	})
 
 	t.Run("invalid overrides", func(t *testing.T) {
@@ -339,6 +359,17 @@ func TestConfig_ValidateRingMode(t *testing.T) {
 		cfg.RingMode = RingMode("invalid")
 		require.EqualError(t, cfg.Validate(), "invalid ring mode: invalid, valid values are partition and generator")
 	})
+}
+
+func TestConfig_ValidateServiceGraphsMaxItems(t *testing.T) {
+	for _, maxItems := range []int{0, -1} {
+		cfg := &Config{}
+		cfg.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.PanicOnError))
+		cfg.Storage.Path = t.TempDir()
+		cfg.Processor.ServiceGraphs.MaxItems = maxItems
+
+		require.ErrorContains(t, cfg.Validate(), "service_graphs.max_items must be greater than zero")
+	}
 }
 
 func boolPtr(b bool) *bool {
