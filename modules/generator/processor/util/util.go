@@ -73,7 +73,7 @@ func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string
 // case callers must not count the span.
 func GetSpanMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource, enableTraceState bool) float64 {
 	if enableTraceState {
-		if m := sampling.MultiplierFromTraceState(span.GetTraceState()); m != sampling.NoMultiplier {
+		if m := sampling.MultiplierFromTraceState(span.GetTraceState()); m >= 0 {
 			return m
 		}
 	}

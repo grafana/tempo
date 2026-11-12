@@ -9,10 +9,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
 )
 
-// NoMultiplier is returned by MultiplierFromTraceState when the tracestate has
-// no usable sampling information.
-const NoMultiplier = -1.0
-
 // MultiplierFromTraceState returns the OpenTelemetry probability-sampling
 // multiplier (= 1 / sampling probability) parsed from a W3C tracestate
 // string. When the tracestate also carries an OTEP-235 R-value (`rv:`
@@ -33,25 +29,25 @@ const NoMultiplier = -1.0
 // https://github.com/open-telemetry/opentelemetry-specification/issues/5407
 // and may be changed or removed.
 //
-// Returns NoMultiplier when the tracestate has no usable probability-sampling
-// data — callers should fall back to 1.0 (or to a configured ratio attribute)
-// themselves.
+// Returns a negative value (-1) when the tracestate has no usable
+// probability-sampling data — callers should treat any negative result as
+// unknown and fall back to 1.0 (or to a configured ratio attribute) themselves.
 func MultiplierFromTraceState(traceState string) float64 {
 	ot := extractOpenTelemetryTraceState(traceState)
 	if ot == "" {
-		return NoMultiplier
+		return -1
 	}
 	if hasZeroCount(ot) {
 		return 0
 	}
 	otts, err := sampling.NewOpenTelemetryTraceState(ot)
 	if err != nil {
-		return NoMultiplier
+		return -1
 	}
 	m := otts.AdjustedCount()
 	if m <= 0 {
 		// AdjustedCount is 0 when there is no threshold.
-		return NoMultiplier
+		return -1
 	}
 	rnd, hasRV := otts.RValueRandomness()
 	if !hasRV {

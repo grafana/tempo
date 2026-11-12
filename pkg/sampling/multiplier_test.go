@@ -20,7 +20,7 @@ func TestMultiplierFromTraceState(t *testing.T) {
 		{
 			name:       "empty tracestate",
 			traceState: "",
-			expected:   NoMultiplier,
+			expected:   -1,
 		},
 		{
 			name:       "th:0 means always sampled",
@@ -55,37 +55,37 @@ func TestMultiplierFromTraceState(t *testing.T) {
 		{
 			name:       "invalid hex in threshold",
 			traceState: "ot=th:xyz",
-			expected:   NoMultiplier,
+			expected:   -1,
 		},
 		{
 			name:       "no ot key",
 			traceState: "vendor1=value1,vendor2=value2",
-			expected:   NoMultiplier,
+			expected:   -1,
 		},
 		{
 			name:       "ot without th subkey",
 			traceState: "ot=rv:00112233445566",
-			expected:   NoMultiplier,
+			expected:   -1,
 		},
 		{
 			name:       "threshold too long",
 			traceState: "ot=th:123456789abcdef",
-			expected:   NoMultiplier,
+			expected:   -1,
 		},
 		{
 			name:       "empty threshold value",
 			traceState: "ot=th:",
-			expected:   NoMultiplier,
+			expected:   -1,
 		},
 		{
 			name:       "vendor key ending with ot",
 			traceState: "not=foo:bar",
-			expected:   NoMultiplier,
+			expected:   -1,
 		},
 		{
 			name:       "vendor key ending with ot with th",
 			traceState: "not=th:c",
-			expected:   NoMultiplier,
+			expected:   -1,
 		},
 		{
 			name:       "not and ot vendor keys each with th",
@@ -197,7 +197,7 @@ func FuzzMultiplierFromTraceState(f *testing.F) {
 		}
 		raw := w3c.OTelValue().AdjustedCount()
 		if raw == 0 {
-			assert.Equal(t, NoMultiplier, result, "traceState: %s", traceState)
+			assert.Equal(t, -1.0, result, "traceState: %s", traceState)
 			return
 		}
 		// When there's no R-value, our result equals the raw AdjustedCount.
@@ -222,17 +222,17 @@ func TestMultiplierFromTraceStateZeroCount(t *testing.T) {
 		traceState string
 		expected   float64
 	}{
-		{"no ot key", "vendor=zc:1", NoMultiplier},
+		{"no ot key", "vendor=zc:1", -1},
 		{"zc only", "ot=zc:1", 0},
 		{"zc with other subkeys after", "ot=zc:1;rv:6e6d1a75832a2f", 0},
 		{"zc with other subkeys before", "ot=rv:6e6d1a75832a2f;zc:1", 0},
 		{"zc takes precedence over th", "ot=th:8;zc:1", 0},
 		{"zc in other vendor key", "not=zc:1,ot=th:8", 2},
 		{"zc with other vendor keys", "a=b, ot=zc:1,c=d", 0},
-		{"zc with value other than 1", "ot=zc:0", NoMultiplier},
-		{"zc with empty value", "ot=zc:", NoMultiplier},
-		{"subkey ending in zc", "ot=xzc:1", NoMultiplier},
-		{"subkey with zc prefix", "ot=zc:10", NoMultiplier},
+		{"zc with value other than 1", "ot=zc:0", -1},
+		{"zc with empty value", "ot=zc:", -1},
+		{"subkey ending in zc", "ot=xzc:1", -1},
+		{"subkey with zc prefix", "ot=zc:10", -1},
 		{"empty subkey before zc", "ot=th:8;;zc:1", 0},
 		{"empty subkey after zc", "ot=zc:1;;th:8", 0},
 		{"trailing separator", "ot=zc:1;", 0},
