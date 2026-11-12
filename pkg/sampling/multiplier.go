@@ -52,6 +52,31 @@ func MultiplierFromTraceState(traceState string) float64 {
 	return i
 }
 
+// HasZeroCount reports whether the tracestate marks the span with an adjusted
+// count of zero, via the `zc:1` sub-key of the OpenTelemetry `ot` entry. Such
+// spans (for example, spans restored from an archive) must not contribute to
+// extrapolated counts. When `zc` is present it takes precedence over any `th`
+// value, since `th` is not meant to be set alongside it.
+//
+// EXPERIMENTAL: the `zc` sub-key is a proposal in
+// https://github.com/open-telemetry/opentelemetry-specification/issues/5407
+// and may be changed or removed.
+func HasZeroCount(traceState string) bool {
+	// Fast reject: nearly all spans lack zc, and Contains is vectorized.
+	if !strings.Contains(traceState, "zc:1") {
+		return false
+	}
+	ot := extractOpenTelemetryTraceState(traceState)
+	for ot != "" {
+		field, rest, _ := strings.Cut(ot, ";")
+		if field == "zc:1" {
+			return true
+		}
+		ot = rest
+	}
+	return false
+}
+
 // extractOpenTelemetryTraceState parses the tracestate for the ot vendor key
 // and returns the value of the key (or empty if it does not exist). It is
 // about twice as fast as sampling.NewW3CTraceState and does no allocations.

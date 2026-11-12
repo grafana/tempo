@@ -350,6 +350,15 @@ metrics_generator:
 
 If the tracestate is absent or invalid, the attribute-based approach is used as a fallback.
 
+{{< admonition type="warning" >}}
+Support for the `zc` (zero count) sub-key is experimental and might be changed or removed.
+It follows an [OpenTelemetry specification proposal](https://github.com/open-telemetry/opentelemetry-specification/issues/5407) that isn't final.
+{{< /admonition >}}
+
+When `enable_tracestate_span_multiplier` is enabled and the `ot` tracestate entry contains `zc:1`, the span has an adjusted count of zero.
+For example, a span that was restored from an archive and was already counted has `ot=zc:1`.
+The span doesn't contribute to generated metrics, and takes precedence over any `th` value or `span_multiplier_key` attribute.
+
 ### Filtering
 
 By default, the span-metrics processor applies no filter policies and generates metrics for spans of every kind, including `SPAN_KIND_INTERNAL`.

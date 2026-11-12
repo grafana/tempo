@@ -207,3 +207,31 @@ func FuzzMultiplierFromTraceState(f *testing.F) {
 		assert.True(t, result == floor || result == ceil, "traceState: %s — expected %v or %v, got %v", traceState, floor, ceil, result)
 	})
 }
+
+func TestHasZeroCount(t *testing.T) {
+	tests := []struct {
+		name       string
+		traceState string
+		expected   bool
+	}{
+		{"empty tracestate", "", false},
+		{"no ot key", "vendor=zc:1", false},
+		{"zc only", "ot=zc:1", true},
+		{"zc with other subkeys after", "ot=zc:1;rv:6e6d1a75832a2f", true},
+		{"zc with other subkeys before", "ot=rv:6e6d1a75832a2f;zc:1", true},
+		{"zc and th both present", "ot=th:8;zc:1", true},
+		{"zc in other vendor key", "not=zc:1,ot=th:8", false},
+		{"zc with other vendor keys", "a=b, ot=zc:1,c=d", true},
+		{"zc with value other than 1", "ot=zc:0", false},
+		{"zc with empty value", "ot=zc:", false},
+		{"subkey ending in zc", "ot=xzc:1", false},
+		{"subkey with zc prefix", "ot=zc:10", false},
+		{"th only", "ot=th:8", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, HasZeroCount(tc.traceState), "tracestate: %s", tc.traceState)
+		})
+	}
+}
