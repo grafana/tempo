@@ -24,10 +24,13 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
 	"go.opentelemetry.io/collector/receiver/xreceiver"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/metadata"
 )
 
@@ -43,7 +46,7 @@ type newConsumeMessageFunc func(host component.Host, obsrecv *receiverhelper.Obs
 type messageHandler[T plog.Logs | pmetric.Metrics | ptrace.Traces | pprofile.Profiles] interface {
 	// unmarshalData unmarshals the message payload into a pdata type (plog.Logs, etc.)
 	// and returns the number of items (log records, metric data points, spans) within it.
-	unmarshalData(data []byte) (T, int, error)
+	unmarshalData(ctx context.Context, data []byte) (T, int, error)
 
 	// consumeData passes the unmarshaled data to the next consumer for the signal type.
 	// This simply calls the signal-specific Consume* method.
@@ -73,22 +76,24 @@ func newLogsReceiver(config *Config, set receiver.Settings, nextConsumer consume
 		obsrecv *receiverhelper.ObsReport,
 		telBldr *metadata.TelemetryBuilder,
 	) (consumeMessageFunc, error) {
-		unmarshaler, err := newLogsUnmarshaler(config.Logs.Encoding, set, host)
+		decode, err := newLogsDecoder(config.Logs.Encoding, set, host)
 		if err != nil {
 			return nil, err
 		}
 
 		headerAttrKeys := buildHeaderAttrKeys(config)
+		propagator := traceContextPropagator()
 		return func(ctx context.Context, record *kgo.Record, attrs attribute.Set) error {
 			return processMessage(ctx, record, config, set.Logger, telBldr,
 				&logsHandler{
-					unmarshaler: unmarshaler,
-					obsrecv:     obsrecv,
-					consumer:    nextConsumer,
-					encoding:    config.Logs.Encoding,
+					decode:   decode,
+					obsrecv:  obsrecv,
+					consumer: nextConsumer,
+					encoding: config.Logs.Encoding,
 				},
 				attrs,
 				headerAttrKeys,
+				propagator,
 			)
 		}, nil
 	}
@@ -100,22 +105,24 @@ func newMetricsReceiver(config *Config, set receiver.Settings, nextConsumer cons
 		obsrecv *receiverhelper.ObsReport,
 		telBldr *metadata.TelemetryBuilder,
 	) (consumeMessageFunc, error) {
-		unmarshaler, err := newMetricsUnmarshaler(config.Metrics.Encoding, set, host)
+		decode, err := newMetricsDecoder(config.Metrics.Encoding, set, host)
 		if err != nil {
 			return nil, err
 		}
 
 		headerAttrKeys := buildHeaderAttrKeys(config)
+		propagator := traceContextPropagator()
 		return func(ctx context.Context, record *kgo.Record, attrs attribute.Set) error {
 			return processMessage(ctx, record, config, set.Logger, telBldr,
 				&metricsHandler{
-					unmarshaler: unmarshaler,
-					obsrecv:     obsrecv,
-					consumer:    nextConsumer,
-					encoding:    config.Metrics.Encoding,
+					decode:   decode,
+					obsrecv:  obsrecv,
+					consumer: nextConsumer,
+					encoding: config.Metrics.Encoding,
 				},
 				attrs,
 				headerAttrKeys,
+				propagator,
 			)
 		}, nil
 	}
@@ -127,22 +134,24 @@ func newTracesReceiver(config *Config, set receiver.Settings, nextConsumer consu
 		obsrecv *receiverhelper.ObsReport,
 		telBldr *metadata.TelemetryBuilder,
 	) (consumeMessageFunc, error) {
-		unmarshaler, err := newTracesUnmarshaler(config.Traces.Encoding, set, host)
+		decode, err := newTracesDecoder(config.Traces.Encoding, set, host)
 		if err != nil {
 			return nil, err
 		}
 
 		headerAttrKeys := buildHeaderAttrKeys(config)
+		propagator := traceContextPropagator()
 		return func(ctx context.Context, record *kgo.Record, attrs attribute.Set) error {
 			return processMessage(ctx, record, config, set.Logger, telBldr,
 				&tracesHandler{
-					unmarshaler: unmarshaler,
-					obsrecv:     obsrecv,
-					consumer:    nextConsumer,
-					encoding:    config.Traces.Encoding,
+					decode:   decode,
+					obsrecv:  obsrecv,
+					consumer: nextConsumer,
+					encoding: config.Traces.Encoding,
 				},
 				attrs,
 				headerAttrKeys,
+				propagator,
 			)
 		}, nil
 	}
@@ -154,22 +163,24 @@ func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xco
 		obsrecv *receiverhelper.ObsReport,
 		telBldr *metadata.TelemetryBuilder,
 	) (consumeMessageFunc, error) {
-		unmarshaler, err := newProfilesUnmarshaler(config.Profiles.Encoding, set, host)
+		decode, err := newProfilesDecoder(config.Profiles.Encoding, set, host)
 		if err != nil {
 			return nil, err
 		}
 
 		headerAttrKeys := buildHeaderAttrKeys(config)
+		propagator := traceContextPropagator()
 		return func(ctx context.Context, record *kgo.Record, attrs attribute.Set) error {
 			return processMessage(ctx, record, config, set.Logger, telBldr,
 				&profilesHandler{
-					unmarshaler: unmarshaler,
-					obsrecv:     obsrecv,
-					consumer:    nextConsumer,
-					encoding:    config.Profiles.Encoding,
+					decode:   decode,
+					obsrecv:  obsrecv,
+					consumer: nextConsumer,
+					encoding: config.Profiles.Encoding,
 				},
 				attrs,
 				headerAttrKeys,
+				propagator,
 			)
 		}, nil
 	}
@@ -177,14 +188,14 @@ func newProfilesReceiver(config *Config, set receiver.Settings, nextConsumer xco
 }
 
 type logsHandler struct {
-	unmarshaler plog.Unmarshaler
-	obsrecv     *receiverhelper.ObsReport
-	consumer    consumer.Logs
-	encoding    string
+	decode   messageDecoder[plog.Logs]
+	obsrecv  *receiverhelper.ObsReport
+	consumer consumer.Logs
+	encoding string
 }
 
-func (h *logsHandler) unmarshalData(data []byte) (plog.Logs, int, error) {
-	logs, err := h.unmarshaler.UnmarshalLogs(data)
+func (h *logsHandler) unmarshalData(ctx context.Context, data []byte) (plog.Logs, int, error) {
+	logs, err := h.decode(ctx, data)
 	if err != nil {
 		return plog.Logs{}, 0, err
 	}
@@ -218,14 +229,14 @@ func (*logsHandler) getUnmarshalFailureCounter(telBldr *metadata.TelemetryBuilde
 }
 
 type metricsHandler struct {
-	unmarshaler pmetric.Unmarshaler
-	obsrecv     *receiverhelper.ObsReport
-	consumer    consumer.Metrics
-	encoding    string
+	decode   messageDecoder[pmetric.Metrics]
+	obsrecv  *receiverhelper.ObsReport
+	consumer consumer.Metrics
+	encoding string
 }
 
-func (h *metricsHandler) unmarshalData(data []byte) (pmetric.Metrics, int, error) {
-	metrics, err := h.unmarshaler.UnmarshalMetrics(data)
+func (h *metricsHandler) unmarshalData(ctx context.Context, data []byte) (pmetric.Metrics, int, error) {
+	metrics, err := h.decode(ctx, data)
 	if err != nil {
 		return pmetric.Metrics{}, 0, err
 	}
@@ -259,14 +270,14 @@ func (*metricsHandler) getUnmarshalFailureCounter(telBldr *metadata.TelemetryBui
 }
 
 type tracesHandler struct {
-	unmarshaler ptrace.Unmarshaler
-	obsrecv     *receiverhelper.ObsReport
-	consumer    consumer.Traces
-	encoding    string
+	decode   messageDecoder[ptrace.Traces]
+	obsrecv  *receiverhelper.ObsReport
+	consumer consumer.Traces
+	encoding string
 }
 
-func (h *tracesHandler) unmarshalData(data []byte) (ptrace.Traces, int, error) {
-	traces, err := h.unmarshaler.UnmarshalTraces(data)
+func (h *tracesHandler) unmarshalData(ctx context.Context, data []byte) (ptrace.Traces, int, error) {
+	traces, err := h.decode(ctx, data)
 	if err != nil {
 		return ptrace.Traces{}, 0, err
 	}
@@ -300,14 +311,14 @@ func (*tracesHandler) getUnmarshalFailureCounter(telBldr *metadata.TelemetryBuil
 }
 
 type profilesHandler struct {
-	unmarshaler pprofile.Unmarshaler
-	obsrecv     *receiverhelper.ObsReport
-	consumer    xconsumer.Profiles
-	encoding    string
+	decode   messageDecoder[pprofile.Profiles]
+	obsrecv  *receiverhelper.ObsReport
+	consumer xconsumer.Profiles
+	encoding string
 }
 
-func (h *profilesHandler) unmarshalData(data []byte) (pprofile.Profiles, int, error) {
-	profiles, err := h.unmarshaler.UnmarshalProfiles(data)
+func (h *profilesHandler) unmarshalData(ctx context.Context, data []byte) (pprofile.Profiles, int, error) {
+	profiles, err := h.decode(ctx, data)
 	if err != nil {
 		return pprofile.Profiles{}, 0, err
 	}
@@ -350,6 +361,7 @@ func processMessage[T plog.Logs | pmetric.Metrics | ptrace.Traces | pprofile.Pro
 	handler messageHandler[T],
 	attrs attribute.Set,
 	headerAttrKeys map[string]string,
+	propagator propagation.TextMapPropagator,
 ) error {
 	if logger.Core().Enabled(zap.DebugLevel) {
 		logger.Debug("kafka message received",
@@ -362,9 +374,12 @@ func processMessage[T plog.Logs | pmetric.Metrics | ptrace.Traces | pprofile.Pro
 	}
 
 	ctx = contextWithMetadata(ctx, record)
+	if propagator != nil {
+		ctx = propagator.Extract(ctx, (*kafka.HeaderCarrier)(&record.Headers))
+	}
 
 	obsCtx := handler.startObsReport(ctx)
-	data, n, err := handler.unmarshalData(record.Value)
+	data, n, err := handler.unmarshalData(obsCtx, record.Value)
 	if err != nil {
 		handler.getUnmarshalFailureCounter(telBldr).Add(ctx, 1, metric.WithAttributeSet(attrs))
 		logger.Error("failed to unmarshal message", zap.Error(err))
@@ -384,7 +399,7 @@ func processMessage[T plog.Logs | pmetric.Metrics | ptrace.Traces | pprofile.Pro
 		}
 	}
 
-	err = handler.consumeData(ctx, data)
+	err = handler.consumeData(obsCtx, data)
 	handler.endObsReport(obsCtx, n, err)
 	return err
 }
@@ -430,6 +445,14 @@ func newExponentialBackOff(config configretry.BackOffConfig) *backoff.Exponentia
 	backOff.MaxElapsedTime = config.MaxElapsedTime
 	backOff.Reset()
 	return backOff
+}
+
+func traceContextPropagator() propagation.TextMapPropagator {
+	propagator := otel.GetTextMapPropagator()
+	if len(propagator.Fields()) == 0 {
+		return nil
+	}
+	return propagator
 }
 
 func contextWithMetadata(ctx context.Context, record *kgo.Record) context.Context {

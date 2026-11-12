@@ -17,6 +17,7 @@ Available Converters:
 - [MapEach](#mapeach)
 - [MapKeys](#mapkeys)
 - [Reduce](#reduce)
+- [ToValidUTF8](#tovalidutf8)
 - [When](#when)
 
 ### All
@@ -270,6 +271,27 @@ Build a semicolon-separated key=value string:
 Store the result:
 
 - `set(log.attributes["total"], Reduce(log.attributes["counts"], 0, (acc, _, v) => acc + Int(v)))`
+
+### ToValidUTF8
+
+> [!IMPORTANT]
+> This function is experimental and may change in future releases. It requires the [`pkg.ottl.functions.enableExperimental`](../../documentation.md#feature-gates) feature gate to be enabled.
+
+`ToValidUTF8(target, Optional[replacement])`
+
+The `ToValidUTF8` converter returns `target` with every run of invalid UTF-8 bytes replaced by `replacement`, so the result is valid UTF-8. When `target` is already valid UTF-8 it is returned unchanged. It behaves like Go's `strings.ToValidUTF8`.
+
+`target` is a string.
+
+`replacement` is an optional string (default: the Unicode replacement character `U+FFFD`, rendered as `�`) that is inserted in place of each run of invalid bytes. An empty `replacement` removes the invalid bytes. The replacement must itself be valid UTF-8; this is checked at parse time.
+
+To repair every string in a list or map, combine it with the lambda converters such as `MapEach`.
+
+Examples:
+
+- `set(log.body, ToValidUTF8(log.body))`
+- `set(span.name, ToValidUTF8(span.name, "?"))`
+- `set(log.attributes["tags"], MapEach(log.attributes["tags"], (_, v) => ToValidUTF8(v)))`
 
 ### When
 

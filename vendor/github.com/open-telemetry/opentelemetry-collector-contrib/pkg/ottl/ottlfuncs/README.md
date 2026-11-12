@@ -744,6 +744,8 @@ The output format is base64 encoding string of <2-byte-seed><source-IP-bytes><de
 `protocol` (optional) is a protocol, one of `ICMP`, `TCP`, `UDP`, `RSVP`, `ICMP6` or `SCTP`. Defaults to `TCP` if not specified.
 `seed` (optional) is seed value (must be between 0 and 65535). Defaults to `0` if not specified.
 
+The Community ID specification mandates SHA-1, which is not a FIPS 140-3 approved algorithm for new uses. The converter computes the hash outside strict FIPS enforcement (`GODEBUG=fips140=only`) because the output is a flow identifier and not a security function.
+
 Examples:
 
 - `CommunityID(attributes["source.ip"], attributes["source.port"], attributes["destination.ip"], attributes["destination.port"], "TCP", 1)`
@@ -1616,6 +1618,8 @@ Examples:
 
 **Note:** According to the National Institute of Standards and Technology (NIST), MD5 is no longer a recommended hash function. It should be avoided except when required for compatibility. New uses should prefer a SHA-2 family function (e.g. SHA-256, SHA-512) whenever possible.
 
+MD5 is not a FIPS 140-3 approved algorithm. The converter computes the digest outside strict FIPS enforcement (`GODEBUG=fips140=only`) because the output is a plain hash of telemetry data and not a security function. Do not rely on `MD5` for any security purpose in a FIPS deployment.
+
 ### Microseconds
 
 `Microseconds(duration)`
@@ -2212,6 +2216,8 @@ Examples:
 - `SHA1("name")`
 
 **Note:** [According to the National Institute of Standards and Technology (NIST)](https://csrc.nist.gov/projects/hash-functions), SHA1 is no longer a recommended hash function. It should be avoided except when required for compatibility. New uses should prefer a SHA-2 family function (such as SHA-256 or SHA-512) whenever possible.
+
+SHA-1 is not a FIPS 140-3 approved algorithm for new uses. The converter computes the digest outside strict FIPS enforcement (`GODEBUG=fips140=only`) because the output is a plain hash of telemetry data and not a security function. Do not rely on `SHA1` for any security purpose in a FIPS deployment.
 
 ### SHA256
 

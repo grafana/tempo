@@ -232,13 +232,10 @@ func accessStringBody[K Context]() ottl.StandardGetSetter[K] {
 	}
 }
 
-func accessAttributes[K Context]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
+func accessAttributes[K Context]() ctxutil.MapGetSetter[K] {
+	return ctxutil.MapGetSetter[K]{
+		Getter: func(_ context.Context, tCtx K) (pcommon.Map, error) {
 			return tCtx.GetLogRecord().Attributes(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			return ctxutil.SetMap(tCtx.GetLogRecord().Attributes(), val)
 		},
 	}
 }

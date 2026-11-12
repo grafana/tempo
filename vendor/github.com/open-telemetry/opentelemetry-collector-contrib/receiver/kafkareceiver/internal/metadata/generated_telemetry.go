@@ -3,11 +3,13 @@
 package metadata
 
 import (
+	"context"
 	"errors"
 	"sync"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/embedded"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -31,10 +33,10 @@ type TelemetryBuilder struct {
 	KafkaBrokerThrottlingLatency             metric.Float64Histogram
 	KafkaReceiverBytes                       metric.Int64Counter
 	KafkaReceiverBytesUncompressed           metric.Int64Counter
-	KafkaReceiverCurrentOffset               metric.Int64Gauge
+	KafkaReceiverCurrentOffset               metric.Int64ObservableGauge
 	KafkaReceiverLatency                     metric.Int64Histogram
 	KafkaReceiverMessages                    metric.Int64Counter
-	KafkaReceiverOffsetLag                   metric.Int64Gauge
+	KafkaReceiverOffsetLag                   metric.Int64ObservableGauge
 	KafkaReceiverPartitionClose              metric.Int64Counter
 	KafkaReceiverPartitionStart              metric.Int64Counter
 	KafkaReceiverReadLatency                 metric.Float64Histogram
@@ -55,6 +57,46 @@ type telemetryBuilderOptionFunc func(mb *TelemetryBuilder)
 
 func (tbof telemetryBuilderOptionFunc) apply(mb *TelemetryBuilder) {
 	tbof(mb)
+}
+
+// RegisterKafkaReceiverCurrentOffsetCallback sets callback for observable KafkaReceiverCurrentOffset metric.
+func (builder *TelemetryBuilder) RegisterKafkaReceiverCurrentOffsetCallback(cb metric.Int64Callback) error {
+	reg, err := builder.meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+		cb(ctx, &observerInt64{inst: builder.KafkaReceiverCurrentOffset, obs: o})
+		return nil
+	}, builder.KafkaReceiverCurrentOffset)
+	if err != nil {
+		return err
+	}
+	builder.mu.Lock()
+	defer builder.mu.Unlock()
+	builder.registrations = append(builder.registrations, reg)
+	return nil
+}
+
+// RegisterKafkaReceiverOffsetLagCallback sets callback for observable KafkaReceiverOffsetLag metric.
+func (builder *TelemetryBuilder) RegisterKafkaReceiverOffsetLagCallback(cb metric.Int64Callback) error {
+	reg, err := builder.meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+		cb(ctx, &observerInt64{inst: builder.KafkaReceiverOffsetLag, obs: o})
+		return nil
+	}, builder.KafkaReceiverOffsetLag)
+	if err != nil {
+		return err
+	}
+	builder.mu.Lock()
+	defer builder.mu.Unlock()
+	builder.registrations = append(builder.registrations, reg)
+	return nil
+}
+
+type observerInt64 struct {
+	embedded.Int64Observer
+	inst metric.Int64Observable
+	obs  metric.Observer
+}
+
+func (oi *observerInt64) Observe(value int64, opts ...metric.ObserveOption) {
+	oi.obs.ObserveInt64(oi.inst, value, opts...)
 }
 
 // Shutdown unregister all registered callbacks for async instruments.
@@ -112,7 +154,7 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 		metric.WithUnit("By"),
 	)
 	errs = errors.Join(errs, err)
-	builder.KafkaReceiverCurrentOffset, err = builder.meter.Int64Gauge(
+	builder.KafkaReceiverCurrentOffset, err = builder.meter.Int64ObservableGauge(
 		"otelcol_kafka_receiver_current_offset",
 		metric.WithDescription("Current message offset [Development]"),
 		metric.WithUnit("1"),
@@ -130,7 +172,7 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 		metric.WithUnit("1"),
 	)
 	errs = errors.Join(errs, err)
-	builder.KafkaReceiverOffsetLag, err = builder.meter.Int64Gauge(
+	builder.KafkaReceiverOffsetLag, err = builder.meter.Int64ObservableGauge(
 		"otelcol_kafka_receiver_offset_lag",
 		metric.WithDescription("Current offset lag [Development]"),
 		metric.WithUnit("1"),

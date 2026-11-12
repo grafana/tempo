@@ -7,7 +7,7 @@ A fast ISO8601 date parser for Go
 go get github.com/relvacode/iso8601
 ```
 
-The built-in RFC3333 time layout in Go is too restrictive to support any ISO8601 date-time.
+The built-in RFC3339 time layout in Go is too restrictive to support any ISO8601 date-time.
 
 This library parses any ISO8601 date into a native Go time object without regular expressions.
 

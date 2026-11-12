@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -63,6 +64,12 @@ type franzConsumer struct {
 	client      *kgo.Client
 	obsrecv     *receiverhelper.ObsReport
 	assignments map[topicPartition]*pc
+
+	// assignmentsSnapshot is an immutable snapshot published by assignment
+	// lifecycle hooks. This allows readers to use the snapshot without
+	// acquiring a read lock on the `mu` mutex.
+	assignmentsSnapshot atomic.Pointer[[]*pc]
+
 	// controls serializes SetOffsets between PollRecords calls.
 	controls chan partitionControl
 
@@ -97,7 +104,7 @@ func newFranzKafkaConsumer(
 		return nil, err
 	}
 
-	return &franzConsumer{
+	consumer := &franzConsumer{
 		config:           config,
 		topics:           topics,
 		excludeTopics:    excludeTopics,
@@ -110,7 +117,66 @@ func newFranzKafkaConsumer(
 		assignments:      make(map[topicPartition]*pc),
 		controls:         make(chan partitionControl, 1),
 		brokerReadOpts:   make(map[brokerReadKey]metric.MeasurementOption),
-	}, nil
+	}
+
+	// otelcol_kafka_receiver_offset_lag and otelcol_kafka_receiver_current_offset are
+	// observable gauges which require callbacks to report their values once every
+	// metric collection cycle.
+	if err := telemetryBuilder.RegisterKafkaReceiverOffsetLagCallback(consumer.observeOffsetLag); err != nil {
+		telemetryBuilder.Shutdown()
+		return nil, err
+	}
+	if err := telemetryBuilder.RegisterKafkaReceiverCurrentOffsetCallback(consumer.observeCurrentOffset); err != nil {
+		telemetryBuilder.Shutdown()
+		return nil, err
+	}
+	return consumer, nil
+}
+
+// observeOffsetLag report offset lag for all current partition assignments.
+func (c *franzConsumer) observeOffsetLag(_ context.Context, observer metric.Int64Observer) error {
+	assignmentsSnapshot := c.assignmentsSnapshot.Load()
+	if assignmentsSnapshot == nil {
+		return nil
+	}
+	for _, pc := range *assignmentsSnapshot {
+		// Avoid reporting when the assignment has not yet a processed batch
+		// or if a partition has been terminally paused
+		if pc.offsetLagReportable.Load() {
+			observer.Observe(pc.offsetLag.Load(), metric.WithAttributeSet(pc.attrs))
+		}
+	}
+	return nil
+}
+
+// observeCurrentOffset reports the current offset for all current partition assignments.
+func (c *franzConsumer) observeCurrentOffset(_ context.Context, observer metric.Int64Observer) error {
+	assignmentsSnapshot := c.assignmentsSnapshot.Load()
+	if assignmentsSnapshot == nil {
+		return nil
+	}
+	for _, pc := range *assignmentsSnapshot {
+		// Avoid reporting when the assignment has not yet processed a record
+		// or if a partition has been terminally paused
+		if pc.currentOffsetReportable.Load() {
+			observer.Observe(pc.currentOffset.Load(), metric.WithAttributeSet(pc.attrs))
+		}
+	}
+	return nil
+}
+
+// storeAssignmentSnapshot store current partition assignments.
+// The caller must hold c.mu for writing.
+func (c *franzConsumer) storeAssignmentSnapshot() {
+	assignments := make([]*pc, 0, len(c.assignments))
+	for _, partitionAssignment := range c.assignments {
+		// A cancelled context means the partition was lost, revoked, or hit a
+		// terminal error, so it must not be reported.
+		if partitionAssignment.ctx.Err() == nil {
+			assignments = append(assignments, partitionAssignment)
+		}
+	}
+	c.assignmentsSnapshot.Store(&assignments)
 }
 
 // reportStatus emits a component status event if we have a host.
@@ -141,6 +207,10 @@ func (c *franzConsumer) Start(ctx context.Context, host component.Host) error {
 		close(c.started)
 	}
 
+	if c.config.PartitionProcessing.maxBufferedBatchesSet {
+		c.settings.Logger.Warn("partition_processing.max_buffered_batches is deprecated, use partition_processing.max_prefetch.batches instead")
+	}
+
 	// Report "Starting" as soon as Start() is called.
 	c.host = host
 	c.reportStatus(componentstatus.StatusStarting)
@@ -148,6 +218,7 @@ func (c *franzConsumer) Start(ctx context.Context, host component.Host) error {
 	obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             c.settings.ID,
 		Transport:              transport,
+		LongLivedCtx:           true,
 		ReceiverCreateSettings: c.settings,
 	})
 	if err != nil {
@@ -248,7 +319,6 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 	// There's a variety of errors that are returned by fetch.Errors(). We
 	// handle the errors that require a client restart above. The rest can
 	// simply be logged and keep fetching.
-	var hasError bool
 	fetch.EachError(func(topic string, partition int32, err error) {
 		if c.config.PartitionProcessing.Independent && errors.Is(err, context.Canceled) {
 			return
@@ -259,13 +329,15 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 		)
 		// Report recoverable error while consuming.
 		c.reportRecoverable(err)
-		hasError = true
 	})
-	if hasError || fetch.Empty() {
+	// Fetch errors are per partition. Records polled for other partitions
+	// have already advanced their fetch cursors, so they must be processed
+	// or they are lost once later offsets are committed.
+	if fetch.Empty() {
 		if c.config.PartitionProcessing.Independent {
 			c.processControls()
 		}
-		return true // Return right away after errors or empty fetch.
+		return true
 	}
 
 	// Acquire the read lock on each consume to ensure the client is not closed
@@ -316,7 +388,7 @@ func (c *franzConsumer) consume(ctx context.Context, size int) bool {
 		go func(pc *pc, partition kgo.FetchTopicPartition) {
 			defer wg.Done()
 			defer pc.wg.Done()
-			c.processPartitionBatch(ctx, pc, partition)
+			c.processPartitionBatch(pc, partition)
 		}(assign, p)
 	})
 	// Wait for all records to be processed and commit if autocommit=false.
@@ -471,6 +543,8 @@ func (c *franzConsumer) dispatchPartitionBatches(
 }
 
 func (c *franzConsumer) Shutdown(ctx context.Context) error {
+	defer c.telemetryBuilder.Shutdown()
+
 	// Report Stopping at shutdown start.
 	c.stoppingOnce.Do(func() { c.reportStatus(componentstatus.StatusStopping) })
 
@@ -535,11 +609,11 @@ func (c *franzConsumer) assigned(ctx context.Context, cl *kgo.Client, assigned m
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	haveAssignmentsChanged := false
 	for topic, partitions := range assigned {
 		for _, partition := range partitions {
 			c.telemetryBuilder.KafkaReceiverPartitionStart.Add(context.Background(), 1)
 			partitionConsumer := pc{
-				backOff: newExponentialBackOff(c.config.ErrorBackOff),
 				logger: c.settings.Logger.With(
 					zap.String("topic", topic),
 					zap.Int64("partition", int64(partition)),
@@ -552,16 +626,21 @@ func (c *franzConsumer) assigned(ctx context.Context, cl *kgo.Client, assigned m
 			partitionConsumer.ctx, partitionConsumer.cancel = context.WithCancelCause(ctx)
 			tp := topicPartition{topic: topic, partition: partition}
 			c.assignments[tp] = &partitionConsumer
+			haveAssignmentsChanged = true
 			if c.config.PartitionProcessing.Independent {
 				partitionConsumer.mailbox = newPartitionMailbox(
 					partitionConsumer.ctx,
-					c.config.PartitionProcessing.MaxBufferedBatches,
+					c.config.PartitionProcessing.MaxPrefetch.Batches,
+					c.config.PartitionProcessing.MaxPrefetch.Bytes,
 				)
 				if partitionConsumer.add() {
 					go c.runPartitionWorker(&partitionConsumer, tp)
 				}
 			}
 		}
+	}
+	if haveAssignmentsChanged {
+		c.storeAssignmentSnapshot()
 	}
 }
 
@@ -607,6 +686,9 @@ func (c *franzConsumer) lost(ctx context.Context, _ *kgo.Client,
 			}
 			c.telemetryBuilder.KafkaReceiverPartitionClose.Add(context.Background(), 1)
 		}
+	}
+	if len(stopping) > 0 {
+		c.storeAssignmentSnapshot()
 	}
 	c.mu.Unlock()
 
@@ -679,11 +761,27 @@ func (c *franzConsumer) deleteStoppingAssignments(stopping map[topicPartition]*p
 	}
 }
 
+// shouldMarkOnError reports whether a record the pipeline rejected may still be
+// marked, following the message_marking on_error and on_permanent_error config.
+//
+// A cancelled partition consumer overrides both. A real rejection and a record
+// that was only cut short look the same here: errors from several exporters get
+// joined, so a permanent one can hide a cancellation. Not marking is the safe
+// side. The record comes back, and the next try marks it if the pipeline
+// rejects it again. That costs one extra delivery per cancellation.
+func (c *franzConsumer) shouldMarkOnError(pc *pc, err error) bool {
+	if pc.ctx.Err() != nil {
+		return false
+	}
+	if consumererror.IsPermanent(err) {
+		return c.config.MessageMarking.OnPermanentError
+	}
+	return c.config.MessageMarking.OnError
+}
+
 // handleMessage is called on a per-partition basis.
 func (c *franzConsumer) handleMessage(pc *pc, record *kgo.Record) error {
-	if pc.backOff != nil {
-		defer pc.backOff.Reset()
-	}
+	backOff := newExponentialBackOff(c.config.ErrorBackOff)
 
 	for {
 		err := c.consumeMessage(pc.ctx, record, pc.attrs)
@@ -699,8 +797,8 @@ func (c *franzConsumer) handleMessage(pc *pc, record *kgo.Record) error {
 		// https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka.
 		// One possible exception is if the OTel collector is used for analytics
 		// pipelines, where it may make sense to make share groups opt-in.
-		if pc.backOff != nil && !consumererror.IsPermanent(err) {
-			backOffDelay := pc.backOff.NextBackOff()
+		if backOff != nil && !consumererror.IsPermanent(err) {
+			backOffDelay := backOff.NextBackOff()
 			if backOffDelay != backoff.Stop {
 				pc.logger.Info("Backing off due to error from the next consumer.",
 					zap.Error(err),
@@ -714,14 +812,11 @@ func (c *franzConsumer) handleMessage(pc *pc, record *kgo.Record) error {
 				}
 			}
 			pc.logger.Warn("Stop error backoff because the configured max_elapsed_time is reached",
-				zap.Duration("max_elapsed_time", pc.backOff.MaxElapsedTime),
+				zap.Duration("max_elapsed_time", backOff.MaxElapsedTime),
 			)
 		}
 
-		isPermanent := consumererror.IsPermanent(err)
-		shouldMark := (!isPermanent && c.config.MessageMarking.OnError) || (isPermanent && c.config.MessageMarking.OnPermanentError)
-
-		if c.config.MessageMarking.After && !shouldMark {
+		if c.config.MessageMarking.After && !c.shouldMarkOnError(pc, err) {
 			// Only return an error if messages are marked after successful processing.
 			return err
 		}

@@ -48,6 +48,6 @@ func isMatch[K any](target ottl.StringLikeGetter[K], pattern ottl.StringGetter[K
 		if !ok {
 			return false, nil
 		}
-		return cp.MatchString(val), nil
+		return compiledPattern.matchString(cp, val), nil
 	}, nil
 }

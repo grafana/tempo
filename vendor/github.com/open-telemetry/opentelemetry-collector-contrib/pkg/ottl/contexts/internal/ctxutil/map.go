@@ -41,10 +41,7 @@ func SetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.
 		return fmt.Errorf("cannot set map value: %w", err)
 	}
 
-	currentValue, ok := m.Get(*s)
-	if !ok {
-		currentValue = m.PutEmpty(*s)
-	}
+	currentValue, _ := m.GetOrPutEmpty(*s)
 	return SetIndexableValue[K](ctx, tCtx, currentValue, val, keys[1:])
 }
 
@@ -112,4 +109,53 @@ func GetMap(val any) (pcommon.Map, error) {
 		return m, nil
 	}
 	return pcommon.Map{}, fmt.Errorf("failed to convert type %T into pcommon.Map", val)
+}
+
+// MapGetSetter is an ottl.GetSetter[K] for pcommon.Map fields that also provides
+// direct unboxed ottl.PMapGetter[K] and ottl.PMapGetSetter[K] access so callers
+// operating on pcommon.Map do not box pcommon.Map into an interface{}/any on
+// every Get and Set call.
+type MapGetSetter[K any] struct {
+	Getter func(ctx context.Context, tCtx K) (pcommon.Map, error)
+}
+
+func (m MapGetSetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
+	val, err := m.Getter(ctx, tCtx)
+	if err != nil {
+		return nil, err
+	}
+	return val, nil
+}
+
+func (m MapGetSetter[K]) Set(ctx context.Context, tCtx K, val any) error {
+	target, err := m.Getter(ctx, tCtx)
+	if err != nil {
+		return err
+	}
+	return SetMap(target, val)
+}
+
+func (m MapGetSetter[K]) PMapGetter() ottl.PMapGetter[K] {
+	return pMapGetSetter[K](m)
+}
+
+func (m MapGetSetter[K]) PMapGetSetter() ottl.PMapGetSetter[K] {
+	return pMapGetSetter[K](m)
+}
+
+type pMapGetSetter[K any] struct {
+	Getter func(ctx context.Context, tCtx K) (pcommon.Map, error)
+}
+
+func (m pMapGetSetter[K]) Get(ctx context.Context, tCtx K) (pcommon.Map, error) {
+	return m.Getter(ctx, tCtx)
+}
+
+func (m pMapGetSetter[K]) Set(ctx context.Context, tCtx K, val pcommon.Map) error {
+	target, err := m.Getter(ctx, tCtx)
+	if err != nil {
+		return err
+	}
+	val.CopyTo(target)
+	return nil
 }

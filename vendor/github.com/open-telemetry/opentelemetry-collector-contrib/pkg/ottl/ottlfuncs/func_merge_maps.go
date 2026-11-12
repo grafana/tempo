@@ -62,8 +62,7 @@ func mergeMaps[K any](target ottl.PMapGetSetter[K], source ottl.PMapGetter[K], s
 		switch strategy {
 		case insert:
 			for k, v := range valueMap.All() {
-				if _, ok := targetMap.Get(k); !ok {
-					tv := targetMap.PutEmpty(k)
+				if tv, ok := targetMap.GetOrPutEmpty(k); !ok {
 					v.CopyTo(tv)
 				}
 			}

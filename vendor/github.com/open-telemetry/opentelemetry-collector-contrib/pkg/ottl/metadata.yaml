@@ -8,7 +8,7 @@ status:
   codeowners:
     active: [TylerHelmuth, evan-bradley, edmocosta]
     emeritus: [anuraaga, kentquirk, bogdandrutu]
-    seeking_new: true
+    seeking_new: false
 
 feature_gates:
   - id: "ottl.functions.enableLambda"
@@ -16,6 +16,12 @@ feature_gates:
     stage: alpha
     from_version: v0.155.0
     reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/48227
+
+  - id: "pkg.ottl.enableDynamicMapKeys"
+    description: Allow map literal keys to be paths or converters that resolve to a string at runtime. When disabled, map literal keys must be string literals.
+    stage: alpha
+    from_version: v0.164.0
+    reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/52210
 
   - id: "pkg.ottl.functions.enableDynamicSliceArguments"
     description: Allow slice arguments of stable OTTL functions, such as the values of Concat, to be paths or converters that resolve to a slice at runtime. When disabled, these arguments only accept list literals.
