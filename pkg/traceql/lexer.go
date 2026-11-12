@@ -7,6 +7,7 @@ import (
 	"text/scanner"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/prometheus/common/model"
 )
@@ -117,12 +118,26 @@ var tokenMap = map[string]int{
 
 type lexer struct {
 	scanner.Scanner
+	src    string
 	expr   *RootExpr
 	parser *yyParserImpl
 	errs   []*ParseError
 
 	parsingAttribute bool
 	currentScope     int
+}
+
+func (l *lexer) init(s string) {
+	l.src = s
+	l.Init(strings.NewReader(s))
+}
+
+// remaining returns the unconsumed input starting at the rune returned by Peek.
+// Lookahead must use this instead of copying the scanner: copies share the
+// underlying reader, so a copy that refills its buffer steals input from l.
+func (l *lexer) remaining() string {
+	l.Peek()
+	return l.src[l.Pos().Offset:]
 }
 
 func (l *lexer) Lex(lval *yySymType) int {
@@ -136,7 +151,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 
 	if l.parsingAttribute {
 		// parse out any scopes here
-		scopeToken, ok := tryScopeAttribute(&l.Scanner, l.currentScope)
+		scopeToken, ok := l.tryScopeAttribute()
 		if ok {
 			l.currentScope = scopeToken
 			return scopeToken
@@ -170,7 +185,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 		numberText := l.TokenText()
 
 		// first try to parse as duration
-		duration, ok := tryScanDuration(numberText, &l.Scanner)
+		duration, ok := l.tryScanDuration(numberText)
 		if ok {
 			lval.staticDuration = duration
 			return DURATION
@@ -189,7 +204,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 		numberText := l.TokenText()
 
 		// first try to parse as duration
-		duration, ok := tryScanDuration(numberText, &l.Scanner)
+		duration, ok := l.tryScanDuration(numberText)
 		if ok {
 			lval.staticDuration = duration
 			return DURATION
@@ -309,16 +324,17 @@ func parseQuotedAtrribute(s *scanner.Scanner) (string, error) {
 	return sb.String(), nil
 }
 
-func tryScopeAttribute(l *scanner.Scanner, currentScope int) (int, bool) {
+func (l *lexer) tryScopeAttribute() (int, bool) {
 	const longestScope = 9 // "resource." is the longest scope
 
-	// copy the scanner to avoid advancing if it's not a scope.
-	s := *l
+	rest := l.remaining()
 	str := ""
-	for s.Peek() != scanner.EOF {
-		r := s.Peek()
+	consumed := 0
+	for len(rest) > 0 {
+		r, size := utf8.DecodeRuneInString(rest)
 		if r == '.' { // we've found a scope attribute
-			str += string(s.Next())
+			str += string(r)
+			consumed++
 			break
 		}
 		if !isAttributeRune(r) { // we can't have a scope with invalid characters, so just bail
@@ -328,13 +344,15 @@ func tryScopeAttribute(l *scanner.Scanner, currentScope int) (int, bool) {
 			break
 		}
 
-		str += string(s.Next())
+		str += string(r)
+		consumed++
+		rest = rest[size:]
 	}
 	tok := tokenMap[str]
 
-	if (tok == SPAN_DOT || tok == RESOURCE_DOT) && currentScope == PARENT_DOT {
+	if (tok == SPAN_DOT || tok == RESOURCE_DOT) && l.currentScope == PARENT_DOT {
 		// we have found scope attribute so consume the original scanner
-		for i := 0; i < len(str); i++ {
+		for i := 0; i < consumed; i++ {
 			l.Next()
 		}
 
@@ -344,18 +362,18 @@ func tryScopeAttribute(l *scanner.Scanner, currentScope int) (int, bool) {
 	return 0, false
 }
 
-func tryScanDuration(number string, l *scanner.Scanner) (time.Duration, bool) {
+func (l *lexer) tryScanDuration(number string) (time.Duration, bool) {
 	var sb strings.Builder
 	sb.WriteString(number)
-	// copy the scanner to avoid advancing it in case it's not a duration.
-	s := *l
+	rest := l.remaining()
 	consumed := 0
-	for r := s.Peek(); r != scanner.EOF && !unicode.IsSpace(r); r = s.Peek() {
-		if !unicode.IsNumber(r) && !isDurationRune(r) && r != '.' {
+	for len(rest) > 0 {
+		r, size := utf8.DecodeRuneInString(rest)
+		if unicode.IsSpace(r) || (!unicode.IsNumber(r) && !isDurationRune(r) && r != '.') {
 			break
 		}
 		_, _ = sb.WriteRune(r)
-		_ = s.Next()
+		rest = rest[size:]
 		consumed++
 	}
 
