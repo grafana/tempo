@@ -36,7 +36,7 @@ permissions: {}
 jobs:
   export-sbom:
     name: Export SBOM and attach to release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: write # to upload the SBOM as a release asset
       id-token: write # to authenticate to Vault
