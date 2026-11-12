@@ -198,10 +198,10 @@ func BenchmarkTenantIndexV2Retained(b *testing.B) {
 	}
 }
 
-// makeWideSchemaTenantIndex builds numBlocks live and numBlocks compacted blocks spread over
+// makeWideSchemaTenantIndex builds numBlocks live and numCompacted compacted blocks spread over
 // numSchemas distinct dedicated column layouts, each with colsPerScope columns at both the
 // span and the resource level. Wide layouts are where hoisting them out of every block pays off.
-func makeWideSchemaTenantIndex(numBlocks, numSchemas, colsPerScope int) *TenantIndex {
+func makeWideSchemaTenantIndex(numBlocks, numCompacted, numSchemas, colsPerScope int) *TenantIndex {
 	layouts := make([]DedicatedColumns, numSchemas)
 	for i := range layouts {
 		cols := make(DedicatedColumns, 0, 2*colsPerScope)
@@ -218,12 +218,13 @@ func makeWideSchemaTenantIndex(numBlocks, numSchemas, colsPerScope int) *TenantI
 	}
 
 	blocks := make([]*BlockMeta, 0, numBlocks)
-	compacted := make([]*CompactedBlockMeta, 0, numBlocks)
+	compacted := make([]*CompactedBlockMeta, 0, numCompacted)
 	for i := range numBlocks {
 		m := NewBlockMeta("test-tenant", uuid.New(), "vParquet5")
 		m.DedicatedColumns = layouts[i%numSchemas]
 		blocks = append(blocks, m)
-
+	}
+	for i := range numCompacted {
 		c := &CompactedBlockMeta{BlockMeta: *NewBlockMeta("test-tenant", uuid.New(), "vParquet5"), CompactedTime: time.Now()}
 		c.DedicatedColumns = layouts[i%numSchemas]
 		compacted = append(compacted, c)
@@ -232,13 +233,13 @@ func makeWideSchemaTenantIndex(numBlocks, numSchemas, colsPerScope int) *TenantI
 }
 
 type wideScenario struct {
-	name                             string
-	blocks, schemas, columnsPerScope int
+	name                                        string
+	blocks, compacted, schemas, columnsPerScope int
 }
 
 var wideScenarios = []wideScenario{
-	{"blocks=100000/schemas=10/cols=20+20", 100_000, 10, 20},
-	{"blocks=100000/schemas=10/cols=50+50", 100_000, 10, 50},
+	{"live=100000/compacted=1000/schemas=10/cols=20+20", 100_000, 1000, 10, 20},
+	{"live=100000/compacted=1000/schemas=10/cols=50+50", 100_000, 1000, 10, 50},
 }
 
 // The wide benchmarks only compare the two formats that are stored: proto-zstd and v2-zstd.
@@ -248,7 +249,7 @@ func BenchmarkTenantIndexV2WideUnmarshal(b *testing.B) {
 	for _, sc := range wideScenarios {
 		for _, f := range wideFormats {
 			b.Run(sc.name+"/format="+f.name, func(b *testing.B) {
-				buf, err := f.marshal(makeWideSchemaTenantIndex(sc.blocks, sc.schemas, sc.columnsPerScope))
+				buf, err := f.marshal(makeWideSchemaTenantIndex(sc.blocks, sc.compacted, sc.schemas, sc.columnsPerScope))
 				require.NoError(b, err)
 				b.ReportAllocs()
 				for b.Loop() {
@@ -265,7 +266,7 @@ func BenchmarkTenantIndexV2WideMarshal(b *testing.B) {
 	for _, sc := range wideScenarios {
 		for _, f := range wideFormats {
 			b.Run(sc.name+"/format="+f.name, func(b *testing.B) {
-				idx := makeWideSchemaTenantIndex(sc.blocks, sc.schemas, sc.columnsPerScope)
+				idx := makeWideSchemaTenantIndex(sc.blocks, sc.compacted, sc.schemas, sc.columnsPerScope)
 				b.ReportAllocs()
 				for b.Loop() {
 					var err error
@@ -282,7 +283,7 @@ func BenchmarkTenantIndexV2WideMarshal(b *testing.B) {
 func BenchmarkTenantIndexV2WideSize(b *testing.B) {
 	for _, sc := range wideScenarios {
 		b.Run(sc.name, func(b *testing.B) {
-			idx := makeWideSchemaTenantIndex(sc.blocks, sc.schemas, sc.columnsPerScope)
+			idx := makeWideSchemaTenantIndex(sc.blocks, sc.compacted, sc.schemas, sc.columnsPerScope)
 			for b.Loop() {
 			}
 			// after the loop, which resets metrics
@@ -308,7 +309,7 @@ func BenchmarkTenantIndexV2WideRetained(b *testing.B) {
 	for _, sc := range wideScenarios {
 		for _, f := range []indexFormat{indexFormats[2], indexFormats[4]} {
 			b.Run(sc.name+"/format="+f.name, func(b *testing.B) {
-				buf, err := f.marshal(makeWideSchemaTenantIndex(sc.blocks, sc.schemas, sc.columnsPerScope))
+				buf, err := f.marshal(makeWideSchemaTenantIndex(sc.blocks, sc.compacted, sc.schemas, sc.columnsPerScope))
 				require.NoError(b, err)
 
 				var totalBytes, totalObjects float64
@@ -329,8 +330,8 @@ func BenchmarkTenantIndexV2WideRetained(b *testing.B) {
 					totalBytes += float64(afterBytes) - float64(beforeBytes)
 					totalObjects += float64(afterObjects) - float64(beforeObjects)
 				}
-				b.ReportMetric(totalBytes/float64(b.N)/float64(2*sc.blocks), "retained-B/block")
-				b.ReportMetric(totalObjects/float64(b.N)/float64(2*sc.blocks), "retained-objs/block")
+				b.ReportMetric(totalBytes/float64(b.N)/float64(sc.blocks+sc.compacted), "retained-B/block")
+				b.ReportMetric(totalObjects/float64(b.N)/float64(sc.blocks+sc.compacted), "retained-objs/block")
 			})
 		}
 	}
