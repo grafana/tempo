@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   annotations:
+    grafana.com/min-time-between-zones-downscale: "0"
     grafana.com/prepare-downscale-http-path: live-store/prepare-downscale
     grafana.com/prepare-downscale-http-port: "3200"
     grafana.com/rollout-delayed-downscale: 35m
@@ -12,7 +13,6 @@ metadata:
     grafana.com/rollout-prepare-delayed-downscale-url: http://pod:3200/live-store/prepare-partition-downscale
     rollout-max-unavailable: "25"
   labels:
-    grafana.com/min-time-between-zones-downscale: "0"
     grafana.com/prepare-downscale: "true"
     rollout-group: live-store
   name: live-store-zone-b

@@ -33,6 +33,7 @@
 
 ## Enhancements
 
+- `operations`: Move the live-store downscale delay from a StatefulSet label to an annotation and upgrade rollout-operator to v0.42.0. ([#8409](https://github.com/grafana/tempo/pull/8409))
 - `backend-scheduler`: Expose pending backend jobs per tenant and job type, and enable native histograms for backend cache item sizes. ([#7772](https://github.com/grafana/tempo/issues/7772)) (@zalegrala)
   `tempo_backend_scheduler_jobs_pending{tenant, job_type}` counts jobs awaiting dispatch,
   providing a queue-depth signal for monitoring and autoscaling.
