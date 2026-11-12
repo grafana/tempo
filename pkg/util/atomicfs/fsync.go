@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/grafana/dskit/multierror"
 )
@@ -19,10 +20,10 @@ func Create(path string) (*File, error) {
 	// We rename from a temporary file in the same directory to because rename
 	// can only operate on two files that are on the same filesystem. Creating
 	// a temporary file in the same directory is an easy way to guarantee that.
+	// The name is unique per call, so concurrent writers to the same path never
+	// share a temporary file: each renames its own, and the last rename wins.
 	final := filepath.Clean(path)
-	tmp := tempPath(final)
-
-	file, err := os.Create(tmp)
+	file, err := os.CreateTemp(filepath.Dir(final), "."+filepath.Base(final)+".tmp-*")
 	if err != nil {
 		return nil, err
 	}
@@ -31,13 +32,6 @@ func Create(path string) (*File, error) {
 		File:      file,
 		finalPath: final,
 	}, nil
-}
-
-// tempPath returns a path for the temporary version of a file. This function exists
-// to ensure the logic here stays in sync with unit tests that check for this file being
-// cleaned up.
-func tempPath(final string) string {
-	return final + ".tmp"
 }
 
 // File is a wrapper around an os.File instance that uses a temporary file for writes
@@ -70,6 +64,12 @@ func (a *File) Close() error {
 	}
 
 	cleanup = false
+	// Windows opens a directory read-only and FlushFileBuffers needs write access, so the
+	// directory fsync below would fail there: skip it.
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+
 	// After writing the file and calling fsync on it, fsync the containing directory
 	// to ensure the directory entry is persisted to disk.
 	//
@@ -96,8 +96,9 @@ func CreateFile(filePath string, data io.Reader) error {
 		return err
 	}
 
-	_, err = io.Copy(f, data)
-	merr := multierror.New(err)
-	merr.Add(f.Close())
-	return merr.Err()
+	if _, err := io.Copy(f, data); err != nil {
+		// Close would rename the partial temporary file into place: discard it instead.
+		return multierror.New(err, f.File.Close(), os.Remove(f.Name())).Err()
+	}
+	return f.Close()
 }
