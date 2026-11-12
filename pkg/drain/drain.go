@@ -229,15 +229,28 @@ func (d *Drain) findMatchingClusterForTokens(content string, tokens []string) *L
 		return d.idToCluster.Get(curNode.clusterIDs[0])
 	}
 
-	return d.descend(curNode, content, tokens, tokenCount, 1)
+	budget := maxDescendSteps
+	return d.descend(curNode, content, tokens, tokenCount, 1, &budget)
 }
+
+// maxDescendSteps bounds the nodes a single lookup may visit while backtracking.
+// Without it, span names crafted to give many nodes both a wildcard and a
+// literal child make each lookup walk a large part of the tree. An ordinary
+// lookup visits at most maxNodeDepth nodes per branch it tries.
+const maxDescendSteps = 256
 
 // descend walks the tree towards the leaf holding candidate clusters. A node can
 // hold both a wildcard child and a literal-token child, because insertion only
 // generalizes a token the data heuristic flags. Both branches may therefore lead
 // to a match, so try the wildcard first and fall back to the literal token,
-// backtracking when a branch dead-ends.
-func (d *Drain) descend(curNode *Node, content string, tokens []string, tokenCount, depth int) *LogCluster {
+// backtracking when a branch dead-ends. budget is decremented per visited node;
+// once exhausted the lookup gives up and the caller creates a new cluster.
+func (d *Drain) descend(curNode *Node, content string, tokens []string, tokenCount, depth int, budget *int) *LogCluster {
+	if *budget <= 0 {
+		return nil
+	}
+	*budget--
+
 	// at max depth, or on the last token, this is the leaf
 	if depth >= d.maxNodeDepth || depth == tokenCount {
 		if cluster := d.findExactCluster(curNode, content); cluster != nil {
@@ -258,7 +271,7 @@ func (d *Drain) descend(curNode *Node, content string, tokens []string, tokenCou
 		if !ok {
 			continue
 		}
-		if cluster := d.descend(child, content, tokens, tokenCount, depth+1); cluster != nil {
+		if cluster := d.descend(child, content, tokens, tokenCount, depth+1, budget); cluster != nil {
 			return cluster
 		}
 		if key == token {
