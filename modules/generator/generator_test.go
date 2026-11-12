@@ -116,6 +116,18 @@ overrides:
 	verifySubprocessors(t, instance2, allSubprocessors)
 }
 
+func TestGenerator_registryInstanceID(t *testing.T) {
+	generatorConfig := &Config{}
+	generatorConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	generatorConfig.Storage.Path = t.TempDir()
+	generatorConfig.Ring.InstanceID = "cluster-x-metrics-generator-0"
+
+	g, err := New(generatorConfig, nil, prometheus.NewRegistry(), nil, newTestLogger(t))
+	require.NoError(t, err)
+
+	require.Equal(t, "cluster-x-metrics-generator-0", g.cfg.Registry.InstanceID)
+}
+
 func verifySubprocessors(t *testing.T, instance *instance, expected map[spanmetrics.Subprocessor]bool) {
 	instance.processorsMtx.RLock()
 	defer instance.processorsMtx.RUnlock()
