@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       # PR head merged onto the base branch, into ./head (shallow: one commit).
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
         with:
           path: head
           persist-credentials: false
@@ -21,14 +21,14 @@ jobs:
       # of ./head, so neither checkout is a nested module of the other. Pin to the
       # exact base SHA the PR's merge ref was built from rather than the base_ref
       # branch name, which can advance mid-run and produce an inconsistent diff.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: base
           persist-credentials: false
 
       # use the go version from the PR
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: head/go.mod
 
