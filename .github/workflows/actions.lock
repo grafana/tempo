@@ -63,6 +63,8 @@ workflows:
     '.github/workflows/tools-tests.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-go@v7.0.0'
+    '.github/workflows/verify-lockfile.yml':
+        - 'actions/checkout@v7.0.1'
 dependencies:
     'actions/attest-build-provenance@v4.2.2':
         ref: 'v4.2.2'
