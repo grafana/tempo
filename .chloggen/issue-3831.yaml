@@ -1,0 +1,5 @@
+change_type: bug_fix
+component: distributor
+note: Reject batches larger than the ingestion burst capacity with a non-retryable error so OTLP clients do not repeatedly retry them.
+issues: []
+user: joseblas
