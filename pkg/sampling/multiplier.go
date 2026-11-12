@@ -9,6 +9,10 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling"
 )
 
+// NoMultiplier is returned by MultiplierFromTraceState when the tracestate has
+// no usable sampling information.
+const NoMultiplier = -1.0
+
 // MultiplierFromTraceState returns the OpenTelemetry probability-sampling
 // multiplier (= 1 / sampling probability) parsed from a W3C tracestate
 // string. When the tracestate also carries an OTEP-235 R-value (`rv:`
@@ -21,22 +25,36 @@ import (
 //
 // Falls back to the raw float multiplier when the tracestate has a
 // threshold but no R-value (for example, the SDK relies on the trace
-// ID's random flag per W3C trace context v2). Returns 0 when the
-// tracestate has no usable probability-sampling data — callers should
-// treat 0 as "unknown" and fall back to 1.0 (or to a configured ratio
-// attribute) themselves.
+// ID's random flag per W3C trace context v2).
+//
+// EXPERIMENTAL: returns 0 when the `ot` entry contains the `zc:1` sub-key,
+// meaning the span has an adjusted count of zero and must not be counted. `zc`
+// takes precedence over `th`. It is a proposal in
+// https://github.com/open-telemetry/opentelemetry-specification/issues/5407
+// and may be changed or removed.
+//
+// Returns NoMultiplier when the tracestate has no usable probability-sampling
+// data — callers should fall back to 1.0 (or to a configured ratio attribute)
+// themselves.
 func MultiplierFromTraceState(traceState string) float64 {
 	ot := extractOpenTelemetryTraceState(traceState)
 	if ot == "" {
+		return NoMultiplier
+	}
+	if hasZeroCount(ot) {
 		return 0
 	}
 	otts, err := sampling.NewOpenTelemetryTraceState(ot)
 	if err != nil {
-		return 0
+		return NoMultiplier
 	}
 	m := otts.AdjustedCount()
+	if m <= 0 {
+		// AdjustedCount is 0 when there is no threshold.
+		return NoMultiplier
+	}
 	rnd, hasRV := otts.RValueRandomness()
-	if m <= 0 || !hasRV {
+	if !hasRV {
 		return m
 	}
 	i := math.Floor(m)
@@ -52,21 +70,12 @@ func MultiplierFromTraceState(traceState string) float64 {
 	return i
 }
 
-// HasZeroCount reports whether the tracestate marks the span with an adjusted
-// count of zero, via the `zc:1` sub-key of the OpenTelemetry `ot` entry. Such
-// spans (for example, spans restored from an archive) must not contribute to
-// extrapolated counts. When `zc` is present it takes precedence over any `th`
-// value, since `th` is not meant to be set alongside it.
-//
-// EXPERIMENTAL: the `zc` sub-key is a proposal in
-// https://github.com/open-telemetry/opentelemetry-specification/issues/5407
-// and may be changed or removed.
-func HasZeroCount(traceState string) bool {
+// hasZeroCount reports whether the sub-keys of an `ot` value include `zc:1`.
+func hasZeroCount(ot string) bool {
 	// Fast reject: nearly all spans lack zc, and Contains is vectorized.
-	if !strings.Contains(traceState, "zc:1") {
+	if !strings.Contains(ot, "zc:1") {
 		return false
 	}
-	ot := extractOpenTelemetryTraceState(traceState)
 	for ot != "" {
 		field, rest, _ := strings.Cut(ot, ";")
 		if field == "zc:1" {

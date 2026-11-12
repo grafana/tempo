@@ -73,12 +73,7 @@ func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string
 // case callers must not count the span.
 func GetSpanMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource, enableTraceState bool) float64 {
 	if enableTraceState {
-		// EXPERIMENTAL: the zc sub-key is a spec proposal that may be changed or removed.
-		// A zero count span contributes nothing and must not fall back to other sources.
-		if sampling.HasZeroCount(span.GetTraceState()) {
-			return 0
-		}
-		if m := sampling.MultiplierFromTraceState(span.GetTraceState()); m > 0 {
+		if m := sampling.MultiplierFromTraceState(span.GetTraceState()); m != sampling.NoMultiplier {
 			return m
 		}
 	}
