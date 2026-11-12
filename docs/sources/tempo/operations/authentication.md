@@ -37,8 +37,6 @@ Keep component listeners, such as backend-scheduler and live-store, restricted t
 In monolithic deployments, or any deployment where a reverse proxy forwards a component listener, configure the proxy to block internal routes before forwarding requests to Tempo.
 Depending on the enabled components, internal HTTP routes include:
 
-- `/flush`
-- `/shutdown`
 - `/partition-ring`
 - `/live-store/prepare-partition-downscale`
 - `/live-store/prepare-downscale`
