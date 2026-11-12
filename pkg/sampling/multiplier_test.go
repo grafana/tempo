@@ -233,6 +233,13 @@ func TestMultiplierFromTraceStateZeroCount(t *testing.T) {
 		{"zc with empty value", "ot=zc:", NoMultiplier},
 		{"subkey ending in zc", "ot=xzc:1", NoMultiplier},
 		{"subkey with zc prefix", "ot=zc:10", NoMultiplier},
+		{"empty subkey before zc", "ot=th:8;;zc:1", 0},
+		{"empty subkey after zc", "ot=zc:1;;th:8", 0},
+		{"trailing separator", "ot=zc:1;", 0},
+		{"leading separator", "ot=;zc:1", 0},
+		{"zc with invalid th", "ot=th:xyz;zc:1", 0},
+		{"zc with too long th", "ot=th:123456789abcdef;zc:1", 0},
+		{"only the first ot entry is used", "ot=th:8,ot=zc:1", 2},
 	}
 
 	for _, tc := range tests {
