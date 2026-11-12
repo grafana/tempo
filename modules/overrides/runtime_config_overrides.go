@@ -34,6 +34,8 @@ type perTenantOverrides struct {
 	TenantLimits map[string]*Overrides `yaml:"overrides"`
 
 	ConfigType ConfigType `yaml:"-"` // ConfigType is the type of overrides config we are using: legacy or new
+
+	profiles map[string]*Overrides
 }
 
 func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -42,10 +44,42 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	// (e.g. "max_traces_per_user"). If any tenant uses legacy fields the first-pass will error
 	// and we fall through to the legacy path below.
 	// If the error is an extensionError, the config is in the new format but misconfigured.
-	type rawConfig perTenantOverrides
-	err := unmarshal((*rawConfig)(o))
+	var rawConfig struct {
+		Profiles     map[string]*Overrides      `yaml:"profiles"`
+		TenantLimits map[string]runtimeOverride `yaml:"overrides"`
+	}
+	err := unmarshal(&rawConfig)
 	if err == nil {
-		o.ConfigType = ConfigTypeNew
+		for name, profile := range rawConfig.Profiles {
+			if name == "" {
+				return fmt.Errorf("profile name must not be empty")
+			}
+			if profile == nil {
+				return fmt.Errorf("profile %q must not be null", name)
+			}
+		}
+		var limits map[string]*Overrides
+		if rawConfig.TenantLimits != nil {
+			limits = make(map[string]*Overrides, len(rawConfig.TenantLimits))
+		}
+		for tenant, entry := range rawConfig.TenantLimits {
+			if entry.profile == "" {
+				limits[tenant] = entry.overrides
+				continue
+			}
+			profile, ok := rawConfig.Profiles[entry.profile]
+			if !ok {
+				return fmt.Errorf("tenant %q references unknown profile %q", tenant, entry.profile)
+			}
+			// Profiles are immutable and shared by all their tenants. Resolve each
+			// reload independently so readers can keep using the previous snapshot.
+			limits[tenant] = profile
+		}
+		*o = perTenantOverrides{
+			TenantLimits: limits,
+			ConfigType:   ConfigTypeNew,
+			profiles:     rawConfig.Profiles,
+		}
 		return nil
 	}
 	if isExtensionError(err) || !isLegacyExtensionKeyError(err) {
@@ -62,8 +96,27 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	return nil
 }
 
+// runtimeOverride accepts either an inline overrides block or a profile name.
+type runtimeOverride struct {
+	profile   string
+	overrides *Overrides
+}
+
+func (l *runtimeOverride) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var profile string
+	if err := unmarshal(&profile); err == nil {
+		if profile == "" {
+			return fmt.Errorf("profile name must not be empty")
+		}
+		l.profile = profile
+		return nil
+	}
+	return unmarshal(&l.overrides)
+}
+
 // UnmarshalPerTenantOverrides parses a per-tenant overrides file, handling both legacy
 // and new scoped formats. Returns a map of tenant ID to their overrides.
+// Profile-backed entries share pointers and must be treated as read-only.
 func UnmarshalPerTenantOverrides(data []byte) (map[string]*Overrides, error) {
 	var o perTenantOverrides
 	if err := yaml.UnmarshalStrict(data, &o); err != nil {
@@ -137,29 +190,44 @@ func loadPerTenantOverrides(validator Validator, typ ConfigType, expandEnv bool,
 			)
 		}
 
+		profileLimits := make(map[*Overrides]struct{}, len(overrides.profiles))
+		for name, profile := range overrides.profiles {
+			if err := validateRuntimeOverrides(validator, "profile "+name, profile); err != nil {
+				return nil, err
+			}
+			profileLimits[profile] = struct{}{}
+		}
 		for tenant, tenantOverrides := range overrides.TenantLimits {
-			if tenantOverrides == nil {
+			if _, shared := profileLimits[tenantOverrides]; shared {
 				continue
 			}
-			if err := tenantOverrides.Forwarder.validate(); err != nil {
-				return nil, fmt.Errorf("validating overrides for %s failed: %w", tenant, err)
-			}
-		}
-
-		if validator != nil {
-			for tenant, tenantOverrides := range overrides.TenantLimits {
-				warnings, err := validator.Validate(tenantOverrides)
-				if err != nil {
-					return nil, fmt.Errorf("validating overrides for %s failed: %w", tenant, err)
-				}
-				for _, warning := range warnings {
-					level.Warn(log.Logger).Log("msg", "Overrides validation warning", "tenant", tenant, "warning", warning)
-				}
+			if err := validateRuntimeOverrides(validator, tenant, tenantOverrides); err != nil {
+				return nil, err
 			}
 		}
 
 		return overrides, nil
 	}
+}
+
+func validateRuntimeOverrides(validator Validator, name string, limits *Overrides) error {
+	if limits == nil {
+		return nil
+	}
+	if err := limits.Forwarder.validate(); err != nil {
+		return fmt.Errorf("validating overrides for %s failed: %w", name, err)
+	}
+	if validator == nil {
+		return nil
+	}
+	warnings, err := validator.Validate(limits)
+	if err != nil {
+		return fmt.Errorf("validating overrides for %s failed: %w", name, err)
+	}
+	for _, warning := range warnings {
+		level.Warn(log.Logger).Log("msg", "Overrides validation warning", "tenant", name, "warning", warning)
+	}
+	return nil
 }
 
 // runtimeConfigOverridesManager periodically fetch a set of per-user overrides, and provides convenience
