@@ -113,6 +113,8 @@ type cheatToSeeInternals struct {
 	suffix        string
 	contains      []string
 
+	caseInsensitivePrefix bool
+
 	matchString func(string) bool
 }
 

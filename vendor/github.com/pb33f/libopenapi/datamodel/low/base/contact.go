@@ -6,12 +6,11 @@ package base
 import (
 	"context"
 	"hash/maphash"
-	"sync"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/datamodel/low"
 	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/orderedmap"
-	"go.yaml.in/yaml/v4"
 )
 
 // Contact represents a low-level representation of the Contact definitions found at
@@ -27,7 +26,7 @@ type Contact struct {
 	RootNode   *yaml.Node
 	index      *index.SpecIndex
 	context    context.Context
-	nodeStore  sync.Map
+	nodeStore  low.NodeLines
 	reference  low.Reference
 	*low.Reference
 	low.NodeMap
@@ -38,7 +37,7 @@ func (c *Contact) Build(ctx context.Context, keyNode, root *yaml.Node, idx *inde
 	c.RootNode = root
 	c.reference = low.Reference{}
 	c.Reference = &c.reference
-	c.nodeStore = sync.Map{}
+	c.nodeStore = low.NodeLines{}
 	c.Nodes = &c.nodeStore
 	if root == nil {
 		c.Extensions = nil
