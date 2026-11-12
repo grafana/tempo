@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/querier/worker"
 	"github.com/grafana/tempo/v3/modules/storage"
 	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/model/trace"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	v1_trace "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/v3/pkg/util/test"
@@ -347,6 +348,50 @@ func TestFindTraceByIDRequiresBlocksOnlyForBackendModes(t *testing.T) {
 			require.Error(t, err)
 			require.NotErrorIs(t, err, ErrTraceByIDBlocksRequired)
 			require.Equal(t, 0, store.findCalls)
+		})
+	}
+}
+
+func TestCombineLiveStoreResponses(t *testing.T) {
+	traceWithSpans := func() *tempopb.Trace { return test.MakeTrace(2, []byte{0x01}) }
+
+	tests := []struct {
+		name            string
+		responses       []any
+		expectedFound   bool
+		expectedTraces  int64
+		expectedMetrics *tempopb.TraceByIDMetrics
+	}{
+		{
+			name: "metrics of responses without a trace are merged",
+			responses: []any{
+				&tempopb.TraceByIDResponse{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 10}},
+				&tempopb.TraceByIDResponse{Trace: traceWithSpans(), Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 5}},
+				&tempopb.TraceByIDResponse{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 1}},
+			},
+			expectedFound:   true,
+			expectedTraces:  1,
+			expectedMetrics: &tempopb.TraceByIDMetrics{InspectedBytes: 16},
+		},
+		{
+			name: "nothing found",
+			responses: []any{
+				&tempopb.TraceByIDResponse{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 10}},
+				&tempopb.TraceByIDResponse{Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 20}},
+			},
+			expectedMetrics: &tempopb.TraceByIDMetrics{InspectedBytes: 30},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			metrics := &tempopb.TraceByIDMetrics{}
+			found, _, traces, err := combineLiveStoreResponses(tc.responses, trace.NewCombiner(0, false), metrics)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedFound, found)
+			require.Equal(t, tc.expectedTraces, traces)
+			require.Equal(t, tc.expectedMetrics, metrics)
 		})
 	}
 }

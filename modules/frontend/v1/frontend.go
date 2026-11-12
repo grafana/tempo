@@ -64,6 +64,7 @@ type Frontend struct {
 	// Metrics.
 	queueLength       *prometheus.GaugeVec
 	inflightJobs      *prometheus.GaugeVec
+	executingJobs     *prometheus.GaugeVec
 	discardedRequests *prometheus.CounterVec
 	numClients        prometheus.GaugeFunc
 	queueDuration     *prometheus.HistogramVec
@@ -121,6 +122,10 @@ func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Fronten
 		inflightJobs: promauto.With(registerer).NewGaugeVec(prometheus.GaugeOpts{
 			Name: "tempo_query_frontend_inflight_jobs",
 			Help: "Number of jobs queued or executing on queriers.",
+		}, []string{"user", "op"}),
+		executingJobs: promauto.With(registerer).NewGaugeVec(prometheus.GaugeOpts{
+			Name: "tempo_query_frontend_executing_jobs",
+			Help: "Number of jobs currently executing on queriers.",
 		}, []string{"user", "op"}),
 		batchWeight: promauto.With(registerer).NewHistogramVec(prometheus.HistogramOpts{
 			Name:                            "tempo_query_frontend_batch_weight",
@@ -204,6 +209,7 @@ func (f *Frontend) cleanupInactiveUserMetrics(user string) {
 	f.queueLength.DeleteLabelValues(user)
 	f.discardedRequests.DeleteLabelValues(user)
 	f.inflightJobs.DeletePartialMatch(prometheus.Labels{"user": user})
+	f.executingJobs.DeletePartialMatch(prometheus.Labels{"user": user})
 }
 
 // RoundTrip a HTTP request
@@ -295,6 +301,10 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 
 		f.actualBatchSize.Observe(float64(reqBatch.len()))
 
+		// the jobs execute from the moment the batch is handed to the querier until
+		// the responses are reported, the stream fails or the requests are canceled
+		executing := f.incExecuting(reqBatch)
+
 		// Handle the stream sending & receiving on a goroutine so we can
 		// monitoring the contexts in a select and cancel things appropriately.
 		resps := make(chan *frontendv1pb.ClientToFrontend, 1)
@@ -341,11 +351,36 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 			resps <- resp
 		}()
 
-		err = reportResponseUpstream(reqBatch, errs, resps)
+		err = func() error {
+			defer func() {
+				for _, g := range executing {
+					g.Dec()
+				}
+			}()
+			return reportResponseUpstream(reqBatch, errs, resps)
+		}()
 		if err != nil {
 			return err
 		}
 	}
+}
+
+// incExecuting counts the jobs of the batch as executing and returns the incremented gauges. The
+// caller decrements them when the jobs are done.
+func (f *Frontend) incExecuting(batch *requestBatch) []prometheus.Gauge {
+	gauges := make([]prometheus.Gauge, 0, batch.len())
+	for _, r := range batch.pipelineRequests {
+		userID, err := tenantIDFromContext(r.request.Context())
+		if err != nil {
+			continue
+		}
+
+		// Hold the child so a decrement after user cleanup can't recreate the series.
+		g := f.executingJobs.WithLabelValues(userID, queryOp(r.request))
+		g.Inc()
+		gauges = append(gauges, g)
+	}
+	return gauges
 }
 
 func reportResponseUpstream(reqBatch *requestBatch, errs chan error, resps chan *frontendv1pb.ClientToFrontend) error {

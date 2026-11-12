@@ -75,9 +75,9 @@ func TestRun(t *testing.T) {
 	absent := byID["traceid/absent"]
 	require.Equal(t, 25, absent.Executions)
 	require.Zero(t, absent.Matched, "an absent ID was found, so the profile is wrong")
-	// A bloom miss returns no response, so nothing is reported rather than a
-	// row of zeroes. The backend counter is what covers this case.
-	require.NotContains(t, absent.Metrics, metrics.PrefixResponse+"inspectedBytes")
+	// A bloom miss still reports the bytes read from the bloom filter, and
+	// the backend counter observes a read as well.
+	require.Positive(t, absent.Metrics[metrics.PrefixResponse+"inspectedBytes"].Total)
 	require.Positive(t, absent.Metrics[metrics.KeyBackendReads].Total)
 
 	search := byID["search/nopredicate"]

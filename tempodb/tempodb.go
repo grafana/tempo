@@ -479,7 +479,7 @@ func (rw *readerWriter) findInBlocks(ctx context.Context, logger gkLog.Logger, i
 			return nil, fmt.Errorf("error finding trace by id, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 
-		level.Debug(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
+		level.Debug(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject.GetTrace() != nil)
 		return foundObject, nil
 	})
 

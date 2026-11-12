@@ -3,11 +3,14 @@ package vparquet4
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"os"
 	"sort"
 	"sync/atomic"
 	"testing"
 
+	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/assert"
@@ -164,6 +167,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 		protoTr, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.NotNil(t, protoTr)
+		require.NotNil(t, protoTr.Trace)
 	}
 }
 
@@ -184,7 +188,160 @@ func BenchmarkFindTraceByID(b *testing.B) {
 				tr, err := block.FindTraceByID(ctx, traceID, common.DefaultSearchOptions())
 				require.NoError(b, err)
 				require.NotNil(b, tr)
+				require.NotNil(b, tr.Trace)
 			}
 		})
 	}
+}
+
+// blockObjectReader serves the objects of a block and counts the bytes read from them. Objects in overrides are
+// replaced by the given content or fail with the given error.
+type blockObjectReader struct {
+	backend.RawReader
+	r         backend.Reader
+	meta      *backend.BlockMeta
+	overrides map[string]objectOverride
+	bytesRead atomic.Uint64
+}
+
+type objectOverride struct {
+	obj []byte
+	err error
+}
+
+func (m *blockObjectReader) Read(ctx context.Context, name string, _ backend.KeyPath, cacheInfo *backend.CacheInfo) (io.ReadCloser, int64, error) {
+	var (
+		obj []byte
+		err error
+	)
+	if ov, ok := m.overrides[name]; ok {
+		obj, err = ov.obj, ov.err
+	} else {
+		obj, err = m.r.Read(ctx, name, uuid.UUID(m.meta.BlockID), m.meta.TenantID, cacheInfo)
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+
+	m.bytesRead.Add(uint64(len(obj)))
+	return io.NopCloser(bytes.NewReader(obj)), int64(len(obj)), nil
+}
+
+func (m *blockObjectReader) ReadRange(ctx context.Context, name string, _ backend.KeyPath, offset uint64, buffer []byte, cacheInfo *backend.CacheInfo) error {
+	err := m.r.ReadRange(ctx, name, uuid.UUID(m.meta.BlockID), m.meta.TenantID, offset, buffer, cacheInfo)
+	if err == nil {
+		m.bytesRead.Add(uint64(len(buffer)))
+	}
+	return err
+}
+
+func TestBackendBlockFindTraceByID_BloomAndIndexBytes(t *testing.T) {
+	var (
+		ctx       = context.Background()
+		numTraces = 20
+		ids       = make([]common.ID, numTraces)
+		meta      = backend.NewBlockMeta("fake", uuid.New(), VersionString)
+	)
+	meta.DedicatedColumns = test.MakeDedicatedColumns()
+
+	// fixed IDs make the outcome of the bloom filter deterministic, they are sorted like in a real block
+	newID := func(first byte) common.ID {
+		id := bytes.Repeat([]byte{0xa5}, 16)
+		id[0] = first
+		return id
+	}
+	traces := make([]*Trace, 0, numTraces)
+	for i := range ids {
+		ids[i] = newID(byte(i + 1))
+		tr, _ := traceToParquet(meta, ids[i], test.MakeTrace(2, ids[i]), nil)
+		traces = append(traces, tr)
+	}
+	b := makeBackendBlockWithTraces(t, traces)
+
+	// a trace ID that is not in the block and rejected by its bloom filter
+	absentID := newID(0x80)
+	// bigger than the last trace ID of the block, so the index rules it out
+	beyondLastID := bytes.Repeat([]byte{0xff}, 16)
+
+	bloomName := func(id common.ID) string {
+		return common.BloomName(common.ShardKeyForTraceID(id, int(b.meta.BloomShardCount)))
+	}
+	objectSize := func(t *testing.T, name string) uint64 {
+		obj, err := b.r.Read(ctx, name, uuid.UUID(b.meta.BlockID), b.meta.TenantID, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, obj)
+		return uint64(len(obj))
+	}
+
+	// blockWith returns a copy of the block that reads the objects like the given reader
+	blockWith := func(overrides map[string]objectOverride) (*backendBlock, *blockObjectReader) {
+		rawR := &blockObjectReader{r: b.r, meta: b.meta, overrides: overrides}
+		return newBackendBlock(b.meta, backend.NewReader(rawR)), rawR
+	}
+
+	t.Run("trace found", func(t *testing.T) {
+		for _, indexEnabled := range []string{"0", EnvVarIndexEnabledValue} {
+			t.Run(EnvVarIndexName+"="+indexEnabled, func(t *testing.T) {
+				t.Setenv(EnvVarIndexName, indexEnabled)
+
+				block, reader := blockWith(nil)
+				resp, err := block.FindTraceByID(ctx, ids[3], common.DefaultSearchOptions())
+				require.NoError(t, err)
+				require.NotNil(t, resp.Trace)
+
+				// every byte read from the block is reported, which includes the bloom filter and the index
+				require.Equal(t, reader.bytesRead.Load(), resp.Metrics.InspectedBytes)
+			})
+		}
+	})
+
+	t.Run("trace found without index", func(t *testing.T) {
+		t.Setenv(EnvVarIndexName, EnvVarIndexEnabledValue)
+
+		block, reader := blockWith(map[string]objectOverride{common.NameIndex: {err: backend.ErrDoesNotExist}})
+		resp, err := block.FindTraceByID(ctx, ids[3], common.DefaultSearchOptions())
+		require.NoError(t, err)
+		require.NotNil(t, resp.Trace)
+		require.Equal(t, reader.bytesRead.Load(), resp.Metrics.InspectedBytes)
+	})
+
+	t.Run("rejected by bloom filter", func(t *testing.T) {
+		resp, err := b.FindTraceByID(ctx, absentID, common.DefaultSearchOptions())
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Nil(t, resp.Trace)
+		require.Equal(t, objectSize(t, bloomName(absentID)), resp.Metrics.InspectedBytes)
+	})
+
+	t.Run("rejected by index", func(t *testing.T) {
+		t.Setenv(EnvVarIndexName, EnvVarIndexEnabledValue)
+
+		// the bloom filter lets the ID pass, so the index is what rules the block out
+		filter := bloom.NewWithEstimates(100, 0.01)
+		filter.Add(beyondLastID)
+		buf := &bytes.Buffer{}
+		_, err := filter.WriteTo(buf)
+		require.NoError(t, err)
+		bloomBytes := uint64(buf.Len())
+
+		block, _ := blockWith(map[string]objectOverride{bloomName(beyondLastID): {obj: buf.Bytes()}})
+		resp, err := block.FindTraceByID(ctx, beyondLastID, common.DefaultSearchOptions())
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Nil(t, resp.Trace)
+		require.Equal(t, bloomBytes+objectSize(t, common.NameIndex), resp.Metrics.InspectedBytes)
+	})
+
+	t.Run("read error", func(t *testing.T) {
+		t.Setenv(EnvVarIndexName, EnvVarIndexEnabledValue)
+
+		for name, failName := range map[string]string{"bloom filter": bloomName(ids[0]), "index": common.NameIndex} {
+			t.Run(name, func(t *testing.T) {
+				block, _ := blockWith(map[string]objectOverride{failName: {err: errors.New("boom")}})
+				resp, err := block.FindTraceByID(ctx, ids[0], common.DefaultSearchOptions())
+				require.Error(t, err)
+				require.Nil(t, resp)
+			})
+		}
+	})
 }
