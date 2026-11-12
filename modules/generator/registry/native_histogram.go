@@ -11,6 +11,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/exemplar"
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
@@ -200,17 +201,17 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float
 
 	lb := newSeriesLabelsBuilder(lbls, h.externalLabels)
 
-	lb.Set(labels.MetricName, h.metricName)
+	lb.Set(model.MetricNameLabel, h.metricName)
 
 	newSeries.labels = lb.Labels()
 	newSeries.lb = lb
 
 	// _count
-	lb.Set(labels.MetricName, h.nameCount)
+	lb.Set(model.MetricNameLabel, h.nameCount)
 	newSeries.countLabels = lb.Labels()
 
 	// _sum
-	lb.Set(labels.MetricName, h.nameSum)
+	lb.Set(model.MetricNameLabel, h.nameSum)
 	newSeries.sumLabels = lb.Labels()
 
 	// Keep the reusable bucket-label builder based on owned labels. The input
@@ -347,7 +348,7 @@ func (h *nativeHistogram) removeStaleSeries(appender storage.Appender, timeMs, s
 					// Build bucket labels from the native series' base labels,
 					// preserving dimensions and external labels.
 					lb := labels.NewBuilder(s.labels)
-					lb.Set(labels.MetricName, h.nameBucket)
+					lb.Set(model.MetricNameLabel, h.nameBucket)
 
 					infBucketWasAdded := false
 					for _, bucket := range encodedMetric.GetHistogram().GetBucket() {
@@ -544,7 +545,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	}
 
 	// bucket
-	s.lb.Set(labels.MetricName, h.metricName+"_bucket")
+	s.lb.Set(model.MetricNameLabel, h.metricName+"_bucket")
 
 	// the Prometheus histogram will sometimes add the +Inf bucket, it depends on whether there is an exemplar
 	// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
