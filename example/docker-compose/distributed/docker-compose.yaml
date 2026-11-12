@@ -165,7 +165,7 @@ services:
       - "3200"
 
   rustfs:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:latest@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2
     environment:
       - RUSTFS_ACCESS_KEY=tempo
       - RUSTFS_SECRET_KEY=supersecret
@@ -179,7 +179,7 @@ services:
       - mkdir -p /data/tempo && rustfs /data
 
   redpanda:
-    image: redpandadata/redpanda:latest
+    image: redpandadata/redpanda:latest@sha256:8b1076e0d61bfceb66594dc01536427ce0b529f8ead35fdab9763ab6085891ce
     ports:
       - "9092:9092" # Kafka API for clients
     command: >
@@ -191,7 +191,7 @@ services:
   # this is a hack to force there to always be a topic with 2 partitions so the example works
   # todo: remove this once we properly always set the partitions correctly
   redpanda-init:
-    image: redpandadata/redpanda:latest
+    image: redpandadata/redpanda:latest@sha256:8b1076e0d61bfceb66594dc01536427ce0b529f8ead35fdab9763ab6085891ce
     depends_on:
       - redpanda
     entrypoint: [ "/bin/bash", "-c" ]
@@ -247,7 +247,7 @@ services:
 
   # supporting services - metrics and visualization
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:latest@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06
     command:
       - --config.file=/etc/prometheus.yaml
       - --web.enable-remote-write-receiver
@@ -283,6 +283,6 @@ services:
       - distributor
 
   memcached:
-    image: memcached:1.6
+    image: memcached:1.6@sha256:a395a1bcf5e0e2b0fa4a0142e12b4e24a2320ba4b7c6ffa8655a1a86e8f29dee
     ports:
       - "11211:11211"

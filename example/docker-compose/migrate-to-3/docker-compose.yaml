@@ -23,7 +23,7 @@ services:
   # =========================================================================
 
   rustfs:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:latest@sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2
     environment:
       - RUSTFS_ACCESS_KEY=tempo
       - RUSTFS_SECRET_KEY=supersecret
@@ -62,7 +62,7 @@ services:
       - alloy
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:latest@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06
     command:
       - --config.file=/etc/prometheus.yaml
       - --web.enable-remote-write-receiver
@@ -160,7 +160,7 @@ services:
   # =========================================================================
 
   redpanda:
-    image: redpandadata/redpanda:latest
+    image: redpandadata/redpanda:latest@sha256:8b1076e0d61bfceb66594dc01536427ce0b529f8ead35fdab9763ab6085891ce
     profiles: ["v3"]
     ports:
       - "9092:9092"
@@ -171,7 +171,7 @@ services:
       --advertise-kafka-addr=PLAINTEXT://redpanda:9092
 
   redpanda-init:
-    image: redpandadata/redpanda:latest
+    image: redpandadata/redpanda:latest@sha256:8b1076e0d61bfceb66594dc01536427ce0b529f8ead35fdab9763ab6085891ce
     profiles: ["v3"]
     depends_on:
       - redpanda
