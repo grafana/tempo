@@ -1,6 +1,3 @@
-//go:build go1.18
-// +build go1.18
-
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
@@ -8,11 +5,12 @@ package sas
 
 import (
 	"errors"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/generated"
 	"net"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/generated"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/exported"
 )
@@ -67,10 +65,11 @@ func formatTimeWithDefaultFormat(t *time.Time) string {
 
 // formatTime format time with given format, use ISO 8601 in "yyyy-MM-ddTHH:mm:ssZ" by default.
 func formatTime(t *time.Time, format string) string {
+	// SAS times are UTC; convert first so non-UTC inputs keep the same instant.
 	if format != "" {
-		return t.Format(format)
+		return t.UTC().Format(format)
 	}
-	return t.Format(TimeFormat) // By default, "yyyy-MM-ddTHH:mm:ssZ" is used
+	return t.UTC().Format(TimeFormat) // By default, "yyyy-MM-ddTHH:mm:ssZ" is used
 }
 
 // ParseTime try to parse a SAS time string.
@@ -117,34 +116,38 @@ func (ipr *IPRange) String() string {
 // This type defines the components used by all Azure Storage resources (Containers, Blobs, Files, & Queues).
 type QueryParameters struct {
 	// All members are immutable or values so copies of this struct are goroutine-safe.
-	version              string    `param:"sv"`
-	services             string    `param:"ss"`
-	resourceTypes        string    `param:"srt"`
-	protocol             Protocol  `param:"spr"`
-	startTime            time.Time `param:"st"`
-	expiryTime           time.Time `param:"se"`
-	snapshotTime         time.Time `param:"snapshot"`
-	ipRange              IPRange   `param:"sip"`
-	identifier           string    `param:"si"`
-	resource             string    `param:"sr"`
-	permissions          string    `param:"sp"`
-	signature            string    `param:"sig"`
-	cacheControl         string    `param:"rscc"`
-	contentDisposition   string    `param:"rscd"`
-	contentEncoding      string    `param:"rsce"`
-	contentLanguage      string    `param:"rscl"`
-	contentType          string    `param:"rsct"`
-	signedOID            string    `param:"skoid"`
-	signedTID            string    `param:"sktid"`
-	signedStart          time.Time `param:"skt"`
-	signedService        string    `param:"sks"`
-	signedExpiry         time.Time `param:"ske"`
-	signedVersion        string    `param:"skv"`
-	signedDirectoryDepth string    `param:"sdd"`
-	authorizedObjectID   string    `param:"saoid"`
-	unauthorizedObjectID string    `param:"suoid"`
-	correlationID        string    `param:"scid"`
-	encryptionScope      string    `param:"ses"`
+	version                      string    `param:"sv"`
+	services                     string    `param:"ss"`
+	resourceTypes                string    `param:"srt"`
+	protocol                     Protocol  `param:"spr"`
+	startTime                    time.Time `param:"st"`
+	expiryTime                   time.Time `param:"se"`
+	snapshotTime                 time.Time `param:"snapshot"`
+	ipRange                      IPRange   `param:"sip"`
+	identifier                   string    `param:"si"`
+	resource                     string    `param:"sr"`
+	permissions                  string    `param:"sp"`
+	signature                    string    `param:"sig"`
+	cacheControl                 string    `param:"rscc"`
+	contentDisposition           string    `param:"rscd"`
+	contentEncoding              string    `param:"rsce"`
+	contentLanguage              string    `param:"rscl"`
+	contentType                  string    `param:"rsct"`
+	signedOID                    string    `param:"skoid"`
+	signedTID                    string    `param:"sktid"`
+	signedStart                  time.Time `param:"skt"`
+	signedService                string    `param:"sks"`
+	signedExpiry                 time.Time `param:"ske"`
+	signedVersion                string    `param:"skv"`
+	signedDirectoryDepth         string    `param:"sdd"`
+	authorizedObjectID           string    `param:"saoid"`
+	unauthorizedObjectID         string    `param:"suoid"`
+	correlationID                string    `param:"scid"`
+	encryptionScope              string    `param:"ses"`
+	signedDelegatedUserObjectID  string    `param:"sduoid"`
+	signedDelegatedUserTenantID  string    `param:"skdutid"`
+	signedRequestHeaders         string    `param:"srh"`
+	signedRequestQueryParameters string    `param:"srq"`
 	// private member used for startTime and expiryTime formatting.
 	stTimeFormat string
 	seTimeFormat string
@@ -290,6 +293,26 @@ func (p *QueryParameters) SignedDirectoryDepth() string {
 	return p.signedDirectoryDepth
 }
 
+// SignedDelegatedUserObjectID returns SignedDelegatedUserObjectID
+func (p *QueryParameters) SignedDelegatedUserObjectID() string {
+	return p.signedDelegatedUserObjectID
+}
+
+// SignedDelegatedUserTenantID returns SignedDelegatedUserTenantID
+func (p *QueryParameters) SignedDelegatedUserTenantID() string {
+	return p.signedDelegatedUserTenantID
+}
+
+// SignedRequestHeaders returns signedRequestHeaders.
+func (p *QueryParameters) SignedRequestHeaders() string {
+	return p.signedRequestHeaders
+}
+
+// SignedRequestQueryParameters returns signedRequestQueryParameters.
+func (p *QueryParameters) SignedRequestQueryParameters() string {
+	return p.signedRequestQueryParameters
+}
+
 // Encode encodes the SAS query parameters into URL encoded form sorted by key.
 func (p *QueryParameters) Encode() string {
 	v := url.Values{}
@@ -327,8 +350,8 @@ func (p *QueryParameters) Encode() string {
 	if p.signedOID != "" {
 		v.Add("skoid", p.signedOID)
 		v.Add("sktid", p.signedTID)
-		v.Add("skt", p.signedStart.Format(TimeFormat))
-		v.Add("ske", p.signedExpiry.Format(TimeFormat))
+		v.Add("skt", p.signedStart.UTC().Format(TimeFormat))
+		v.Add("ske", p.signedExpiry.UTC().Format(TimeFormat))
 		v.Add("sks", p.signedService)
 		v.Add("skv", p.signedVersion)
 	}
@@ -364,6 +387,18 @@ func (p *QueryParameters) Encode() string {
 	}
 	if p.encryptionScope != "" {
 		v.Add("ses", p.encryptionScope)
+	}
+	if p.signedDelegatedUserObjectID != "" {
+		v.Add("sduoid", p.signedDelegatedUserObjectID)
+	}
+	if p.signedDelegatedUserTenantID != "" {
+		v.Add("skdutid", p.signedDelegatedUserTenantID)
+	}
+	if p.signedRequestHeaders != "" {
+		v.Add("srh", p.signedRequestHeaders)
+	}
+	if p.signedRequestQueryParameters != "" {
+		v.Add("srq", p.signedRequestQueryParameters)
 	}
 
 	return v.Encode()
@@ -441,6 +476,14 @@ func NewQueryParameters(values url.Values, deleteSASParametersFromValues bool) Q
 			p.correlationID = val
 		case "ses":
 			p.encryptionScope = val
+		case "sduoid":
+			p.signedDelegatedUserObjectID = val
+		case "skdutid":
+			p.signedDelegatedUserTenantID = val
+		case "srh":
+			p.signedRequestHeaders = val
+		case "srq":
+			p.signedRequestQueryParameters = val
 		default:
 			isSASKey = false // We didn't recognize the query parameter
 		}
