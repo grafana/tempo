@@ -63,6 +63,9 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsMaxItems(userID string) (int, bool)
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string
+	MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(userID string) (bool, bool)
+	MetricsGeneratorProcessorServiceGraphsBypassServices(userID string) []string
+	MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID string) []config.FilterPolicy
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64

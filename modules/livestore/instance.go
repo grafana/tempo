@@ -648,7 +648,11 @@ func (i *instance) completeBlock(ctx context.Context, id uuid.UUID) (*LocalBlock
 	defer iter.Close()
 
 	span.AddEvent("creating block")
-	newMeta, err := i.completeBlockEncoding.CreateBlock(ctx, &i.Cfg.BlockConfig, walBlock.BlockMeta(), iter, reader, writer)
+	blockCfg := i.Cfg.BlockConfig
+	if enabled, set := i.overrides.MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(i.tenantID); set {
+		blockCfg.PersistServiceGraphEdges = enabled
+	}
+	newMeta, err := i.completeBlockEncoding.CreateBlock(ctx, &blockCfg, walBlock.BlockMeta(), iter, reader, writer)
 	if err != nil {
 		level.Error(i.logger).Log("msg", "failed to create complete block", "id", id, "err", err)
 		span.RecordError(err)

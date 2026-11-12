@@ -63,6 +63,14 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 		}
 	}
 
+	serviceGraphs := config.MetricsGenerator.Processor.ServiceGraphs
+	if err := validateServiceGraphEdgeStorageVersion(serviceGraphs.EnableServiceGraphEdgeStorage, r.cfg); err != nil {
+		return warnings, err
+	}
+	if err := validation.ValidateServiceGraphBypassPatterns(serviceGraphs.BypassServiceRegex); err != nil {
+		return warnings, err
+	}
+
 	serviceBuckets := config.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets
 	if err := validation.ValidateHistogramBuckets(serviceBuckets, "metrics_generator.processor.service_graphs.histogram_buckets"); err != nil {
 		return warnings, err
@@ -208,6 +216,17 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 		}
 	}
 
+	serviceGraphs := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs()
+	if value, set := serviceGraphs.GetEnableServiceGraphEdgeStorage(); set {
+		if err := validateServiceGraphEdgeStorageVersion(&value, v.cfg); err != nil {
+			return err
+		}
+	}
+	patterns, _ := serviceGraphs.GetBypassServiceRegex()
+	if err := validation.ValidateServiceGraphBypassPatterns(patterns); err != nil {
+		return err
+	}
+
 	spanMetrics := limits.GetMetricsGenerator().GetProcessor().GetSpanMetrics()
 	dimensions, _ := spanMetrics.GetDimensions()
 	intrinsicDims, _ := spanMetrics.GetIntrinsicDimensions()
@@ -224,5 +243,16 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 		}
 	}
 
+	return nil
+}
+
+func validateServiceGraphEdgeStorageVersion(enabled *bool, cfg *Config) error {
+	if enabled == nil || !*enabled || cfg == nil || cfg.StorageConfig.Trace.Block == nil {
+		return nil
+	}
+	version := cfg.StorageConfig.Trace.Block.Version
+	if version != "" && version != "vParquet5" {
+		return fmt.Errorf("enable_service_graph_edge_storage requires vParquet5, configured %q", version)
+	}
 	return nil
 }

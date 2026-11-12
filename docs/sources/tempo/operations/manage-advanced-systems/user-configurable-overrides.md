@@ -83,6 +83,9 @@ metrics_generator:
   processor:
 
     service_graphs:
+      [enable_service_graph_edge_storage: <bool>]
+      [bypass_services: <list of string>]
+      [bypass_service_regex: <list of string>]
       [histogram_buckets: <list of float>]
       [dimensions: <list of string>]
       [peer_attributes: <list of string>]
@@ -124,6 +127,101 @@ metrics_generator:
       [host_identifiers: <list of string>]
       [metric_name: <string>]
 ```
+
+### Store full service graph relationships
+
+Set `metrics_generator.processor.service_graphs.enable_service_graph_edge_storage` to `true`
+to persist individual parent/child edge records with trace data
+and generate service graph metrics from all span kinds.
+The flag defaults to `false` and supports per-tenant overrides.
+It replaces the development name `enable_span_kind_relaxation`.
+
+```yaml
+metrics_generator:
+  processor:
+    service_graphs:
+      enable_service_graph_edge_storage: true
+```
+
+Edge records are written into completed `vParquet5` trace blocks,
+using Tempo's configured trace storage backend and trace retention.
+They do not depend on the generator's in-memory matching cache surviving.
+The `wait` and `max_items` settings bound that cache;
+they do not expire records already written to trace blocks.
+Original spans remain unchanged.
+
+Trace-by-ID responses include the persisted records in `serviceGraphEdges`.
+Records contain parent and child span IDs, service names, span kinds,
+and a `parentMissing` marker for unresolved parent references.
+Compaction and query combination can resolve references across trace fragments.
+No collapsed or synthetic spans are stored.
+Previously written blocks are not immediately backfilled by enabling the flag.
+Turn it on only after the components reading, writing, and compacting these blocks
+have been upgraded to support the added records.
+
+This uses more memory and disk space.
+The block builder and live-store honor tenant-specific overrides;
+turning the flag off stops creating new records and preserves existing records.
+The trace backend must use `vParquet5` when enabling edge storage.
+
+### Presentation blacklist
+
+`bypass_services` contains exact service names,
+and `bypass_service_regex` contains Go regular expressions.
+These are presentation settings for a graph consumer.
+They never drop spans, collapse persisted relationships,
+or change the full edge set emitted as metrics.
+Regex matching searches within a name;
+use `^` and `$` to match the whole name.
+
+For `A → gateway → proxy → B`,
+Tempo retains the spans and the three original edge records.
+A visualization can use the blacklist to hide the intermediate services
+without losing the original relationships on disk.
+This Tempo change does not implement a Grafana UI toggle.
+
+### Optional API updates
+
+API changes to edge-storage and presentation settings are disabled by default.
+To allow them, enable the user-configurable overrides module
+and its separate API opt-in:
+
+```yaml
+overrides:
+  user_configurable_overrides:
+    enabled: true
+    api:
+      enable_service_graph_bypass: true
+```
+
+The module also needs its storage client configured as described below.
+That client saves tenant configuration;
+edge records themselves use Tempo's trace storage backend.
+Runtime YAML overrides do not require the API opt-in.
+
+With `enable_service_graph_bypass: false`,
+API requests that change the edge-storage flag or blacklist return `400`.
+This includes deleting overrides containing those settings.
+Reads and unrelated updates remain available,
+including updates preserving previously saved settings.
+The API flag controls writes rather than disabling saved settings.
+
+Use `PATCH /api/overrides` to update only these fields
+without replacing unrelated tenant settings:
+
+```shell
+curl -X PATCH "$TEMPO_URL/api/overrides" \
+  -H "X-Scope-OrgID: $TENANT_ID" \
+  -H 'Content-Type: application/json' \
+  --data '{"metrics_generator":{"processor":{"service_graphs":{"enable_service_graph_edge_storage":true,"bypass_services":["gateway"],"bypass_service_regex":["^proxy-.*$"]}}}}'
+```
+
+Omitting a field retains its inherited value.
+Setting a blacklist list to `[]` clears that list for the tenant.
+Presentation settings can be cleared without disabling edge storage.
+Saved settings become effective after overrides and component configuration reloads.
+Changes to the generator configuration recreate its processor and discard pending metric matches;
+this does not delete records already stored in trace blocks.
 
 ### Filter policy validation
 

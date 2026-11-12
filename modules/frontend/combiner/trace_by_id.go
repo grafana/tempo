@@ -180,6 +180,8 @@ func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (resp *http.Response,
 		}
 	}
 
+	trace.ReconcileServiceGraphEdges(traceResult)
+
 	// marshal in the requested format
 	encoding := "json"
 	if c.contentType == api.MarshallingFormatProtobuf {

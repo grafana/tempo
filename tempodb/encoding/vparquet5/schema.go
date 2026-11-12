@@ -276,6 +276,17 @@ type ServiceStats struct {
 	ErrorCount  uint32 `parquet:",delta"`
 }
 
+// ServiceGraphEdge is a durable, uncollapsed span relationship.
+type ServiceGraphEdge struct {
+	ParentSpanID  []byte `parquet:","`
+	ChildSpanID   []byte `parquet:","`
+	ParentService string `parquet:",snappy,dict"`
+	ChildService  string `parquet:",snappy,dict"`
+	ParentKind    int32  `parquet:",delta"`
+	ChildKind     int32  `parquet:",delta"`
+	ParentMissing bool   `parquet:","`
+}
+
 type Trace struct {
 	// TraceID is a byte slice as it helps maintain the sort order of traces within a parquet file
 	TraceID []byte `parquet:""`
@@ -291,7 +302,8 @@ type Trace struct {
 	RootSpanName      string         `parquet:",dict"`
 	ServiceStats      []ServiceStats `parquet:""`
 
-	ResourceSpans []ResourceSpans `parquet:"rs"`
+	ResourceSpans     []ResourceSpans    `parquet:"rs"`
+	ServiceGraphEdges []ServiceGraphEdge `parquet:","`
 }
 
 func attrToParquet(a *v1.KeyValue, p *Attribute) {
@@ -392,6 +404,18 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedicatedResourceAttributes, dedicatedSpanAttributes, dedicatedEventAttributes dedicatedColumnMapping) (*Trace, bool) {
 	if ot == nil {
 		ot = &Trace{}
+	}
+
+	ot.ServiceGraphEdges = ot.ServiceGraphEdges[:0]
+	for _, edge := range tr.ServiceGraphEdges {
+		if edge == nil {
+			continue
+		}
+		ot.ServiceGraphEdges = append(ot.ServiceGraphEdges, ServiceGraphEdge{
+			ParentSpanID: edge.ParentSpanId, ChildSpanID: edge.ChildSpanId,
+			ParentService: edge.ParentService, ChildService: edge.ChildService,
+			ParentKind: edge.ParentKind, ChildKind: edge.ChildKind, ParentMissing: edge.ParentMissing,
+		})
 	}
 
 	ot.TraceIDText = util.TraceIDToHexString(id)
@@ -571,6 +595,9 @@ func writeAttrs(input []*v1.KeyValue, generic *[]Attribute, dedicated *Dedicated
 func finalizeTrace(trace *Trace) (*Trace, bool) {
 	rebatchTrace(trace)
 	sortTrace(trace)
+	if len(trace.ServiceGraphEdges) > 0 {
+		reconcileStoredServiceGraphEdges(trace)
+	}
 	return trace, assignNestedSetModelBoundsAndServiceStats(trace)
 }
 
@@ -809,6 +836,14 @@ func parquetToProtoEvents(parquetEvents []Event, spanStartTimeNano uint64, dedic
 
 func ParquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *tempopb.Trace {
 	protoTrace := &tempopb.Trace{}
+	for _, edge := range parquetTrace.ServiceGraphEdges {
+		protoTrace.ServiceGraphEdges = append(protoTrace.ServiceGraphEdges, &tempopb.ServiceGraphEdge{
+			ParentSpanId: edge.ParentSpanID, ChildSpanId: edge.ChildSpanID,
+			ParentService: edge.ParentService, ChildService: edge.ChildService,
+			ParentKind: edge.ParentKind, ChildKind: edge.ChildKind, ParentMissing: edge.ParentMissing,
+		})
+	}
+
 	protoTrace.ResourceSpans = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
 
 	// dedicated attribute column assignments

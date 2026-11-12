@@ -2,6 +2,7 @@ package vparquet4
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"time"
 
@@ -42,6 +43,9 @@ func (v Encoding) MigrateBlock(ctx context.Context, fromMeta, toMeta *backend.Bl
 }
 
 func (v Encoding) CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
+	if cfg.PersistServiceGraphEdges {
+		return nil, fmt.Errorf("enable_service_graph_edge_storage requires vParquet5")
+	}
 	return CreateBlock(ctx, cfg, meta, i, r, to)
 }
 

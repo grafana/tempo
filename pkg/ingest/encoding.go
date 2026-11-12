@@ -200,6 +200,7 @@ func NewOTLPDecoder() *OTLPDecoder {
 // Decode implements GeneratorCodec.
 func (d *OTLPDecoder) Decode(data []byte) (iter.Seq2[*tempopb.PushSpansRequest, error], error) {
 	d.trace.ResourceSpans = d.trace.ResourceSpans[:0]
+	d.trace.ServiceGraphEdges = nil
 	err := d.trace.Unmarshal(data)
 	if err != nil {
 		return nil, err

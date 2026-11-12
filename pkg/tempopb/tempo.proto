@@ -330,8 +330,21 @@ message MetadataMetrics {
   map<string, int64> additionalMetrics = 8;
 }
 
+// ServiceGraphEdge is an uncollapsed parent/child relationship persisted with a trace.
+// Missing parents are recorded by ID rather than dropping the child relationship.
+message ServiceGraphEdge {
+  bytes parent_span_id = 1;
+  bytes child_span_id = 2;
+  string parent_service = 3;
+  string child_service = 4;
+  int32 parent_kind = 5;
+  int32 child_kind = 6;
+  bool parent_missing = 7;
+}
+
 message Trace {
   repeated tempopb.trace.v1.ResourceSpans resourceSpans = 1;
+  repeated ServiceGraphEdge service_graph_edges = 2;
 }
 
 // Write

@@ -1,0 +1,6 @@
+change_type: enhancement
+component: metrics-generator
+note: Add opt-in service graph matching for parent and child spans regardless of span kind, including consecutive client spans across ingress gateways.
+issues: []
+subtext: Enable with enable_service_graph_edge_storage. Uses additional memory and disk space. Individual uncollapsed edges are retained in vParquet5 blocks and returned by trace-by-ID queries. Presentation blacklist settings never filter persisted edges or generated metrics. The flag and presentation settings support tenant overrides; API writes require overrides.user_configurable_overrides.api.enable_service_graph_bypass.
+user: joseblas

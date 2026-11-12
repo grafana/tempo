@@ -97,6 +97,10 @@ func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits 
 		return "", newValidationError(err)
 	}
 
+	if err := a.validateServiceGraphBypassUpdate(ctx, userID, limits); err != nil {
+		return "", err
+	}
+
 	if a.cfg.CheckForConflictingRuntimeOverrides && !skipConflictingOverridesCheck {
 		err = a.assertNoConflictingRuntimeOverrides(ctx, userID)
 		if err != nil {
@@ -168,6 +172,10 @@ func (a *UserConfigOverridesAPI) delete(ctx context.Context, userID string, vers
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	level.Info(a.logger).Log("traceID", traceID, "msg", "deleting user-configurable overrides", "userID", userID, "version", version)
+
+	if err := a.validateServiceGraphBypassUpdate(ctx, userID, nil); err != nil {
+		return err
+	}
 
 	return a.client.Delete(ctx, userID, version)
 }
@@ -247,4 +255,32 @@ func logLimits(limits *client.Limits) string {
 		return ""
 	}
 	return string(bytes)
+}
+
+// validateServiceGraphBypassUpdate gates changes, rather than field presence, so
+// unrelated PATCH requests remain usable when previously saved settings exist.
+func (a *UserConfigOverridesAPI) validateServiceGraphBypassUpdate(ctx context.Context, userID string, limits *client.Limits) error {
+	if a.cfg.EnableServiceGraphBypass {
+		return nil
+	}
+	previous, _, err := a.client.Get(ctx, userID)
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+		return err
+	}
+	if reflect.DeepEqual(serviceGraphBypassSettings(previous), serviceGraphBypassSettings(limits)) {
+		return nil
+	}
+	return newValidationError(errors.New("service graph configuration API changes are disabled; enable overrides.user_configurable_overrides.api.enable_service_graph_bypass"))
+}
+
+func serviceGraphBypassSettings(limits *client.Limits) client.LimitsMetricsGeneratorProcessorServiceGraphs {
+	settings := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs()
+	if settings == nil {
+		return client.LimitsMetricsGeneratorProcessorServiceGraphs{}
+	}
+	return client.LimitsMetricsGeneratorProcessorServiceGraphs{
+		EnableServiceGraphEdgeStorage: settings.EnableServiceGraphEdgeStorage,
+		BypassServices:                settings.BypassServices,
+		BypassServiceRegex:            settings.BypassServiceRegex,
+	}
 }

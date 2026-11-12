@@ -75,6 +75,9 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 					filtered = &tempopb.Trace{}
 				}
 				// a q filter that dropped spans returns a subset, not the full trace - flag it for the status below.
+				if filtered.ServiceGraphEdges == nil {
+					filtered.ServiceGraphEdges = traceResult.ServiceGraphEdges
+				}
 				traceFiltered = countTraceSpans(filtered) < before
 				traceResult = filtered
 			}
@@ -90,6 +93,9 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 						level.Error(opts.Logger).Log("msg", "span pruning failed, returning unpruned trace", "err", err)
 					}
 				} else {
+					if pruned.ServiceGraphEdges == nil {
+						pruned.ServiceGraphEdges = traceResult.ServiceGraphEdges
+					}
 					traceResult = pruned
 					pruneStatus = status
 				}
@@ -108,6 +114,8 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 			if traceFiltered {
 				messages = append(messages, "Trace filtered, only a subset of spans matching the filter is returned")
 			}
+			trace.ReconcileServiceGraphEdges(traceResult)
+
 			resp.PruneStatus = toPruneStatus(pruneStatus)
 			// Even if span pruning is disabled, check whether trace was already pruned on write
 			if opts.SpanPruningConfig == nil && spanpruning.IsPrunedOnWrite(nil, traceResult) {

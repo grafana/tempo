@@ -5,6 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	"github.com/grafana/tempo/v3/tempodb"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/grafana/tempo/v3/tempodb/backend"
@@ -238,4 +242,54 @@ func TestTenantStoreNoCompactFlag(t *testing.T) {
 	require.EqualValues(t, count, actualMeta.TotalObjects)
 	require.EqualValues(t, 1, actualMeta.TotalRecords)
 	require.Greater(t, actualMeta.Size_, uint64(0))
+}
+
+func TestTenantStoreServiceGraphEdgeStorageFlag(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		global bool
+		tenant *bool
+		want   bool
+	}{
+		{name: "default disabled"},
+		{name: "global enabled", global: true, want: true},
+		{name: "tenant opt in", tenant: new(true), want: true},
+		{name: "tenant opt out", global: true, tenant: new(false)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			now := time.Now()
+			store := newStoreWithLogger(ctx, t, log.NewNopLogger())
+			ts, err := getTenantStore(t, now, time.Minute, time.Minute)
+			require.NoError(t, err)
+			ts.cfg.PersistServiceGraphEdges = tc.global
+			ts.overrides = &edgeStorageTestOverrides{enabled: tc.tenant}
+			req := test.MakePushBytesRequest(t, 1, nil, uint64(now.UnixNano()), uint64(now.Add(time.Second).UnixNano()))
+			require.NoError(t, ts.AppendTrace(req.Ids[0], req.Traces[0].Slice, now))
+			require.NoError(t, ts.Flush(ctx, store, store, store))
+			require.NoError(t, ts.AllowCompaction(ctx, store))
+			store.PollNow(ctx)
+			found, failed, err := store.Find(ctx, ts.tenantID, &tempopb.TraceByIDRequest{TraceID: req.Ids[0], BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
+			require.NoError(t, err)
+			require.Empty(t, failed)
+			require.NotEmpty(t, found)
+			if tc.want {
+				require.NotEmpty(t, found[0].Trace.ServiceGraphEdges)
+			} else {
+				require.Empty(t, found[0].Trace.ServiceGraphEdges)
+			}
+		})
+	}
+}
+
+type edgeStorageTestOverrides struct {
+	mockOverrides
+	enabled *bool
+}
+
+func (o *edgeStorageTestOverrides) MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(string) (bool, bool) {
+	if o.enabled == nil {
+		return false, false
+	}
+	return *o.enabled, true
 }

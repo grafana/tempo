@@ -73,6 +73,9 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 		return
 	}
 
+	// Retain all persisted records; finalizeTrace deduplicates and resolves them.
+	c.result.ServiceGraphEdges = append(c.result.ServiceGraphEdges, tr.ServiceGraphEdges...)
+
 	// coalesce root level information
 	if tr.EndTimeUnixNano > c.result.EndTimeUnixNano {
 		c.result.EndTimeUnixNano = tr.EndTimeUnixNano

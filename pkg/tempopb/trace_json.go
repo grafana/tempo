@@ -200,6 +200,7 @@ func (e *traceJSONEncoder) traceMetrics(v *TraceByIDMetrics) {
 func (e *traceJSONEncoder) trace(v *Trace, rootField string) {
 	e.buf = append(e.buf, '{')
 	appendJSONArray(e, rootField, v.ResourceSpans, (*traceJSONEncoder).resourceSpans)
+	appendJSONArray(e, "serviceGraphEdges", v.ServiceGraphEdges, (*traceJSONEncoder).serviceGraphEdge)
 	e.buf = append(e.buf, '}')
 }
 
@@ -498,4 +499,21 @@ func (e *traceJSONEncoder) asciiEscape(c byte) {
 		const hex = "0123456789abcdef"
 		e.buf = append(e.buf, '\\', 'u', '0', '0', hex[c>>4], hex[c&0xf])
 	}
+}
+
+func (e *traceJSONEncoder) serviceGraphEdge(v *ServiceGraphEdge) {
+	if !e.message(v != nil) {
+		return
+	}
+	e.bytesField("parentSpanId", v.ParentSpanId)
+	e.bytesField("childSpanId", v.ChildSpanId)
+	e.stringField("parentService", v.ParentService)
+	e.stringField("childService", v.ChildService)
+	e.int32Field("parentKind", v.ParentKind)
+	e.int32Field("childKind", v.ChildKind)
+	if v.ParentMissing {
+		e.field("parentMissing")
+		e.buf = append(e.buf, "true"...)
+	}
+	e.buf = append(e.buf, '}')
 }
