@@ -679,3 +679,39 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestBlockMetaOptions(t *testing.T) {
+	withOpts := NewBlockMeta("t", uuid.New(), "vParquet5")
+	withOpts.Options = map[string]string{"b": "2", "a": "1"}
+	noOpts := NewBlockMeta("t", uuid.New(), "vParquet5")
+
+	t.Run("json round trip", func(t *testing.T) {
+		b, err := json.Marshal(withOpts)
+		require.NoError(t, err)
+		require.Contains(t, string(b), `"options":{"a":"1","b":"2"}`) // sorted keys, deterministic
+
+		got := &BlockMeta{}
+		require.NoError(t, json.Unmarshal(b, got))
+		require.Equal(t, withOpts.Options, got.Options)
+	})
+
+	t.Run("proto round trip", func(t *testing.T) {
+		b, err := withOpts.Marshal()
+		require.NoError(t, err)
+		got := &BlockMeta{}
+		require.NoError(t, got.Unmarshal(b))
+		require.Equal(t, withOpts.Options, got.Options)
+	})
+
+	t.Run("omitted when empty", func(t *testing.T) {
+		b, err := json.Marshal(noOpts)
+		require.NoError(t, err)
+		require.NotContains(t, string(b), "options")
+
+		pb, err := noOpts.Marshal()
+		require.NoError(t, err)
+		got := &BlockMeta{}
+		require.NoError(t, got.Unmarshal(pb))
+		require.Nil(t, got.Options)
+	})
+}

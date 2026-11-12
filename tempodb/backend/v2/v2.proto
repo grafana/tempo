@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package backend.v2;
+
+import "google/protobuf/timestamp.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "tempodb/backend";
+
+// TenantIndexV2 is a more compact tenant index. Block metas repeat many identical fields
+// (version, tenant, dedicated columns, ...), so those are stored once in schemas and each
+// block refers to its schema by position.
+message TenantIndexV2 {
+    int64 created_at_unix_nanos = 1;
+    repeated SchemaEntry schemas = 2[(gogoproto.nullable) = false];
+    repeated BlockEntry blocks = 3[(gogoproto.nullable) = false];
+    repeated CompactedBlockEntry compacted_blocks = 4[(gogoproto.nullable) = false];
+    repeated bytes no_compact = 5[(gogoproto.customtype) = "UUID", (gogoproto.nullable) = false];
+}
+
+// SchemaEntry is the set of backend.v1.BlockMeta fields shared by many blocks.
+// Field names and types match BlockMeta.
+message SchemaEntry {
+    string version = 1;
+    string tenant_id = 2[(gogoproto.customname) = "TenantID"];
+    uint32 index_page_size = 3;
+    bytes dedicated_columns = 4[(gogoproto.customtype) = "DedicatedColumns", (gogoproto.nullable) = false];
+    uint32 replication_factor = 5;
+    map<string, string> options = 6;
+}
+
+// BlockEntry is a backend.v1.BlockMeta without the fields in SchemaEntry. Field names and types
+// match BlockMeta. The schema field is the position of the block's SchemaEntry.
+message BlockEntry {
+    uint32 schema = 1;
+    bytes block_id = 2[(gogoproto.customname) = "BlockID", (gogoproto.customtype) = "UUID", (gogoproto.nullable) = false];
+    google.protobuf.Timestamp start_time = 3[(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    google.protobuf.Timestamp end_time = 4[(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    int64 total_objects = 5;
+    uint64 size = 6;
+    uint32 compaction_level = 7;
+    uint32 total_records = 8;
+    uint32 bloom_shard_count = 9;
+    uint32 footer_size = 10;
+}
+
+message CompactedBlockEntry {
+    BlockEntry block_entry = 1[(gogoproto.embed) = true, (gogoproto.nullable) = false];
+    google.protobuf.Timestamp compacted_time = 2[(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}

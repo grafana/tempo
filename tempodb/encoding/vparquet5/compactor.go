@@ -50,6 +50,12 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		bookmarks       = make([]*bookmark[parquet.Row], 0, len(inputs))
 	)
 	for _, blockMeta := range inputs {
+		// The block selector only groups blocks with identical options. Guard against
+		// silently dropping one block's options.
+		if blockMeta.OptionsHash() != inputs[0].OptionsHash() {
+			return nil, fmt.Errorf("cannot compact blocks %s and %s: options differ", inputs[0].BlockID, blockMeta.BlockID)
+		}
+
 		totalRecords += blockMeta.TotalObjects
 
 		if blockMeta.CompactionLevel > compactionLevel {
@@ -175,6 +181,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 				TotalObjects:      recordsPerBlock, // Just an estimate
 				ReplicationFactor: replicationFactor,
 				DedicatedColumns:  inputs[0].DedicatedColumns,
+				Options:           inputs[0].Options,
 			}
 
 			currentBlock, _ = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)

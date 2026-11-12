@@ -1881,6 +1881,13 @@ storage:
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
 
+        # Read the tenant index in the V2 format,
+        # which is smaller and cheaper to decode.
+        # Tempo always writes it, so enable this only after
+        # every component runs a version that supports it.
+        # Default false.
+        [blocklist_poll_tenant_index_v2: <bool>]
+
         # Offsets the concurrent blocklist polling by a random amount. The maximum amount of offset
         # is the provided value in milliseconds. This configuration value can be used if the polling
         # cycle is overwhelming your backend with concurrent requests.

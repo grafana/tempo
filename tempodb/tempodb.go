@@ -223,7 +223,12 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 		}
 	}
 
-	r := backend.NewReader(rawR)
+	opts := []backend.Option{}
+	if cfg.BlocklistPollTenantIndexV2 {
+		opts = append(opts, backend.WithTenantIndexV2(true))
+	}
+
+	r := backend.NewReader(rawR, opts...)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
 		c:                       c,
