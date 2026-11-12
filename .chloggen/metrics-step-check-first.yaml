@@ -1,0 +1,21 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: change
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: query-frontend
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: "Metrics queries check the step before `max_duration` and `max_scanned_bytes`, so a query with a too small step returns the step error and skips the blocklist read."
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: "Before, a query over `max_duration` with a too small step got the `max_duration` error."
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: electron0zero

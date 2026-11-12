@@ -1557,6 +1557,17 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 `,
 		},
 		{
+			name:            "allowed range is truncated to whole seconds in the error",
+			query:           "/?start=1&end=8200",
+			maxScannedBytes: 150,
+			maxDuration:     168 * time.Hour,
+			wantErr:         "search query time range of 2h16m39s reads too much data, the allowed range for tenant blerg is 1h43m19s",
+			wantResult:      queryRejectedBytes,
+			wantCalls:       1,
+			wantLog: `level=info msg="scanned bytes limit" tenant=blerg op=search max_duration=604800 min_duration=0 max_scanned_bytes=150 requested_seconds=8199 estimated_scanned_bytes=200 estimated_range_seconds=6199 result=rejected_scanned_bytes
+`,
+		},
+		{
 			name:            "spans per span set error comes before the range limits and is not logged",
 			query:           "/?start=1&end=8200&spss=200",
 			maxScannedBytes: 150,

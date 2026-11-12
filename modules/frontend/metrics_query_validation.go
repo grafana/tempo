@@ -33,9 +33,7 @@ func validateQueryRangeReq(ctx context.Context, cfg Config, rl rangeLimiter, log
 	if err != nil {
 		return err
 	}
-	if err := checkMetricsRange(ctx, cfg, rl, logger, orgID, unixNanoTime(req.Start), unixNanoTime(req.End)); err != nil {
-		return err
-	}
+	// Step first, so a step rejection isn't recorded as allowed by checkMetricsRange.
 	if cfg.Metrics.MaxIntervals != 0 && (req.Step == 0 || (req.End-req.Start)/req.Step > cfg.Metrics.MaxIntervals) {
 		minimumStep := (req.End - req.Start) / cfg.Metrics.MaxIntervals
 		return fmt.Errorf(
@@ -44,7 +42,7 @@ func validateQueryRangeReq(ctx context.Context, cfg Config, rl rangeLimiter, log
 			time.Duration(minimumStep).String(),
 		)
 	}
-	return nil
+	return checkMetricsRange(ctx, cfg, rl, logger, orgID, unixNanoTime(req.Start), unixNanoTime(req.End))
 }
 
 // checkMetricsRange checks every tenant of the request against its own limits, and returns every rejection.
@@ -114,7 +112,6 @@ func newMetricsRangeLimiter(cfg Config, o overrides.Interface, reader tempodb.Re
 		cfg:       cfg,
 		overrides: o,
 
-		op:       metricsOp,
 		reader:   reader,
 		filterFn: isRF1Block,
 
