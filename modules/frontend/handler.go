@@ -82,6 +82,12 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		span.SetAttributes(attribute.String("orgID", orgID))
 	}
 
+	// read the headers before the pipeline strips them from the request
+	var headerFields []interface{}
+	if len(f.logQueryRequestHeaders) != 0 {
+		headerFields = formatRequestHeaders(&r.Header, f.logQueryRequestHeaders)
+	}
+
 	resp, err := f.roundTripper.RoundTrip(r)
 	elapsed := time.Since(start)
 
@@ -93,9 +99,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"url", r.URL.RequestURI(),
 		"duration", elapsed.String(),
 	}
-	if len(f.logQueryRequestHeaders) != 0 {
-		logMessage = append(logMessage, formatRequestHeaders(&r.Header, f.logQueryRequestHeaders)...)
-	}
+	logMessage = append(logMessage, headerFields...)
 
 	if err != nil {
 		statusCode := http.StatusInternalServerError
