@@ -37,6 +37,11 @@ type Config struct {
 	// per dimension.
 	EnableClientServerPrefix bool `yaml:"enable_client_server_prefix"`
 
+	// EnableSpanKindRelaxation opts into matching service graph edges without
+	// requiring client/server span kinds. Tracking all span kinds increases resource use.
+	// Edge-tracking support is not implemented yet; this flag currently has no effect.
+	EnableSpanKindRelaxation bool `yaml:"enable_span_kind_relaxation"`
+
 	// If enabled another histogram will be produced for interactions over messaging systems middlewares
 	EnableMessagingSystemLatencyHistogram bool `yaml:"enable_messaging_system_latency_histogram"`
 
@@ -87,6 +92,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.PeerAttributes = peerAttr
 
 	cfg.EnableMessagingSystemLatencyHistogram = false
+	cfg.EnableSpanKindRelaxation = false
 
 	// Searched in order, first match wins. db.namespace and db.name identify the
 	// database itself (for example "mydb"), so they are preferred over db.system
