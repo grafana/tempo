@@ -212,7 +212,7 @@ func TestCompact(t *testing.T) {
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }
 
-func createSimilarityLifecycleBlock(t *testing.T, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, id byte, signatureVersion uint32, similarity *TraceSimilarity) *backend.BlockMeta {
+func createSimilarityLifecycleBlock(ctx context.Context, t *testing.T, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, id byte, signatureVersion uint32, similarity *TraceSimilarity) *backend.BlockMeta {
 	t.Helper()
 
 	meta := backend.NewBlockMeta(tenantID, uuid.New(), VersionString)
@@ -234,7 +234,7 @@ func createSimilarityLifecycleBlock(t *testing.T, ctx context.Context, cfg *comm
 	return outMeta
 }
 
-func readSimilarityLifecycleTraces(t *testing.T, ctx context.Context, meta *backend.BlockMeta, r backend.Reader) map[string]*TraceSimilarity {
+func readSimilarityLifecycleTraces(ctx context.Context, t *testing.T, meta *backend.BlockMeta, r backend.Reader) map[string]*TraceSimilarity {
 	t.Helper()
 
 	block := newBackendBlock(meta, r)
