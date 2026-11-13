@@ -45,7 +45,7 @@ func newVParquet5TraceIterator(ctx context.Context, meta *backend.BlockMeta, r b
 
 	// Dedicated columns can change the schema, such as blobs written without a
 	// dictionary, so the block is read with its own as the block iterator does.
-	sch, _, readerOptions := vparquet5.SchemaWithDynamicChanges(meta.DedicatedColumns)
+	sch, _, readerOptions := vparquet5.SchemaWithDynamicChanges(vparquet5.TraceSchemaConfig{DedicatedColumns: meta.DedicatedColumns, SignatureVersion: meta.TraceSignatureVersion})
 	pf, err := parquet.OpenFile(ra, size, parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true), parquet.FileSchema(sch))
 	if err != nil {
 		return nil, fmt.Errorf("opening %s for block %s: %w", vparquet5.DataFileName, meta.BlockID, err)

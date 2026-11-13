@@ -282,12 +282,13 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 
 	inMeta := &backend.BlockMeta{
 		// From the wal block
-		TenantID:         walMeta.TenantID,
-		BlockID:          walMeta.BlockID,
-		TotalObjects:     walMeta.TotalObjects,
-		StartTime:        walMeta.StartTime,
-		EndTime:          walMeta.EndTime,
-		DedicatedColumns: walMeta.DedicatedColumns,
+		TenantID:              walMeta.TenantID,
+		BlockID:               walMeta.BlockID,
+		TotalObjects:          walMeta.TotalObjects,
+		StartTime:             walMeta.StartTime,
+		EndTime:               walMeta.EndTime,
+		DedicatedColumns:      walMeta.DedicatedColumns,
+		TraceSignatureVersion: walMeta.TraceSignatureVersion,
 	}
 
 	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)

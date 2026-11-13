@@ -87,6 +87,11 @@ const (
 )
 
 const (
+	TraceSignatureVersionNone uint32 = 0
+	TraceSignatureVersionV1   uint32 = 1
+)
+
+const (
 	// These are used to round span start times into  smaller integers that are high compressable.
 	// Start value of 0 means the unix epoch. End time doesn't matter it just needs to be sufficiently high
 	// to allow the math to work without overflow.
@@ -276,6 +281,10 @@ type ServiceStats struct {
 	ErrorCount  uint32 `parquet:",delta"`
 }
 
+type TraceSimilarity struct {
+	Signature    [64]byte `parquet:""`
+	ShingleCount uint32   `parquet:""`
+}
 type Trace struct {
 	// TraceID is a byte slice as it helps maintain the sort order of traces within a parquet file
 	TraceID []byte `parquet:""`
@@ -291,7 +300,8 @@ type Trace struct {
 	RootSpanName      string         `parquet:",dict"`
 	ServiceStats      []ServiceStats `parquet:""`
 
-	ResourceSpans []ResourceSpans `parquet:"rs"`
+	ResourceSpans []ResourceSpans  `parquet:"rs"`
+	Similarity    *TraceSimilarity `parquet:", optional"`
 }
 
 func attrToParquet(a *v1.KeyValue, p *Attribute) {
@@ -912,11 +922,16 @@ func extendReuseSlice[T any](sz int, in []T) []T {
 	return out
 }
 
-func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
+type TraceSchemaConfig struct {
+	DedicatedColumns backend.DedicatedColumns
+	SignatureVersion uint32
+}
+
+func SchemaWithDynamicChanges(tsc TraceSchemaConfig) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
 	var (
-		resMapping   = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeResource)
-		spanMapping  = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeSpan)
-		eventMapping = dedicatedColumnsToColumnMapping(dedicatedColumns, backend.DedicatedColumnScopeEvent)
+		resMapping   = dedicatedColumnsToColumnMapping(tsc.DedicatedColumns, backend.DedicatedColumnScopeResource)
+		spanMapping  = dedicatedColumnsToColumnMapping(tsc.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+		eventMapping = dedicatedColumnsToColumnMapping(tsc.DedicatedColumns, backend.DedicatedColumnScopeEvent)
 	)
 
 	schemaOptions := []parquet.SchemaOption{}
@@ -992,6 +1007,11 @@ func SchemaWithDynamicChanges(dedicatedColumns backend.DedicatedColumns) (*parqu
 		if eventMapping.len() == 0 {
 			del(FieldEventDedicatedAttrs)
 		}
+	}
+
+	// Remove unused TraceSimilarity columns.
+	if tsc.SignatureVersion != TraceSignatureVersionV1 {
+		del("Similarity")
 	}
 
 	schema := parquet.SchemaOf(&Trace{}, schemaOptions...)

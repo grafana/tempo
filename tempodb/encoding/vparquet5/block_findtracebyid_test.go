@@ -167,7 +167,7 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	iter, err := b.rawIter(context.Background(), newRowPool(10))
 	require.NoError(t, err)
 
-	sch, _, _ := SchemaWithDynamicChanges(meta.DedicatedColumns)
+	sch, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{DedicatedColumns: meta.DedicatedColumns, SignatureVersion: meta.TraceSignatureVersion})
 	for {
 		_, row, err := iter.Next(context.Background())
 		require.NoError(t, err)

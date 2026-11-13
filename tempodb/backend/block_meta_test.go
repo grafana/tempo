@@ -679,3 +679,20 @@ func TestDedicatedColumns_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestBlockMetaTraceSignatureVersionRoundTrip(t *testing.T) {
+	meta := NewBlockMeta("tenant", uuid.New(), "vParquet5")
+	meta.TraceSignatureVersion = 1
+
+	jsonBytes, err := json.Marshal(meta)
+	require.NoError(t, err)
+	fromJSON := &BlockMeta{}
+	require.NoError(t, json.Unmarshal(jsonBytes, fromJSON))
+	require.Equal(t, uint32(1), fromJSON.TraceSignatureVersion)
+
+	protoBytes, err := meta.Marshal()
+	require.NoError(t, err)
+	fromProto := &BlockMeta{}
+	require.NoError(t, fromProto.Unmarshal(protoBytes))
+	require.Equal(t, uint32(1), fromProto.TraceSignatureVersion)
+}

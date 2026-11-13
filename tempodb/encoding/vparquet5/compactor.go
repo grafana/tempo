@@ -42,6 +42,14 @@ type Compactor struct {
 var pool = newRowPool(1_000_000)
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
+	// Raw rows can only be combined and written when their signature schemas match.
+	// Validate all inputs before opening any iterators.
+	for _, blockMeta := range inputs {
+		if blockMeta.TraceSignatureVersion != inputs[0].TraceSignatureVersion {
+			return nil, fmt.Errorf("cannot compact blocks with different trace signature versions: block %s has version %d, expected %d", blockMeta.BlockID.String(), blockMeta.TraceSignatureVersion, inputs[0].TraceSignatureVersion)
+		}
+	}
+
 	var (
 		compactionLevel uint32
 		totalRecords    int64
@@ -79,7 +87,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	var (
 		replicationFactor   = inputs[0].ReplicationFactor
 		nextCompactionLevel = compactionLevel + 1
-		sch, _, _           = SchemaWithDynamicChanges(inputs[0].DedicatedColumns)
+		sch, _, _           = SchemaWithDynamicChanges(TraceSchemaConfig{
+			DedicatedColumns: inputs[0].DedicatedColumns,
+			SignatureVersion: inputs[0].TraceSignatureVersion,
+		})
 	)
 
 	// Dedupe rows and also call the metrics callback.
@@ -169,12 +180,13 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if currentBlock == nil {
 			// Start with a copy and then customize
 			newMeta := &backend.BlockMeta{
-				BlockID:           backend.NewUUID(),
-				TenantID:          inputs[0].TenantID,
-				CompactionLevel:   nextCompactionLevel,
-				TotalObjects:      recordsPerBlock, // Just an estimate
-				ReplicationFactor: replicationFactor,
-				DedicatedColumns:  inputs[0].DedicatedColumns,
+				BlockID:               backend.NewUUID(),
+				TenantID:              inputs[0].TenantID,
+				CompactionLevel:       nextCompactionLevel,
+				TotalObjects:          recordsPerBlock, // Just an estimate
+				ReplicationFactor:     replicationFactor,
+				DedicatedColumns:      inputs[0].DedicatedColumns,
+				TraceSignatureVersion: inputs[0].TraceSignatureVersion,
 			}
 
 			currentBlock, _ = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)
