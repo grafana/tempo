@@ -145,10 +145,28 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 			return err
 		}
 
+		err = w.w.Delete(ctx, TenantIndexNameV2, []string{tenantID}, nil)
+		if err != nil && !errors.Is(err, ErrDoesNotExist) {
+			return err
+		}
+
 		return nil
 	}
 
 	b := newTenantIndex(meta, compactedMeta, noCompact)
+
+	// Marshal and write the V2 object first so that, when readers prefer it, it is
+	// never older than the proto object they would otherwise fall back to. It is always
+	// written, so that enabling reads of it never serves a stale or missing file.
+	indexBytesV2, err := b.marshalV2Zstd()
+	if err != nil {
+		return err
+	}
+
+	err = w.w.Write(ctx, TenantIndexNameV2, KeyPath([]string{tenantID}), bytes.NewReader(indexBytesV2), int64(len(indexBytesV2)), nil)
+	if err != nil {
+		return err
+	}
 
 	// Marshal and write the proto object.
 	indexBytesPb, err := b.marshalPb()
@@ -186,13 +204,15 @@ func (w *writer) DeleteNoCompactFlag(ctx context.Context, blockID uuid.UUID, ten
 }
 
 type reader struct {
-	r RawReader
+	r    RawReader
+	opts options
 }
 
 // NewReader returns an object that implements Reader and bridges to a RawReader
-func NewReader(r RawReader) Reader {
+func NewReader(r RawReader, opts ...Option) Reader {
 	return &reader{
-		r: r,
+		r:    r,
+		opts: newOptions(opts),
 	}
 }
 
@@ -287,6 +307,17 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
 	ctx, span := tracer.Start(ctx, "reader.TenantIndex")
 	defer span.End()
+
+	if r.opts.tenantIndexV2 {
+		out, err := r.tenantIndexV2(ctx, tenantID)
+		if err == nil {
+			return out, nil
+		}
+		if !errors.Is(err, ErrDoesNotExist) {
+			return nil, err
+		}
+		span.AddEvent(EventProtoFallback)
+	}
 
 	outPb, err := r.tenantIndexProto(ctx, tenantID)
 	if err == nil {

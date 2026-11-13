@@ -1941,6 +1941,13 @@ storage:
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
 
+        # Read the tenant index in the V2 format,
+        # which is smaller and cheaper to decode.
+        # Tempo always writes it, so enable this only after
+        # every component runs a version that supports it.
+        # Default false.
+        [blocklist_poll_tenant_index_v2: <bool>]
+
         # Delays each unknown block metadata read by a random amount, up to the provided value in milliseconds.
         # Does not delay tenant-index reads or enforce a cluster-wide request rate limit.
         # Default 0 (disabled)

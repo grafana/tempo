@@ -406,6 +406,7 @@ gen-proto:  ## Generate proto files
 
 	@# Generate backend proto (uses go_package for output path)
 	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.backend.yaml --path tempodb/backend/v1/v1.proto
+	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.backend.yaml --path tempodb/backend/v2/v2.proto
 
 	@# Generate frontend proto
 	$(BUF) generate --config buf/buf.gen-config.yaml --template buf/buf.gen.frontend.yaml --path modules/frontend/v1/frontendv1pb/frontend.proto

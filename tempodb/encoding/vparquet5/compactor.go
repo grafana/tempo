@@ -175,6 +175,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 				TotalObjects:      recordsPerBlock, // Just an estimate
 				ReplicationFactor: replicationFactor,
 				DedicatedColumns:  inputs[0].DedicatedColumns,
+				Options:           inputs[0].Options,
 			}
 
 			currentBlock, _ = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)

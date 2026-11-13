@@ -679,6 +679,7 @@ storage:
         blocklist_poll_fallback: true
         blocklist_poll_tenant_index_builders: 2
         blocklist_poll_stale_tenant_index: 0s
+        blocklist_poll_tenant_index_v2: false
         blocklist_poll_jitter_ms: 0
         blocklist_poll_tolerate_consecutive_errors: 1
         blocklist_poll_tolerate_tenant_failures: 1

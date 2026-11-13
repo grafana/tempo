@@ -57,6 +57,7 @@ type Config struct {
 	BlocklistPollFallback                  bool          `yaml:"blocklist_poll_fallback"`
 	BlocklistPollTenantIndexBuilders       int           `yaml:"blocklist_poll_tenant_index_builders"`
 	BlocklistPollStaleTenantIndex          time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
+	BlocklistPollTenantIndexV2             bool          `yaml:"blocklist_poll_tenant_index_v2"`
 	BlocklistPollJitterMs                  int           `yaml:"blocklist_poll_jitter_ms"`
 	BlocklistPollTolerateConsecutiveErrors int           `yaml:"blocklist_poll_tolerate_consecutive_errors"`
 	BlocklistPollTolerateTenantFailures    int           `yaml:"blocklist_poll_tolerate_tenant_failures"`

@@ -165,6 +165,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 		ReplicationFactor: meta.ReplicationFactor,
 		// remove unsupported dedicated columns
 		DedicatedColumns: filterDedicatedColumns(meta.DedicatedColumns),
+		Options:          meta.Options,
 	}
 
 	b := &walBlock{

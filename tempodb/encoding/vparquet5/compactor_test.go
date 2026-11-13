@@ -211,6 +211,58 @@ func TestCompact(t *testing.T) {
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }
 
+func TestCompactBlockOptions(t *testing.T) {
+	rawR, rawW, _, err := local.New(&local.Config{Path: t.TempDir()})
+	require.NoError(t, err)
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
+
+	blockConfig := common.BlockConfig{Version: VersionString}
+	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	ctx := context.Background()
+
+	c := NewCompactor(common.CompactionOptions{
+		BlockConfig:     blockConfig,
+		OutputBlocks:    1,
+		ObjectsCombined: func(_, _ int) {},
+	})
+	compact := func(inputs ...*backend.BlockMeta) ([]*backend.BlockMeta, error) {
+		return c.Compact(ctx, log.NewNopLogger(), r, w, inputs)
+	}
+	newBlock := func(opts map[string]string) *backend.BlockMeta {
+		m := createTestBlock(t, ctx, &blockConfig, r, w, 2, 2, 2, 1, nil)
+		m.Options = opts
+		return m
+	}
+
+	t.Run("streaming block carries options from the input meta", func(t *testing.T) {
+		in := &backend.BlockMeta{TenantID: tenantID, BlockID: backend.NewUUID(), Options: map[string]string{"k": "v"}}
+		_, out := newStreamingBlock(ctx, &blockConfig, in, r, w, tempo_io.NewBufferedWriter)
+		require.Equal(t, map[string]string{"k": "v"}, out.Options)
+	})
+
+	t.Run("wal block carries options", func(t *testing.T) {
+		in := &backend.BlockMeta{TenantID: tenantID, BlockID: backend.NewUUID(), Options: map[string]string{"k": "v"}}
+		b, err := createWALBlock(in, t.TempDir(), "v2", 0)
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{"k": "v"}, b.BlockMeta().Options)
+	})
+
+	t.Run("compaction preserves options", func(t *testing.T) {
+		opts := map[string]string{"feature": "on"}
+		out, err := compact(newBlock(opts), newBlock(opts))
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		require.Equal(t, opts, out[0].Options)
+	})
+
+	t.Run("compaction without options leaves them nil", func(t *testing.T) {
+		out, err := compact(newBlock(nil), newBlock(nil))
+		require.NoError(t, err)
+		require.Nil(t, out[0].Options)
+	})
+}
+
 func TestCompactTraceWritten(t *testing.T) {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),

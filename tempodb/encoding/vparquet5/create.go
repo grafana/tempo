@@ -153,6 +153,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	newMeta.EndTime = meta.EndTime
 	newMeta.ReplicationFactor = meta.ReplicationFactor
 	newMeta.DedicatedColumns = filterDedicatedColumns(meta.DedicatedColumns)
+	newMeta.Options = meta.Options
 
 	// TotalObjects is used here an an estimated count for the bloom filter.
 	// The real number of objects is tracked below.
