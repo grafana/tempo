@@ -59,7 +59,7 @@ func TestValueFilter(t *testing.T) {
 		{profileAttr(attributes.ScopeSpan, "my attr", attributes.TypeString, false, "x"), `{ span."my attr" = "x" }`},
 		{profileAttr(attributes.ScopeSpan, "sql", attributes.TypeString, false, "SELECT \"a\" FROM `t`\n\\"), "{ span.sql = \"SELECT \\\"a\\\" FROM `t`\\n\\\\\" }"},
 	} {
-		got := valueFilter(tc.p, tc.p.Values[0].Value)
+		got := valueFilter(tc.p, "=", tc.p.Values[0].Value)
 		require.Equal(t, tc.want, got)
 
 		// The filter must parse back to the profiled attribute and value.

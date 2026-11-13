@@ -129,12 +129,12 @@ func bandValues(p attributes.Profile) []bandedValue {
 // valueFilter quotes strings with strconv.Quote, which round-trips any value
 // since the lexer reads literals with strconv.Unquote. Other types are profiled
 // in TraceQL's own form.
-func valueFilter(p attributes.Profile, v string) string {
+func valueFilter(p attributes.Profile, op, v string) string {
 	attr, _ := traceqlAttribute(p)
 	if p.Type == attributes.TypeString {
 		v = strconv.Quote(v)
 	}
-	return fmt.Sprintf("{ %s = %s }", attr, v)
+	return fmt.Sprintf("{ %s %s %s }", attr, op, v)
 }
 
 // attributeIDs use the name, not the rank, so an attribute keeps its ID across
