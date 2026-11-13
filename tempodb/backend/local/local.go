@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -199,6 +200,9 @@ func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UU
 	fff := os.DirFS(rootPath)
 	err = fs.WalkDir(fff, ".", func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
+			if path != "." && errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			return err
 		}
 
