@@ -2,15 +2,16 @@ package backend
 
 import (
 	"slices"
-
-	"github.com/cespare/xxhash/v2"
+	"strings"
 )
 
-// OptionsHash hashes the block options, independent of map iteration order. It is 0 when there
-// are no options. Blocks with different options must not be compacted together.
-func (b *BlockMeta) OptionsHash() uint64 {
+// OptionsString renders the block options as "[key=value, key2=value2]", sorted by key so that
+// it is independent of map iteration order. It is empty when there are no options. Blocks with
+// different options must not be compacted together, so two option sets are equal exactly
+// when their strings are equal: the characters that delimit the format are escaped with a backslash.
+func (b *BlockMeta) OptionsString() string {
 	if len(b.Options) == 0 {
-		return 0
+		return ""
 	}
 	keys := make([]string, 0, len(b.Options))
 	for k := range b.Options {
@@ -18,12 +19,18 @@ func (b *BlockMeta) OptionsHash() uint64 {
 	}
 	slices.Sort(keys)
 
-	h := xxhash.New()
-	for _, k := range keys {
-		_, _ = h.WriteString(k)
-		_, _ = h.Write(separatorByte)
-		_, _ = h.WriteString(b.Options[k])
-		_, _ = h.Write(separatorByte)
+	var sb strings.Builder
+	sb.WriteByte('[')
+	for i, k := range keys {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		_, _ = optionEscaper.WriteString(&sb, k)
+		sb.WriteByte('=')
+		_, _ = optionEscaper.WriteString(&sb, b.Options[k])
 	}
-	return h.Sum64()
+	sb.WriteByte(']')
+	return sb.String()
 }
+
+var optionEscaper = strings.NewReplacer(`\`, `\\`, `,`, `\,`, `=`, `\=`)

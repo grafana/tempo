@@ -52,7 +52,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	for _, blockMeta := range inputs {
 		// The block selector only groups blocks with identical options. Guard against
 		// silently dropping one block's options.
-		if blockMeta.OptionsHash() != inputs[0].OptionsHash() {
+		if blockMeta.OptionsString() != inputs[0].OptionsString() {
 			return nil, fmt.Errorf("cannot compact blocks %s and %s: options differ", inputs[0].BlockID, blockMeta.BlockID)
 		}
 

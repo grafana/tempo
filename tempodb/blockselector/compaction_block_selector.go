@@ -128,8 +128,8 @@ func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 
 		// Blocks with options are grouped apart from blocks with different options. The suffix is
 		// omitted when there are none so existing groups, and their ordering, are unchanged.
-		if h := b.OptionsHash(); h != 0 {
-			entry.group = fmt.Sprintf("%s-%016X", entry.group, h)
+		if o := b.OptionsString(); o != "" {
+			entry.group = fmt.Sprintf("%s-%s", entry.group, o)
 		}
 
 		twbs.entries = append(twbs.entries, entry)

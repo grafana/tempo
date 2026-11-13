@@ -14,7 +14,7 @@ const (
 	TenantIndexNameV2 = "index.v2.zst"
 
 	// EventProtoFallback is the span event added when the V2 index is missing.
-	EventProtoFallback = "falling back to proto"
+	EventProtoFallback = "falling back to v1 index"
 )
 
 // Option configures how a Reader or Writer behaves.
@@ -77,14 +77,14 @@ func (r *reader) tenantIndexV2(ctx context.Context, tenantID string) (*TenantInd
 // features within an encoding don't require a new encoding. Blocks with different options
 // get different schemas, and blocks with the same options share one map.
 
-// schemaKey identifies a set of shared BlockMeta fields. Dedicated columns and options are
-// compared by hash, which is also how compaction decides whether blocks are alike.
+// schemaKey identifies a set of shared BlockMeta fields. Dedicated columns are compared by
+// hash and options by their string, which is also how compaction decides whether blocks are alike.
 type schemaKey struct {
 	version, tenantID string
 	replicationFactor uint32
 	indexPageSize     uint32
 	dedicatedColumns  uint64
-	options           uint64
+	options           string
 }
 
 func schemaKeyOf(m *BlockMeta) schemaKey {
@@ -94,7 +94,7 @@ func schemaKeyOf(m *BlockMeta) schemaKey {
 		replicationFactor: m.ReplicationFactor,
 		indexPageSize:     m.IndexPageSize,
 		dedicatedColumns:  m.DedicatedColumnsHash(),
-		options:           m.OptionsHash(),
+		options:           m.OptionsString(),
 	}
 }
 
