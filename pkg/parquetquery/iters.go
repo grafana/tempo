@@ -10,7 +10,9 @@ import (
 	"slices"
 
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/v3/pkg/parquetquery/base"
 	"github.com/grafana/tempo/v3/pkg/parquetquery/intern"
+	"github.com/grafana/tempo/v3/pkg/parquetquery/pagereader"
 	"github.com/grafana/tempo/v3/pkg/util"
 	pq "github.com/parquet-go/parquet-go"
 	"go.opentelemetry.io/otel"
@@ -18,22 +20,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// RowNumber is the sequence of row numbers uniquely identifying a value
-// in a tree of nested columns, starting at the top-level and including
-// another row number for each level of nesting. -1 is a placeholder
-// for undefined at lower levels.  RowNumbers can be compared for full
-// equality using the == operator, or can be compared partially, looking
-// for equal lineages down to a certain level.
-// For example given the following tree, the row numbers would be:
-//
-//	A          0, -1, -1
-//	  B        0,  0, -1
-//	  C        0,  1, -1
-//	    D      0,  1,  0
-//	  E        0,  2, -1
-//
-// Currently supports 8 levels of nesting which should be enough for anybody. :)
-type RowNumber [8]int32
+// RowNumber identifies a value in a tree of nested columns; see base.RowNumber.
+type RowNumber = base.RowNumber
 
 const MaxDefinitionLevel = 7
 
@@ -109,65 +97,6 @@ func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) RowNumber {
 	default:
 		panic(fmt.Sprintf("definition level out of bound: should be [0:7] but got %d", definitionLevelToKeep))
 	}
-}
-
-func (t *RowNumber) Valid() bool {
-	return t[0] >= 0
-}
-
-// Next increments and resets the row numbers according
-// to the given repetition and definition levels. Examples
-// from the Dremel whitepaper:
-// https://storage.googleapis.com/pub-tools-public-publication-data/pdf/36632.pdf
-// Name.Language.Country
-// | value  | r | d | expected RowNumber
-// |--------|---|---|-------------------
-// |        |   |   | { -1, -1, -1, -1 }  <-- starting position
-// | us     | 0 | 3 | {  0,  0,  0,  0 }
-// | null   | 2 | 2 | {  0,  0,  1, -1 }
-// | null   | 1 | 1 | {  0,  1, -1, -1 }
-// | gb     | 1 | 3 | {  0,  2,  0,  0 }
-// | null   | 0 | 1 | {  1,  0, -1, -1 }
-func (t *RowNumber) Next(repetitionLevel, definitionLevel, maxDefinitionLevel int) {
-	t[repetitionLevel]++
-
-	// New children up through the definition level
-	for i := repetitionLevel + 1; i <= definitionLevel; i++ {
-		t[i] = 0
-	}
-
-	// // Children past the definition level are undefined
-	for i := definitionLevel + 1; i < len(t) && i <= maxDefinitionLevel; i++ {
-		t[i] = -1
-	}
-}
-
-// Skip rows at the root-level.
-func (t *RowNumber) Skip(numRows int64) {
-	t[0] += int32(numRows)
-	for i := 1; i < len(t); i++ {
-		t[i] = -1
-	}
-}
-
-// Preceding returns the largest representable row number that is immediately prior to this
-// one. Think of it like math.NextAfter but for segmented row numbers. Examples:
-//
-//		RowNumber 1000.0.0 (defined at 3 levels) is preceded by 999.max.max
-//	    RowNumber 1000.-1.-1 (defined at 1 level) is preceded by 999.-1.-1
-func (t RowNumber) Preceding() RowNumber {
-	for i := len(t) - 1; i >= 0; i-- {
-		switch t[i] {
-		case -1:
-			continue
-		case 0:
-			t[i] = math.MaxInt32
-		default:
-			t[i]--
-			return t
-		}
-	}
-	return t
 }
 
 // Releaser can be implemented by types stored in OtherEntries. If the entry
@@ -376,7 +305,7 @@ func SyncIteratorOptIntern() SyncIteratorOpt {
 // SyncIteratorOptPredicate uses the given predicate to filter column values.
 func SyncIteratorOptPredicate(p Predicate) SyncIteratorOpt {
 	return func(i *SyncIterator) {
-		i.filter = p
+		i.state.Filter = p
 	}
 }
 
@@ -412,22 +341,17 @@ func SyncIteratorOptBufferSize(int) SyncIteratorOpt {
 // required for correct behavior.
 func SyncIteratorOptMaxDefinitionLevel(maxDefinitionLevel int) SyncIteratorOpt {
 	return func(i *SyncIterator) {
-		i.maxDefinitionLevel = maxDefinitionLevel
+		i.state.MaxDef = maxDefinitionLevel
 	}
 }
 
-// Sampler thins values during iteration. It is intentionally narrower than
-// traceql.Sampler so this package takes no dependency on traceql.
-type Sampler interface {
-	// Expect reports an accepted page's value count: the population to sample from.
-	Expect(count uint64)
-	Sample() bool
-}
+// Sampler thins values during iteration; see base.Sampler.
+type Sampler = base.Sampler
 
 // SyncIteratorOptSampler applies a sampler to values that pass the predicate.
 func SyncIteratorOptSampler(s Sampler) SyncIteratorOpt {
 	return func(i *SyncIterator) {
-		i.sampler = s
+		i.state.Sampler = s
 	}
 }
 
@@ -442,29 +366,21 @@ type SyncIterator struct {
 	rgs        []pq.RowGroup
 	rgsMin     []RowNumber
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
-	filter     Predicate
-	stats      PredicateStats // chunk/page/value decisions of filter; exported as metrics on Close
-	tenant     string         // label for exported stats, from ctx
-	sampler    Sampler
 
 	// Status
 	span            trace.Span
-	curr            RowNumber
 	currRowGroup    pq.RowGroup
 	currRowGroupMin RowNumber
 	currRowGroupMax RowNumber
 	currChunk       *ColumnChunkHelper
 	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
 
-	// Seek scratch state owned by next(). Copied from its arguments so the
-	// hot loop can compare in place without growing next's stack frame.
-	seekTo              RowNumber
-	seekDefinitionLevel int
-
-	maxDefinitionLevel int
-
-	pageReader pageReader // reads pages from their levels, see dict_pushdown.go
-	pageMax    RowNumber  // exclusive: the row number of the next page's first row
+	pageReader pagereader.PageReader // reads the current chunk's pages from their levels
+	pageMax    RowNumber             // exclusive: the row number of the next page's first row
+	// The iterator's position and what it keeps: the current row (Row), the max
+	// definition level, the seek target, the filter, the sampler and the filter's stats,
+	// which Close exports as metrics for Tenant. pageReader advances it.
+	state base.IteratorState
 
 	interner   *intern.Interner
 	makeResult func(t RowNumber, v *pq.Value) *IteratorResult
@@ -495,13 +411,15 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 
 	// Create the iterator
 	i := &SyncIterator{
-		column:             column,
-		rgs:                rgs,
-		rgsMin:             rgsMin,
-		rgsMax:             rgsMax,
-		curr:               EmptyRowNumber(),
-		at:                 IteratorResult{},
-		maxDefinitionLevel: MaxDefinitionLevel, // default value
+		column: column,
+		rgs:    rgs,
+		rgsMin: rgsMin,
+		rgsMax: rgsMax,
+		at:     IteratorResult{},
+		state: base.IteratorState{
+			Row:    EmptyRowNumber(),
+			MaxDef: MaxDefinitionLevel, // default value
+		},
 	}
 
 	// Apply options
@@ -509,8 +427,8 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 		opt(i)
 	}
 
-	if i.filter != nil {
-		i.tenant, _ = user.ExtractOrgID(ctx)
+	if i.state.Filter != nil {
+		i.state.Tenant, _ = user.ExtractOrgID(ctx)
 	}
 
 	// Default value, always clone results until we have
@@ -564,8 +482,8 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ..
 
 func (c *SyncIterator) String() string {
 	filter := "nil"
-	if c.filter != nil {
-		filter = c.filter.String()
+	if c.state.Filter != nil {
+		filter = c.state.Filter.String()
 	}
 	return fmt.Sprintf("SyncIterator: %s : %s", c.columnName, filter)
 }
@@ -690,7 +608,7 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bo
 					if err := c.currPages.SeekToRow(skip); err != nil {
 						return true, err
 					}
-					c.curr.Skip(skip)
+					c.state.Row.Skip(skip)
 				}
 			}*/
 
@@ -708,17 +626,17 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bo
 			}
 
 			// Skip based on row number?
-			newRN := c.curr
+			newRN := c.state.Row
 			newRN.Skip(pg.NumRows() + 1)
 			if CompareRowNumbers(definitionLevel, seekTo, newRN) >= 0 {
-				c.curr.Skip(pg.NumRows())
+				c.state.Row.Skip(pg.NumRows())
 				pq.Release(pg)
 				continue
 			}
 
 			// Skip based on filter?
-			if prune && c.filter != nil && !c.keepPage(pg) {
-				c.curr.Skip(pg.NumRows())
+			if prune && c.state.Filter != nil && !c.keepPage(pg) {
+				c.state.Row.Skip(pg.NumRows())
 				pq.Release(pg)
 				continue
 			}
@@ -735,9 +653,9 @@ func (c *SyncIterator) seekPages(seekTo RowNumber, definitionLevel int, prune bo
 // seekWithinPage jumps to the start of the desired row by walking the page's levels. The
 // rest of the seek is left to next.
 func (c *SyncIterator) seekWithinPage(to RowNumber, _ int) {
-	if c.pageReader.SkipToRow(c.curr[0], to[0]) {
+	if c.pageReader.SkipToRow(c.state.Row[0], to[0]) {
 		// remove all detail below the row number
-		c.curr = TruncateRowNumber(0, to).Preceding()
+		c.state.Row = TruncateRowNumber(0, to).Preceding()
 	}
 }
 
@@ -752,8 +670,8 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, _ int) {
 func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, *pq.Value, error) {
 	seeking := seekTo != nil
 	if seeking {
-		c.seekTo = *seekTo
-		c.seekDefinitionLevel = definitionLevel
+		c.state.SeekTo = *seekTo
+		c.state.SeekDef = definitionLevel
 	}
 
 	for {
@@ -784,9 +702,9 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 				c.closeCurrRowGroup()
 				continue
 			}
-			if c.filter != nil && !c.keepPage(pg) {
+			if c.state.Filter != nil && !c.keepPage(pg) {
 				// This page filtered out
-				c.curr.Skip(pg.NumRows())
+				c.state.Row.Skip(pg.NumRows())
 				pq.Release(pg)
 				continue
 			}
@@ -795,7 +713,7 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 			}
 		}
 
-		v, ok, err := c.pageReader.NextMatchedValue(c, seeking)
+		v, ok, err := c.pageReader.NextMatchedValue(&c.state, seeking)
 		if err != nil {
 			return EmptyRowNumber(), nil, err
 		}
@@ -803,28 +721,13 @@ func (c *SyncIterator) next(seekTo *RowNumber, definitionLevel int) (RowNumber, 
 			c.closePage() // page exhausted
 			continue
 		}
-		return c.curr, v, nil
+		return c.state.Row, v, nil
 	}
-}
-
-// beforeSeekTarget returns true if the iterator's current position is before the seek target.
-// It compares the row numbers in place and is inlineable,
-// which keeps the hot loop in next() free of 32-byte RowNumber copies.
-func (c *SyncIterator) beforeSeekTarget() bool {
-	for i := 0; i <= c.seekDefinitionLevel; i++ {
-		if c.curr[i] < c.seekTo[i] {
-			return true
-		}
-		if c.curr[i] > c.seekTo[i] {
-			return false
-		}
-	}
-	return false
 }
 
 func (c *SyncIterator) setRowGroup(rg pq.RowGroup, minRN, maxRN RowNumber, cc *ColumnChunkHelper) error {
 	c.closeCurrRowGroup()
-	c.curr = minRN
+	c.state.Row = minRN
 	c.currRowGroup = rg
 	c.currRowGroupMin = minRN
 	c.currRowGroupMax = maxRN
@@ -838,14 +741,14 @@ func (c *SyncIterator) setRowGroup(rg pq.RowGroup, minRN, maxRN RowNumber, cc *C
 // setPage closes the current page and makes pg the current one, read by pageReader.
 func (c *SyncIterator) setPage(pg pq.Page) error {
 	c.closePage()
-	c.pageMax = c.curr
+	c.pageMax = c.state.Row
 	c.pageMax.Skip(pg.NumRows() + 1)
 	if err := c.pageReader.Open(pg); err != nil {
 		return fmt.Errorf("column %d (%s): %w", c.column, c.columnName, err)
 	}
 
-	if c.sampler != nil {
-		c.sampler.Expect(uint64(pg.NumValues()))
+	if c.state.Sampler != nil {
+		c.state.Sampler.Expect(uint64(pg.NumValues()))
 	}
 	return nil
 }
@@ -853,7 +756,7 @@ func (c *SyncIterator) setPage(pg pq.Page) error {
 // closePage releases the current page, if any, and moves to the end of it.
 func (c *SyncIterator) closePage() {
 	if c.pageReader.Close() {
-		c.curr = c.pageMax.Preceding()
+		c.state.Row = c.pageMax.Preceding()
 		c.pageMax = EmptyRowNumber()
 	}
 }
@@ -904,23 +807,23 @@ func (c *SyncIterator) makeResultRowOnly(t RowNumber, _ *pq.Value) *IteratorResu
 
 // Stats returns the predicate decisions counted so far. They are reset on Close.
 func (c *SyncIterator) Stats() PredicateStats {
-	return c.stats
+	return c.state.Stats
 }
 
 func (c *SyncIterator) Close() {
 	c.closeCurrRowGroup()
 
-	if c.filter != nil && c.span.IsRecording() {
+	if c.state.Filter != nil && c.span.IsRecording() {
 		c.span.SetAttributes(
-			attribute.Int64("inspectedColumnChunks", c.stats.InspectedColumnChunks),
-			attribute.Int64("keptColumnChunks", c.stats.KeptColumnChunks),
-			attribute.Int64("inspectedPages", c.stats.InspectedPages),
-			attribute.Int64("keptPages", c.stats.KeptPages),
-			attribute.Int64("inspectedValues", c.stats.InspectedValues),
-			attribute.Int64("keptValues", c.stats.KeptValues),
+			attribute.Int64("inspectedColumnChunks", c.state.Stats.InspectedColumnChunks),
+			attribute.Int64("keptColumnChunks", c.state.Stats.KeptColumnChunks),
+			attribute.Int64("inspectedPages", c.state.Stats.InspectedPages),
+			attribute.Int64("keptPages", c.state.Stats.KeptPages),
+			attribute.Int64("inspectedValues", c.state.Stats.InspectedValues),
+			attribute.Int64("keptValues", c.state.Stats.KeptValues),
 		)
 	}
-	c.stats.flushMetrics(c.tenant)
+	flushMetrics(&c.state.Stats, c.state.Tenant)
 
 	c.span.End()
 
