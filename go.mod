@@ -1,6 +1,6 @@
 module github.com/grafana/tempo/v3
 
-go 1.27.3
+go 1.27.4
 
 require (
 	charm.land/bubbletea/v2 v2.1.1
@@ -17,7 +17,7 @@ require (
 	github.com/bits-and-blooms/bloom/v3 v3.7.1
 	github.com/bytedance/sonic v1.15.5
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/cristalhq/hedgedhttp v0.9.1
+	github.com/cristalhq/hedgedhttp v0.9.2
 	github.com/drone/envsubst v1.0.3
 	github.com/dustin/go-humanize v1.1.0
 	github.com/evanphx/json-patch/v5 v5.9.11
@@ -38,7 +38,7 @@ require (
 	github.com/jaegertracing/jaeger-idl v0.14.0
 	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/jsternberg/zap-logfmt v1.3.0
-	github.com/klauspost/compress v1.20.3
+	github.com/klauspost/compress v1.20.4
 	github.com/mark3labs/mcp-go v1.5.0
 	github.com/maypok86/otter/v2 v2.4.0
 	github.com/minio/minio-go/v7 v7.4.1
@@ -110,7 +110,7 @@ require (
 	golang.org/x/sync v0.25.0
 	golang.org/x/time v0.16.0
 	google.golang.org/api v0.311.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261104224025-d1e00e9f33ab
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261110000943-09e21b237f2c
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 )
