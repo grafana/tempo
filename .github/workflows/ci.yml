@@ -25,12 +25,12 @@ jobs:
     steps:
 
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: "0"
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: 'go.mod'
 
@@ -45,7 +45,7 @@ jobs:
         run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
 
       - name: cache golangci
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@v6.1.0
         with:
           path: .cache/golangci-lint
           key: golangci-lint-${{ runner.os }}-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.mod', '.golangci.yml') }}
@@ -79,12 +79,12 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: actions/setup-go@v7.0.0
         with:
           # This job also installs gotestsum from the tools module.
           go-version-file: 'tools/go.mod'
@@ -97,13 +97,13 @@ jobs:
         run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
 
       - name: Cache Go modules
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@v6.1.0
         with:
           path: ~/go/pkg/mod
           key: gomod-${{ runner.os }}-${{ hashFiles('go.sum', 'tools/go.sum') }}
 
       - name: Cache Go build output
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@v6.1.0
         with:
           # one cache shared by the whole matrix: a -race build cache is ~1.1GB per target, so
           # per-target caches would blow the 10GB repo limit. Targets overlap heavily anyway.
@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload coverage artifacts
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: coverage-${{ matrix.test-target }}
           path: .coverage/*.out
@@ -135,7 +135,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - name: Validate all integration folders are covered by CI
@@ -183,11 +183,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: 'go.mod'
       - name: Build images
@@ -197,7 +197,7 @@ jobs:
       - name: Save images
         run: docker save grafana/tempo tempo grafana/tempo-query tempo-query -o /tmp/tempo-e2e-images.tar
       - name: Upload images
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: tempo-e2e-images
           path: /tmp/tempo-e2e-images.tar
@@ -226,13 +226,13 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - name: Fetch tags
         run: git fetch --prune --unshallow --tags
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: actions/setup-go@v7.0.0
         with:
           # This job also installs gotestsum from the tools module.
           go-version-file: 'tools/go.mod'
@@ -242,12 +242,12 @@ jobs:
         id: get-year-week-number
         run: echo "date=$(date +"%Yweek%U")" >> "$GITHUB_OUTPUT"
       - name: Cache Go modules
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@v6.1.0
         with:
           path: ~/go/pkg/mod
           key: gomod-${{ runner.os }}-${{ hashFiles('go.sum', 'tools/go.sum') }}
       - name: Cache Go build output
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/go-build
           key: gobuild-${{ runner.os }}-e2e-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.sum') }}
@@ -255,7 +255,7 @@ jobs:
             gobuild-${{ runner.os }}-e2e-${{ steps.get-year-week-number.outputs.date }}-
             gobuild-${{ runner.os }}-e2e-
       - name: Download e2e images
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@v8.0.2
         with:
           name: tempo-e2e-images
           path: /tmp
@@ -271,12 +271,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: 'go.mod'
 
@@ -307,12 +307,12 @@ jobs:
       CGO_ENABLED: "0"
     steps:
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: 'go.mod'
 
@@ -333,12 +333,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: actions/setup-go@v7.0.0
         with:
           # vendor-check also tidies the tools module.
           go-version-file: 'tools/go.mod'
@@ -354,12 +354,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: 'go.mod'
 
@@ -377,7 +377,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -394,13 +394,13 @@ jobs:
       actions: read
     steps:
       - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0  # Fetch full history for proper diff computation
 
       - name: Download all coverage artifacts
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@v8.0.2
         with:
           pattern: coverage-*
           path: .coverage/
