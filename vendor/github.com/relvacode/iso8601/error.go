@@ -7,7 +7,7 @@ import (
 
 var (
 	// ErrZoneCharacters indicates an incorrect amount of characters was passed to ParseISOZone.
-	ErrZoneCharacters = errors.New("iso8601: Expected 1 or between 3 and 6 characters for zone information")
+	ErrZoneCharacters = errors.New("iso8601: Expected 1, 3, 5 or 6 characters for zone information")
 
 	// ErrInvalidZone indicates an invalid timezone per the standard that doesn't violate any specific
 	// character parsing rules.

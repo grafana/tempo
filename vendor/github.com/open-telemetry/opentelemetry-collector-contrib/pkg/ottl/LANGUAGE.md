@@ -190,12 +190,18 @@ Example List Values:
 ### Maps
 
 A Map Value comprises a set of key Value pairs.
+Keys may be string literals, Converters, or Paths, and must evaluate to strings.
+Converter and Path keys require the [`pkg.ottl.enableDynamicMapKeys`](README.md#pkgottlenabledynamicmapkeys) feature gate.
+Keys are evaluated in source order, and if a key is repeated the last value wins.
+A bare lowercase identifier such as `{foo: 1}` is treated as a Path, not a string.
 
 Example Map Values:
 - `{}`
 - `{"foo": "bar"}`
 - `{"foo": {"a": 2}}`
 - `{"foo": {"a": log.attributes["key"]}}`
+- `{ToUpperCase("key"): "value"}`
+- `{log.attributes["k"]: 1}`
 
 > [!IMPORTANT]
 > The examples above include a space after each `:` for readability, but a statement

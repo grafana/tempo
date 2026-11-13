@@ -5,6 +5,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 
 import (
 	"context"
+	"crypto/fips140"
 	"crypto/md5" // #nosec
 	"encoding/hex"
 	"errors"
@@ -38,11 +39,14 @@ func md5HashString[K any](target ottl.StringGetter[K]) ottl.ExprFunc[K] {
 		if err != nil {
 			return nil, err
 		}
-		hash := md5.New() // #nosec
-		_, err = hash.Write([]byte(val))
-		if err != nil {
-			return nil, err
-		}
-		return hex.EncodeToString(hash.Sum(nil)), nil
+		// MD5 is not a FIPS 140-3 approved algorithm. The digest is used as a
+		// plain hash of telemetry data, not for any security function, so it runs
+		// outside strict enforcement (GODEBUG=fips140=only). Without that, this
+		// converter would fail in FIPS 140-only mode.
+		var sum [md5.Size]byte
+		fips140.WithoutEnforcement(func() {
+			sum = md5.Sum([]byte(val)) // #nosec
+		})
+		return hex.EncodeToString(sum[:]), nil
 	}
 }

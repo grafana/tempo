@@ -1,6 +1,7 @@
 package iso8601
 
 import (
+	"encoding"
 	"encoding/json"
 	"time"
 )
@@ -11,13 +12,16 @@ func null(b []byte) bool {
 	if len(b) != 4 {
 		return false
 	}
-	if b[0] != 'n' && b[1] != 'u' && b[2] != 'l' && b[3] != 'l' {
+	if b[0] != 'n' || b[1] != 'u' || b[2] != 'l' || b[3] != 'l' {
 		return false
 	}
 	return true
 }
 
-var _ json.Unmarshaler = &Time{}
+var (
+	_ json.Unmarshaler         = &Time{}
+	_ encoding.TextUnmarshaler = &Time{}
+)
 
 // Time is a helper object for parsing ISO8601 dates as a JSON string.
 type Time struct {
@@ -30,11 +34,18 @@ func (t *Time) UnmarshalJSON(b []byte) error {
 	if null(b) {
 		return nil
 	}
-	if len(b) > 0 && b[0] == '"' && b[len(b)-1] == '"' {
+	if len(b) >= 2 && b[0] == '"' && b[len(b)-1] == '"' {
 		b = b[1 : len(b)-1]
 	} else {
 		return ErrNotString
 	}
+	var err error
+	t.Time, err = Parse(b)
+	return err
+}
+
+// UnmarshalText decodes a byte slice of an ISO8601 date string into Time.
+func (t *Time) UnmarshalText(b []byte) error {
 	var err error
 	t.Time, err = Parse(b)
 	return err

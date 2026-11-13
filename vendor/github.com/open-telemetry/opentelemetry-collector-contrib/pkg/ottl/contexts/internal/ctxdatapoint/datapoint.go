@@ -87,9 +87,9 @@ func PathGetSetter[K Context](path ottl.Path[K]) (ottl.GetSetter[K], error) {
 	}
 }
 
-func accessAttributes[K Context]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
+func accessAttributes[K Context]() ctxutil.MapGetSetter[K] {
+	return ctxutil.MapGetSetter[K]{
+		Getter: func(_ context.Context, tCtx K) (pcommon.Map, error) {
 			switch dp := tCtx.GetDataPoint().(type) {
 			case pmetric.NumberDataPoint:
 				return dp.Attributes(), nil
@@ -99,21 +99,8 @@ func accessAttributes[K Context]() ottl.StandardGetSetter[K] {
 				return dp.Attributes(), nil
 			case pmetric.SummaryDataPoint:
 				return dp.Attributes(), nil
-			}
-			return nil, nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			switch dp := tCtx.GetDataPoint().(type) {
-			case pmetric.NumberDataPoint:
-				return ctxutil.SetMap(dp.Attributes(), val)
-			case pmetric.HistogramDataPoint:
-				return ctxutil.SetMap(dp.Attributes(), val)
-			case pmetric.ExponentialHistogramDataPoint:
-				return ctxutil.SetMap(dp.Attributes(), val)
-			case pmetric.SummaryDataPoint:
-				return ctxutil.SetMap(dp.Attributes(), val)
 			default:
-				return fmt.Errorf("unsupported data point type: %T", dp)
+				return pcommon.Map{}, fmt.Errorf("unsupported data point type: %T", dp)
 			}
 		},
 	}

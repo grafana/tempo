@@ -406,6 +406,9 @@ type mapValue struct {
 
 func (m *mapValue) accept(v grammarVisitor) {
 	for _, i := range m.Values {
+		if i.Key != nil {
+			i.Key.accept(v)
+		}
 		if i.Value != nil {
 			i.Value.accept(v)
 		}
@@ -414,8 +417,29 @@ func (m *mapValue) accept(v grammarVisitor) {
 
 // mapItem is a single key/value entry within a mapValue.
 type mapItem struct {
-	Key   *string `parser:"@String ':'"`
+	Key   *mapKey `parser:"@@ ':'"`
 	Value *value  `parser:"@@"`
+}
+
+// mapKey is the key of a mapItem. It must resolve to a string.
+type mapKey struct {
+	String *string `parser:"( @String"`
+	// Editor is matched only to report a better error.
+	Editor    *editor    `parser:"| @@"`
+	Converter *converter `parser:"| @@"`
+	Path      *path      `parser:"| @@ )"`
+}
+
+func (k *mapKey) accept(v grammarVisitor) {
+	if k.Editor != nil {
+		v.visitMathExprLiteral(&mathExprLiteral{Editor: k.Editor})
+	}
+	if k.Converter != nil {
+		k.Converter.accept(v)
+	}
+	if k.Path != nil {
+		k.Path.accept(v)
+	}
 }
 
 // byteSlice type for capturing byte slices

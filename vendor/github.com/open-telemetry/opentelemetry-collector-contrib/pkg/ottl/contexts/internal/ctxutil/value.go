@@ -133,12 +133,7 @@ func SetIndexableValue[K any](ctx context.Context, tCtx K, currentValue pcommon.
 			if err != nil {
 				return err
 			}
-			potentialValue, ok := currentValue.Map().Get(*s)
-			if !ok {
-				currentValue = currentValue.Map().PutEmpty(*s)
-			} else {
-				currentValue = potentialValue
-			}
+			currentValue, _ = currentValue.Map().GetOrPutEmpty(*s)
 		case pcommon.ValueTypeSlice:
 			i, err := keys[index].Int(ctx, tCtx)
 			if err != nil {

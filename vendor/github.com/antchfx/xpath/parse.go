@@ -350,7 +350,7 @@ func (p *parser) parsePathExpr(n node) node {
 // FilterExpr ::= PrimaryExpr | FilterExpr Predicate
 func (p *parser) parseFilterExpr(n node) node {
 	opnd := p.parsePrimaryExpr(n)
-	if p.r.typ == itemLBracket {
+	for p.r.typ == itemLBracket {
 		opnd = newFilterNode(opnd, p.parsePredicate(opnd))
 	}
 	return opnd

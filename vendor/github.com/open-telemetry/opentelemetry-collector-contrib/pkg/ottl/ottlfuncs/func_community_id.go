@@ -6,6 +6,7 @@ package ottlfuncs // import "github.com/open-telemetry/opentelemetry-collector-c
 import (
 	"bytes"
 	"context"
+	"crypto/fips140"
 	"crypto/sha1" //gosec:disable G505 -- SHA1 is intentionally used for generating unique identifiers
 	"encoding/base64"
 	"encoding/binary"
@@ -97,9 +98,15 @@ func (h *communityIDHash) compute() string {
 	flowTuple = binary.BigEndian.AppendUint16(flowTuple, h.srcPort)
 	flowTuple = binary.BigEndian.AppendUint16(flowTuple, h.dstPort)
 
-	// Generate the SHA1 hash
-	//gosec:disable G401 -- we are not using SHA1 for security, but for generating unique identifier, conflicts will be solved with the seed
-	hashBytes := sha1.Sum(flowTuple)
+	// Generate the SHA1 hash. The Community ID spec mandates SHA-1 and the
+	// result is a flow identifier, not a security function, so the hash runs
+	// outside strict FIPS 140-3 enforcement (GODEBUG=fips140=only). Without
+	// that, this converter would panic in FIPS 140-only mode.
+	var hashBytes [sha1.Size]byte
+	fips140.WithoutEnforcement(func() {
+		//gosec:disable G401 -- we are not using SHA1 for security, but for generating unique identifier, conflicts will be solved with the seed
+		hashBytes = sha1.Sum(flowTuple)
+	})
 
 	// Add version prefix (1) and return
 	return "1:" + base64.StdEncoding.EncodeToString(hashBytes[:])

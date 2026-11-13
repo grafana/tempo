@@ -14,6 +14,14 @@ var OttlFunctionsEnableLambdaFeatureGate = featuregate.GlobalRegistry().MustRegi
 	featuregate.WithRegisterFromVersion("v0.155.0"),
 )
 
+var PkgOttlEnableDynamicMapKeysFeatureGate = featuregate.GlobalRegistry().MustRegister(
+	"pkg.ottl.enableDynamicMapKeys",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Allow map literal keys to be paths or converters that resolve to a string at runtime. When disabled, map literal keys must be string literals."),
+	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/52210"),
+	featuregate.WithRegisterFromVersion("v0.164.0"),
+)
+
 var PkgOttlFunctionsEnableDynamicSliceArgumentsFeatureGate = featuregate.GlobalRegistry().MustRegister(
 	"pkg.ottl.functions.enableDynamicSliceArguments",
 	featuregate.StageBeta,
