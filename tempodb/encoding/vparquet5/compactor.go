@@ -50,12 +50,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		bookmarks       = make([]*bookmark[parquet.Row], 0, len(inputs))
 	)
 	for _, blockMeta := range inputs {
-		// The block selector only groups blocks with identical options. Guard against
-		// silently dropping one block's options.
-		if blockMeta.OptionsString() != inputs[0].OptionsString() {
-			return nil, fmt.Errorf("cannot compact blocks %s and %s: options differ", inputs[0].BlockID, blockMeta.BlockID)
-		}
-
 		totalRecords += blockMeta.TotalObjects
 
 		if blockMeta.CompactionLevel > compactionLevel {

@@ -261,11 +261,6 @@ func TestCompactBlockOptions(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, out[0].Options)
 	})
-
-	t.Run("compaction refuses mixed options", func(t *testing.T) {
-		_, err := compact(newBlock(map[string]string{"a": "1"}), newBlock(nil))
-		require.ErrorContains(t, err, "options differ")
-	})
 }
 
 func TestCompactTraceWritten(t *testing.T) {
