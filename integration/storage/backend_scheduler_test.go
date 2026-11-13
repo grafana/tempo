@@ -128,14 +128,9 @@ func TestBackendScheduler(t *testing.T) {
 			})
 		}
 
-		// NOTE: the compaction provider has a channel capacity of 1, and the
-		// backendscheduler has a channel capacity of 1.  This means that the
-		// compaction provider can create 4 jobs before they are processed in the
-		// Next call of the scheduler.
-		// - one recorded before pushing into the compaction provider channel
-		// - one in the compaction provider channel
-		// - one between the provider pull and the scheduler push
-		// - one in the merged channel
+		// NOTE: the provider channels are unbuffered, so with no worker running the
+		// compaction provider holds exactly one job: recorded, then blocked on the
+		// send until a worker asks for it.
 
 		// NOTE: Since the measurement of outstanding blocks also skips the blocks
 		// from jobs which have not been processed, we expect our outstanding blocks
@@ -146,11 +141,11 @@ func TestBackendScheduler(t *testing.T) {
 		// outstanding blocks instead of per tenant for this reason.
 
 		// NOTE: Due to timing and window selection, we may not fully populate a job,
-		// and we may end up with jobs which between 2 and 4 blocks outstanding.
-		// - 4 jobs not yet recorded by the scheduler (no worker running yet)
+		// and we may end up with a job which has between 2 and 4 blocks outstanding.
+		// - 1 job not yet recorded by the scheduler (no worker running yet)
 		// - between 2 and 4 blocks per job (default settings)
-		expectedTotalOutstandingMin := totalOutstanding - 16
-		expectedTotalOutstandingMax := totalOutstanding - 8
+		expectedTotalOutstandingMin := totalOutstanding - 4
+		expectedTotalOutstandingMax := totalOutstanding - 2
 
 		// Wait for total blocklist length and outstanding blocks metrics to stabilize.
 		require.NoError(t, scheduler.WaitSumMetricsWithOptions(

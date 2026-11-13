@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"sort"
 	"strconv"
 	"sync"
@@ -50,12 +51,14 @@ type BackendScheduler struct {
 	reader backend.RawReader
 	writer backend.RawWriter
 
-	providers []struct {
-		provider provider.Provider
-		jobs     <-chan *work.Job
-	}
+	providers []provider.Provider
 
-	mergedJobs chan *work.Job
+	// jobChans are the provider channels Next() receives from, in providers order. They are unbuffered,
+	// so each provider holds at most one generated job, blocked on send, until Next() takes it.
+	// gRPC can call Next() before starting() has finished, so Next() waits for providersReady, which
+	// is closed after jobChans is set.
+	jobChans       []<-chan *work.Job
+	providersReady chan struct{}
 
 	// publishedPendingCounts is the jobs_pending snapshot published on the previous maintenance tick,
 	// keyed exactly as work.PendingJobCounts returns it. Comparing the next snapshot against it
@@ -82,48 +85,37 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 	}
 
 	s := &BackendScheduler{
-		cfg:        cfg,
-		store:      store,
-		overrides:  overrides,
-		work:       work.New(cfg.Work),
-		reader:     reader,
-		writer:     writer,
-		mergedJobs: make(chan *work.Job, 1),
+		cfg:       cfg,
+		store:     store,
+		overrides: overrides,
+		work:      work.New(cfg.Work),
+		reader:    reader,
+		writer:    writer,
+
+		providersReady: make(chan struct{}),
 	}
 
 	// Initialize providers
-	s.providers = []struct {
-		provider provider.Provider
-		jobs     <-chan *work.Job
-	}{
-		{
-			provider: provider.NewCompactionProvider(
-				s.cfg.ProviderConfig.Compaction,
-				log.Logger,
-				s.store,
-				s.overrides,
-				s.work,
-			),
-			jobs: nil, // Will be set in running
-		},
-		{
-			provider: provider.NewRetentionProvider(
-				s.cfg.ProviderConfig.Retention,
-				log.Logger,
-				s.store,
-				s.overrides,
-				s.work,
-			),
-			jobs: nil, // Will be set in running
-		},
-		{
-			provider: provider.NewRedactionProvider(
-				s.cfg.ProviderConfig.Redaction,
-				log.Logger,
-				s.work,
-			),
-			jobs: nil, // Will be set in running
-		},
+	s.providers = []provider.Provider{
+		provider.NewCompactionProvider(
+			s.cfg.ProviderConfig.Compaction,
+			log.Logger,
+			s.store,
+			s.overrides,
+			s.work,
+		),
+		provider.NewRetentionProvider(
+			s.cfg.ProviderConfig.Retention,
+			log.Logger,
+			s.store,
+			s.overrides,
+			s.work,
+		),
+		provider.NewRedactionProvider(
+			s.cfg.ProviderConfig.Redaction,
+			log.Logger,
+			s.work,
+		),
 	}
 
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
@@ -148,73 +140,24 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 	}
 	s.dropBatchesWithUnusableWindows()
 
-	wg := sync.WaitGroup{}
-
-	for i := range s.providers {
-		s.providers[i].jobs = s.providers[i].provider.Start(ctx)
-
-		wg.Add(1)
-		// Start a goroutine to forward jobs from each provider to the merged channel
-		go func(jobs <-chan *work.Job) {
-			defer wg.Done()
-
-			var job *work.Job
-
-			for {
-				var ok bool
-				select {
-				case job, ok = <-jobs:
-					if !ok {
-						// Provider closed its channel (it has stopped); nothing more to forward.
-						level.Info(log.Logger).Log("msg", "provider channel closed", "provider", i)
-						return
-					}
-				case <-ctx.Done():
-					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
-					// The provider channel is buffered: drain any job it already handed off but we
-					// never forwarded, releasing the in-flight count of redaction jobs so it does
-					// not leak on shutdown.
-					for {
-						select {
-						case j, ok := <-jobs:
-							// A closed channel is always ready, so use the two-value receive and
-							// return on close; otherwise this loop would spin forever.
-							if !ok {
-								return
-							}
-							if j != nil && j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-								s.work.ReleaseRedactionInFlight(j.Tenant())
-							}
-						default:
-							return
-						}
-					}
-				}
-
-				select {
-				case s.mergedJobs <- job:
-					metricProviderJobsMerged.WithLabelValues(strconv.Itoa(i)).Inc()
-				case <-ctx.Done():
-					level.Info(log.Logger).Log("msg", "stopping provider", "provider", i)
-					// This job was received but not forwarded; if it's a redaction job it was
-					// counted in-flight at dequeue and will never reach Next(), so release it.
-					if job != nil && job.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
-						s.work.ReleaseRedactionInFlight(job.Tenant())
-					}
-					return
-				}
-			}
-		}(s.providers[i].jobs)
-	}
-
-	// Start a goroutine to close the merged channel when all providers are done
-	go func() {
-		wg.Wait()
-		level.Info(log.Logger).Log("msg", "all providers stopped")
-		close(s.mergedJobs)
-	}()
+	s.startProviders(ctx)
 
 	return nil
+}
+
+// startProviders starts every provider and publishes their channels to Next().
+func (s *BackendScheduler) startProviders(ctx context.Context) {
+	chans := make([]<-chan *work.Job, len(s.providers))
+	for i, p := range s.providers {
+		chans[i] = p.Start(ctx)
+	}
+	s.publishJobChans(chans)
+}
+
+// publishJobChans must be called once: closing providersReady releases the Next() calls waiting on it.
+func (s *BackendScheduler) publishJobChans(chans []<-chan *work.Job) {
+	s.jobChans = chans
+	close(s.providersReady)
 }
 
 func (s *BackendScheduler) running(ctx context.Context) error {
@@ -273,7 +216,7 @@ func (s *BackendScheduler) stopping(_ error) error {
 	return nil
 }
 
-// Next implements the BackendSchedulerServer interface.  It returns the next queued job for a worker.
+// Next implements the BackendSchedulerServer interface.  It returns the next job for a worker.
 func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
 	ctx, span := tracer.Start(ctx, "Next")
 	defer span.End()
@@ -308,105 +251,149 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	timeoutCtx, cancel := context.WithTimeout(ctx, s.cfg.JobTimeout)
 	defer cancel()
 
+	select {
+	case <-s.providersReady:
+	case <-timeoutCtx.Done():
+		metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
+
+		return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, ErrNoJobsFound.Error())
+	}
+
 	// Loop so that stale jobs (whose preconditions no longer hold) can be
 	// silently discarded and we immediately try the next one, rather than
 	// handing an invalid job to a worker.
 	for {
-		select {
-		case j := <-s.mergedJobs:
-			if j == nil {
-				// Channel closed, no jobs available
-				metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
-				return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrNilJob.Error())
-			}
-
-			span.AddEvent("job received", trace.WithAttributes(
-				attribute.String("job_id", j.GetID()),
-			))
-
-			// All current job types require a tenant. Legacy global retention jobs
-			// emitted by old scheduler binaries have an empty tenant and bypass
-			// the per-type precondition checks.
-			if j.Tenant() == "" {
-				level.Debug(log.Logger).Log("msg", "legacy global job without tenant, passing through",
-					"job_id", j.ID, "type", j.GetType().String())
-			} else {
-				drop := false
-				switch j.GetType() {
-				case tempopb.JobType_JOB_TYPE_RETENTION:
-					// A redaction may have been submitted after this job was emitted.
-					// Drop it to avoid running retention over a mid-redaction tenant,
-					// and release its registration so the provider can emit a fresh
-					// job once the batch completes. Gate on the batch barrier
-					// (TenantPending), not just in-flight redaction jobs, so a batch
-					// in its rescan-wait window (no jobs in flight) still blocks retention.
-					if s.work.TenantPending(j.Tenant()) {
-						level.Debug(log.Logger).Log("msg", "dropping stale retention job: tenant has active redaction batch",
-							"job_id", j.ID, "tenant", j.Tenant())
-						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
-						s.work.UnregisterJob(j)
-						drop = true
-					}
-				case tempopb.JobType_JOB_TYPE_REDACTION:
-					// Resolve trace IDs from the batch manifest.
-					// Drop if the batch no longer exists (cancelled or already cleaned up).
-					batch := s.work.GetBatch(j.Tenant())
-					if batch == nil {
-						level.Debug(log.Logger).Log("msg", "dropping redaction job: batch no longer exists",
-							"job_id", j.ID, "tenant", j.Tenant())
-						metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
-						// This job was counted in-flight when NextPendingJob dequeued it; since it is
-						// dropped rather than promoted via AddJob, release that count or it leaks.
-						s.work.ReleaseRedactionInFlight(j.Tenant())
-						drop = true
-					} else if j.JobDetail.Redaction != nil {
-						// Inject the batch's selector (trace IDs or query) and mode so the
-						// worker can resolve and act on the block without re-reading the batch.
-						j.JobDetail.Redaction.TraceIds = batch.TraceIds
-						j.JobDetail.Redaction.Query = batch.Query
-						j.JobDetail.Redaction.Mode = batch.Mode
-						j.JobDetail.Redaction.StartTimeUnixNano = batch.StartTimeUnixNano
-						j.JobDetail.Redaction.EndTimeUnixNano = batch.EndTimeUnixNano
-					}
-				}
-				if drop {
-					continue
-				}
-			}
-
-			resp := &tempopb.NextJobResponse{
-				JobId:  j.ID,
-				Type:   j.Type,
-				Detail: j.JobDetail,
-			}
-
-			j.SetWorkerID(req.WorkerId)
-			err := s.work.AddJob(j)
-			if err != nil {
-				return &tempopb.NextJobResponse{}, status.Error(codes.Internal, err.Error())
-			}
-
-			s.work.StartJob(j.ID)
-			metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
-
-			err = s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, []string{j.ID})
-			if err != nil {
-				// Fail without returning the job if we can't update the job cache
-				return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
-			}
-
-			span.SetAttributes(attribute.String("job_id", j.ID))
-
-			metricJobsCreated.WithLabelValues(resp.Detail.Tenant, resp.Type.String()).Inc()
-
-			level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
-
-			return resp, nil
-		case <-timeoutCtx.Done():
-			span.SetAttributes(attribute.Int("job_q_depth", len(s.mergedJobs)))
+		j, providerIdx, err := nextProviderJob(timeoutCtx, s.jobChans)
+		if err != nil {
 			metricJobsNotFound.WithLabelValues(req.WorkerId).Inc()
 
+			if errors.Is(err, errProvidersClosed) {
+				return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrNilJob.Error())
+			}
 			return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, ErrNoJobsFound.Error())
+		}
+		metricProviderJobsMerged.WithLabelValues(strconv.Itoa(providerIdx)).Inc()
+
+		span.AddEvent("job received", trace.WithAttributes(
+			attribute.String("job_id", j.GetID()),
+		))
+
+		// All current job types require a tenant. Legacy global retention jobs
+		// emitted by old scheduler binaries have an empty tenant and bypass
+		// the per-type precondition checks.
+		if j.Tenant() == "" {
+			level.Debug(log.Logger).Log("msg", "legacy global job without tenant, passing through",
+				"job_id", j.ID, "type", j.GetType().String())
+		} else {
+			drop := false
+			switch j.GetType() {
+			case tempopb.JobType_JOB_TYPE_RETENTION:
+				// A redaction may have been submitted after this job was emitted.
+				// Drop it to avoid running retention over a mid-redaction tenant,
+				// and release its registration so the provider can emit a fresh
+				// job once the batch completes. Gate on the batch barrier
+				// (TenantPending), not just in-flight redaction jobs, so a batch
+				// in its rescan-wait window (no jobs in flight) still blocks retention.
+				if s.work.TenantPending(j.Tenant()) {
+					level.Debug(log.Logger).Log("msg", "dropping stale retention job: tenant has active redaction batch",
+						"job_id", j.ID, "tenant", j.Tenant())
+					metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+					s.work.UnregisterJob(j)
+					drop = true
+				}
+			case tempopb.JobType_JOB_TYPE_REDACTION:
+				// Resolve trace IDs from the batch manifest.
+				// Drop if the batch no longer exists (cancelled or already cleaned up).
+				batch := s.work.GetBatch(j.Tenant())
+				if batch == nil {
+					level.Debug(log.Logger).Log("msg", "dropping redaction job: batch no longer exists",
+						"job_id", j.ID, "tenant", j.Tenant())
+					metricJobsDropped.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+					// This job was counted in-flight when NextPendingJob dequeued it; since it is
+					// dropped rather than promoted via AddJob, release that count or it leaks.
+					s.work.ReleaseRedactionInFlight(j.Tenant())
+					drop = true
+				} else if j.JobDetail.Redaction != nil {
+					// Inject the batch's selector (trace IDs or query) and mode so the
+					// worker can resolve and act on the block without re-reading the batch.
+					j.JobDetail.Redaction.TraceIds = batch.TraceIds
+					j.JobDetail.Redaction.Query = batch.Query
+					j.JobDetail.Redaction.Mode = batch.Mode
+					j.JobDetail.Redaction.StartTimeUnixNano = batch.StartTimeUnixNano
+					j.JobDetail.Redaction.EndTimeUnixNano = batch.EndTimeUnixNano
+				}
+			}
+			if drop {
+				continue
+			}
+		}
+
+		resp := &tempopb.NextJobResponse{
+			JobId:  j.ID,
+			Type:   j.Type,
+			Detail: j.JobDetail,
+		}
+
+		j.SetWorkerID(req.WorkerId)
+		err = s.work.AddJob(j)
+		if err != nil {
+			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, err.Error())
+		}
+
+		s.work.StartJob(j.ID)
+		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
+
+		err = s.work.FlushToLocal(ctx, s.cfg.LocalWorkPath, []string{j.ID})
+		if err != nil {
+			// Fail without returning the job if we can't update the job cache
+			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
+		}
+
+		span.SetAttributes(attribute.String("job_id", j.ID))
+
+		metricJobsCreated.WithLabelValues(resp.Detail.Tenant, resp.Type.String()).Inc()
+
+		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
+
+		return resp, nil
+	}
+}
+
+// maxStackProviders is how many providers' select cases fit in nextProviderJob's stack buffer.
+// More still works, at the cost of one extra allocation.
+const maxStackProviders = 7
+
+var errProvidersClosed = errors.New("all provider channels closed")
+
+// nextProviderJob blocks until one of chans hands over a job and returns it with the index of its
+// channel. It returns ctx.Err() when ctx is done and errProvidersClosed once every channel has closed.
+// With no channels it waits for ctx, since Select then only has the ctx case.
+func nextProviderJob(ctx context.Context, chans []<-chan *work.Job) (*work.Job, int, error) {
+	var buf [maxStackProviders + 1]reflect.SelectCase // +1 for ctx.Done()
+	cases := buf[:0]
+	for _, c := range chans {
+		cases = append(cases, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(c)})
+	}
+	ctxCase := len(cases)
+	cases = append(cases, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ctx.Done())})
+
+	open := len(chans)
+	for {
+		chosen, v, recvOK := reflect.Select(cases)
+		switch {
+		case chosen == ctxCase:
+			return nil, 0, ctx.Err()
+		case !recvOK:
+			// Closed: a zero Chan makes Select ignore the case.
+			cases[chosen].Chan = reflect.Value{}
+			if open--; open == 0 {
+				return nil, 0, errProvidersClosed
+			}
+		case v.IsNil():
+			// Nothing to hand out; keep waiting.
+		default:
+			// A real job.
+			return v.Interface().(*work.Job), chosen, nil
 		}
 	}
 }

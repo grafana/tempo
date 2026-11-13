@@ -937,7 +937,9 @@ func TestNextDroppedRetentionJobReleasesRegistration(t *testing.T) {
 		},
 	}
 	s.work.RegisterJob(retJob)
-	s.mergedJobs <- retJob
+	jobs := make(chan *work.Job, 1)
+	s.publishJobChans([]<-chan *work.Job{jobs})
+	jobs <- retJob
 	require.True(t, s.work.HasJobsForTenant(testTenant, tempopb.JobType_JOB_TYPE_RETENTION))
 
 	// A redaction is submitted while the retention job is queued.
