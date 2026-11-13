@@ -249,5 +249,5 @@ func nanosToTime(n int64) time.Time {
 	if n == 0 {
 		return time.Time{}
 	}
-	return time.Unix(0, n)
+	return time.Unix(0, n).UTC() // UTC like the stdtime fields of the v1 proto
 }

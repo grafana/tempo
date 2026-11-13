@@ -109,6 +109,96 @@ func requireBlockMetaEqual(t *testing.T, want, got *BlockMeta) {
 	require.Equal(t, w, g)
 }
 
+// requireAllFieldsSet fails if any field reachable from v is its zero value, so that adding a
+// field to BlockMeta (or the index) without populating it in the round trip test below is caught.
+func requireAllFieldsSet(t *testing.T, v reflect.Value, path string) {
+	t.Helper()
+	switch v.Kind() {
+	case reflect.Pointer:
+		require.False(t, v.IsNil(), path)
+		requireAllFieldsSet(t, v.Elem(), path)
+	case reflect.Struct:
+		if v.Type() == reflect.TypeOf(time.Time{}) {
+			require.False(t, v.Interface().(time.Time).IsZero(), path)
+			return
+		}
+		for i := range v.NumField() {
+			requireAllFieldsSet(t, v.Field(i), path+"."+v.Type().Field(i).Name)
+		}
+	case reflect.Slice:
+		require.NotZero(t, v.Len(), path)
+		if v.Type().Elem().Kind() == reflect.Struct || v.Type().Elem().Kind() == reflect.Pointer {
+			for i := range v.Len() {
+				requireAllFieldsSet(t, v.Index(i), path)
+			}
+		}
+	default:
+		require.False(t, v.IsZero(), path)
+	}
+}
+
+// TestTenantIndexV2FullRoundTrip populates every field of the v1 index, converts it to V2 and
+// back, and requires the result to equal the original.
+func TestTenantIndexV2FullRoundTrip(t *testing.T) {
+	dc := DedicatedColumns{
+		{Scope: DedicatedColumnScopeSpan, Name: "a", Type: DedicatedColumnTypeInt, Options: DedicatedColumnOptions{DedicatedColumnOptionArray}},
+		{Scope: DedicatedColumnScopeResource, Name: "b", Type: DedicatedColumnTypeString, Options: DedicatedColumnOptions{DedicatedColumnOptionBlob}},
+	}
+	full := func(i int) BlockMeta {
+		return BlockMeta{
+			Version:           "vParquet5",
+			BlockID:           UUID(uuid.New()),
+			TenantID:          "tenant",
+			StartTime:         time.Unix(1700000000+int64(i), 11).UTC(),
+			EndTime:           time.Unix(1700003600+int64(i), 22).UTC(),
+			TotalObjects:      int64(100 + i),
+			Size_:             uint64(1<<30 + i),
+			CompactionLevel:   uint32(2 + i),
+			IndexPageSize:     250,
+			TotalRecords:      uint32(7 + i),
+			BloomShardCount:   3,
+			FooterSize:        4096,
+			DedicatedColumns:  dc,
+			ReplicationFactor: 3,
+			Options:           map[string]string{"feature": "x", "other": "y"},
+		}
+	}
+
+	live := []*BlockMeta{{}, {}}
+	*live[0], *live[1] = full(0), full(1)
+	orig := &TenantIndex{
+		CreatedAt: time.Unix(1700010000, 55).UTC(),
+		Meta:      live,
+		CompactedMeta: []*CompactedBlockMeta{
+			{BlockMeta: full(2), CompactedTime: time.Unix(1700007200, 33).UTC()},
+			{BlockMeta: full(3), CompactedTime: time.Unix(1700007300, 44).UTC()},
+		},
+		NoCompact: []UUID{live[0].BlockID},
+	}
+	requireAllFieldsSet(t, reflect.ValueOf(orig), "TenantIndex")
+
+	// v1 -> v2 -> v1
+	v1, err := orig.marshalPb()
+	require.NoError(t, err)
+	fromV1 := &TenantIndex{}
+	require.NoError(t, fromV1.unmarshalPb(v1))
+
+	v2, err := fromV1.marshalV2Zstd()
+	require.NoError(t, err)
+	got := &TenantIndex{}
+	require.NoError(t, got.unmarshalV2Zstd(v2))
+
+	require.Equal(t, orig, got)
+
+	// and the result must still encode as a valid v1 index with the same content. Bytes are not
+	// compared because proto marshals the options map in random order.
+	again, err := got.marshalPb()
+	require.NoError(t, err)
+	final := &TenantIndex{}
+	require.NoError(t, final.unmarshalPb(again))
+	require.Equal(t, orig, final)
+}
+
 func TestTenantIndexV2DedupesSchemas(t *testing.T) {
 	dc := DedicatedColumns{{Scope: DedicatedColumnScopeSpan, Name: "a", Type: DedicatedColumnTypeString}}
 	idx := &TenantIndex{CreatedAt: time.Unix(1, 0)}
