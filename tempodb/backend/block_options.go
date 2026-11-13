@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+var optionEscaper = strings.NewReplacer(`\`, `\\`, `,`, `\,`, `=`, `\=`)
+
 // OptionsString renders the block options as "[key=value, key2=value2]", sorted by key so that
 // it is independent of map iteration order. It is empty when there are no options. Blocks with
 // different options must not be compacted together, so two option sets are equal exactly
@@ -32,5 +34,3 @@ func (b *BlockMeta) OptionsString() string {
 	sb.WriteByte(']')
 	return sb.String()
 }
-
-var optionEscaper = strings.NewReplacer(`\`, `\\`, `,`, `\,`, `=`, `\=`)
