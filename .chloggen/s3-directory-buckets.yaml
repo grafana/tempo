@@ -1,0 +1,23 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: feature
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: storage
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Add the s3express storage backend for S3 directory buckets, in Availability Zones (S3 Express One Zone) and Local Zones, which the s3 backend can't start on.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  The s3express backend takes the options of the s3 backend. It authenticates with S3 Express sessions (CreateSession), like the AWS SDKs, and lists objects with ListObjectsV2, without `start-after` or relying on key order.
+  The s3 backend is unchanged.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: akin-ozer
