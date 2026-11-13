@@ -4,7 +4,7 @@ menuTitle: Query frontend
 description: How the query frontend shards and distributes queries.
 weight: 500
 topicType: concept
-versionDate: 2026-03-20
+versionDate: 2026-11-13
 ---
 
 # Query frontend
@@ -17,6 +17,9 @@ and distributes those jobs to queriers for execution.
 
 The query frontend handles the full lifecycle of a query.
 It shards a single query into many smaller jobs, each covering a subset of the data (for example, a subset of blocks or a time range).
+The frontend selects the backend blocks for each job from its blocklist, the list of blocks it knows exist in object storage,
+and sends their metadata with the job,
+so queriers don't need to look up blocks themselves.
 Jobs are placed in a per-tenant queue and dispatched to queriers in batches, reducing round-trip overhead.
 As queriers return partial results, the frontend merges and deduplicates them into a final response.
 If a querier fails to process a job, the frontend retries it on another querier.
