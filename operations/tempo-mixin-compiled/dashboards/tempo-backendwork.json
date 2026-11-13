@@ -3109,6 +3109,692 @@
     "type": "prometheus",
     "uid": "${metrics}"
    },
+   "description": "How long since the backend-scheduler last applied a successful job of each type to the blocklist.\n\n- **Ok**: less than 2h\n- **Delayed**: 2h or more\n- **Late**: 6h or more\n- **Very late**: 12h or more\n\n**Never** means no job of that type has succeeded since the scheduler started. Its status then counts from the start time, so a scheduler that never succeeds still turns Late.\n\n**Idle** (compaction only): the scheduler reports no outstanding blocks and the last compaction is 6h old or more. Compaction jobs are only created when there are blocks to compact, so an idle cluster stops refreshing this timestamp. Retention runs on a fixed interval (`retention-interval`, 1h by default), and is not covered by this status.",
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": false
+     },
+     "mappings": [
+
+     ],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Last success"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "s"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       },
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "options": {
+           "from": null,
+           "result": {
+            "index": 0,
+            "text": "Never"
+           },
+           "to": -1
+          },
+          "type": "range"
+         }
+        ]
+       },
+       {
+        "id": "custom.width",
+        "value": 120
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Status"
+      },
+      "properties": [
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "options": {
+           "match": "nan",
+           "result": {
+            "color": "blue",
+            "index": 0,
+            "text": "Idle"
+           }
+          },
+          "type": "special"
+         },
+         {
+          "options": {
+           "match": "null",
+           "result": {
+            "color": "transparent",
+            "index": 1,
+            "text": "Unknown"
+           }
+          },
+          "type": "special"
+         },
+         {
+          "options": {
+           "from": null,
+           "result": {
+            "color": "red",
+            "index": 2,
+            "text": "Very late"
+           },
+           "to": -43200
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": -43200,
+           "result": {
+            "color": "orange",
+            "index": 3,
+            "text": "Late"
+           },
+           "to": -21600
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": -21600,
+           "result": {
+            "color": "yellow",
+            "index": 4,
+            "text": "Delayed"
+           },
+           "to": -7200
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": -7200,
+           "result": {
+            "color": "green",
+            "index": 5,
+            "text": "Ok"
+           },
+           "to": 0
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": 0,
+           "result": {
+            "color": "green",
+            "index": 6,
+            "text": "Ok"
+           },
+           "to": 7200
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": 7200,
+           "result": {
+            "color": "yellow",
+            "index": 7,
+            "text": "Delayed"
+           },
+           "to": 21600
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": 21600,
+           "result": {
+            "color": "orange",
+            "index": 8,
+            "text": "Late"
+           },
+           "to": 43200
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": 43200,
+           "result": {
+            "color": "red",
+            "index": 9,
+            "text": "Very late"
+           },
+           "to": null
+          },
+          "type": "range"
+         }
+        ]
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "mode": "basic",
+         "type": "color-background"
+        }
+       },
+       {
+        "id": "custom.align",
+        "value": "center"
+       },
+       {
+        "id": "custom.width",
+        "value": 100
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Age"
+      },
+      "properties": [
+       {
+        "id": "custom.hidden",
+        "value": true
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Job type"
+      },
+      "properties": [
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "options": {
+           "JOB_TYPE_COMPACTION": {
+            "index": 0,
+            "text": "Compaction"
+           },
+           "JOB_TYPE_RETENTION": {
+            "index": 1,
+            "text": "Retention"
+           }
+          },
+          "type": "value"
+         }
+        ]
+       },
+       {
+        "id": "custom.width",
+        "value": 110
+       }
+      ]
+     }
+    ]
+   },
+   "gridPos": {
+    "h": 9,
+    "w": 12,
+    "x": 0,
+    "y": 53
+   },
+   "id": 47,
+   "options": {
+    "cellHeight": "sm",
+    "footer": {
+     "countRows": false,
+     "fields": "",
+     "reducer": [
+      "sum"
+     ],
+     "show": false
+    },
+    "showHeader": true
+   },
+   "pluginVersion": "12.0.1",
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(\n  max by (cluster, namespace, job_type) (\n    time() - (max_over_time(tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=~\"JOB_TYPE_COMPACTION|JOB_TYPE_RETENTION\"}[1h]) > 0)\n  )\n  or\n  max by (cluster, namespace, job_type) (tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=~\"JOB_TYPE_COMPACTION|JOB_TYPE_RETENTION\"} == 0)\n  - on (cluster, namespace) group_left\n  max by (cluster, namespace) (time() - max_over_time(process_start_time_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-scheduler\"}[1h]))\n)",
+     "format": "table",
+     "instant": true,
+     "range": false,
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(\n  max by (cluster, namespace, job_type) (\n    time() - (max_over_time(tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=~\"JOB_TYPE_COMPACTION|JOB_TYPE_RETENTION\"}[1h]) > 0)\n  )\n  or\n  max by (cluster, namespace, job_type) (tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=~\"JOB_TYPE_COMPACTION|JOB_TYPE_RETENTION\"} == 0)\n  - on (cluster, namespace) group_left\n  max by (cluster, namespace) (time() - max_over_time(process_start_time_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-scheduler\"}[1h]))\n)\nunless on (cluster, namespace, job_type)\n(\n  (abs((\n  max by (cluster, namespace, job_type) (\n    time() - (max_over_time(tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=~\"JOB_TYPE_COMPACTION|JOB_TYPE_RETENTION\"}[1h]) > 0)\n  )\n  or\n  max by (cluster, namespace, job_type) (tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=~\"JOB_TYPE_COMPACTION|JOB_TYPE_RETENTION\"} == 0)\n  - on (cluster, namespace) group_left\n  max by (cluster, namespace) (time() - max_over_time(process_start_time_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-scheduler\"}[1h]))\n)) >= 21600)\n  and on (cluster, namespace) (sum by (cluster, namespace) (tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-scheduler\"}) == 0)\n  and on (job_type) group by (job_type) (tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=\"JOB_TYPE_COMPACTION\"})\n)\nor\n(\n  max by (cluster, namespace, job_type) (\n    time() - (max_over_time(tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=~\"JOB_TYPE_COMPACTION|JOB_TYPE_RETENTION\"}[1h]) > 0)\n  )\n  or\n  max by (cluster, namespace, job_type) (tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=~\"JOB_TYPE_COMPACTION|JOB_TYPE_RETENTION\"} == 0)\n  - on (cluster, namespace) group_left\n  max by (cluster, namespace) (time() - max_over_time(process_start_time_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-scheduler\"}[1h]))\n) * 0 / 0",
+     "format": "table",
+     "instant": true,
+     "range": false,
+     "refId": "B"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "abs((\n  max by (cluster, namespace, job_type) (\n    time() - (max_over_time(tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=~\"JOB_TYPE_COMPACTION|JOB_TYPE_RETENTION\"}[1h]) > 0)\n  )\n  or\n  max by (cluster, namespace, job_type) (tempo_backend_scheduler_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", job_type=~\"JOB_TYPE_COMPACTION|JOB_TYPE_RETENTION\"} == 0)\n  - on (cluster, namespace) group_left\n  max by (cluster, namespace) (time() - max_over_time(process_start_time_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-scheduler\"}[1h]))\n))",
+     "format": "table",
+     "instant": true,
+     "range": false,
+     "refId": "C"
+    }
+   ],
+   "title": "Backend-scheduler: time since last successful job",
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {
+
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      },
+      "indexByName": {
+       "Value #A": 3,
+       "Value #B": 4,
+       "cluster": 0,
+       "job_type": 2,
+       "namespace": 1
+      },
+      "renameByName": {
+       "Value #A": "Last success",
+       "Value #B": "Status",
+       "Value #C": "Age",
+       "cluster": "Cluster",
+       "job_type": "Job type",
+       "namespace": "Namespace"
+      }
+     }
+    },
+    {
+     "id": "sortBy",
+     "options": {
+      "sort": [
+       {
+        "desc": true,
+        "field": "Age"
+       }
+      ]
+     }
+    }
+   ],
+   "type": "table"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${metrics}"
+   },
+   "description": "How long since each backend-worker last finished a job of any type successfully.\n\n- **Ok**: less than 2h\n- **Delayed**: 2h or more\n- **Late**: 6h or more\n- **Very late**: 12h or more\n\n**Never** means the worker hasn't finished a job since it started. Its status then counts from the start time.\n\n**Idle**: the scheduler reports no outstanding blocks and the worker's last success is 6h old or more. Workers only get work when there are jobs, and the hourly retention jobs (one per tenant) don't reach every worker, so an idle cluster leaves some workers without jobs.\n\nIf a worker shows Late or Very late while compaction has a backlog, check that worker's logs and its connection to the scheduler.",
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": false
+     },
+     "mappings": [
+
+     ],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Last success"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "s"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       },
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "options": {
+           "from": null,
+           "result": {
+            "index": 0,
+            "text": "Never"
+           },
+           "to": -1
+          },
+          "type": "range"
+         }
+        ]
+       },
+       {
+        "id": "custom.width",
+        "value": 120
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Status"
+      },
+      "properties": [
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "options": {
+           "match": "nan",
+           "result": {
+            "color": "blue",
+            "index": 0,
+            "text": "Idle"
+           }
+          },
+          "type": "special"
+         },
+         {
+          "options": {
+           "match": "null",
+           "result": {
+            "color": "transparent",
+            "index": 1,
+            "text": "Unknown"
+           }
+          },
+          "type": "special"
+         },
+         {
+          "options": {
+           "from": null,
+           "result": {
+            "color": "red",
+            "index": 2,
+            "text": "Very late"
+           },
+           "to": -43200
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": -43200,
+           "result": {
+            "color": "orange",
+            "index": 3,
+            "text": "Late"
+           },
+           "to": -21600
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": -21600,
+           "result": {
+            "color": "yellow",
+            "index": 4,
+            "text": "Delayed"
+           },
+           "to": -7200
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": -7200,
+           "result": {
+            "color": "green",
+            "index": 5,
+            "text": "Ok"
+           },
+           "to": 0
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": 0,
+           "result": {
+            "color": "green",
+            "index": 6,
+            "text": "Ok"
+           },
+           "to": 7200
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": 7200,
+           "result": {
+            "color": "yellow",
+            "index": 7,
+            "text": "Delayed"
+           },
+           "to": 21600
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": 21600,
+           "result": {
+            "color": "orange",
+            "index": 8,
+            "text": "Late"
+           },
+           "to": 43200
+          },
+          "type": "range"
+         },
+         {
+          "options": {
+           "from": 43200,
+           "result": {
+            "color": "red",
+            "index": 9,
+            "text": "Very late"
+           },
+           "to": null
+          },
+          "type": "range"
+         }
+        ]
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "mode": "basic",
+         "type": "color-background"
+        }
+       },
+       {
+        "id": "custom.align",
+        "value": "center"
+       },
+       {
+        "id": "custom.width",
+        "value": 100
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Age"
+      },
+      "properties": [
+       {
+        "id": "custom.hidden",
+        "value": true
+       }
+      ]
+     }
+    ]
+   },
+   "gridPos": {
+    "h": 9,
+    "w": 12,
+    "x": 12,
+    "y": 53
+   },
+   "id": 48,
+   "options": {
+    "cellHeight": "sm",
+    "footer": {
+     "countRows": false,
+     "fields": "",
+     "reducer": [
+      "sum"
+     ],
+     "show": false
+    },
+    "showHeader": true
+   },
+   "pluginVersion": "12.0.1",
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(\n  (\n    min by (cluster, namespace, pod) (\n      time() - (max_over_time(tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[1h]) > 0)\n    )\n    or\n    max by (cluster, namespace, pod) (tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"} == 0)\n    - on (cluster, namespace, pod)\n    max by (cluster, namespace, pod) (time() - max_over_time(process_start_time_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-worker\"}[1h]))\n  )\n  and on (cluster, namespace, pod)\n  group by (cluster, namespace, pod) (tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"})\n)",
+     "format": "table",
+     "instant": true,
+     "range": false,
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "(\n  (\n    min by (cluster, namespace, pod) (\n      time() - (max_over_time(tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[1h]) > 0)\n    )\n    or\n    max by (cluster, namespace, pod) (tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"} == 0)\n    - on (cluster, namespace, pod)\n    max by (cluster, namespace, pod) (time() - max_over_time(process_start_time_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-worker\"}[1h]))\n  )\n  and on (cluster, namespace, pod)\n  group by (cluster, namespace, pod) (tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"})\n)\nunless on (cluster, namespace, pod)\n(\n  (abs((\n  (\n    min by (cluster, namespace, pod) (\n      time() - (max_over_time(tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[1h]) > 0)\n    )\n    or\n    max by (cluster, namespace, pod) (tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"} == 0)\n    - on (cluster, namespace, pod)\n    max by (cluster, namespace, pod) (time() - max_over_time(process_start_time_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-worker\"}[1h]))\n  )\n  and on (cluster, namespace, pod)\n  group by (cluster, namespace, pod) (tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"})\n)) >= 21600)\n  and on (cluster, namespace) (sum by (cluster, namespace) (tempodb_compaction_outstanding_blocks{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-scheduler\"}) == 0)\n)\nor\n(\n  (\n    min by (cluster, namespace, pod) (\n      time() - (max_over_time(tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[1h]) > 0)\n    )\n    or\n    max by (cluster, namespace, pod) (tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"} == 0)\n    - on (cluster, namespace, pod)\n    max by (cluster, namespace, pod) (time() - max_over_time(process_start_time_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-worker\"}[1h]))\n  )\n  and on (cluster, namespace, pod)\n  group by (cluster, namespace, pod) (tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"})\n) * 0 / 0",
+     "format": "table",
+     "instant": true,
+     "range": false,
+     "refId": "B"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "${metrics}"
+     },
+     "editorMode": "code",
+     "expr": "abs((\n  (\n    min by (cluster, namespace, pod) (\n      time() - (max_over_time(tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"}[1h]) > 0)\n    )\n    or\n    max by (cluster, namespace, pod) (tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"} == 0)\n    - on (cluster, namespace, pod)\n    max by (cluster, namespace, pod) (time() - max_over_time(process_start_time_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\", container=\"backend-worker\"}[1h]))\n  )\n  and on (cluster, namespace, pod)\n  group by (cluster, namespace, pod) (tempo_backend_worker_last_successful_job_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"})\n))",
+     "format": "table",
+     "instant": true,
+     "range": false,
+     "refId": "C"
+    }
+   ],
+   "title": "Backend-worker: time since last successful job",
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {
+
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      },
+      "indexByName": {
+       "Value #A": 3,
+       "Value #B": 4,
+       "cluster": 0,
+       "namespace": 1,
+       "pod": 2
+      },
+      "renameByName": {
+       "Value #A": "Last success",
+       "Value #B": "Status",
+       "Value #C": "Age",
+       "cluster": "Cluster",
+       "namespace": "Namespace",
+       "pod": "Worker"
+      }
+     }
+    },
+    {
+     "id": "sortBy",
+     "options": {
+      "sort": [
+       {
+        "desc": true,
+        "field": "Age"
+       }
+      ]
+     }
+    }
+   ],
+   "type": "table"
+  },
+  {
+   "datasource": {
+    "type": "prometheus",
+    "uid": "${metrics}"
+   },
    "fieldConfig": {
     "defaults": {
      "color": {
@@ -3171,7 +3857,7 @@
     "h": 6,
     "w": 5,
     "x": 0,
-    "y": 53
+    "y": 62
    },
    "id": 9,
    "options": {
@@ -3275,7 +3961,7 @@
     "h": 6,
     "w": 4,
     "x": 5,
-    "y": 53
+    "y": 62
    },
    "id": 11,
    "options": {
@@ -3378,7 +4064,7 @@
     "h": 6,
     "w": 5,
     "x": 9,
-    "y": 53
+    "y": 62
    },
    "id": 10,
    "options": {
@@ -3481,7 +4167,7 @@
     "h": 6,
     "w": 4,
     "x": 14,
-    "y": 53
+    "y": 62
    },
    "id": 13,
    "options": {
@@ -3585,7 +4271,7 @@
     "h": 6,
     "w": 4,
     "x": 18,
-    "y": 53
+    "y": 62
    },
    "id": 12,
    "options": {
@@ -3688,7 +4374,7 @@
     "h": 6,
     "w": 2,
     "x": 22,
-    "y": 53
+    "y": 62
    },
    "id": 29,
    "options": {
@@ -3729,7 +4415,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 59
+    "y": 68
    },
    "id": 25,
    "panels": [
@@ -3850,7 +4536,7 @@
     "h": 8,
     "w": 6,
     "x": 12,
-    "y": 60
+    "y": 69
    },
    "id": 7,
    "options": {
@@ -4022,7 +4708,7 @@
     "h": 8,
     "w": 6,
     "x": 18,
-    "y": 60
+    "y": 69
    },
    "id": 6,
    "options": {
@@ -4101,7 +4787,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 68
+    "y": 77
    },
    "id": 1,
    "panels": [
@@ -4177,7 +4863,7 @@
     "h": 8,
     "w": 6,
     "x": 0,
-    "y": 69
+    "y": 78
    },
    "id": 2,
    "options": {
@@ -4360,7 +5046,7 @@
     "h": 8,
     "w": 6,
     "x": 6,
-    "y": 69
+    "y": 78
    },
    "id": 3,
    "options": {
@@ -4521,7 +5207,7 @@
     "h": 8,
     "w": 6,
     "x": 12,
-    "y": 69
+    "y": 78
    },
    "id": 4,
    "options": {
@@ -4693,7 +5379,7 @@
     "h": 8,
     "w": 6,
     "x": 18,
-    "y": 69
+    "y": 78
    },
    "id": 5,
    "options": {
