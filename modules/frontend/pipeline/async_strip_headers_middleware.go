@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 )
@@ -33,16 +34,17 @@ func NewStripHeadersWare(allowList []string) AsyncMiddleware[combiner.PipelineRe
 func (c stripHeadersWare) RoundTrip(req Request) (Responses[combiner.PipelineResponse], error) {
 	httpReq := req.HTTPRequest()
 
-	if len(c.allowed) == 0 {
-		clear(httpReq.Header)
-	} else {
-		// clear out headers not in allow list
-		for header := range httpReq.Header {
-			if _, ok := c.allowed[http.CanonicalHeaderKey(header)]; !ok {
-				delete(httpReq.Header, header)
-			}
+	// The caller reads the original headers after the pipeline returns, e.g. for log_query_request_headers,
+	// so the stripped headers go on a shallow copy of the request.
+	stripped := make(http.Header, len(c.allowed))
+	for header, values := range httpReq.Header {
+		if _, ok := c.allowed[http.CanonicalHeaderKey(header)]; ok {
+			stripped[header] = slices.Clone(values)
 		}
 	}
 
-	return c.next.RoundTrip(req.CloneFromHTTPRequest(httpReq))
+	strippedReq := httpReq.WithContext(httpReq.Context())
+	strippedReq.Header = stripped
+
+	return c.next.RoundTrip(req.CloneFromHTTPRequest(strippedReq))
 }
