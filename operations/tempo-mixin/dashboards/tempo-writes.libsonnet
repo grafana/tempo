@@ -1,5 +1,6 @@
 local dashboard_utils = import 'dashboard-utils.libsonnet';
 local g = import 'grafana-builder/grafana.libsonnet';
+local filename = 'tempo-writes.json';
 local utils = import 'mixin-utils/utils.libsonnet';
 
 // Prefer the native histogram, but fall back to the classic one for
@@ -9,8 +10,8 @@ local ncOrFallback(q) = '%(native)s or %(classic)s' % q;
 
 dashboard_utils {
   grafanaDashboards+: {
-    'tempo-writes.json':
-      $.dashboard('Tempo / Writes')
+    [filename]:
+      ($.dashboard('Tempo / Writes') + { uid: std.md5(filename) })
       .addClusterSelectorTemplates()
       .addRow(
         g.row('Gateway')
