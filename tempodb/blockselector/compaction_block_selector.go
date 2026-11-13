@@ -107,10 +107,10 @@ func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 			// Choose lowest compaction level and most recent windows first.
 			entry.group = fmt.Sprintf("A-%v-%016X-%v", b.CompactionLevel, age, b.ReplicationFactor)
 
-			// Within group choose smallest blocks first.
+			// Keep signature schemas contiguous, then choose smallest blocks first.
 			// update after parquet: we want to make sure blocks of the same version end up together
 			// update afert vParquet3: we want to make sure blocks of the same dedicated columns end up together
-			entry.order = fmt.Sprintf("%016X-%v-%016X", entry.meta.TotalObjects, entry.meta.Version, entry.dedicatedColumnsHash)
+			entry.order = fmt.Sprintf("%08X-%016X-%v-%016X", b.TraceSignatureVersion, entry.meta.TotalObjects, entry.meta.Version, entry.dedicatedColumnsHash)
 
 			entry.hash = fmt.Sprintf("%v-%v-%v-%v", b.TenantID, b.CompactionLevel, w, b.ReplicationFactor)
 		} else {
@@ -118,10 +118,10 @@ func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 			// Group by window only.  Choose most recent windows first.
 			entry.group = fmt.Sprintf("B-%016X-%v", age, b.ReplicationFactor)
 
-			// Within group chose lowest compaction lvl and smallest blocks first.
+			// Keep signature schemas contiguous, then choose lowest compaction level and smallest blocks first.
 			// update after parquet: we want to make sure blocks of the same version end up together
 			// update afert vParquet3: we want to make sure blocks of the same dedicated columns end up together
-			entry.order = fmt.Sprintf("%v-%016X-%v-%016X", b.CompactionLevel, entry.meta.TotalObjects, entry.meta.Version, entry.dedicatedColumnsHash)
+			entry.order = fmt.Sprintf("%08X-%v-%016X-%v-%016X", b.TraceSignatureVersion, b.CompactionLevel, entry.meta.TotalObjects, entry.meta.Version, entry.dedicatedColumnsHash)
 
 			entry.hash = fmt.Sprintf("%v-%v-%v", b.TenantID, w, b.ReplicationFactor)
 		}
@@ -156,6 +156,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 
 				if twbs.entries[i].group == twbs.entries[j].group &&
 					twbs.entries[i].meta.Version == twbs.entries[j].meta.Version && // update after parquet: only compact blocks of the same version
+					twbs.entries[i].meta.TraceSignatureVersion == twbs.entries[j].meta.TraceSignatureVersion &&
 					twbs.entries[i].dedicatedColumnsHash == twbs.entries[j].dedicatedColumnsHash && // update after vParquet3: only compact blocks of the same dedicated columns
 					len(stripe) <= twbs.MaxInputBlocks &&
 					totalObjects(stripe) <= twbs.MaxCompactionObjects &&

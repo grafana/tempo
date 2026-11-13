@@ -22,7 +22,7 @@ func (b *backendBlock) openForIteration(ctx context.Context) (*parquet.File, *pa
 	// 128 MB memory buffering
 	br := tempo_io.NewBufferedReaderAt(rr, int64(b.meta.Size_), 2*1024*1024, 64)
 
-	sch, _, readerOptions := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
+	sch, _, readerOptions := SchemaWithDynamicChanges(TraceSchemaConfig{DedicatedColumns: b.meta.DedicatedColumns, SignatureVersion: b.meta.TraceSignatureVersion})
 
 	o := []parquet.FileOption{
 		parquet.SkipBloomFilters(true),

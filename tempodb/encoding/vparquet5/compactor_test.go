@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
+	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
@@ -152,7 +153,7 @@ func TestCountSpans(t *testing.T) {
 	rootSpan := "foo"
 	rootService := "bar"
 
-	sch, _, _ := SchemaWithDynamicChanges(backend.DedicatedColumns{})
+	sch, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{DedicatedColumns: backend.DedicatedColumns{}})
 	traceID := make([]byte, 16)
 	_, err := crand.Read(traceID)
 	require.NoError(t, err)
@@ -211,6 +212,133 @@ func TestCompact(t *testing.T) {
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }
 
+func createSimilarityLifecycleBlock(t *testing.T, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, id byte, signatureVersion uint32, similarity *TraceSimilarity) *backend.BlockMeta {
+	t.Helper()
+
+	meta := backend.NewBlockMeta(tenantID, uuid.New(), VersionString)
+	meta.TraceSignatureVersion = signatureVersion
+	meta.TotalObjects = 1
+
+	sb, outMeta := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
+	traceID := make([]byte, 16)
+	traceID[15] = id
+
+	require.NoError(t, sb.Add(&Trace{
+		TraceID:         traceID,
+		RootServiceName: "service",
+		Similarity:      similarity,
+	}, 1, 2))
+	_, err := sb.Complete()
+	require.NoError(t, err)
+
+	return outMeta
+}
+
+func readSimilarityLifecycleTraces(t *testing.T, ctx context.Context, meta *backend.BlockMeta, r backend.Reader) map[string]*TraceSimilarity {
+	t.Helper()
+
+	block := newBackendBlock(meta, r)
+	iter, err := block.rawIter(ctx, newRowPool(2))
+	require.NoError(t, err)
+	defer iter.Close()
+
+	schema, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{
+		DedicatedColumns: meta.DedicatedColumns,
+		SignatureVersion: meta.TraceSignatureVersion,
+	})
+
+	out := map[string]*TraceSimilarity{}
+	for {
+		id, row, err := iter.Next(ctx)
+		if row == nil {
+			require.NoError(t, err)
+			break
+		}
+		require.NoError(t, err)
+
+		tr := new(Trace)
+		require.NoError(t, schema.Reconstruct(tr, row))
+		out[string(id)] = tr.Similarity
+	}
+
+	return out
+}
+
+func TestTraceSimilarityLifecycle(t *testing.T) {
+	tests := []struct {
+		name            string
+		unsignedVersion uint32
+		signedFirst     bool
+		wantErr         bool
+	}{
+		{name: "v1_then_v1", unsignedVersion: TraceSignatureVersionV1},
+		{name: "v0_then_v1", unsignedVersion: TraceSignatureVersionNone, wantErr: true},
+		{name: "v1_then_v0", unsignedVersion: TraceSignatureVersionNone, signedFirst: true, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rawR, rawW, _, err := local.New(&local.Config{Path: t.TempDir()})
+			require.NoError(t, err)
+
+			r := backend.NewReader(rawR)
+			w := backend.NewWriter(rawW)
+			ctx := context.Background()
+
+			cfg := &common.BlockConfig{Version: VersionString}
+			cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+			require.NoError(t, common.ValidateConfig(cfg))
+
+			similarity := &TraceSimilarity{ShingleCount: 7}
+			similarity.Signature[0] = 42
+
+			unsignedMeta := createSimilarityLifecycleBlock(t, ctx, cfg, r, w, 1, tt.unsignedVersion, nil)
+			signedMeta := createSimilarityLifecycleBlock(t, ctx, cfg, r, w, 2, TraceSignatureVersionV1, similarity)
+
+			before := readSimilarityLifecycleTraces(t, ctx, signedMeta, r)
+			require.Len(t, before, 1)
+			signedTraceID := make([]byte, 16)
+			signedTraceID[15] = 2
+			require.Equal(t, similarity, before[string(signedTraceID)])
+
+			inputs := []*backend.BlockMeta{unsignedMeta, signedMeta}
+			if tt.signedFirst {
+				inputs[0], inputs[1] = inputs[1], inputs[0]
+			}
+
+			c := NewCompactor(common.CompactionOptions{
+				BlockConfig:     *cfg,
+				OutputBlocks:    1,
+				ObjectsCombined: func(_, _ int) {},
+			})
+			output, err := c.Compact(ctx, log.NewNopLogger(), r, w, inputs)
+			if tt.wantErr {
+				require.ErrorContains(t, err, "cannot compact blocks with different trace signature versions")
+				require.Nil(t, output)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, output, 1)
+			require.Equal(t, TraceSignatureVersionV1, output[0].TraceSignatureVersion)
+
+			after := readSimilarityLifecycleTraces(t, ctx, output[0], r)
+			require.Len(t, after, 2)
+			for id, similarity := range after {
+				switch id[len(id)-1] {
+				case 1:
+					require.Nil(t, similarity)
+				case 2:
+					require.NotNil(t, similarity)
+					require.Equal(t, uint32(7), similarity.ShingleCount)
+					require.Equal(t, byte(42), similarity.Signature[0])
+				default:
+					t.Fatalf("unexpected trace ID %x", id)
+				}
+			}
+		})
+	}
+}
+
 func TestCompactTraceWritten(t *testing.T) {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
@@ -231,7 +359,7 @@ func TestCompactTraceWritten(t *testing.T) {
 	metaLevel2.CompactionLevel = 2
 
 	// Same trace ID with different spans in each block, so compaction takes the real combine path.
-	sch, _, _ := SchemaWithDynamicChanges(nil)
+	sch, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{DedicatedColumns: nil, SignatureVersion: 0})
 	splitID := test.ValidTraceID(nil)
 	var splitFragments []*backend.BlockMeta
 	largestFragment := 0

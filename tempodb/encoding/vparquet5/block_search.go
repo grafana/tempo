@@ -58,7 +58,7 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	// openForSearch creates a fresh BackendReaderAt for each call using the provided context.
 	backendReaderAt := NewBackendReaderAt(ctx, b.r, DataFileName, b.meta)
 
-	schema, _, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
+	schema, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{DedicatedColumns: b.meta.DedicatedColumns, SignatureVersion: b.meta.TraceSignatureVersion})
 
 	// no searches currently require bloom filters or the page index. so just add them statically
 	o := []parquet.FileOption{

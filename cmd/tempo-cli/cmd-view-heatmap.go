@@ -96,7 +96,7 @@ func (cmd *heatmapCmd) Run(ctx *globalOptions) error {
 // 4-byte "PAR1" magic header.
 func rowGroupBoundaries(ctx context.Context, r backend.Reader, meta *backend.BlockMeta) (rowEnds, byteEnds []int64, err error) {
 	rr := vparquet5.NewBackendReaderAt(ctx, r, vparquet5.DataFileName, meta)
-	schema, _, _ := vparquet5.SchemaWithDynamicChanges(meta.DedicatedColumns)
+	schema, _, _ := vparquet5.SchemaWithDynamicChanges(vparquet5.TraceSchemaConfig{DedicatedColumns: meta.DedicatedColumns, SignatureVersion: meta.TraceSignatureVersion})
 
 	pf, err := parquet.OpenFile(
 		rr, int64(meta.Size_),

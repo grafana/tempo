@@ -792,6 +792,9 @@ func testCompleteBlock(t *testing.T, from, to string) {
 		TenantID:         testTenantID,
 		DedicatedColumns: test.MakeDedicatedColumns(),
 	}
+	if from == vparquet5.VersionString {
+		meta.TraceSignatureVersion = vparquet5.TraceSignatureVersionV1
+	}
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 	require.Equal(t, block.BlockMeta().Version, from)
@@ -819,6 +822,12 @@ func testCompleteBlock(t *testing.T, from, to string) {
 	complete, err := w.CompleteBlock(context.Background(), block)
 	require.NoError(t, err, "unexpected error completing block")
 	require.Equal(t, complete.BlockMeta().Version, to)
+
+	expectedSignatureVersion := vparquet5.TraceSignatureVersionNone
+	if from == vparquet5.VersionString && to == vparquet5.VersionString {
+		expectedSignatureVersion = vparquet5.TraceSignatureVersionV1
+	}
+	require.Equal(t, expectedSignatureVersion, complete.BlockMeta().TraceSignatureVersion)
 
 	for i, id := range ids {
 		found, err := complete.FindTraceByID(context.TODO(), id, common.DefaultSearchOptions())
