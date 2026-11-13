@@ -20,7 +20,7 @@ func TestMultiplierFromTraceState(t *testing.T) {
 		{
 			name:       "empty tracestate",
 			traceState: "",
-			expected:   0,
+			expected:   -1,
 		},
 		{
 			name:       "th:0 means always sampled",
@@ -55,37 +55,37 @@ func TestMultiplierFromTraceState(t *testing.T) {
 		{
 			name:       "invalid hex in threshold",
 			traceState: "ot=th:xyz",
-			expected:   0,
+			expected:   -1,
 		},
 		{
 			name:       "no ot key",
 			traceState: "vendor1=value1,vendor2=value2",
-			expected:   0,
+			expected:   -1,
 		},
 		{
 			name:       "ot without th subkey",
 			traceState: "ot=rv:00112233445566",
-			expected:   0,
+			expected:   -1,
 		},
 		{
 			name:       "threshold too long",
 			traceState: "ot=th:123456789abcdef",
-			expected:   0,
+			expected:   -1,
 		},
 		{
 			name:       "empty threshold value",
 			traceState: "ot=th:",
-			expected:   0,
+			expected:   -1,
 		},
 		{
 			name:       "vendor key ending with ot",
 			traceState: "not=foo:bar",
-			expected:   0,
+			expected:   -1,
 		},
 		{
 			name:       "vendor key ending with ot with th",
 			traceState: "not=th:c",
-			expected:   0,
+			expected:   -1,
 		},
 		{
 			name:       "not and ot vendor keys each with th",
@@ -191,7 +191,15 @@ func FuzzMultiplierFromTraceState(f *testing.F) {
 		if strings.Count(traceState, "ot=") > 1 {
 			return
 		}
+		// zc is not known to the strict parser; its handling is covered by table tests.
+		if strings.Contains(traceState, "zc:1") {
+			return
+		}
 		raw := w3c.OTelValue().AdjustedCount()
+		if raw == 0 {
+			assert.Equal(t, -1.0, result, "traceState: %s", traceState)
+			return
+		}
 		// When there's no R-value, our result equals the raw AdjustedCount.
 		// When an R-value is present, our result is stochastically rounded
 		// and must be floor(raw) or ceil(raw). E[result] still equals raw
@@ -206,4 +214,37 @@ func FuzzMultiplierFromTraceState(f *testing.F) {
 		}
 		assert.True(t, result == floor || result == ceil, "traceState: %s — expected %v or %v, got %v", traceState, floor, ceil, result)
 	})
+}
+
+func TestMultiplierFromTraceStateZeroCount(t *testing.T) {
+	tests := []struct {
+		name       string
+		traceState string
+		expected   float64
+	}{
+		{"no ot key", "vendor=zc:1", -1},
+		{"zc only", "ot=zc:1", 0},
+		{"zc with other subkeys after", "ot=zc:1;rv:6e6d1a75832a2f", 0},
+		{"zc with other subkeys before", "ot=rv:6e6d1a75832a2f;zc:1", 0},
+		{"zc takes precedence over th", "ot=th:8;zc:1", 0},
+		{"zc in other vendor key", "not=zc:1,ot=th:8", 2},
+		{"zc with other vendor keys", "a=b, ot=zc:1,c=d", 0},
+		{"zc with value other than 1", "ot=zc:0", -1},
+		{"zc with empty value", "ot=zc:", -1},
+		{"subkey ending in zc", "ot=xzc:1", -1},
+		{"subkey with zc prefix", "ot=zc:10", -1},
+		{"empty subkey before zc", "ot=th:8;;zc:1", 0},
+		{"empty subkey after zc", "ot=zc:1;;th:8", 0},
+		{"trailing separator", "ot=zc:1;", 0},
+		{"leading separator", "ot=;zc:1", 0},
+		{"zc with invalid th", "ot=th:xyz;zc:1", 0},
+		{"zc with too long th", "ot=th:123456789abcdef;zc:1", 0},
+		{"only the first ot entry is used", "ot=th:8,ot=zc:1", 2},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, MultiplierFromTraceState(tc.traceState), "tracestate: %s", tc.traceState)
+		})
+	}
 }
