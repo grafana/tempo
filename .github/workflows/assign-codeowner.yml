@@ -1,0 +1,93 @@
+name: Assign a code owner to pull requests
+
+on:
+  # A daily sweep over unassigned PRs, rather than an event handler on PR
+  # creation. Scheduled runs execute from the default branch with the
+  # repository's own token, so they can assign on PRs opened from forks. A
+  # `pull_request` trigger cannot do that: fork PRs receive a read-only token
+  # and no secrets, so assignment would fail for outside contributors.
+  #
+  # Trade-off: assignment happens within a day of a PR opening, not within
+  # seconds. PRs above the per-run cap wait for a subsequent run.
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: assign-codeowner
+  cancel-in-progress: false
+
+jobs:
+  assign:
+    name: Balance assignments across code owners
+    if: github.repository == 'grafana/tempo'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Reads repository contents and pull requests; writes assignments and
+    # labels on issues and pull requests.
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # A manual dispatch can name another ref. Always execute the trusted
+          # default-branch script, never code from a PR branch.
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Assign available code owners
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          # Comma or space separated logins that override the code owner pool.
+          # CODEOWNERS names teams only, and expanding a team needs an
+          # org-scoped token this workflow does not have, so the pool is
+          # hardcoded for now: the global "*" owners from before #8133 switched
+          # CODEOWNERS to @grafana/tempo. Override with the
+          # CODEOWNER_ASSIGNEES repository variable. Delete the fallback only
+          # after CODEOWNERS names individuals or team expansion has an
+          # org-scoped token.
+          ASSIGNEE_POOL: ${{ vars.CODEOWNER_ASSIGNEES || 'mdisibio,mapno,yvrhdn,zalegrala,electron0zero,ie-pham,stoewer,javiermolinar,carles-grafana,ruslan-mikhailov,mattdurham,zhxiaogg' }}
+          # Space or comma separated owners that are never assigned. Matching
+          # is case-insensitive and ignores a leading "@", so
+          # "grafana/docs-traces" and "@grafana/docs-traces" are the same
+          # entry; team entries must keep their org prefix. Excluded here
+          # rather than by relying on the intersection rule, so a team that
+          # happens to own every rule is still kept out of the pool.
+          EXCLUDED_OWNERS: 'grafana/docs-traces'
+          # Caps a single run. The first run after merging would otherwise
+          # assign every unassigned PR at once and notify each owner once per
+          # PR. The remainder is picked up on later runs.
+          MAX_ASSIGNMENTS: '25'
+          # Open PRs older than this stop counting as load. Otherwise an
+          # abandoned PR penalises its assignee permanently, while closed PRs
+          # only count for seven days.
+          OPEN_LOAD_MAX_AGE_DAYS: '90'
+          # Marks PRs this sweep has assigned, so a later run can tell
+          # "auto-assigned then cleared" from "never assigned".
+          MARKER_LABEL: codeowner-sweep
+          # The account that appears as the actor when the workflow assigns
+          # through GITHUB_TOKEN. Only used to interpret timeline events.
+          BOT_ACTOR: 'github-actions[bot]'
+        run: go run ./.github/scripts
+
+      - name: Report a failed sweep
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # A scheduled failure notifies only this file's last editor, so record
+        # the failure where maintainers will see it.
+        run: go run ./.github/scripts report-failure
