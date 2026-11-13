@@ -292,10 +292,10 @@ func TestTraceSimilarityLifecycle(t *testing.T) {
 			similarity := &TraceSimilarity{ShingleCount: 7}
 			similarity.Signature[0] = 42
 
-			unsignedMeta := createSimilarityLifecycleBlock(t, ctx, cfg, r, w, 1, tt.unsignedVersion, nil)
-			signedMeta := createSimilarityLifecycleBlock(t, ctx, cfg, r, w, 2, TraceSignatureVersionV1, similarity)
+			unsignedMeta := createSimilarityLifecycleBlock(ctx, t, cfg, r, w, 1, tt.unsignedVersion, nil)
+			signedMeta := createSimilarityLifecycleBlock(ctx, t, cfg, r, w, 2, TraceSignatureVersionV1, similarity)
 
-			before := readSimilarityLifecycleTraces(t, ctx, signedMeta, r)
+			before := readSimilarityLifecycleTraces(ctx, t, signedMeta, r)
 			require.Len(t, before, 1)
 			signedTraceID := make([]byte, 16)
 			signedTraceID[15] = 2
@@ -321,7 +321,7 @@ func TestTraceSimilarityLifecycle(t *testing.T) {
 			require.Len(t, output, 1)
 			require.Equal(t, TraceSignatureVersionV1, output[0].TraceSignatureVersion)
 
-			after := readSimilarityLifecycleTraces(t, ctx, output[0], r)
+			after := readSimilarityLifecycleTraces(ctx, t, output[0], r)
 			require.Len(t, after, 2)
 			for id, similarity := range after {
 				switch id[len(id)-1] {
