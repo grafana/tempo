@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: storage
+note: fix double prefix in compactor and DeleteVersioned in azure and s3.
+issues: [7271]
+subtext:
+user: electron0zero

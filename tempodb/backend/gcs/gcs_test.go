@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/api/googleapi"
 	raw "google.golang.org/api/storage/v1"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -263,6 +264,130 @@ func TestRetry_ClearBlock(t *testing.T) {
 
 		return true
 	})
+}
+
+func TestMarkBlockCompacted_NotFound(t *testing.T) {
+	tests := []struct {
+		name       string
+		failDelete bool
+		status     int
+	}{
+		{name: "rewrite not found", status: http.StatusNotFound},
+		{name: "delete not found", failDelete: true, status: http.StatusNotFound},
+		{name: "rewrite forbidden", status: http.StatusForbidden},
+		{name: "delete forbidden", failDelete: true, status: http.StatusForbidden},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			id := uuid.New()
+			root := backend.RootPath(id, "tenant", "")
+			rewritePath := "/b/blerg/o/" + root + "/meta.json/rewriteTo/b/blerg/o/" + root + "/meta.compacted.json"
+			deletePath := "/b/blerg/o/" + root + "/meta.json"
+			var rewrites, deletes atomic.Int32
+
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/b/blerg":
+					_, _ = w.Write([]byte(`{}`))
+				case r.Method == http.MethodPost && r.URL.Path == rewritePath:
+					rewrites.Add(1)
+					if tc.failDelete {
+						_, _ = w.Write([]byte(`{"done":true,"resource":{"bucket":"blerg","name":"meta.compacted.json"}}`))
+					} else {
+						w.WriteHeader(tc.status)
+						_, _ = fmt.Fprintf(w, `{"error":{"code":%d,"message":"test error"}}`, tc.status)
+					}
+				case r.Method == http.MethodDelete && r.URL.Path == deletePath:
+					deletes.Add(1)
+					w.WriteHeader(tc.status)
+					_, _ = fmt.Fprintf(w, `{"error":{"code":%d,"message":"test error"}}`, tc.status)
+				default:
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}))
+			server.StartTLS()
+			t.Cleanup(server.Close)
+
+			_, _, c, err := New(&Config{BucketName: "blerg", Insecure: true, Endpoint: server.URL, MaxRetries: 3})
+			require.NoError(t, err)
+
+			err = c.MarkBlockCompacted(id, "tenant")
+			require.Error(t, err)
+			if tc.status == http.StatusNotFound {
+				require.True(t, errors.Is(err, backend.ErrDoesNotExist))
+			} else {
+				require.False(t, errors.Is(err, backend.ErrDoesNotExist))
+				var apiErr *googleapi.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, tc.status, apiErr.Code)
+			}
+			require.Equal(t, int32(1), rewrites.Load())
+			if tc.failDelete {
+				require.Equal(t, int32(1), deletes.Load())
+			} else {
+				require.Zero(t, deletes.Load())
+			}
+		})
+	}
+}
+
+func TestClearBlock_ContinuesPastNotFound(t *testing.T) {
+	for _, status := range []int{http.StatusNotFound, http.StatusForbidden} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			id := uuid.New()
+			root := backend.RootPath(id, "tenant", "")
+			names := []string{root + "/meta.json", root + "/data.parquet", root + "/bloom-0"}
+			var mu sync.Mutex
+			var deleted []string
+
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/b/blerg":
+					_, _ = w.Write([]byte(`{}`))
+				case r.Method == http.MethodGet && r.URL.Path == "/b/blerg/o":
+					objects := raw.Objects{}
+					for _, name := range names {
+						objects.Items = append(objects.Items, &raw.Object{Name: name, Bucket: "blerg"})
+					}
+					assert.NoError(t, json.NewEncoder(w).Encode(objects))
+				case r.Method == http.MethodDelete:
+					mu.Lock()
+					deleted = append(deleted, strings.TrimPrefix(r.URL.Path, "/b/blerg/o/"))
+					mu.Unlock()
+					if r.URL.Path == "/b/blerg/o/"+names[0] {
+						w.WriteHeader(status)
+						_, _ = fmt.Fprintf(w, `{"error":{"code":%d,"message":"test error"}}`, status)
+					} else {
+						w.WriteHeader(http.StatusNoContent)
+					}
+				default:
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}))
+			server.StartTLS()
+			t.Cleanup(server.Close)
+
+			_, _, c, err := New(&Config{BucketName: "blerg", Insecure: true, Endpoint: server.URL, MaxRetries: 3})
+			require.NoError(t, err)
+
+			err = c.ClearBlock(id, "tenant")
+			mu.Lock()
+			gotDeleted := append([]string(nil), deleted...)
+			mu.Unlock()
+			if status == http.StatusNotFound {
+				require.NoError(t, err)
+				require.Equal(t, names, gotDeleted)
+			} else {
+				var apiErr *googleapi.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, status, apiErr.Code)
+				require.Equal(t, names[:1], gotDeleted)
+			}
+		})
+	}
 }
 
 func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.Server {
