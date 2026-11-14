@@ -67,7 +67,7 @@ jobs:
 
       # Socket scans the manifests on disk, so check out the exact tag being released.
       - name: Checkout release tag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           ref: ${{ steps.version.outputs.tag }}
           persist-credentials: false
@@ -81,7 +81,7 @@ jobs:
 
       - name: Export SPDX SBOM from Socket
         id: export-sbom
-        uses: grafana/shared-workflows/actions/socket-export-sbom@73f73d35ceadf46221741d45faefec0c5a990e6b # socket-export-sbom/v1.0.0
+        uses: grafana/shared-workflows/actions/socket-export-sbom@socket-export-sbom/v1
         with:
           socket_api_token: ${{ fromJSON(steps.vault-secrets.outputs.secrets).SOCKET_API_TOKEN }}
           socket_org: grafana
