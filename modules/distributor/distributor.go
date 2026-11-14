@@ -119,15 +119,6 @@ var (
 		Name:      "distributor_received_traces_total",
 		Help:      "The total number of traces received per tenant",
 	}, []string{"tenant"})
-	metricTraceSizeBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace:                       "tempo",
-		Name:                            "distributor_trace_size_bytes",
-		Help:                            "The size in bytes of each trace received, per tenant",
-		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 31), // 1KiB to 1TiB, traces can be very large
-		NativeHistogramBucketFactor:     1.1,
-		NativeHistogramMaxBucketNumber:  100,
-		NativeHistogramMinResetDuration: 1 * time.Hour,
-	}, []string{"tenant"})
 	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_attributes_truncated_total",
@@ -136,10 +127,9 @@ var (
 	metricAttributeSizeBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "distributor_attribute_size_bytes",
-		Help:                            "The combined size in bytes of each attribute's key and string value received, per tenant and scope",
-		Buckets:                         prometheus.ExponentialBuckets(64, 2, 16), // 64B to 4MiB
+		Help:                            "The combined size in bytes of each attribute's key and value received, per tenant and scope",
 		NativeHistogramBucketFactor:     1.1,
-		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMaxBucketNumber:  160,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"tenant", "scope"})
 	metricKafkaRecordsPerRequest = promauto.NewHistogram(prometheus.HistogramOpts{
@@ -617,7 +607,6 @@ func (d *Distributor) pushTracesToLiveStore(ctx context.Context, userID string, 
 		if err != nil {
 			return fmt.Errorf("failed to marshal trace for local live-store push: %w", err)
 		}
-		metricTraceSizeBytes.WithLabelValues(userID).Observe(float64(len(b)))
 		req.Traces[i].Slice = b
 		req.Ids[i] = tr.id
 	}
@@ -669,7 +658,6 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		if err != nil {
 			return fmt.Errorf("failed to marshal trace: %w", err)
 		}
-		metricTraceSizeBytes.WithLabelValues(userID).Observe(float64(len(b)))
 		marshalledTraces[i] = b
 	}
 
@@ -765,15 +753,15 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 
 	for _, b := range batches {
 		// check resource for large attributes
-		if maxSpanAttrSize > 0 && b.Resource != nil {
+		if b.Resource != nil {
 			truncatedCount.Resource += processAttributes(b.Resource.Attributes, maxSpanAttrSize, &truncationExample, "resource", userID)
 		}
 
 		for _, ils := range b.ScopeSpans {
 			spansByILS := make(map[uint64]*v1.ScopeSpans)
 
-			// check instrumentation for large attributes
-			if maxSpanAttrSize > 0 && ils.Scope != nil {
+			// measure instrumentation attributes and truncate any that are too large
+			if ils.Scope != nil {
 				truncatedCount.Scope += processAttributes(ils.Scope.Attributes, maxSpanAttrSize, &truncationExample, "scope", userID)
 			}
 
@@ -791,18 +779,15 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 					continue
 				}
 
-				// check spans for large attributes
-				if maxSpanAttrSize > 0 {
-					truncatedCount.Span += processAttributes(span.Attributes, maxSpanAttrSize, &truncationExample, "span", userID)
+				// measure span attributes and truncate any that are too large
+				truncatedCount.Span += processAttributes(span.Attributes, maxSpanAttrSize, &truncationExample, "span", userID)
 
-					// check large attributes for events and links
-					for _, event := range span.Events {
-						truncatedCount.Event += processAttributes(event.Attributes, maxSpanAttrSize, &truncationExample, "event", userID)
-					}
+				for _, event := range span.Events {
+					truncatedCount.Event += processAttributes(event.Attributes, maxSpanAttrSize, &truncationExample, "event", userID)
+				}
 
-					for _, link := range span.Links {
-						truncatedCount.Link += processAttributes(link.Attributes, maxSpanAttrSize, &truncationExample, "link", userID)
-					}
+				for _, link := range span.Links {
+					truncatedCount.Link += processAttributes(link.Attributes, maxSpanAttrSize, &truncationExample, "link", userID)
 				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
@@ -884,11 +869,22 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 	return ringTokens, traces, truncatedCount, nil, nil
 }
 
-// processAttributes finds and truncates attribute keys/values that exceed maxAttrSize.
+// processAttributes measures every attribute and finds and truncates keys and
+// string values that exceed maxAttrSize. Measurement happens regardless of the
+// value type and regardless of whether truncation is enabled.
 func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, truncationExample *truncatedAttrInfo, scope, tenant string) int {
 	count := 0
 	for _, attr := range attributes {
 		keySize := len(attr.Key)
+
+		// Measure the combined key+value size of every attribute, regardless of
+		// whether it gets truncated.
+		metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(keySize + anyValueSize(attr.GetValue())))
+
+		if maxAttrSize <= 0 {
+			continue
+		}
+
 		if keySize > maxAttrSize {
 			origSize := keySize
 			attr.Key = attr.Key[:maxAttrSize]
@@ -901,9 +897,6 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, trunca
 
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
-			// Measure the combined key+value size of every attribute, regardless of whether it gets truncated.
-			metricAttributeSizeBytes.WithLabelValues(tenant, scope).Observe(float64(keySize + len(value.StringValue)))
-
 			if len(value.StringValue) > maxAttrSize {
 				origSize := len(value.StringValue)
 				if truncationExample != nil && truncationExample.origSize == 0 { // only capture the first truncation
@@ -912,12 +905,55 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, trunca
 				value.StringValue = value.StringValue[:maxAttrSize]
 				count++
 			}
-		default:
-			continue
 		}
 	}
 
 	return count
+}
+
+// anyValueSize returns the size in bytes of an attribute value. String and
+// bytes values use their payload length, scalar values use their encoding size,
+// and array and kvlist values include their elements recursively.
+func anyValueSize(value *v1_common.AnyValue) int {
+	if value == nil {
+		return 0
+	}
+
+	switch v := value.Value.(type) {
+	case *v1_common.AnyValue_StringValue:
+		return len(v.StringValue)
+	case *v1_common.AnyValue_BytesValue:
+		return len(v.BytesValue)
+	case *v1_common.AnyValue_BoolValue:
+		return 1
+	case *v1_common.AnyValue_IntValue:
+		// protobuf varint size; negative values encode in 10 bytes.
+		size := 1
+		for uv := uint64(v.IntValue); uv >= 0x80; uv >>= 7 {
+			size++
+		}
+		return size
+	case *v1_common.AnyValue_DoubleValue:
+		return 8
+	case *v1_common.AnyValue_ArrayValue:
+		size := 0
+		if v.ArrayValue != nil {
+			for _, element := range v.ArrayValue.Values {
+				size += anyValueSize(element)
+			}
+		}
+		return size
+	case *v1_common.AnyValue_KvlistValue:
+		size := 0
+		if v.KvlistValue != nil {
+			for _, kv := range v.KvlistValue.Values {
+				size += len(kv.Key) + anyValueSize(kv.Value)
+			}
+		}
+		return size
+	default:
+		return 0
+	}
 }
 
 func metricSpans(batches []*v1.ResourceSpans, tenantID string, cfg *MetricReceivedSpansConfig) {

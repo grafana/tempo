@@ -1,0 +1,29 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: bug_fix
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: distributor
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: "Measure whole trace sizes in `tempo_distributor_trace_size_bytes`, measure every attribute value type, and emit the trace and attribute size histograms as native histograms only."
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  `tempo_distributor_trace_size_bytes` is now observed once per trace when the live-store flushes it, instead of once
+  per push in the distributor. The distributor only sees the spans of a single push, so a trace split across pushes was
+  previously reported as several smaller samples. The observation keeps counting after a push is rejected for exceeding
+  `max_bytes_per_trace`, so oversized traces are visible instead of being clipped at the limit.
+  `tempo_distributor_attribute_size_bytes` now measures bytes, bool, int, double, array, and kvlist attribute values in
+  addition to strings, and it is recorded even when attribute truncation is disabled.
+  The trace and attribute size histograms no longer expose classic buckets, which removes the `_bucket`, `_count`, and
+  `_sum` series for those metrics.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: mattdurham
