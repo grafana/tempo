@@ -29,3 +29,19 @@ func PagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 
 	return pagesPerQuery
 }
+
+// JobBytes returns the bytes of a block that a job covers, assuming row groups of equal size, like
+// PagesPerRequest does when the query frontend creates the jobs. startPage, pages and totalRecords are
+// counted in parquet row groups, despite their names. The last job of a block may cover fewer row groups
+// than requested and a job past the end of the block covers nothing. 0 is returned if totalRecords is 0.
+func JobBytes(blockSize uint64, startPage, pages, totalRecords uint32) uint64 {
+	if totalRecords == 0 || startPage >= totalRecords {
+		return 0
+	}
+
+	rowGroups := uint64(min(pages, totalRecords-startPage))
+
+	// split to not overflow for big blocks
+	total := uint64(totalRecords)
+	return blockSize/total*rowGroups + blockSize%total*rowGroups/total
+}
