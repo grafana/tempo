@@ -8,7 +8,7 @@ change_type: feature
 component: storage
 
 # A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
-note: Add two optional vParquet5 columns for trace similarity fingerprints and shingle counts, with block-level signature versioning.
+note: Add two vParquet5 columns for trace similarity fingerprints and distinct shingle counts, enabled through block options and non-nullable when present.
 
 # (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
 # .chloggen/README.md.

@@ -1290,37 +1290,47 @@ func TestTraceSimilaritySchemaVersions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			schema, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{Options: tt.options})
 
-			_, found := schema.Lookup("Similarity", "Signature")
+			signature, found := schema.Lookup("Similarity", "Signature")
 			require.Equal(t, tt.want, found)
 
-			_, found = schema.Lookup("Similarity", "ShingleCount")
+			shingleCount, found := schema.Lookup("Similarity", "ShingleCount")
 			require.Equal(t, tt.want, found)
+			if tt.want {
+				require.Zero(t, signature.MaxDefinitionLevel, "signature must not be nullable")
+				require.Zero(t, shingleCount.MaxDefinitionLevel, "shingle count must not be nullable")
+			}
 		})
 	}
 }
 
 func TestTraceSimilarityRoundTrip(t *testing.T) {
-	similarity := &TraceSimilarity{ShingleCount: 7}
-	similarity.Signature[0] = 42
+	similarity := TraceSimilarity{ShingleCount: 7}
+	for i := range similarity.Signature {
+		similarity.Signature[i] = byte(i + 1)
+	}
 
 	input := []*Trace{
-		{TraceID: []byte{1}, RootServiceName: "frontend", Similarity: nil},
+		{TraceID: []byte{1}, RootServiceName: "frontend", Similarity: TraceSimilarity{Signature: [64]byte{42}, ShingleCount: 3}},
 		{TraceID: []byte{2}, RootServiceName: "backend", Similarity: similarity},
+		{TraceID: []byte{3}, RootServiceName: "empty", Similarity: TraceSimilarity{}},
 	}
 
 	data := writeSimilarityTestFile(t, TraceSignatureVersionV1, input)
+	pf, err := parquet.OpenFile(bytes.NewReader(data), int64(len(data)))
+	require.NoError(t, err)
+	for _, column := range []string{"Signature", "ShingleCount"} {
+		leaf, found := pf.Schema().Lookup("Similarity", column)
+		require.True(t, found)
+		require.Zero(t, leaf.MaxDefinitionLevel, "%s must be required in the written file", column)
+	}
+
 	got := readSimilarityTestFile(t, TraceSignatureVersionV1, data, len(input))
-
-	require.Len(t, got, 2)
-	require.Equal(t, input[0].TraceID, got[0].TraceID)
-	require.Equal(t, input[0].RootServiceName, got[0].RootServiceName)
-	require.Nil(t, got[0].Similarity)
-
-	require.Equal(t, input[1].TraceID, got[1].TraceID)
-	require.Equal(t, input[1].RootServiceName, got[1].RootServiceName)
-	require.NotNil(t, got[1].Similarity)
-	require.Equal(t, uint32(7), got[1].Similarity.ShingleCount)
-	require.Equal(t, byte(42), got[1].Similarity.Signature[0])
+	require.Len(t, got, len(input))
+	for i := range input {
+		require.Equal(t, input[i].TraceID, got[i].TraceID)
+		require.Equal(t, input[i].RootServiceName, got[i].RootServiceName)
+		require.Equal(t, input[i].Similarity, got[i].Similarity)
+	}
 }
 
 func TestTraceSimilarityLegacyBlockRoundTrip(t *testing.T) {
@@ -1336,12 +1346,12 @@ func TestTraceSimilarityLegacyBlockRoundTrip(t *testing.T) {
 	for i := range input {
 		require.Equal(t, input[i].TraceID, got[i].TraceID)
 		require.Equal(t, input[i].RootServiceName, got[i].RootServiceName)
-		require.Nil(t, got[i].Similarity)
+		require.Equal(t, TraceSimilarity{}, got[i].Similarity)
 	}
 }
 
 func TestTraceSimilarityOldReaderIgnoresSignedColumns(t *testing.T) {
-	similarity := &TraceSimilarity{ShingleCount: 7}
+	similarity := TraceSimilarity{ShingleCount: 7}
 	similarity.Signature[0] = 42
 	input := []*Trace{{TraceID: []byte{2}, RootServiceName: "backend", Similarity: similarity}}
 
@@ -1351,11 +1361,11 @@ func TestTraceSimilarityOldReaderIgnoresSignedColumns(t *testing.T) {
 	require.Len(t, got, 1)
 	require.Equal(t, input[0].TraceID, got[0].TraceID)
 	require.Equal(t, input[0].RootServiceName, got[0].RootServiceName)
-	require.Nil(t, got[0].Similarity)
+	require.Equal(t, TraceSimilarity{}, got[0].Similarity)
 }
 
 func TestTraceSimilarityUnsupportedVersionIgnoresColumns(t *testing.T) {
-	similarity := &TraceSimilarity{ShingleCount: 7}
+	similarity := TraceSimilarity{ShingleCount: 7}
 	similarity.Signature[0] = 42
 	input := []*Trace{{TraceID: []byte{2}, RootServiceName: "backend", Similarity: similarity}}
 
@@ -1365,5 +1375,5 @@ func TestTraceSimilarityUnsupportedVersionIgnoresColumns(t *testing.T) {
 	require.Len(t, got, 1)
 	require.Equal(t, input[0].TraceID, got[0].TraceID)
 	require.Equal(t, input[0].RootServiceName, got[0].RootServiceName)
-	require.Nil(t, got[0].Similarity)
+	require.Equal(t, TraceSimilarity{}, got[0].Similarity)
 }

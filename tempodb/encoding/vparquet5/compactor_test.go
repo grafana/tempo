@@ -212,7 +212,7 @@ func TestCompact(t *testing.T) {
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }
 
-func createSimilarityLifecycleBlock(ctx context.Context, t *testing.T, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, id byte, signatureVersion string, similarity *TraceSimilarity) *backend.BlockMeta {
+func createSimilarityLifecycleBlock(ctx context.Context, t *testing.T, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, id byte, signatureVersion string, similarity TraceSimilarity) *backend.BlockMeta {
 	t.Helper()
 
 	meta := backend.NewBlockMeta(tenantID, uuid.New(), VersionString)
@@ -236,7 +236,7 @@ func createSimilarityLifecycleBlock(ctx context.Context, t *testing.T, cfg *comm
 	return outMeta
 }
 
-func readSimilarityLifecycleTraces(ctx context.Context, t *testing.T, meta *backend.BlockMeta, r backend.Reader) map[string]*TraceSimilarity {
+func readSimilarityLifecycleTraces(ctx context.Context, t *testing.T, meta *backend.BlockMeta, r backend.Reader) map[string]TraceSimilarity {
 	t.Helper()
 
 	block := newBackendBlock(meta, r)
@@ -249,7 +249,7 @@ func readSimilarityLifecycleTraces(ctx context.Context, t *testing.T, meta *back
 		Options:          meta.Options,
 	})
 
-	out := map[string]*TraceSimilarity{}
+	out := map[string]TraceSimilarity{}
 	for {
 		id, row, err := iter.Next(ctx)
 		if row == nil {
@@ -268,14 +268,15 @@ func readSimilarityLifecycleTraces(ctx context.Context, t *testing.T, meta *back
 
 func TestTraceSimilarityLifecycle(t *testing.T) {
 	tests := []struct {
-		name            string
-		unsignedVersion string
-		signedFirst     bool
-		wantErr         bool
+		name          string
+		firstVersion  string
+		secondVersion string
+		wantErr       bool
 	}{
-		{name: "v1_then_v1", unsignedVersion: TraceSignatureVersionV1},
-		{name: "v0_then_v1", unsignedVersion: TraceSignatureVersionNone, wantErr: true},
-		{name: "v1_then_v0", unsignedVersion: TraceSignatureVersionNone, signedFirst: true, wantErr: true},
+		{name: "v0_then_v0", firstVersion: TraceSignatureVersionNone, secondVersion: TraceSignatureVersionNone},
+		{name: "v1_then_v1", firstVersion: TraceSignatureVersionV1, secondVersion: TraceSignatureVersionV1},
+		{name: "v0_then_v1", firstVersion: TraceSignatureVersionNone, secondVersion: TraceSignatureVersionV1, wantErr: true},
+		{name: "v1_then_v0", firstVersion: TraceSignatureVersionV1, secondVersion: TraceSignatureVersionNone, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -291,22 +292,27 @@ func TestTraceSimilarityLifecycle(t *testing.T) {
 			cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 			require.NoError(t, common.ValidateConfig(cfg))
 
-			similarity := &TraceSimilarity{ShingleCount: 7}
-			similarity.Signature[0] = 42
+			firstSimilarity := TraceSimilarity{Signature: [64]byte{42}, ShingleCount: 7}
+			secondSimilarity := TraceSimilarity{Signature: [64]byte{84}, ShingleCount: 11}
 
-			unsignedMeta := createSimilarityLifecycleBlock(ctx, t, cfg, r, w, 1, tt.unsignedVersion, nil)
-			signedMeta := createSimilarityLifecycleBlock(ctx, t, cfg, r, w, 2, TraceSignatureVersionV1, similarity)
+			firstMeta := createSimilarityLifecycleBlock(ctx, t, cfg, r, w, 1, tt.firstVersion, firstSimilarity)
+			secondMeta := createSimilarityLifecycleBlock(ctx, t, cfg, r, w, 2, tt.secondVersion, secondSimilarity)
 
-			before := readSimilarityLifecycleTraces(ctx, t, signedMeta, r)
-			require.Len(t, before, 1)
-			signedTraceID := make([]byte, 16)
-			signedTraceID[15] = 2
-			require.Equal(t, similarity, before[string(signedTraceID)])
-
-			inputs := []*backend.BlockMeta{unsignedMeta, signedMeta}
-			if tt.signedFirst {
-				inputs[0], inputs[1] = inputs[1], inputs[0]
+			if tt.firstVersion == TraceSignatureVersionNone {
+				firstSimilarity = TraceSimilarity{}
 			}
+			if tt.secondVersion == TraceSignatureVersionNone {
+				secondSimilarity = TraceSimilarity{}
+			}
+			firstTraceID := make([]byte, 16)
+			firstTraceID[15] = 1
+			secondTraceID := make([]byte, 16)
+			secondTraceID[15] = 2
+
+			before := readSimilarityLifecycleTraces(ctx, t, secondMeta, r)
+			require.Equal(t, map[string]TraceSimilarity{string(secondTraceID): secondSimilarity}, before)
+
+			inputs := []*backend.BlockMeta{firstMeta, secondMeta}
 
 			c := NewCompactor(common.CompactionOptions{
 				BlockConfig:     *cfg,
@@ -321,22 +327,13 @@ func TestTraceSimilarityLifecycle(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Len(t, output, 1)
-			require.Equal(t, TraceSignatureVersionV1, output[0].Options[TraceSignatureVersionOption])
+			require.Equal(t, tt.firstVersion, output[0].Options[TraceSignatureVersionOption])
 
 			after := readSimilarityLifecycleTraces(ctx, t, output[0], r)
-			require.Len(t, after, 2)
-			for id, similarity := range after {
-				switch id[len(id)-1] {
-				case 1:
-					require.Nil(t, similarity)
-				case 2:
-					require.NotNil(t, similarity)
-					require.Equal(t, uint32(7), similarity.ShingleCount)
-					require.Equal(t, byte(42), similarity.Signature[0])
-				default:
-					t.Fatalf("unexpected trace ID %x", id)
-				}
-			}
+			require.Equal(t, map[string]TraceSimilarity{
+				string(firstTraceID):  firstSimilarity,
+				string(secondTraceID): secondSimilarity,
+			}, after)
 		})
 	}
 }

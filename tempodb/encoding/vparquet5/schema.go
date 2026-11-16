@@ -301,8 +301,9 @@ type Trace struct {
 	RootSpanName      string         `parquet:",dict"`
 	ServiceStats      []ServiceStats `parquet:""`
 
-	ResourceSpans []ResourceSpans  `parquet:"rs"`
-	Similarity    *TraceSimilarity `parquet:", optional"`
+	ResourceSpans []ResourceSpans `parquet:"rs"`
+	// Similarity is required when enabled by block options; otherwise its columns are omitted.
+	Similarity TraceSimilarity `parquet:""`
 }
 
 func attrToParquet(a *v1.KeyValue, p *Attribute) {
