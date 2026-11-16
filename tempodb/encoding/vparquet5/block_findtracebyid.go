@@ -248,7 +248,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	}
 
 	// seek to row and read
-	_, _, readerOptions := SchemaWithDynamicChanges(TraceSchemaConfig{DedicatedColumns: meta.DedicatedColumns, SignatureVersion: meta.TraceSignatureVersion})
+	_, _, readerOptions := SchemaWithDynamicChanges(TraceSchemaConfig{DedicatedColumns: meta.DedicatedColumns, Options: meta.Options})
 	r := parquet.NewGenericReader[*Trace](pf, readerOptions...)
 	defer r.Close()
 

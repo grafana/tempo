@@ -53,8 +53,8 @@ func (cmd *parquetRewrite) Run() error {
 	if err != nil {
 		return err
 	}
-	if meta.TraceSignatureVersion != vparquet5.TraceSignatureVersionNone {
-		return fmt.Errorf("parquet rewrite does not support trace signature version %d", meta.TraceSignatureVersion)
+	if version := meta.Options[vparquet5.TraceSignatureVersionOption]; version != vparquet5.TraceSignatureVersionNone {
+		return fmt.Errorf("parquet rewrite does not support trace signature version %s", version)
 	}
 
 	enc, err := encoding.FromVersionForWrites(meta.Version)
@@ -260,7 +260,7 @@ func openParquetForRewrite(blockPath string, meta *backend.BlockMeta) (*os.File,
 	switch meta.Version {
 	case vparquet4.VersionString:
 	case vparquet5.VersionString:
-		schema, _, ro := vparquet5.SchemaWithDynamicChanges(vparquet5.TraceSchemaConfig{DedicatedColumns: meta.DedicatedColumns, SignatureVersion: meta.TraceSignatureVersion})
+		schema, _, ro := vparquet5.SchemaWithDynamicChanges(vparquet5.TraceSchemaConfig{DedicatedColumns: meta.DedicatedColumns, Options: meta.Options})
 		readerOptions = ro
 		fileOptions = []parquet.FileOption{parquet.FileSchema(schema)}
 	default:

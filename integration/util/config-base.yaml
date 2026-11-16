@@ -45,6 +45,7 @@ storage:
       max_workers: 10
       queue_depth: 100
     blocklist_poll: 2s # timings: check for updated blocklists every 2s
+    blocklist_poll_tenant_index_v2: true
 
 memberlist:
   abort_if_cluster_join_fails: false

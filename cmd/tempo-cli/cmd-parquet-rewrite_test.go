@@ -288,7 +288,7 @@ func TestParquetRewriteBlockConfig(t *testing.T) {
 
 func TestParquetRewriteRejectsSignedBlocks(t *testing.T) {
 	dir := t.TempDir()
-	meta := []byte(`{"format":"vParquet5","traceSignatureVersion":1}`)
+	meta := []byte(`{"format":"vParquet5","options":{"trace_signature_version":"1"}}`)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "meta.json"), meta, 0o600))
 
 	cmd := parquetRewrite{In: dir, Out: filepath.Join(dir, "out")}

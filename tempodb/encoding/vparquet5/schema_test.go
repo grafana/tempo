@@ -1234,10 +1234,10 @@ func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
 	}
 }
 
-func writeSimilarityTestFile(t *testing.T, version uint32, traces []*Trace) []byte {
+func writeSimilarityTestFile(t *testing.T, version string, traces []*Trace) []byte {
 	t.Helper()
 
-	_, writerOptions, _ := SchemaWithDynamicChanges(TraceSchemaConfig{SignatureVersion: version})
+	_, writerOptions, _ := SchemaWithDynamicChanges(TraceSchemaConfig{Options: map[string]string{TraceSignatureVersionOption: version}})
 
 	var buf bytes.Buffer
 	w := parquet.NewGenericWriter[*Trace](&buf, writerOptions...)
@@ -1248,10 +1248,10 @@ func writeSimilarityTestFile(t *testing.T, version uint32, traces []*Trace) []by
 	return buf.Bytes()
 }
 
-func readSimilarityTestFile(t *testing.T, version uint32, data []byte, rowCount int) []*Trace {
+func readSimilarityTestFile(t *testing.T, version string, data []byte, rowCount int) []*Trace {
 	t.Helper()
 
-	schema, _, readerOptions := SchemaWithDynamicChanges(TraceSchemaConfig{SignatureVersion: version})
+	schema, _, readerOptions := SchemaWithDynamicChanges(TraceSchemaConfig{Options: map[string]string{TraceSignatureVersionOption: version}})
 	pf, err := parquet.OpenFile(bytes.NewReader(data), int64(len(data)), parquet.FileSchema(schema))
 	require.NoError(t, err)
 
@@ -1275,17 +1275,20 @@ func readSimilarityTestFile(t *testing.T, version uint32, data []byte, rowCount 
 func TestTraceSimilaritySchemaVersions(t *testing.T) {
 	tests := []struct {
 		name    string
-		version uint32
+		options map[string]string
 		want    bool
 	}{
-		{name: "legacy", version: TraceSignatureVersionNone, want: false},
-		{name: "v1", version: TraceSignatureVersionV1, want: true},
-		{name: "unsupported", version: 99, want: false},
+		{name: "legacy without options", want: false},
+		{name: "empty options", options: map[string]string{}, want: false},
+		{name: "unrelated option", options: map[string]string{"feature": "on"}, want: false},
+		{name: "empty version", options: map[string]string{TraceSignatureVersionOption: TraceSignatureVersionNone}, want: false},
+		{name: "v1", options: map[string]string{TraceSignatureVersionOption: TraceSignatureVersionV1}, want: true},
+		{name: "unsupported", options: map[string]string{TraceSignatureVersionOption: "99"}, want: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			schema, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{SignatureVersion: tt.version})
+			schema, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{Options: tt.options})
 
 			_, found := schema.Lookup("Similarity", "Signature")
 			require.Equal(t, tt.want, found)
@@ -1357,7 +1360,7 @@ func TestTraceSimilarityUnsupportedVersionIgnoresColumns(t *testing.T) {
 	input := []*Trace{{TraceID: []byte{2}, RootServiceName: "backend", Similarity: similarity}}
 
 	data := writeSimilarityTestFile(t, TraceSignatureVersionV1, input)
-	got := readSimilarityTestFile(t, 99, data, len(input))
+	got := readSimilarityTestFile(t, "99", data, len(input))
 
 	require.Len(t, got, 1)
 	require.Equal(t, input[0].TraceID, got[0].TraceID)

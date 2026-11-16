@@ -760,6 +760,25 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 		},
 		{
+			name: "blocks with different options are not selected together",
+			blocklist: []*backend.BlockMeta{
+				{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"), EndTime: now, Options: map[string]string{"a": "1"}},
+				{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"), EndTime: now},
+				{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"), EndTime: now, Options: map[string]string{"a": "1"}},
+				{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000004"), EndTime: now},
+			},
+			expected: []*backend.BlockMeta{
+				{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000002"), EndTime: now},
+				{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000004"), EndTime: now},
+			},
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
+			expectedSecond: []*backend.BlockMeta{
+				{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001"), EndTime: now, Options: map[string]string{"a": "1"}},
+				{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"), EndTime: now, Options: map[string]string{"a": "1"}},
+			},
+			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
+		},
+		{
 			name: "blocks are grouped by replication factor",
 			blocklist: []*backend.BlockMeta{
 				{

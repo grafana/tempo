@@ -1,0 +1,6 @@
+change_type: enhancement
+component: metrics-generator
+note: "**EXPERIMENTAL**: Spans with `zc:1` in the OpenTelemetry tracestate are given an adjusted count of zero by the span-metrics and service-graphs processors when `enable_tracestate_span_multiplier` is set. This follows an unfinalized OpenTelemetry specification proposal and might be changed or removed."
+issues: []
+subtext:
+user: csmarchbanks

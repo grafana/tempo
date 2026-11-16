@@ -42,11 +42,11 @@ type Compactor struct {
 var pool = newRowPool(1_000_000)
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
-	// Raw rows can only be combined and written when their signature schemas match.
+	// Raw rows can only be combined and written when their schema options match.
 	// Validate all inputs before opening any iterators.
 	for _, blockMeta := range inputs {
-		if blockMeta.TraceSignatureVersion != inputs[0].TraceSignatureVersion {
-			return nil, fmt.Errorf("cannot compact blocks with different trace signature versions: block %s has version %d, expected %d", blockMeta.BlockID.String(), blockMeta.TraceSignatureVersion, inputs[0].TraceSignatureVersion)
+		if blockMeta.OptionsString() != inputs[0].OptionsString() {
+			return nil, fmt.Errorf("cannot compact blocks with different options: block %s has options %q, expected %q", blockMeta.BlockID.String(), blockMeta.OptionsString(), inputs[0].OptionsString())
 		}
 	}
 
@@ -89,7 +89,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		nextCompactionLevel = compactionLevel + 1
 		sch, _, _           = SchemaWithDynamicChanges(TraceSchemaConfig{
 			DedicatedColumns: inputs[0].DedicatedColumns,
-			SignatureVersion: inputs[0].TraceSignatureVersion,
+			Options:          inputs[0].Options,
 		})
 	)
 
@@ -180,13 +180,13 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if currentBlock == nil {
 			// Start with a copy and then customize
 			newMeta := &backend.BlockMeta{
-				BlockID:               backend.NewUUID(),
-				TenantID:              inputs[0].TenantID,
-				CompactionLevel:       nextCompactionLevel,
-				TotalObjects:          recordsPerBlock, // Just an estimate
-				ReplicationFactor:     replicationFactor,
-				DedicatedColumns:      inputs[0].DedicatedColumns,
-				TraceSignatureVersion: inputs[0].TraceSignatureVersion,
+				BlockID:           backend.NewUUID(),
+				TenantID:          inputs[0].TenantID,
+				CompactionLevel:   nextCompactionLevel,
+				TotalObjects:      recordsPerBlock, // Just an estimate
+				ReplicationFactor: replicationFactor,
+				DedicatedColumns:  inputs[0].DedicatedColumns,
+				Options:           inputs[0].Options,
 			}
 
 			currentBlock, _ = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)

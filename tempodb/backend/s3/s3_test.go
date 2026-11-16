@@ -838,6 +838,119 @@ func TestListBlocksWithPrefix(t *testing.T) {
 	}
 }
 
+func TestFind(t *testing.T) {
+	modified := time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name           string
+		prefix         string
+		expectedPrefix string
+	}{
+		{name: "without prefix", expectedPrefix: "tenant/"},
+		{name: "with prefix", prefix: "a/b/c/", expectedPrefix: "a/b/c/tenant/"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			keys := []string{"index.json.gz", "block-1/meta.json", "block-2/meta.compacted.json"}
+			var (
+				mtx    sync.Mutex
+				tokens []string
+			)
+			server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+				query := r.URL.Query()
+				assert.Equal(t, "2", query.Get("list-type"))
+				assert.Equal(t, tc.expectedPrefix, query.Get("prefix"))
+				mtx.Lock()
+				tokens = append(tokens, query.Get("continuation-token"))
+				mtx.Unlock()
+
+				// the first page holds the first two keys, the second page the last one
+				page, next := keys[:2], "page-2"
+				if query.Get("continuation-token") == "page-2" {
+					page, next = keys[2:], ""
+				}
+				var contents strings.Builder
+				for _, key := range page {
+					fmt.Fprintf(&contents, "<Contents><Key>%s</Key><LastModified>%s</LastModified></Contents>", tc.expectedPrefix+key, modified.Format(time.RFC3339))
+				}
+				_, _ = fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?>
+					<ListBucketResult><IsTruncated>%t</IsTruncated><NextContinuationToken>%s</NextContinuationToken>%s</ListBucketResult>`,
+					next != "", next, contents.String())
+			})
+
+			r, _, _, err := NewNoConfirm(&Config{
+				Region:    "blerg",
+				AccessKey: "test",
+				SecretKey: flagext.SecretWithValue("test"),
+				Bucket:    "blerg",
+				Prefix:    tc.prefix,
+				Insecure:  true,
+				Endpoint:  server.URL[7:],
+			})
+			require.NoError(t, err)
+
+			var found []string
+			err = r.Find(context.Background(), backend.KeyPath{"tenant"}, func(m backend.FindMatch) {
+				found = append(found, m.Key)
+				assert.True(t, m.Modified.Equal(modified), "unexpected modification time %s", m.Modified)
+			})
+			require.NoError(t, err)
+
+			// keys are returned without the prefix, from every page
+			assert.Equal(t, []string{"tenant/index.json.gz", "tenant/block-1/meta.json", "tenant/block-2/meta.compacted.json"}, found)
+			mtx.Lock()
+			defer mtx.Unlock()
+			assert.Equal(t, []string{"", "page-2"}, tokens)
+		})
+	}
+}
+
+func TestNewWithTransport(t *testing.T) {
+	var requests atomic.Int32
+	server := testServer(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "true", r.Header.Get("X-Wrapped"), "expected the request to go through the wrapper")
+		requests.Add(1)
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><ListBucketResult></ListBucketResult>`))
+	})
+
+	var wrapped atomic.Int32
+	b, err := NewWithTransport(&Config{
+		Region:    "blerg",
+		AccessKey: "test",
+		SecretKey: flagext.SecretWithValue("test"),
+		Bucket:    "blerg",
+		Insecure:  true,
+		Endpoint:  server.URL[7:],
+	}, func(next http.RoundTripper, creds *credentials.Credentials) http.RoundTripper {
+		wrapped.Add(1)
+		value, err := creds.GetWithContext(&credentials.CredContext{Client: http.DefaultClient})
+		assert.NoError(t, err)
+		assert.Equal(t, "test", value.AccessKeyID)
+
+		return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			req = req.Clone(req.Context())
+			req.Header.Set("X-Wrapped", "true")
+			return next.RoundTrip(req)
+		})
+	})
+	require.NoError(t, err)
+	// the client Core returns and the one for hedged reads
+	assert.Equal(t, int32(2), wrapped.Load())
+
+	_, err = b.Core().ListObjectsV2("blerg", "", "", "", "/", 0)
+	require.NoError(t, err)
+	_, err = b.List(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Positive(t, requests.Load())
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
 func TestObjectStorageClass(t *testing.T) {
 	tests := []struct {
 		name         string

@@ -9,7 +9,9 @@ import (
 
 // Provider defines the interface for job providers
 type Provider interface {
-	// Start begins the provider's job generation and returns a channel of jobs
+	// Start begins job generation and returns an unbuffered channel of jobs: a send blocks until
+	// Next() receives. Every send must select on ctx.Done() (redaction also releases the in-flight
+	// count of an undelivered job), and the provider closes the channel when it stops.
 	Start(ctx context.Context) <-chan *work.Job
 }
 

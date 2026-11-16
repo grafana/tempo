@@ -1,0 +1,14 @@
+change_type: enhancement
+
+component: storage
+
+note: Add a V2 tenant index format that is smaller and cheaper to decode. It is always written, and read when `blocklist_poll_tenant_index_v2` is enabled. Blocks can also carry general purpose `options`.
+
+issues: []
+
+subtext: |
+  The V2 index is written to `index.v2.zst` in addition to the existing indexes.
+  Enable reading it only after every component runs a version that supports it.
+  Blocks with different `options` are not compacted together.
+
+user: mdisibio

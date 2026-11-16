@@ -153,7 +153,8 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	newMeta.EndTime = meta.EndTime
 	newMeta.ReplicationFactor = meta.ReplicationFactor
 	newMeta.DedicatedColumns = filterDedicatedColumns(meta.DedicatedColumns)
-	newMeta.TraceSignatureVersion = meta.TraceSignatureVersion
+	newMeta.Options = meta.Options
+
 	// TotalObjects is used here an an estimated count for the bloom filter.
 	// The real number of objects is tracked below.
 	bloom := common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(meta.TotalObjects))
@@ -163,7 +164,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		bw                  = createBufferedWriter(w)
 		_, writerOptions, _ = SchemaWithDynamicChanges(TraceSchemaConfig{
 			DedicatedColumns: meta.DedicatedColumns,
-			SignatureVersion: meta.TraceSignatureVersion,
+			Options:          meta.Options,
 		})
 		pw = parquet.NewGenericWriter[*Trace](bw, writerOptions...)
 	)

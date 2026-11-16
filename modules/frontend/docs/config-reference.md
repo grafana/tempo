@@ -675,6 +675,7 @@ storage:
         blocklist_poll_fallback: true
         blocklist_poll_tenant_index_builders: 2
         blocklist_poll_stale_tenant_index: 0s
+        blocklist_poll_tenant_index_v2: false
         blocklist_poll_jitter_ms: 0
         blocklist_poll_tolerate_consecutive_errors: 1
         blocklist_poll_tolerate_tenant_failures: 1
@@ -728,6 +729,44 @@ storage:
             metadata: {}
             native_aws_auth_enabled: false
             list_blocks_concurrency: 3
+            sse:
+                type: ""
+                kms_key_id: ""
+                kms_encryption_context: ""
+                encryption_key: ""
+        s3express:
+            tls_cert_path: ""
+            tls_key_path: ""
+            tls_ca_path: ""
+            tls_server_name: ""
+            tls_insecure_skip_verify: false
+            tls_cipher_suites: ""
+            tls_min_version: VersionTLS12
+            bucket: ""
+            prefix: ""
+            endpoint: ""
+            region: ""
+            access_key: ""
+            secret_key: ""
+            session_token: ""
+            insecure: false
+            part_size: 0
+            hedge_requests_at: 0s
+            hedge_requests_up_to: 2
+            retry_max_attempts: 10
+            retry_backoff_initial: 200ms
+            retry_backoff_max: 1s
+            max_idle_connections: 100
+            max_idle_connections_per_host: 100
+            signature_v2: false
+            forcepathstyle: false
+            enable_dual_stack: false
+            bucket_lookup_type: 0
+            tags: {}
+            storage_class: ""
+            metadata: {}
+            native_aws_auth_enabled: false
+            list_blocks_concurrency: 1
             sse:
                 type: ""
                 kms_key_id: ""
@@ -829,6 +868,44 @@ overrides:
                 metadata: {}
                 native_aws_auth_enabled: false
                 list_blocks_concurrency: 3
+                sse:
+                    type: ""
+                    kms_key_id: ""
+                    kms_encryption_context: ""
+                    encryption_key: ""
+            s3express:
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: VersionTLS12
+                bucket: ""
+                prefix: ""
+                endpoint: ""
+                region: ""
+                access_key: ""
+                secret_key: ""
+                session_token: ""
+                insecure: false
+                part_size: 0
+                hedge_requests_at: 0s
+                hedge_requests_up_to: 2
+                retry_max_attempts: 10
+                retry_backoff_initial: 200ms
+                retry_backoff_max: 1s
+                max_idle_connections: 100
+                max_idle_connections_per_host: 100
+                signature_v2: false
+                forcepathstyle: false
+                enable_dual_stack: false
+                bucket_lookup_type: 0
+                tags: {}
+                storage_class: ""
+                metadata: {}
+                native_aws_auth_enabled: false
+                list_blocks_concurrency: 1
                 sse:
                     type: ""
                     kms_key_id: ""

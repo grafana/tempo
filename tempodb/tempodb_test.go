@@ -793,7 +793,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 		DedicatedColumns: test.MakeDedicatedColumns(),
 	}
 	if from == vparquet5.VersionString {
-		meta.TraceSignatureVersion = vparquet5.TraceSignatureVersionV1
+		meta.Options = map[string]string{vparquet5.TraceSignatureVersionOption: vparquet5.TraceSignatureVersionV1}
 	}
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
@@ -827,7 +827,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 	if from == vparquet5.VersionString && to == vparquet5.VersionString {
 		expectedSignatureVersion = vparquet5.TraceSignatureVersionV1
 	}
-	require.Equal(t, expectedSignatureVersion, complete.BlockMeta().TraceSignatureVersion)
+	require.Equal(t, expectedSignatureVersion, complete.BlockMeta().Options[vparquet5.TraceSignatureVersionOption])
 
 	for i, id := range ids {
 		found, err := complete.FindTraceByID(context.TODO(), id, common.DefaultSearchOptions())

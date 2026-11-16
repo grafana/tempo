@@ -87,8 +87,9 @@ const (
 )
 
 const (
-	TraceSignatureVersionNone uint32 = 0
-	TraceSignatureVersionV1   uint32 = 1
+	TraceSignatureVersionOption = "trace_signature_version"
+	TraceSignatureVersionNone   = ""
+	TraceSignatureVersionV1     = "1"
 )
 
 const (
@@ -924,7 +925,7 @@ func extendReuseSlice[T any](sz int, in []T) []T {
 
 type TraceSchemaConfig struct {
 	DedicatedColumns backend.DedicatedColumns
-	SignatureVersion uint32
+	Options          map[string]string
 }
 
 func SchemaWithDynamicChanges(tsc TraceSchemaConfig) (*parquet.Schema, []parquet.WriterOption, []parquet.ReaderOption) {
@@ -1010,7 +1011,7 @@ func SchemaWithDynamicChanges(tsc TraceSchemaConfig) (*parquet.Schema, []parquet
 	}
 
 	// Remove unused TraceSimilarity columns.
-	if tsc.SignatureVersion != TraceSignatureVersionV1 {
+	if tsc.Options[TraceSignatureVersionOption] != TraceSignatureVersionV1 {
 		del("Similarity")
 	}
 

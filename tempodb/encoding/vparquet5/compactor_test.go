@@ -212,11 +212,13 @@ func TestCompact(t *testing.T) {
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }
 
-func createSimilarityLifecycleBlock(ctx context.Context, t *testing.T, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, id byte, signatureVersion uint32, similarity *TraceSimilarity) *backend.BlockMeta {
+func createSimilarityLifecycleBlock(ctx context.Context, t *testing.T, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, id byte, signatureVersion string, similarity *TraceSimilarity) *backend.BlockMeta {
 	t.Helper()
 
 	meta := backend.NewBlockMeta(tenantID, uuid.New(), VersionString)
-	meta.TraceSignatureVersion = signatureVersion
+	if signatureVersion != TraceSignatureVersionNone {
+		meta.Options = map[string]string{TraceSignatureVersionOption: signatureVersion}
+	}
 	meta.TotalObjects = 1
 
 	sb, outMeta := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
@@ -244,7 +246,7 @@ func readSimilarityLifecycleTraces(ctx context.Context, t *testing.T, meta *back
 
 	schema, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{
 		DedicatedColumns: meta.DedicatedColumns,
-		SignatureVersion: meta.TraceSignatureVersion,
+		Options:          meta.Options,
 	})
 
 	out := map[string]*TraceSimilarity{}
@@ -267,7 +269,7 @@ func readSimilarityLifecycleTraces(ctx context.Context, t *testing.T, meta *back
 func TestTraceSimilarityLifecycle(t *testing.T) {
 	tests := []struct {
 		name            string
-		unsignedVersion uint32
+		unsignedVersion string
 		signedFirst     bool
 		wantErr         bool
 	}{
@@ -313,13 +315,13 @@ func TestTraceSimilarityLifecycle(t *testing.T) {
 			})
 			output, err := c.Compact(ctx, log.NewNopLogger(), r, w, inputs)
 			if tt.wantErr {
-				require.ErrorContains(t, err, "cannot compact blocks with different trace signature versions")
+				require.ErrorContains(t, err, "cannot compact blocks with different options")
 				require.Nil(t, output)
 				return
 			}
 			require.NoError(t, err)
 			require.Len(t, output, 1)
-			require.Equal(t, TraceSignatureVersionV1, output[0].TraceSignatureVersion)
+			require.Equal(t, TraceSignatureVersionV1, output[0].Options[TraceSignatureVersionOption])
 
 			after := readSimilarityLifecycleTraces(ctx, t, output[0], r)
 			require.Len(t, after, 2)
@@ -337,6 +339,67 @@ func TestTraceSimilarityLifecycle(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCompactBlockOptions(t *testing.T) {
+	rawR, rawW, _, err := local.New(&local.Config{Path: t.TempDir()})
+	require.NoError(t, err)
+	r := backend.NewReader(rawR)
+	w := backend.NewWriter(rawW)
+
+	blockConfig := common.BlockConfig{Version: VersionString}
+	blockConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	ctx := context.Background()
+
+	c := NewCompactor(common.CompactionOptions{
+		BlockConfig:     blockConfig,
+		OutputBlocks:    1,
+		ObjectsCombined: func(_, _ int) {},
+	})
+	compact := func(inputs ...*backend.BlockMeta) ([]*backend.BlockMeta, error) {
+		return c.Compact(ctx, log.NewNopLogger(), r, w, inputs)
+	}
+	newBlock := func(opts map[string]string) *backend.BlockMeta {
+		m := createTestBlock(t, ctx, &blockConfig, r, w, 2, 2, 2, 1, nil)
+		m.Options = opts
+		return m
+	}
+
+	t.Run("streaming block carries options from the input meta", func(t *testing.T) {
+		in := &backend.BlockMeta{TenantID: tenantID, BlockID: backend.NewUUID(), Options: map[string]string{"k": "v"}}
+		_, out := newStreamingBlock(ctx, &blockConfig, in, r, w, tempo_io.NewBufferedWriter)
+		require.Equal(t, map[string]string{"k": "v"}, out.Options)
+	})
+
+	t.Run("wal block carries options", func(t *testing.T) {
+		in := &backend.BlockMeta{TenantID: tenantID, BlockID: backend.NewUUID(), Options: map[string]string{"k": "v"}}
+		b, err := createWALBlock(in, t.TempDir(), "v2", 0)
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{"k": "v"}, b.BlockMeta().Options)
+	})
+
+	t.Run("compaction preserves options", func(t *testing.T) {
+		opts := map[string]string{"feature": "on"}
+		out, err := compact(newBlock(opts), newBlock(opts))
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		require.Equal(t, opts, out[0].Options)
+	})
+
+	t.Run("compaction rejects different options before opening blocks", func(t *testing.T) {
+		out, err := compact(
+			&backend.BlockMeta{BlockID: backend.NewUUID(), Options: map[string]string{"feature": "on"}},
+			&backend.BlockMeta{BlockID: backend.NewUUID(), Options: map[string]string{"feature": "off"}},
+		)
+		require.ErrorContains(t, err, "cannot compact blocks with different options")
+		require.Nil(t, out)
+	})
+
+	t.Run("compaction without options leaves them nil", func(t *testing.T) {
+		out, err := compact(newBlock(nil), newBlock(nil))
+		require.NoError(t, err)
+		require.Nil(t, out[0].Options)
+	})
 }
 
 func TestCompactTraceWritten(t *testing.T) {
@@ -359,7 +422,7 @@ func TestCompactTraceWritten(t *testing.T) {
 	metaLevel2.CompactionLevel = 2
 
 	// Same trace ID with different spans in each block, so compaction takes the real combine path.
-	sch, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{DedicatedColumns: nil, SignatureVersion: 0})
+	sch, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{})
 	splitID := test.ValidTraceID(nil)
 	var splitFragments []*backend.BlockMeta
 	largestFragment := 0
