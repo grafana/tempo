@@ -112,8 +112,8 @@ func (t *Table) renderColumnAutoIndex(out *strings.Builder, hint renderHint) {
 	}
 
 	if hint.isSeparatorRow {
-		numChars := t.autoIndexVIndexMaxLength + utf8.RuneCountInString(t.style.Box.PaddingLeft) +
-			utf8.RuneCountInString(t.style.Box.PaddingRight)
+		numChars := t.autoIndexVIndexMaxLength + text.StringWidthWithoutEscSequences(t.style.Box.PaddingLeft) +
+			text.StringWidthWithoutEscSequences(t.style.Box.PaddingRight)
 		chars := t.style.Box.middleHorizontal(hint.separatorType)
 		if hint.isAutoIndexColumn && hint.isHeaderOrFooterSeparator() {
 			chars = text.RepeatAndTrim(" ", len(chars))
@@ -314,6 +314,7 @@ func (t *Table) renderRowSeparator(out *strings.Builder, hint renderHint) {
 
 func (t *Table) renderRows(out *strings.Builder, rows []rowStr, hint renderHint) {
 	interleaveVerticalMerge := t.shouldInterleaveVerticalMerge(hint)
+	stackFrom := 0
 	for rowIdx := 0; rowIdx < len(rows); rowIdx++ {
 		row := rows[rowIdx]
 
@@ -321,9 +322,13 @@ func (t *Table) renderRows(out *strings.Builder, rows []rowStr, hint renderHint)
 		// the differing columns fill the merged cell's wrapped height instead
 		// of leaving blank lines below it (issue #261)
 		groupEnd := rowIdx + 1
-		if interleaveVerticalMerge {
-			if groupEnd = t.verticalMergeGroupEnd(rows, rowIdx); groupEnd > rowIdx+1 {
-				row = t.combineVerticalMergeGroup(rows, rowIdx, groupEnd)
+		if interleaveVerticalMerge && rowIdx >= stackFrom {
+			if end := t.verticalMergeGroupEnd(rows, rowIdx); end > groupEnd {
+				// if the block cannot be stacked, all its rows render one by one
+				stackFrom = end
+				if combined, ok := t.combineVerticalMergeGroup(rows, rowIdx, end); ok {
+					row, groupEnd = combined, end
+				}
 			}
 		}
 

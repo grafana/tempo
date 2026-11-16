@@ -2,6 +2,8 @@ package table
 
 import (
 	"fmt"
+	"math"
+	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
@@ -206,6 +208,17 @@ func (t *Table) compareNumeric(cellValue string, filterValue interface{}, compar
 		if err != nil {
 			return false
 		}
+	}
+
+	if math.Abs(cellNum) < 1<<53 && math.Abs(filterNum) < 1<<53 {
+		return compareFunc(cellNum, filterNum)
+	}
+
+	cellInt, cellIsInt := new(big.Int).SetString(cellValue, 10)
+	filterInt, filterIsInt := new(big.Int).SetString(fmt.Sprint(filterValue), 10)
+	if cellIsInt && filterIsInt {
+		// Compare integers exactly, then apply the ordering predicate to the sign.
+		return compareFunc(float64(cellInt.Cmp(filterInt)), 0)
 	}
 
 	return compareFunc(cellNum, filterNum)

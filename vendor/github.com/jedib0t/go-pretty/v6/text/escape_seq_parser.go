@@ -134,6 +134,11 @@ type EscSeqParser struct {
 	// escapeSeq accumulates the current escape sequence being parsed; it is
 	// bounded by escSeqMaxLength and reused across sequences.
 	escapeSeq []byte
+
+	// skipParse makes Consume track only where escape sequences begin and
+	// end, without parsing the codes in them; meant for the callers that
+	// measure or cut text and never ask for Codes, IsOpen or Sequence.
+	skipParse bool
 }
 
 func (s *EscSeqParser) Codes() []int {
@@ -176,13 +181,13 @@ func (s *EscSeqParser) Consume(char rune) {
 			bytes.HasPrefix(s.escapeSeq, escapeStartConcealOSIBytes) &&
 			char == escRuneBEL { // BEL
 
-			s.ParseSeq(string(s.escapeSeq), s.escSeqKind)
+			s.parseEscapeSeq()
 			s.Reset()
 			return
 		}
 
 		if s.isEscapeStopRune(char) {
-			s.ParseSeq(string(s.escapeSeq), s.escSeqKind)
+			s.parseEscapeSeq()
 			s.Reset()
 		}
 	}
@@ -199,6 +204,13 @@ func (s *EscSeqParser) IsOpen() bool {
 func (s *EscSeqParser) ParseSeq(seq string, seqKind escSeqKind) {
 	if s.codes == nil {
 		s.codes = make(map[int]bool)
+	}
+
+	// only SGR sequences ("CSI ... m") carry character attributes; the other
+	// CSI final bytes (cursor movement, line erasing, ...) carry none, and
+	// their parameter bytes are not attribute codes
+	if seqKind == escSeqKindCSI && !strings.HasSuffix(seq, EscapeStopCSI) {
+		return
 	}
 
 	seq = s.stripEscapeSequence(seq, seqKind)
@@ -301,11 +313,20 @@ func (s *EscSeqParser) isEscapeStopRune(char rune) bool {
 		if bytes.HasSuffix(s.escapeSeq, escapeStopConcealOSIBytes) {
 			return true
 		}
-	} else if (s.escSeqKind == escSeqKindCSI && char == EscapeStopRuneCSI) ||
+	} else if (s.escSeqKind == escSeqKindCSI && len(s.escapeSeq) > len(EscapeStartCSI) && isCSIFinalRune(char)) ||
 		(s.escSeqKind == escSeqKindOSI && char == EscapeStopRuneOSI) {
 		return true
 	}
 	return false
+}
+
+// isCSIFinalRune returns true if the given rune ends a CSI sequence. A CSI
+// sequence is "ESC [", followed by parameter bytes (0x30-0x3F) and
+// intermediate bytes (0x20-0x2F), and is terminated by the first byte in the
+// range 0x40-0x7E (ECMA-48, section 5.4). "m" (SGR) is only one of those final
+// bytes; the Cursor type of this package emits others like "A" and "K".
+func isCSIFinalRune(char rune) bool {
+	return char >= 0x40 && char <= 0x7E
 }
 
 // isRegularCode checks if a code is a regular code (not a 256-color encoded value).
@@ -346,6 +367,14 @@ func (s *EscSeqParser) parse256ColorSequence(codes []string, i int) (colorIndex 
 	}
 
 	return colorIndex, expectedBase, true
+}
+
+// parseEscapeSeq parses the escape sequence that was just consumed, unless the
+// parser has been asked to skip that.
+func (s *EscSeqParser) parseEscapeSeq() {
+	if !s.skipParse {
+		s.ParseSeq(string(s.escapeSeq), s.escSeqKind)
+	}
 }
 
 // process256ColorSequences processes 256-color sequences (38;5;n or 48;5;n) and returns

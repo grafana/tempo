@@ -1016,7 +1016,8 @@ func (t *Table) shouldInterleaveVerticalMerge(hint renderHint) bool {
 // carry the same config and each add just one line, so they slot into the
 // wrapped height of the merged cell(s) spanning them.
 func (t *Table) verticalMergeGroupEnd(rows []rowStr, start int) int {
-	if !t.rowVerticallyStackable(rows[start]) {
+	// a block's horizontal merges follow its first row, hiding later values
+	if t.rowsConfigMap[start].AutoMerge || !t.rowVerticallyStackable(rows[start]) {
 		return start + 1
 	}
 	end := start + 1
@@ -1084,8 +1085,10 @@ func (t *Table) cellWraps(colIdx int, colStr string) bool {
 // combineVerticalMergeGroup collapses rows[start:end] into a single row. A
 // merged column that never changes keeps its single (spanning) value; every
 // other column stacks the rows' values one below the other, blanking a merged
-// value that repeats so it still reads as one vertically merged cell.
-func (t *Table) combineVerticalMergeGroup(rows []rowStr, start, end int) rowStr {
+// value that repeats so it still reads as one vertically merged cell. It
+// returns false if a value would not show up on the line of its own row, in
+// which case the rows have to be rendered one by one.
+func (t *Table) combineVerticalMergeGroup(rows []rowStr, start, end int) (rowStr, bool) {
 	combined := make(rowStr, t.numColumns)
 	for colIdx := 0; colIdx < t.numColumns; colIdx++ {
 		if t.columnConfigMap[colIdx].AutoMerge && t.mergedColumnIsConstant(rows, start, end, colIdx) {
@@ -1093,6 +1096,14 @@ func (t *Table) combineVerticalMergeGroup(rows []rowStr, start, end int) rowStr 
 				combined[colIdx] = rows[start][colIdx]
 			}
 			continue
+		}
+		// VAlignMiddle and VAlignBottom would shift values onto other rows' lines
+		if t.getVAlign(colIdx, renderHint{}) > text.VAlignTop {
+			return nil, false
+		}
+		// a column merged into the row above renders blank for the whole block
+		if t.shouldMergeCellsVerticallyAbove(colIdx, renderHint{rowNumber: start + 1}) {
+			return nil, false
 		}
 		lines := make([]string, 0, end-start)
 		prevCell := ""
@@ -1109,8 +1120,12 @@ func (t *Table) combineVerticalMergeGroup(rows []rowStr, start, end int) rowStr 
 			lines = append(lines, line)
 		}
 		combined[colIdx] = strings.Join(lines, "\n")
+		// enforcers like text.WrapSoft treat the stacked values as one text
+		if t.wrapCell(colIdx, combined[colIdx]) != combined[colIdx] {
+			return nil, false
+		}
 	}
-	return combined
+	return combined, true
 }
 
 // mergedColumnIsConstant reports whether a merged column holds the same value
