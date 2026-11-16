@@ -18,9 +18,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/frontend/queue"
-	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/frontend/queue"
+	"github.com/grafana/tempo/v3/modules/frontend/v1/frontendv1pb"
 )
 
 // Channels synchronize the mock with the test and keep frames immutable after

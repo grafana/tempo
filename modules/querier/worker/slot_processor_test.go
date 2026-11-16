@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
-	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/v3/modules/frontend/v1/frontendv1pb"
 )
 
 // sendReturns optionally keeps Send blocked after the frontend receives a frame.

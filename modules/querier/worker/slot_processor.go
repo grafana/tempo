@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/httpgrpc"
-	"github.com/grafana/tempo/pkg/util/grpcutil"
+	"github.com/grafana/tempo/v3/pkg/util/grpcutil"
 
-	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/v3/modules/frontend/v1/frontendv1pb"
 )
 
 const (

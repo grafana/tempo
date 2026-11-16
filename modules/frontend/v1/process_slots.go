@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/modules/frontend/queue"
-	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
-	"github.com/grafana/tempo/pkg/util/grpcutil"
+	"github.com/grafana/tempo/v3/modules/frontend/queue"
+	"github.com/grafana/tempo/v3/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/v3/pkg/util/grpcutil"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
