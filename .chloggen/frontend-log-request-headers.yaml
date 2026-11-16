@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: query-frontend
+
+note: Add the request headers configured with `log_query_request_headers` to the per-query response log lines for search, metrics, trace by ID and tag queries, not only to the `query stats` line. Logged header values have control characters removed and are truncated to 1 KiB each.
+
+issues: []
+
+subtext:
+
+user: ankit--sethi
