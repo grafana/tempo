@@ -5,8 +5,10 @@
   // maxUnavailable - the max unavailable pod count. Can be expressed as an integer >= 0 or as a percentage 50% (0-100%)
   // podNamePartitionRegex - use to enable partition awareness. A regex which can extract a partition name from a pod name. ie [a-z\\-]+-zone-[a-z]-([0-9]+)
   // podNameRegexGroup - use to define the regex grouping which holds the partition name. default is 1
-  newZPDB(name, rolloutGroup, maxUnavailable, podNamePartitionRegex='', podNameRegexGroup=1):: {
+  // crossZoneEvictionDelay - optional Go duration (e.g. "20m") that must elapse before a pod in another zone for the same partition can be evicted. Requires podNamePartitionRegex.
+  newZPDB(name, rolloutGroup, maxUnavailable, podNamePartitionRegex='', podNameRegexGroup=1, crossZoneEvictionDelay=''):: {
     assert $._config.rollout_operator_webhooks_enabled : 'zpdb configuration requires rollout_operator_webhooks_enabled=true',
+    assert crossZoneEvictionDelay == '' || podNamePartitionRegex != '' : 'crossZoneEvictionDelay requires podNamePartitionRegex to be set',
     apiVersion: $.zpdb_template.spec.group + '/v1',
     kind: $.zpdb_template.spec.names.kind,
     metadata: {
@@ -34,6 +36,9 @@
       + (if podNamePartitionRegex == '' then {} else {
            podNamePartitionRegex: podNamePartitionRegex,
            podNameRegexGroup: podNameRegexGroup,
+         })
+      + (if crossZoneEvictionDelay == '' then {} else {
+           crossZoneEvictionDelay: crossZoneEvictionDelay,
          })
     ),
   },

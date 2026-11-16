@@ -174,11 +174,12 @@ func TestMCPTraceDiffTool(t *testing.T) {
 	require.Equal(t, "12345678abcdef90", receivedBody.Base.TraceID)
 	require.Equal(t, "abcdef9012345678", receivedBody.Compare.TraceID)
 	require.Equal(t, tracediff.VersionTraceSummaryV0Composed, receivedBody.Format)
-	require.Equal(t, map[string]any{
+	// mcp-go adds its own keys (e.g. serverInfo) for modern protocol versions
+	require.Subset(t, resp.Meta.AdditionalFields, map[string]any{
 		"type":     MetaTypeTraceDiff,
 		"encoding": "json",
 		"version":  "2",
-	}, resp.Meta.AdditionalFields)
+	})
 	require.Len(t, resp.Content, 1)
 	textContent, ok := resp.Content[0].(mcp.TextContent)
 	require.True(t, ok)

@@ -1,0 +1,14 @@
+change_type: change
+
+component: query-frontend
+
+note: Trace by ID now reports the bytes read from bloom filters and indexes, and the bytes of jobs that find no trace, in `tempo_query_frontend_bytes_inspected_total` and the `inspectedBytes` response metric
+
+issues: []
+
+subtext: |
+  `tempo_query_frontend_bytes_inspected_total{op="traces"}`, `tempo_live_store_query_inspected_bytes_total{op="trace_by_id"}` and the `inspected_bytes` field of the trace by ID response log increase, in some cases considerably.
+  The throughput that trace by ID requests are compared with `throughput_bytes_slo` rises as well.
+  Dashboards, alerts, SLOs and autoscaling rules based on these values, such as querier autoscaling on the bytes inspected rate, may need to be adjusted.
+
+user: stoewer

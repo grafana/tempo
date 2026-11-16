@@ -200,7 +200,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 			c := trace.NewCombiner(0, false)
 			for _, tr := range trs {
 				require.NotNil(t, tr)
-				require.NotNil(t, tr.Trace)
+				// blocks without the trace respond with metrics only, Consume ignores their nil trace
 				_, err = c.Consume(tr.Trace)
 				require.NoError(t, err)
 			}
@@ -429,10 +429,10 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	for i := 0; i < blockCount; i++ {
 		for j := 0; j < recordCount; j++ {
 			trace, failedBlocks, err := rw.Find(context.TODO(), testTenantID, &tempopb.TraceByIDRequest{TraceID: makeTraceID(i, j), BlockStart: BlockIDMin, BlockEnd: BlockIDMax}, common.DefaultSearchOptions())
-			require.NotNil(t, trace)
-			require.Greater(t, len(trace), 0)
 			require.NoError(t, err)
 			require.Nil(t, failedBlocks)
+			// blocks without the trace respond with metrics only
+			require.Positive(t, countTraces(trace))
 		}
 	}
 }
@@ -752,9 +752,9 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 		require.NoError(t, err)
 
 		if bytes.Equal(id, dropID) {
-			require.Nil(t, tr)
+			require.Nil(t, tr.GetTrace())
 		} else {
-			require.NotNil(t, tr)
+			require.NotNil(t, tr.GetTrace())
 		}
 	}
 }
@@ -1132,4 +1132,15 @@ func TestCompactWithConfigUnsupportedVersion(t *testing.T) {
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "compaction not supported for block version vParquet5-preview6")
+}
+
+// countTraces returns the number of responses that contain a trace.
+func countTraces(resps []*tempopb.TraceByIDResponse) int {
+	n := 0
+	for _, resp := range resps {
+		if resp.GetTrace() != nil {
+			n++
+		}
+	}
+	return n
 }

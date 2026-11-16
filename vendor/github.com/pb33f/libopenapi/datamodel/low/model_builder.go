@@ -11,9 +11,9 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 type buildModelField struct {
@@ -113,6 +113,32 @@ func BuildModel(node *yaml.Node, model interface{}) error {
 	return nil
 }
 
+// setField*Type are the field types SetField switches on, computed once rather than on every call.
+var (
+	setFieldMapStringNodeReferenceYAMLNodeType                         = reflect.TypeFor[*orderedmap.Map[string, NodeReference[*yaml.Node]]]()
+	setFieldMapStringNodeReferenceStringType                           = reflect.TypeFor[*orderedmap.Map[string, NodeReference[string]]]()
+	setFieldNodeReferenceYAMLNodeType                                  = reflect.TypeFor[NodeReference[*yaml.Node]]()
+	setFieldSliceOfNodeReferenceYAMLNodeType                           = reflect.TypeFor[[]NodeReference[*yaml.Node]]()
+	setFieldNodeReferenceStringType                                    = reflect.TypeFor[NodeReference[string]]()
+	setFieldValueReferenceStringType                                   = reflect.TypeFor[ValueReference[string]]()
+	setFieldNodeReferenceBoolType                                      = reflect.TypeFor[NodeReference[bool]]()
+	setFieldNodeReferenceIntType                                       = reflect.TypeFor[NodeReference[int]]()
+	setFieldNodeReferenceInt64Type                                     = reflect.TypeFor[NodeReference[int64]]()
+	setFieldNodeReferenceFloat32Type                                   = reflect.TypeFor[NodeReference[float32]]()
+	setFieldNodeReferenceFloat64Type                                   = reflect.TypeFor[NodeReference[float64]]()
+	setFieldSliceOfNodeReferenceStringType                             = reflect.TypeFor[[]NodeReference[string]]()
+	setFieldSliceOfNodeReferenceFloat32Type                            = reflect.TypeFor[[]NodeReference[float32]]()
+	setFieldSliceOfNodeReferenceFloat64Type                            = reflect.TypeFor[[]NodeReference[float64]]()
+	setFieldSliceOfNodeReferenceIntType                                = reflect.TypeFor[[]NodeReference[int]]()
+	setFieldSliceOfNodeReferenceInt64Type                              = reflect.TypeFor[[]NodeReference[int64]]()
+	setFieldSliceOfNodeReferenceBoolType                               = reflect.TypeFor[[]NodeReference[bool]]()
+	setFieldMapKeyReferenceStringValueReferenceStringType              = reflect.TypeFor[*orderedmap.Map[KeyReference[string], ValueReference[string]]]()
+	setFieldKeyReferenceMapKeyReferenceStringValueReferenceStringType  = reflect.TypeFor[KeyReference[*orderedmap.Map[KeyReference[string], ValueReference[string]]]]()
+	setFieldNodeReferenceMapKeyReferenceStringValueReferenceStringType = reflect.TypeFor[NodeReference[*orderedmap.Map[KeyReference[string], ValueReference[string]]]]()
+	setFieldNodeReferenceSliceValueReferenceStringType                 = reflect.TypeFor[NodeReference[[]ValueReference[string]]]()
+	setFieldNodeReferenceSliceValueReferenceYAMLNodeType               = reflect.TypeFor[NodeReference[[]ValueReference[*yaml.Node]]]()
+)
+
 // SetField accepts a field reflection value, a yaml.Node valueNode and a yaml.Node keyNode. Using reflection, the
 // function will attempt to set the value of the field based on the key and value nodes. This method is only useful
 // for low-level models, it has no value to high-level ones.
@@ -123,7 +149,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 
 	switch field.Type() {
 
-	case reflect.TypeOf(orderedmap.New[string, NodeReference[*yaml.Node]]()):
+	case setFieldMapStringNodeReferenceYAMLNodeType:
 
 		if utils.IsNodeMap(valueNode) {
 			if field.CanSet() {
@@ -144,7 +170,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf(orderedmap.New[string, NodeReference[string]]()):
+	case setFieldMapStringNodeReferenceStringType:
 
 		if utils.IsNodeMap(valueNode) {
 			if field.CanSet() {
@@ -165,14 +191,14 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf(NodeReference[*yaml.Node]{}):
+	case setFieldNodeReferenceYAMLNodeType:
 
 		if field.CanSet() {
 			or := NodeReference[*yaml.Node]{Value: valueNode, ValueNode: valueNode, KeyNode: keyNode}
 			field.Set(reflect.ValueOf(or))
 		}
 
-	case reflect.TypeOf([]NodeReference[*yaml.Node]{}):
+	case setFieldSliceOfNodeReferenceYAMLNodeType:
 
 		if utils.IsNodeArray(valueNode) {
 			if field.CanSet() {
@@ -188,7 +214,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf(NodeReference[string]{}):
+	case setFieldNodeReferenceStringType:
 
 		if field.CanSet() {
 			nr := NodeReference[string]{
@@ -199,7 +225,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			field.Set(reflect.ValueOf(nr))
 		}
 
-	case reflect.TypeOf(ValueReference[string]{}):
+	case setFieldValueReferenceStringType:
 
 		if field.CanSet() {
 			nr := ValueReference[string]{
@@ -209,7 +235,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			field.Set(reflect.ValueOf(nr))
 		}
 
-	case reflect.TypeOf(NodeReference[bool]{}):
+	case setFieldNodeReferenceBoolType:
 
 		if utils.IsNodeBoolValue(valueNode) {
 			if field.CanSet() {
@@ -223,7 +249,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf(NodeReference[int]{}):
+	case setFieldNodeReferenceIntType:
 
 		if utils.IsNodeIntValue(valueNode) {
 			if field.CanSet() {
@@ -237,7 +263,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf(NodeReference[int64]{}):
+	case setFieldNodeReferenceInt64Type:
 
 		if utils.IsNodeIntValue(valueNode) || utils.IsNodeFloatValue(valueNode) {
 			if field.CanSet() {
@@ -251,7 +277,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf(NodeReference[float32]{}):
+	case setFieldNodeReferenceFloat32Type:
 
 		if utils.IsNodeNumberValue(valueNode) {
 			if field.CanSet() {
@@ -265,7 +291,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf(NodeReference[float64]{}):
+	case setFieldNodeReferenceFloat64Type:
 
 		if utils.IsNodeNumberValue(valueNode) {
 			if field.CanSet() {
@@ -279,7 +305,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf([]NodeReference[string]{}):
+	case setFieldSliceOfNodeReferenceStringType:
 
 		if utils.IsNodeArray(valueNode) {
 			if field.CanSet() {
@@ -295,7 +321,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf([]NodeReference[float32]{}):
+	case setFieldSliceOfNodeReferenceFloat32Type:
 
 		if utils.IsNodeArray(valueNode) {
 			if field.CanSet() {
@@ -312,7 +338,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf([]NodeReference[float64]{}):
+	case setFieldSliceOfNodeReferenceFloat64Type:
 
 		if utils.IsNodeArray(valueNode) {
 			if field.CanSet() {
@@ -325,7 +351,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf([]NodeReference[int]{}):
+	case setFieldSliceOfNodeReferenceIntType:
 
 		if utils.IsNodeArray(valueNode) {
 			if field.CanSet() {
@@ -342,7 +368,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf([]NodeReference[int64]{}):
+	case setFieldSliceOfNodeReferenceInt64Type:
 
 		if utils.IsNodeArray(valueNode) {
 			if field.CanSet() {
@@ -359,7 +385,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf([]NodeReference[bool]{}):
+	case setFieldSliceOfNodeReferenceBoolType:
 
 		if utils.IsNodeArray(valueNode) {
 			if field.CanSet() {
@@ -377,7 +403,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 		}
 
 	// helper for unpacking string maps.
-	case reflect.TypeOf(orderedmap.New[KeyReference[string], ValueReference[string]]()):
+	case setFieldMapKeyReferenceStringValueReferenceStringType:
 
 		if utils.IsNodeMap(valueNode) {
 			if field.CanSet() {
@@ -397,7 +423,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf(KeyReference[*orderedmap.Map[KeyReference[string], ValueReference[string]]]{}):
+	case setFieldKeyReferenceMapKeyReferenceStringValueReferenceStringType:
 
 		if utils.IsNodeMap(valueNode) {
 			if field.CanSet() {
@@ -420,7 +446,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 				field.Set(reflect.ValueOf(ref))
 			}
 		}
-	case reflect.TypeOf(NodeReference[*orderedmap.Map[KeyReference[string], ValueReference[string]]]{}):
+	case setFieldNodeReferenceMapKeyReferenceStringValueReferenceStringType:
 		if utils.IsNodeMap(valueNode) {
 			if field.CanSet() {
 				items := orderedmap.New[KeyReference[string], ValueReference[string]]()
@@ -443,7 +469,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 				field.Set(reflect.ValueOf(ref))
 			}
 		}
-	case reflect.TypeOf(NodeReference[[]ValueReference[string]]{}):
+	case setFieldNodeReferenceSliceValueReferenceStringType:
 
 		if utils.IsNodeArray(valueNode) {
 			if field.CanSet() {
@@ -463,7 +489,7 @@ func SetField(field *reflect.Value, valueNode *yaml.Node, keyNode *yaml.Node) {
 			}
 		}
 
-	case reflect.TypeOf(NodeReference[[]ValueReference[*yaml.Node]]{}):
+	case setFieldNodeReferenceSliceValueReferenceYAMLNodeType:
 
 		if utils.IsNodeArray(valueNode) {
 			if field.CanSet() {

@@ -414,12 +414,16 @@ local g = import 'grafana-builder/grafana.libsonnet';
   // - url_format: an URL format for the runbook, the alert name will be substituted in the URL.
   // - groups: the list of rule groups containing alerts.
   // - annotation_key: the key to use for the annotation whose value will be the formatted runbook URL.
-  withRunbookURL(url_format, groups, annotation_key='runbook_url')::
+  // - lowercase: lowercase the alert name before substituting it. Markdown renderers such as
+  //   GitHub derive a heading's anchor by lowercasing it, so a mixed-case alert name lands at
+  //   the top of the runbook instead of at its section. Off by default, because anchors are
+  //   case-sensitive in some runbook formats (e.g. hand-written HTML anchors).
+  withRunbookURL(url_format, groups, annotation_key='runbook_url', lowercase=false)::
     local update_rule(rule) =
       if std.objectHas(rule, 'alert')
       then rule {
         annotations+: {
-          [annotation_key]: url_format % rule.alert,
+          [annotation_key]: url_format % (if lowercase then std.asciiLower(rule.alert) else rule.alert),
         },
       }
       else rule;

@@ -74,17 +74,39 @@ var (
 	searchInspectedBytes    = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": searchOp})
 	metadataInspectedBytes  = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": metadataOp})
 	metricsInspectedBytes   = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": metricsOp})
+
+	// the bytes inspected by a single querier job, which shows how much work a job of each op is
+	queryJobInspectedBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                       metricNamespace,
+		Name:                            "query_frontend_job_inspected_bytes",
+		Help:                            "Bytes inspected by each querier job that responded with metrics, excluding cached job responses.",
+		Buckets:                         prometheus.ExponentialBuckets(1024, 2, 22), // 1KiB to 2GiB, trace by id jobs are small
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
+	}, []string{metricLabelOp})
+
+	traceByIDJobInspectedBytes = queryJobInspectedBytes.WithLabelValues(traceByIDOp)
+	searchJobInspectedBytes    = queryJobInspectedBytes.WithLabelValues(searchOp)
+	metadataJobInspectedBytes  = queryJobInspectedBytes.WithLabelValues(metadataOp)
+	metricsJobInspectedBytes   = queryJobInspectedBytes.WithLabelValues(metricsOp)
 )
 
 type (
 	handlerPostHook func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error)
 )
 
-// inspectedBytesReporter returns a combiner option that adds to the inspected bytes counter as query jobs complete.
-func inspectedBytesReporter(vec *prometheus.CounterVec, tenant string) combiner.Option {
-	return combiner.WithInspectedBytesReporter(func(b uint64) {
-		vec.WithLabelValues(tenant).Add(float64(b))
-	})
+// inspectedBytesReporter returns a combiner option that adds to the inspected bytes counter as query jobs complete,
+// and observes the bytes inspected by every job.
+func inspectedBytesReporter(vec *prometheus.CounterVec, jobBytes prometheus.Observer, tenant string) combiner.Option {
+	return combiner.WithOptions(
+		combiner.WithInspectedBytesReporter(func(b uint64) {
+			vec.WithLabelValues(tenant).Add(float64(b))
+		}),
+		combiner.WithJobInspectedBytesObserver(func(b uint64) {
+			jobBytes.Observe(float64(b))
+		}),
+	)
 }
 
 // todo: remove post hooks and implement as a handler

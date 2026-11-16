@@ -6,7 +6,7 @@ package index
 import (
 	"context"
 
-	"go.yaml.in/yaml/v4"
+	"github.com/pb33f/go-yaml"
 )
 
 func isSchemaContainingNode(v string) bool {

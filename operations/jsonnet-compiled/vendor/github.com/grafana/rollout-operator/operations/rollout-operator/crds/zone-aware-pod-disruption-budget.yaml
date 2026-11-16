@@ -43,6 +43,9 @@ spec:
                   type: integer
                   minimum: 1
                   description: The regular expression capture group number that contains the partition name. This field is only required when the podNamePartitionRegex field is set and has more then one grouping. The default value is 1 and 1-based indexing is used.
+                crossZoneEvictionDelay:
+                  type: string
+                  description: An optional duration that defines the minimum time that must elapse after a pod returns to a ready state before another pod for the same partition can be evicted. The value must be a valid Go duration string (e.g. "20m", "1h"). This field is only applicable when podNamePartitionRegex is set.
       subresources:
         status: {}
   scope: Namespaced

@@ -58,15 +58,10 @@ func traceByIDExecutions(hexIDs []string, readOpts common.SearchOptions) ([]exec
 			}
 
 			out := execOutput{}
-			if resp == nil {
-				// A bloom miss returns before a response is built, so the
-				// backend counter is the only signal for this execution.
-				return out, nil
-			}
-			if resp.Trace != nil {
+			if resp.GetTrace() != nil {
 				out.matched = 1
 			}
-			if resp.Metrics != nil {
+			if resp.GetMetrics() != nil {
 				if out.metrics, err = metrics.FromResponse(resp.Metrics); err != nil {
 					return execOutput{}, err
 				}

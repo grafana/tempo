@@ -305,3 +305,34 @@ func TestGetSpanMultiplier_WithTraceState(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSpanMultiplier(t *testing.T) {
+	ratioAttr := []*v1_common.KeyValue{{
+		Key:   "sampling.ratio",
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_DoubleValue{DoubleValue: 0.1}},
+	}}
+
+	tests := []struct {
+		name             string
+		traceState       string
+		ratioKey         string
+		attrs            []*v1_common.KeyValue
+		enableTraceState bool
+		expected         float64
+	}{
+		{"no tracestate", "", "", nil, true, 1},
+		{"threshold", "ot=th:8", "", nil, true, 2},
+		{"zero count", "ot=zc:1", "", nil, true, 0},
+		{"zero count wins over threshold", "ot=th:8;zc:1", "", nil, true, 0},
+		{"zero count wins over ratio attribute", "ot=zc:1", "sampling.ratio", ratioAttr, true, 0},
+		{"zero count ignored when tracestate disabled", "ot=zc:1", "", nil, false, 1},
+		{"zero count ignored when tracestate disabled, uses ratio", "ot=zc:1", "sampling.ratio", ratioAttr, false, 10},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			span := &v1.Span{TraceState: tc.traceState, Attributes: tc.attrs}
+			got := GetSpanMultiplier(tc.ratioKey, span, &v1_resource.Resource{}, tc.enableTraceState)
+			assert.InDelta(t, tc.expected, got, 0.001)
+		})
+	}
+}

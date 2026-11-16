@@ -1,0 +1,5 @@
+change_type: enhancement
+component: operations
+note: Emit the live-store downscale delay as a StatefulSet annotation and upgrade rollout-operator to v0.42.0.
+issues: [8409]
+user: julienduchesne

@@ -93,6 +93,9 @@ message TraceByIDResponse {
   TraceByIDMetrics metrics = 2;
   PartialStatus status = 3;
   string message = 4;
+  // Whether, and where, span pruning modified this trace. NOT_PRUNED is the zero value, so it is
+  // omitted on the wire and older clients ignore the field entirely.
+  PruneStatus prune_status = 5;
 }
 
 message TraceByIDMetrics {
@@ -440,6 +443,17 @@ message QueryRangeRequest {
 enum PartialStatus {
   COMPLETE = 0;
   PARTIAL = 1;
+}
+
+enum PruneStatus {
+  // The trace was not modified by pruning.
+  NOT_PRUNED = 0;
+  // The trace was already pruned before it reached Tempo (e.g. by an upstream collector). The
+  // original spans were never stored, so they cannot be retrieved by querying without pruning.
+  PRUNED_ON_WRITE = 1;
+  // Tempo pruned the trace while serving this request. The original spans remain in storage and
+  // can be retrieved by querying again with span pruning disabled.
+  PRUNED_ON_READ = 2;
 }
 
 message QueryRangeResponse {

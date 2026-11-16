@@ -76,7 +76,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		httpReq = httpReq.Clone(ctx)
 
 		var finalResponse *tempopb.QueryInstantResponse
-		c, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, tenant))
+		c, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, metricsJobInspectedBytes, tenant))
 		if err != nil {
 			return err
 		}
@@ -158,7 +158,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		req.URL.Path = strings.ReplaceAll(req.URL.Path, api.PathMetricsQueryInstant, api.PathMetricsQueryRange)
 		req = api.BuildQueryRangeRequest(req, qr, "") // dedicated cols are never passed from the caller
 
-		combiner, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, tenant))
+		combiner, err := combiner.NewTypedQueryRange(qr, cfg.Metrics.Sharder.MaxResponseSeries, inspectedBytesReporter(metricsInspectedBytes, metricsJobInspectedBytes, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "query instant: query range combiner failed", "err", err)
 			return httpInvalidRequest(err), nil

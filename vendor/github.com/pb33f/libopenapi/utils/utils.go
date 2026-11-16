@@ -17,7 +17,7 @@ import (
 	"github.com/pb33f/jsonpath/pkg/jsonpath"
 	jsonpathconfig "github.com/pb33f/jsonpath/pkg/jsonpath/config"
 
-	"go.yaml.in/yaml/v4"
+	"github.com/pb33f/go-yaml"
 )
 
 type Case int8

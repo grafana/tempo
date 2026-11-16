@@ -137,6 +137,11 @@ Parameters:
 - `end = (unix epoch seconds)`
   Optional. Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` includes traces for the specified time range only. If the parameters aren't provided then Tempo checks for the trace across all blocks in backend. If the parameters are provided, it only checks in the blocks within the specified time range, this can result in trace not being found or partial results if it doesn't fall in the specified time range.
 
+When span pruning is applied, the response also includes a `pruneStatus` field. It's omitted when the trace wasn't pruned.
+
+- `PRUNED_ON_READ`: Tempo pruned the trace while serving this request. The original spans remain in storage, and querying again with `span_pruning=false` returns them.
+- `PRUNED_ON_WRITE`: the trace was already pruned before it reached Tempo, for example by an upstream collector. The original spans were never stored, so querying with `span_pruning=false` can't recover them.
+
 The following query API is also provided on the querier service for _debugging_ purposes.
 
 ```

@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: query-frontend
+
+note: Add `tempo_query_frontend_job_inspected_bytes`, a histogram of the bytes inspected by each querier job per operation, and `tempo_query_frontend_executing_jobs`, a gauge of the jobs currently executing on queriers per tenant and operation
+
+issues: []
+
+subtext:
+
+user: stoewer

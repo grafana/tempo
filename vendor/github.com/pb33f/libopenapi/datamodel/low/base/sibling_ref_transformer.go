@@ -6,9 +6,9 @@ package base
 import (
 	"sort"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 // SiblingRefTransformer handles transformation of schemas with sibling properties alongside $ref

@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3express"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
 	"github.com/grafana/tempo/v3/tempodb/pool"
@@ -57,6 +58,7 @@ type Config struct {
 	BlocklistPollFallback                  bool          `yaml:"blocklist_poll_fallback"`
 	BlocklistPollTenantIndexBuilders       int           `yaml:"blocklist_poll_tenant_index_builders"`
 	BlocklistPollStaleTenantIndex          time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
+	BlocklistPollTenantIndexV2             bool          `yaml:"blocklist_poll_tenant_index_v2"`
 	BlocklistPollJitterMs                  int           `yaml:"blocklist_poll_jitter_ms"`
 	BlocklistPollTolerateConsecutiveErrors int           `yaml:"blocklist_poll_tolerate_consecutive_errors"`
 	BlocklistPollTolerateTenantFailures    int           `yaml:"blocklist_poll_tolerate_tenant_failures"`
@@ -65,11 +67,12 @@ type Config struct {
 	EmptyTenantDeletionAge     time.Duration `yaml:"empty_tenant_deletion_age"`
 
 	// backends
-	Backend string        `yaml:"backend"`
-	Local   *local.Config `yaml:"local"`
-	GCS     *gcs.Config   `yaml:"gcs"`
-	S3      *s3.Config    `yaml:"s3"`
-	Azure   *azure.Config `yaml:"azure"`
+	Backend   string            `yaml:"backend"`
+	Local     *local.Config     `yaml:"local"`
+	GCS       *gcs.Config       `yaml:"gcs"`
+	S3        *s3.Config        `yaml:"s3"`
+	S3Express *s3express.Config `yaml:"s3express"`
+	Azure     *azure.Config     `yaml:"azure"`
 
 	// legacy cache config. this is loaded by tempodb and added to the cache
 	// provider on construction

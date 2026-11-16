@@ -11,13 +11,13 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/datamodel"
 	"github.com/pb33f/libopenapi/datamodel/low"
 	"github.com/pb33f/libopenapi/datamodel/low/base"
 	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 // Components represents a low-level OpenAPI 3+ Components Object, that is backed by a low-level one.
@@ -42,7 +42,7 @@ type Components struct {
 	RootNode        *yaml.Node
 	index           *index.SpecIndex
 	context         context.Context
-	nodeStore       sync.Map
+	nodeStore       low.NodeLines
 	reference       low.Reference
 	*low.Reference
 	low.NodeMap
@@ -175,7 +175,7 @@ func (co *Components) Build(ctx context.Context, root *yaml.Node, idx *index.Spe
 	utils.CheckForMergeNodes(root)
 	co.reference = low.Reference{}
 	co.Reference = &co.reference
-	co.nodeStore = sync.Map{}
+	co.nodeStore = low.NodeLines{}
 	co.Nodes = &co.nodeStore
 	if len(root.Content) > 0 {
 		co.NodeMap.ExtractNodes(root, false)

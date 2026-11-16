@@ -120,10 +120,11 @@ func newPrometheus() *e2e.HTTPService {
 
 // newAzurite creates a new Azurite service for Azure blob storage emulation
 func newAzurite(port int) *e2e.HTTPService {
+	// --skipApiVersionCheck: the azblob SDK can send a newer x-ms-version than Azurite supports
 	s := e2e.NewHTTPService(
 		"azurite",
 		azuriteImage,
-		e2e.NewCommandWithoutEntrypoint("sh", "-c", "azurite -l /data --blobHost 0.0.0.0"),
+		e2e.NewCommandWithoutEntrypoint("sh", "-c", "azurite -l /data --blobHost 0.0.0.0 --skipApiVersionCheck"),
 		e2e.NewHTTPReadinessProbe(port, "/devstoreaccount1?comp=list", 403, 403), // If we get 403 the Azurite is ready
 		port, // blob storage port
 	)

@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: query-frontend
+
+note: "`log_query_request_headers` adds the configured request headers to the `query stats` log line again."
+
+issues: [8309]
+
+subtext:
+
+user: m99coder

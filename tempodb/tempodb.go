@@ -33,6 +33,7 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/backend/gcs"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 	"github.com/grafana/tempo/v3/tempodb/backend/s3"
+	"github.com/grafana/tempo/v3/tempodb/backend/s3express"
 	"github.com/grafana/tempo/v3/tempodb/blocklist"
 	"github.com/grafana/tempo/v3/tempodb/encoding"
 	"github.com/grafana/tempo/v3/tempodb/encoding/common"
@@ -195,6 +196,8 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 		rawR, rawW, c, err = gcs.New(cfg.GCS)
 	case backend.S3:
 		rawR, rawW, c, err = s3.New(cfg.S3)
+	case backend.S3Express:
+		rawR, rawW, c, err = s3express.New(cfg.S3Express)
 	case backend.Azure:
 		rawR, rawW, c, err = azure.New(cfg.Azure)
 	default:
@@ -226,7 +229,12 @@ func New(cfg *Config, cacheProvider cache.Provider, logger gkLog.Logger) (Reader
 		}
 	}
 
-	r := backend.NewReader(rawR)
+	opts := []backend.Option{}
+	if cfg.BlocklistPollTenantIndexV2 {
+		opts = append(opts, backend.WithTenantIndexV2(true))
+	}
+
+	r := backend.NewReader(rawR, opts...)
 	w := backend.NewWriter(rawW)
 	rw := &readerWriter{
 		c:                       c,
@@ -479,7 +487,7 @@ func (rw *readerWriter) findInBlocks(ctx context.Context, logger gkLog.Logger, i
 			return nil, fmt.Errorf("error finding trace by id, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 
-		level.Debug(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
+		level.Debug(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject.GetTrace() != nil)
 		return foundObject, nil
 	})
 

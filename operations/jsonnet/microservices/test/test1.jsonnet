@@ -408,3 +408,24 @@ test.new(std.thisFile)
     2
   )
 )
+
++ test.case.new(
+  'live-store zones set the downscale delay as an annotation',
+  test.expect.eq(
+    [
+      default[name].metadata.annotations['grafana.com/min-time-between-zones-downscale']
+      for name in ['tempo_live_store_zone_a_statefulset', 'tempo_live_store_zone_b_statefulset']
+    ],
+    ['0', '0']
+  )
+)
++ test.case.new(
+  'live-store zones omit the deprecated downscale delay label',
+  test.expect.eq(
+    [
+      std.objectHas(default[name].metadata.labels, 'grafana.com/min-time-between-zones-downscale')
+      for name in ['tempo_live_store_zone_a_statefulset', 'tempo_live_store_zone_b_statefulset']
+    ],
+    [false, false]
+  )
+)

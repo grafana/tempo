@@ -18,6 +18,13 @@ spec:
         properties:
           spec:
             properties:
+              crossZoneEvictionDelay:
+                description: An optional duration that defines the minimum time that
+                  must elapse after a pod returns to a ready state before another
+                  pod for the same partition can be evicted. The value must be a valid
+                  Go duration string (e.g. "20m", "1h"). This field is only applicable
+                  when podNamePartitionRegex is set.
+                type: string
               maxUnavailable:
                 description: The number of pods that can be unavailable within a zone
                   or partition.

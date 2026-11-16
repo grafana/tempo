@@ -14,8 +14,8 @@ import (
 
 	"github.com/pb33f/libopenapi/utils"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/datamodel"
-	"go.yaml.in/yaml/v4"
 )
 
 // Reference is a wrapper around *yaml.Node that tracks a single $ref usage in a specification.
@@ -457,6 +457,37 @@ func (index *SpecIndex) SetResolver(resolver *Resolver) {
 // GetConfig returns the SpecIndexConfig for this index.
 func (index *SpecIndex) GetConfig() *SpecIndexConfig {
 	return index.config
+}
+
+// ResolveDocumentVersion returns the numeric spec version of the document this index takes part in.
+//
+// A file that declares its own version is believed first: it may be a complete document with an
+// openapi or swagger key of its own, and that key describes how its keywords are written no matter
+// which document referenced it.
+//
+// The rolodex root is the fallback because an external file's own SpecInfo is not always populated.
+// The two indexing paths disagree: Rolodex.indexNode copies the config wholesale and keeps the root
+// SpecInfo, while the file loader nils it so the file gets one built from its own bytes, which
+// leaves VersionNumeric at zero for a bare schema fragment carrying no version key. A fragment has
+// no version of its own to state, so inheriting the document being built is the right reading.
+//
+// ok is false when no version is reachable at all, so callers can decline to make a version
+// dependent decision rather than read a zero as 'this is not 3.1'.
+func (index *SpecIndex) ResolveDocumentVersion() (float32, bool) {
+	if index == nil {
+		return 0, false
+	}
+	if cfg := index.GetConfig(); cfg != nil && cfg.SpecInfo != nil && cfg.SpecInfo.VersionNumeric > 0 {
+		return cfg.SpecInfo.VersionNumeric, true
+	}
+	if rolodex := index.GetRolodex(); rolodex != nil {
+		if root := rolodex.GetRootIndex(); root != nil {
+			if cfg := root.GetConfig(); cfg != nil && cfg.SpecInfo != nil && cfg.SpecInfo.VersionNumeric > 0 {
+				return cfg.SpecInfo.VersionNumeric, true
+			}
+		}
+	}
+	return 0, false
 }
 
 // GetNodeMap returns the line-to-column-to-node map built during indexing.

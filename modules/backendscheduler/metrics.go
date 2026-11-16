@@ -60,7 +60,7 @@ var (
 	metricProviderJobsMerged = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_provider_jobs_merged_total",
-		Help:      "The number of jobs merged from providers",
+		Help:      "The number of jobs received from providers by Next",
 	}, []string{"id"})
 	metricWorkFlushesFailed = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempo",

@@ -4,6 +4,10 @@ all: install dashboards alerts rules
 
 check: all
 	git diff --exit-code -- ../tempo-mixin-compiled/
+	@out=$$(jsonnet -J vendor -S cluster-label-check.jsonnet) && \
+		if echo "$$out" | grep -nw cluster; then \
+			echo "Hard-coded cluster label above: use \$$._config.per_cluster_label or group_by_cluster."; exit 1; \
+		fi
 
 install:
 	jb install

@@ -203,3 +203,49 @@ func (i *testIterator) Next(context.Context) (common.ID, *tempopb.Trace, error) 
 
 func (i *testIterator) Close() {
 }
+
+// Blocks that are ruled out by the bloom filter must not be reported as containing a trace.
+func TestIsInBlock(t *testing.T) {
+	const (
+		tenantID = "single-tenant"
+		blocks   = 3
+	)
+
+	dir := t.TempDir()
+	generateTestBlocks(t, dir, tenantID, blocks, 5)
+
+	rawR, _, _, err := local.New(&local.Config{Path: dir})
+	require.NoError(t, err)
+	reader := backend.NewReader(rawR)
+	ctx := context.Background()
+
+	blockIDs, _, _, err := reader.Blocks(ctx, tenantID)
+	require.NoError(t, err)
+	require.Len(t, blockIDs, blocks)
+
+	// blocksContaining returns the blocks that report to contain at least one of the IDs
+	blocksContaining := func(traceIDs ...common.ID) []uuid.UUID {
+		var found []uuid.UUID
+		for i, blockID := range blockIDs {
+			meta, err := isInBlock(ctx, reader, true, i, blockID, tenantID, traceIDs...)
+			require.NoError(t, err)
+			if meta != nil {
+				found = append(found, uuid.UUID(meta.BlockID))
+			}
+		}
+		return found
+	}
+
+	t.Run("trace in one block", func(t *testing.T) {
+		for _, hexID := range getAllTraceIDs(t, dir, tenantID) {
+			id, err := util.HexStringToTraceID(hexID)
+			require.NoError(t, err)
+
+			require.Len(t, blocksContaining(id), 1, hexID)
+		}
+	})
+
+	t.Run("trace in no block", func(t *testing.T) {
+		require.Empty(t, blocksContaining(test.ValidTraceID(nil)))
+	})
+}

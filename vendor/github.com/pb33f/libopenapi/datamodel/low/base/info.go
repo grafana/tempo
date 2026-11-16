@@ -6,14 +6,13 @@ package base
 import (
 	"context"
 	"hash/maphash"
-	"sync"
 
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/pb33f/libopenapi/utils"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/datamodel/low"
 	"github.com/pb33f/libopenapi/index"
-	"go.yaml.in/yaml/v4"
 )
 
 // Info represents a low-level Info object as defined by both OpenAPI 2 and OpenAPI 3.
@@ -36,7 +35,7 @@ type Info struct {
 	RootNode       *yaml.Node
 	index          *index.SpecIndex
 	context        context.Context
-	nodeStore      sync.Map
+	nodeStore      low.NodeLines
 	reference      low.Reference
 	*low.Reference
 	low.NodeMap
@@ -67,7 +66,7 @@ func (i *Info) Build(ctx context.Context, keyNode, root *yaml.Node, idx *index.S
 	i.KeyNode = keyNode
 	i.reference = low.Reference{}
 	i.Reference = &i.reference
-	i.nodeStore = sync.Map{}
+	i.nodeStore = low.NodeLines{}
 	i.Nodes = &i.nodeStore
 	i.index = idx
 	i.context = ctx

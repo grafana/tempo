@@ -80,7 +80,6 @@ type rangeLimiter interface {
 
 // scannedBytesLimit is what the search and metrics rangeLimiters share.
 type scannedBytesLimit struct {
-	op       string
 	reader   tempodb.Reader
 	filterFn func(m *backend.BlockMeta) bool
 	metrics  rangeLimitMetrics

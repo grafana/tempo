@@ -1,4 +1,3 @@
-
 ---
 aliases:
   - ../../operations/traceql-metrics/ # /docs/tempo/next/operations/traceql-metrics/
@@ -52,7 +51,7 @@ This is different to the default TraceQL maximum time range of 168 hours (7 days
 
 `max_duration` gives every tenant the same range, but data volume differs by orders of magnitude between tenants.
 
-Use `query_frontend.metrics.max_scanned_bytes` to limit a query by the bytes of the backend blocks it scans. It allows users to the query for time ranges between `min_duration` and `max_duration` and scans data upto `max_scanned_bytes`.
+Use `query_frontend.metrics.max_scanned_bytes` to limit a query by the bytes of the backend blocks it scans. It allows tenants to query time ranges between `min_duration` and `max_duration` that scan up to `max_scanned_bytes`.
 
 A query of `min_duration` or less is always allowed, and a longer query over the allowed range is rejected with a 400 error. `min_duration` must not be above `max_duration`.
 Only backend blocks count toward `max_scanned_bytes`, so data newer than `query_backend_after` isn't counted.

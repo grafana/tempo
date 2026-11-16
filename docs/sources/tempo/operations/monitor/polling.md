@@ -31,6 +31,12 @@ so an overlong cycle delays subsequent updates.
 
 The index is written in two formats: both a `gzip` compressed JSON located at `/<tenant>/index.json.gz` and a zstd compressed proto encoded object located at `/<tenant>/index.pb.zst`. Only the proto object is read, falling back to the JSON if the proto does not exist, which should only happen as part of the transition to the new format. These indexes contain an entry for every block and compacted block for the tenant.
 
+The index is also written to `/<tenant>/index.v2.zst`.
+When `blocklist_poll_tenant_index_v2` is enabled,
+that object is read first, falling back to the proto object if it doesn't exist.
+The V2 format stores the fields blocks have in common once, instead of in every block entry,
+so the object is smaller and uses less CPU and memory to decode.
+
 The blocklist is eventually consistent.
 When polls fit within their intervals and indexes are updated successfully,
 discovery takes approximately two polling intervals:

@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	Local = "local"
-	GCS   = "gcs"
-	S3    = "s3"
-	Azure = "azure"
+	Local     = "local"
+	GCS       = "gcs"
+	S3        = "s3"
+	S3Express = "s3express"
+	Azure     = "azure"
 )
 
 var (

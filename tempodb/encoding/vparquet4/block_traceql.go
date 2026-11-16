@@ -3071,6 +3071,16 @@ func (e existenceIters) add(columnPath string, op traceql.Operator) bool {
 	return true
 }
 
+// hasAttr reports whether attrs already holds a, so a dedicated column nil does not hide a value of another type read from generic attributes.
+func hasAttr(attrs []attrVal, a traceql.Attribute) bool {
+	for _, av := range attrs {
+		if av.a == a {
+			return true
+		}
+	}
+	return false
+}
+
 // createDedicatedExistenceIterator also reads generic attributes for != nil, = nil and select/by, because values of another type than the dedicated or well-known column are written there.
 func createDedicatedExistenceIterator(makeIter, makeNilIter makeIterFn, cond traceql.Condition, columnPath string,
 	definitionLevel, attrDefinitionLevel int,
@@ -3099,20 +3109,19 @@ func createDedicatedExistenceIterator(makeIter, makeNilIter makeIterFn, cond tra
 			makeNilIter(keyPath, parquetquery.NewIncludeNilStringEqualPredicate([]byte(cond.Attribute.Name)), ""),
 		}, nil), nil
 	case traceql.OpNone:
-		existsCond, notExistsCond := cond, cond
-		existsCond.Op, notExistsCond.Op = traceql.OpExists, traceql.OpNotExists
-		existsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, existsCond, columnPath, definitionLevel, attrDefinitionLevel,
-			keyPath, strPath, intPath, floatPath, boolPath)
+		genericIter, err := createAttributeIterator(makeIter, []traceql.Condition{cond}, attrDefinitionLevel,
+			keyPath, strPath, intPath, floatPath, boolPath, false, false)
 		if err != nil {
 			return nil, err
 		}
-		notExistsIter, err := createDedicatedExistenceIterator(makeIter, makeNilIter, notExistsCond, columnPath, definitionLevel, attrDefinitionLevel,
-			keyPath, strPath, intPath, floatPath, boolPath)
-		if err != nil {
-			return nil, err
-		}
-		// Each row matches exactly one half, so the span gets one value and still matches when all conditions are required.
-		return parquetquery.NewUnionIterator(definitionLevel, []parquetquery.Iterator{existsIter, notExistsIter}, nil), nil
+		// The dedicated column gives every row a value or nil, and the collectors drop that nil when generic attributes hold a value.
+		return parquetquery.NewUnionIterator(definitionLevel, []parquetquery.Iterator{
+			makeIter(columnPath, nil, cond.Attribute.Name),
+			parquetquery.NewJoinIterator(definitionLevel, []parquetquery.Iterator{
+				makeIter(columnPath, parquetquery.NewNilValuePredicate(), ""),
+				genericIter,
+			}, nil),
+		}, nil), nil
 	default:
 		return nil, fmt.Errorf("unexpected operator %s for dedicated column existence", cond.Op)
 	}
@@ -3356,7 +3365,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 			default:
 				// This is a null value, indicating the attribute doesn't exist
-				if kv.Value.IsNull() {
+				if kv.Value.IsNull() && !hasAttr(sp.spanAttrs, newSpanAttr(kv.Key)) {
 					sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString("nil"))
 				}
 			}
@@ -3518,7 +3527,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticString(unsafeToString(e.Value.Bytes()))})
 		default:
 			// This is a null value, indicating the attribute doesn't exist
-			if e.Value.IsNull() {
+			if e.Value.IsNull() && !hasAttr(c.resAttrs, newResAttr(e.Key)) {
 				c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticString("nil")})
 			}
 		}

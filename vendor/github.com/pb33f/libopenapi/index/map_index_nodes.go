@@ -4,7 +4,10 @@
 package index
 
 import (
-	"go.yaml.in/yaml/v4"
+	"cmp"
+	"slices"
+
+	"github.com/pb33f/go-yaml"
 )
 
 // NodeOrigin represents where a node has come from within a specification. This is not useful for single file specs,
@@ -41,8 +44,10 @@ type NodeOrigin struct {
 	Index *SpecIndex `json:"-" yaml:"-"`
 }
 
-// nodeLineEntry is a single (column, node) pair on one line of the spec. Lines hold very
-// few nodes, so a small slice scanned linearly is far cheaper than a per-line map.
+// nodeLineEntry is a single (column, node) pair on one line of the spec. Most lines hold
+// very few nodes, but a minified JSON document puts every node on one line, so per-line
+// work must stay sub-linear: entries are appended during the build and each line is then
+// sorted by column exactly once (see sortNodeLines), making lookups a binary search.
 type nodeLineEntry struct {
 	column int32
 	node   *yaml.Node
@@ -66,17 +71,21 @@ func (index *SpecIndex) awaitNodeMap() {
 	}
 }
 
-// lookupNodeLines returns the node stored at line/column, or nil if absent.
+// lookupNodeLines returns the node stored at line/column, or nil if absent. Lines must
+// be sorted by column (see sortNodeLines).
 func lookupNodeLines(lines [][]nodeLineEntry, line, column int) *yaml.Node {
 	if line < 0 || line >= len(lines) {
 		return nil
 	}
-	for _, e := range lines[line] {
-		if int(e.column) == column {
-			return e.node
-		}
+	i, found := slices.BinarySearchFunc(lines[line], int32(column), compareEntryColumn)
+	if !found {
+		return nil
 	}
-	return nil
+	return lines[line][i].node
+}
+
+func compareEntryColumn(e nodeLineEntry, column int32) int {
+	return cmp.Compare(e.column, column)
 }
 
 // MapNodes maps all nodes in the document by line and column. The index is built into a
@@ -90,6 +99,7 @@ func (index *SpecIndex) MapNodes(rootNode *yaml.Node) {
 	// lines are 1-based; +1 so line NumLines is directly addressable.
 	lines := make([][]nodeLineEntry, sizeHint+1)
 	lines = mapNodesRecursive(rootNode, lines)
+	sortNodeLines(lines)
 	index.nodeMapLock.Lock()
 	index.nodeLines = lines
 	index.nodeMapLock.Unlock()
@@ -101,15 +111,16 @@ func mapNodesRecursive(node *yaml.Node, lines [][]nodeLineEntry) [][]nodeLineEnt
 		node = node.Content[0]
 	}
 	for _, child := range node.Content {
-		lines = addNodeLineEntry(lines, child)
 		lines = mapNodesRecursive(child, lines)
 	}
+	// Record each node once, in post-order. Parents still win position collisions,
+	// without allocating duplicate entries for every child before recursing.
 	return addNodeLineEntry(lines, node)
 }
 
-// addNodeLineEntry records node at its line/column, preserving the previous map
-// semantics: a later write to the same line/column replaces the earlier one
-// (parents are written after their children, so parents win collisions).
+// addNodeLineEntry appends node at its line. It never scans the line, so building the
+// index stays linear even when the whole document sits on a single line; duplicate
+// columns are collapsed later by sortNodeLines.
 func addNodeLineEntry(lines [][]nodeLineEntry, node *yaml.Node) [][]nodeLineEntry {
 	line := node.Line
 	if line < 0 {
@@ -124,13 +135,29 @@ func addNodeLineEntry(lines [][]nodeLineEntry, node *yaml.Node) [][]nodeLineEntr
 		copy(expanded, lines)
 		lines = expanded
 	}
-	entries := lines[line]
-	for i := range entries {
-		if int(entries[i].column) == node.Column {
-			entries[i].node = node
-			return lines
-		}
-	}
-	lines[line] = append(entries, nodeLineEntry{column: int32(node.Column), node: node})
+	lines[line] = append(lines[line], nodeLineEntry{column: int32(node.Column), node: node})
 	return lines
+}
+
+// sortNodeLines orders every line by column and collapses duplicate columns, keeping the
+// entry written last. This preserves the original map semantics: mapNodesRecursive writes
+// parents after their children, so a parent sharing a position with its first child wins.
+func sortNodeLines(lines [][]nodeLineEntry) {
+	for i, entries := range lines {
+		if len(entries) < 2 {
+			continue
+		}
+		slices.SortStableFunc(entries, func(a, b nodeLineEntry) int {
+			return cmp.Compare(a.column, b.column)
+		})
+		out := entries[:1]
+		for _, e := range entries[1:] {
+			if e.column == out[len(out)-1].column {
+				out[len(out)-1] = e
+				continue
+			}
+			out = append(out, e)
+		}
+		lines[i] = out
+	}
 }

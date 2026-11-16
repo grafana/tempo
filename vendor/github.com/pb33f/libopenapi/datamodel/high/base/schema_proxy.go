@@ -13,12 +13,12 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/pb33f/go-yaml"
 	"github.com/pb33f/libopenapi/datamodel/high"
 	"github.com/pb33f/libopenapi/datamodel/low"
 	"github.com/pb33f/libopenapi/datamodel/low/base"
 	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 // buildCacheKey builds a "path:line:col" string without fmt.Sprintf allocations.
@@ -103,6 +103,34 @@ type InlineRenderContext struct {
 	referenceNodeTargets            sync.Map // authored reference node -> canonical target
 	preservedReferenceNodes         sync.Map // authored reference node -> struct{}
 	referenceNodeRewrites           sync.Map // authored reference node -> root component ref
+	absoluteSpecPaths               sync.Map // spec path -> its absolute form, resolved once per render
+	canonicalIdentities             sync.Map // reference -> index.CanonicalReferenceIdentity(reference)
+}
+
+// absoluteSpecPath returns a spec path in absolute form, as filepath.Abs does for a relative local path.
+// filepath.Abs queries the working directory, so each path is resolved once per render rather than for
+// every reference rendered.
+func (ctx *InlineRenderContext) absoluteSpecPath(specPath string) string {
+	if filepath.IsAbs(specPath) || strings.HasPrefix(specPath, "http") {
+		return specPath
+	}
+	if cached, ok := ctx.absoluteSpecPaths.Load(specPath); ok {
+		return cached.(string)
+	}
+	abs, _ := filepath.Abs(specPath)
+	ctx.absoluteSpecPaths.Store(specPath, abs)
+	return abs
+}
+
+// canonicalReferenceIdentity memoizes index.CanonicalReferenceIdentity, which parses and cleans the
+// reference, for the circular references compared against every rendered reference.
+func (ctx *InlineRenderContext) canonicalReferenceIdentity(ref string) string {
+	if cached, ok := ctx.canonicalIdentities.Load(ref); ok {
+		return cached.(string)
+	}
+	identity := index.CanonicalReferenceIdentity(ref)
+	ctx.canonicalIdentities.Store(ref, identity)
+	return identity
 }
 
 // NewInlineRenderContext creates a new isolated rendering context with default bundle mode.
@@ -1089,82 +1117,11 @@ func (sp *SchemaProxy) marshalYAMLInlineInternal(ctx *InlineRenderContext) (inte
 	var err error
 	s, err = sp.BuildSchema()
 
-	if s != nil && s.GoLow() != nil && s.GoLow().Index != nil {
-		idx := s.GoLow().Index
-		circ := idx.GetCircularReferences()
-
-		// Extract ignored and safe circular references from rolodex if available
-		if idx.GetRolodex() != nil {
-			ignored := idx.GetRolodex().GetIgnoredCircularReferences()
-			safe := idx.GetRolodex().GetSafeCircularReferences()
-			circ = append(circ, ignored...)
-			circ = append(circ, safe...)
-		}
-
-		cirError := func(str string) error {
-			return fmt.Errorf("schema render failure, circular reference: `%s`", str)
-		}
-
-		for _, c := range circ {
-			if sp.IsReference() {
-				if c == nil || c.LoopPoint == nil {
-					continue
-				}
-				if ctx.StrictCircularReferenceIdentity {
-					target := sp.referenceTargetIdentity(ctx)
-					if target == "" || target != index.CanonicalReferenceIdentity(c.LoopPoint.FullDefinition) {
-						continue
-					}
-					node, rewritten, refErr := rewrittenRefNode()
-					return sp.circularReferenceResult(ctx, node, rewritten, refErr, cirError(c.LoopPoint.Definition))
-				}
-				if sp.GetReference() == c.LoopPoint.Definition {
-					node, rewritten, refErr := rewrittenRefNode()
-					return sp.circularReferenceResult(ctx, node, rewritten, refErr, cirError(c.LoopPoint.Definition))
-				}
-				basePath := idx.GetSpecAbsolutePath()
-
-				if !filepath.IsAbs(basePath) && !strings.HasPrefix(basePath, "http") {
-					basePath, _ = filepath.Abs(basePath)
-				}
-
-				if basePath == c.LoopPoint.FullDefinition {
-					node, rewritten, refErr := rewrittenRefNode()
-					return sp.circularReferenceResult(ctx, node, rewritten, refErr, cirError(c.LoopPoint.Definition))
-				}
-				a := utils.ReplaceWindowsDriveWithLinuxPath(strings.Replace(c.LoopPoint.FullDefinition, basePath, "", 1))
-				b := sp.GetReference()
-				if strings.HasPrefix(b, "./") {
-					b = strings.Replace(b, "./", "/", 1) // strip any leading ./ from the reference
-				}
-				// if loading things in remotely and references are relative.
-				if strings.HasPrefix(a, "http") {
-					purl, _ := url.Parse(a)
-					if purl != nil {
-						specPath := filepath.Dir(purl.Path)
-						host := fmt.Sprintf("%s://%s", purl.Scheme, purl.Host)
-						a = strings.Replace(a, host, "", 1)
-						a = strings.Replace(a, specPath, "", 1)
-					}
-				}
-
-				aBase, aFragment := index.SplitRefFragment(a)
-				bBase, bFragment := index.SplitRefFragment(b)
-
-				if aFragment != "" && bFragment != "" && aFragment == bFragment {
-					node, rewritten, refErr := rewrittenRefNode()
-					return sp.circularReferenceResult(ctx, node, rewritten, refErr, cirError(c.LoopPoint.Definition))
-				}
-
-				if aFragment == "" && bFragment == "" {
-					aNorm := strings.TrimPrefix(strings.TrimPrefix(aBase, "./"), "/")
-					bNorm := strings.TrimPrefix(strings.TrimPrefix(bBase, "./"), "/")
-					if aNorm != "" && bNorm != "" && aNorm == bNorm {
-						node, rewritten, refErr := rewrittenRefNode()
-						return sp.circularReferenceResult(ctx, node, rewritten, refErr, cirError(c.LoopPoint.Definition))
-					}
-				}
-			}
+	if s != nil && s.GoLow() != nil && s.GoLow().Index != nil && sp.IsReference() {
+		if loopDefinition, found := sp.matchCircularReference(ctx, s.GoLow().Index); found {
+			node, rewritten, refErr := rewrittenRefNode()
+			return sp.circularReferenceResult(ctx, node, rewritten, refErr,
+				fmt.Errorf("schema render failure, circular reference: `%s`", loopDefinition))
 		}
 	}
 
@@ -1187,6 +1144,91 @@ func (sp *SchemaProxy) marshalYAMLInlineInternal(ctx *InlineRenderContext) (inte
 		return s.MarshalYAMLInlineWithContext(ctx)
 	}
 	return nil, errors.New("unable to render schema")
+}
+
+// matchCircularReference reports whether this reference proxy closes a known circular reference, and the
+// loop point definition of the first one it matches. The circular references are the schema index's own,
+// then the rolodex root's (registered on the root, while an external $ref's resolved content is owned by
+// its own index), then the rolodex's ignored and safe circular references.
+func (sp *SchemaProxy) matchCircularReference(ctx *InlineRenderContext, idx *index.SpecIndex) (string, bool) {
+	sources := [4][]*index.CircularReferenceResult{idx.GetCircularReferences()}
+	if rolodex := idx.GetRolodex(); rolodex != nil {
+		if root := rolodex.GetRootIndex(); root != nil && root != idx {
+			sources[1] = root.GetCircularReferences()
+		}
+		sources[2] = rolodex.GetIgnoredCircularReferences()
+		sources[3] = rolodex.GetSafeCircularReferences()
+	}
+
+	if ctx.StrictCircularReferenceIdentity {
+		target := sp.referenceTargetIdentity(ctx)
+		if target == "" {
+			return "", false
+		}
+		for _, circular := range sources {
+			for _, c := range circular {
+				if c != nil && c.LoopPoint != nil &&
+					target == ctx.canonicalReferenceIdentity(c.LoopPoint.FullDefinition) {
+					return c.LoopPoint.Definition, true
+				}
+			}
+		}
+		return "", false
+	}
+
+	// everything derived from this proxy's own reference is the same for every candidate.
+	ref := sp.GetReference()
+	b := ref
+	if strings.HasPrefix(b, "./") {
+		b = strings.Replace(b, "./", "/", 1) // strip any leading ./ from the reference
+	}
+	bBase, bFragment := index.SplitRefFragment(b)
+	bNorm := strings.TrimPrefix(strings.TrimPrefix(bBase, "./"), "/")
+	basePath := ""
+	basePathResolved := false
+
+	for _, circular := range sources {
+		for _, c := range circular {
+			if c == nil || c.LoopPoint == nil {
+				continue
+			}
+			if ref == c.LoopPoint.Definition {
+				return c.LoopPoint.Definition, true
+			}
+			if !basePathResolved {
+				basePathResolved = true
+				basePath = ctx.absoluteSpecPath(idx.GetSpecAbsolutePath())
+			}
+			if basePath == c.LoopPoint.FullDefinition {
+				return c.LoopPoint.Definition, true
+			}
+			a := utils.ReplaceWindowsDriveWithLinuxPath(strings.Replace(c.LoopPoint.FullDefinition, basePath, "", 1))
+			// if loading things in remotely and references are relative.
+			if strings.HasPrefix(a, "http") {
+				purl, _ := url.Parse(a)
+				if purl != nil {
+					specPath := filepath.Dir(purl.Path)
+					host := fmt.Sprintf("%s://%s", purl.Scheme, purl.Host)
+					a = strings.Replace(a, host, "", 1)
+					a = strings.Replace(a, specPath, "", 1)
+				}
+			}
+
+			aBase, aFragment := index.SplitRefFragment(a)
+
+			if aFragment != "" && bFragment != "" && aFragment == bFragment {
+				return c.LoopPoint.Definition, true
+			}
+
+			if aFragment == "" && bFragment == "" {
+				aNorm := strings.TrimPrefix(strings.TrimPrefix(aBase, "./"), "/")
+				if aNorm != "" && bNorm != "" && aNorm == bNorm {
+					return c.LoopPoint.Definition, true
+				}
+			}
+		}
+	}
+	return "", false
 }
 
 func (sp *SchemaProxy) marshalParsedRefWithSiblingsInline(ctx *InlineRenderContext, currentSibling *Schema) (interface{}, error) {

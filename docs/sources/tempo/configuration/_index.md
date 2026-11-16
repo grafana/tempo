@@ -1596,7 +1596,7 @@ storage:
     trace:
 
         # The storage backend to use
-        # Should be one of "gcs", "s3", "azure" or "local" (only supported in the monolithic mode)
+        # Should be one of "gcs", "s3", "s3express", "azure" or "local" (only supported in the monolithic mode)
         # CLI flag -storage.trace.backend
         [backend: <string>]
 
@@ -1848,6 +1848,22 @@ storage:
               # It expects a 32 byte long string.
               encryption_key:
 
+        # S3 directory bucket configuration. Will be used only if value of backend is "s3express".
+        # Takes the options of s3, except insecure, which isn't supported, and list_blocks_concurrency, which is ignored.
+        # Check the S3 doc within this folder for information on directory bucket specific permissions.
+        s3express:
+
+            # Name of the directory bucket, which ends in --x-s3.
+            # Example: "bucket: tempo--euc1-ist1-az1--x-s3"
+            [bucket: <string>]
+
+            # The Region of the bucket's Availability Zone or Local Zone. Required.
+            # Example: "region: eu-central-1"
+            [region: <string>]
+
+            # Optional. Defaults to the bucket's Zonal endpoint, s3express-<zone-id>.<region>.amazonaws.com.
+            [endpoint: <string>]
+
         # Azure configuration. Will be used only if value of backend is "azure".
         azure:
 
@@ -1940,6 +1956,13 @@ storage:
         # the bucket contents.
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
+
+        # Read the tenant index in the V2 format,
+        # which is smaller and cheaper to decode.
+        # Tempo always writes it, so enable this only after
+        # every component runs a version that supports it.
+        # Default false.
+        [blocklist_poll_tenant_index_v2: <bool>]
 
         # Delays each unknown block metadata read by a random amount, up to the provided value in milliseconds.
         # Does not delay tenant-index reads or enforce a cluster-wide request rate limit.
@@ -2833,7 +2856,7 @@ overrides:
 
     client:
       # The storage backend to use
-      # Should be one of "gcs", "s3", "azure" or "local"
+      # Should be one of "gcs", "s3", "s3express", "azure" or "local"
       [backend: <string>]
 
       # Backend-specific configuration, support the same configuration options as the
@@ -2841,6 +2864,7 @@ overrides:
       local:
       gcs:
       s3:
+      s3express:
       azure:
 
       # Check whether the backend supports versioning at startup. If enabled Tempo will not start if

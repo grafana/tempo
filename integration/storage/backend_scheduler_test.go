@@ -128,14 +128,9 @@ func TestBackendScheduler(t *testing.T) {
 			})
 		}
 
-		// NOTE: the compaction provider has a channel capacity of 1, and the
-		// backendscheduler has a channel capacity of 1.  This means that the
-		// compaction provider can create 4 jobs before they are processed in the
-		// Next call of the scheduler.
-		// - one recorded before pushing into the compaction provider channel
-		// - one in the compaction provider channel
-		// - one between the provider pull and the scheduler push
-		// - one in the merged channel
+		// NOTE: the provider channels are unbuffered, so with no worker running the
+		// compaction provider holds exactly one job: recorded, then blocked on the
+		// send until a worker asks for it.
 
 		// NOTE: Since the measurement of outstanding blocks also skips the blocks
 		// from jobs which have not been processed, we expect our outstanding blocks
@@ -146,11 +141,11 @@ func TestBackendScheduler(t *testing.T) {
 		// outstanding blocks instead of per tenant for this reason.
 
 		// NOTE: Due to timing and window selection, we may not fully populate a job,
-		// and we may end up with jobs which between 2 and 4 blocks outstanding.
-		// - 4 jobs not yet recorded by the scheduler (no worker running yet)
+		// and we may end up with a job which has between 2 and 4 blocks outstanding.
+		// - 1 job not yet recorded by the scheduler (no worker running yet)
 		// - between 2 and 4 blocks per job (default settings)
-		expectedTotalOutstandingMin := totalOutstanding - 16
-		expectedTotalOutstandingMax := totalOutstanding - 8
+		expectedTotalOutstandingMin := totalOutstanding - 4
+		expectedTotalOutstandingMax := totalOutstanding - 2
 
 		// Wait for total blocklist length and outstanding blocks metrics to stabilize.
 		require.NoError(t, scheduler.WaitSumMetricsWithOptions(
@@ -305,7 +300,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
 			trs, failedBlocks, err = tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: traceID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
-			return err == nil && len(failedBlocks) == 0 && len(trs) > 0
+			return err == nil && len(failedBlocks) == 0 && countFoundTraces(trs) > 0
 		}, 60*time.Second, 2*time.Second, "trace must be findable in all blocks before redaction")
 
 		// Dial the scheduler's gRPC endpoint and build a client.
@@ -362,7 +357,7 @@ func TestBackendSchedulerRedaction(t *testing.T) {
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
 			trs, _, err = tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: traceID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
-			return err == nil && len(trs) == 0
+			return err == nil && countFoundTraces(trs) == 0
 		}, 60*time.Second, 2*time.Second, "trace must not be findable in any block after redaction")
 	})
 }
@@ -417,7 +412,7 @@ func TestBackendSchedulerRedactionQuery(t *testing.T) {
 			require.Eventually(t, func() bool {
 				tempodbReader.PollNow(ctx)
 				trs, failedBlocks, err := tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: id, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
-				return err == nil && len(failedBlocks) == 0 && len(trs) > 0
+				return err == nil && len(failedBlocks) == 0 && countFoundTraces(trs) > 0
 			}, 60*time.Second, 2*time.Second, "trace %x must be findable before redaction", id)
 		}
 
@@ -460,13 +455,25 @@ func TestBackendSchedulerRedactionQuery(t *testing.T) {
 		require.Eventually(t, func() bool {
 			tempodbReader.PollNow(ctx)
 			trs, _, err := tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: matchID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
-			return err == nil && len(trs) == 0
+			return err == nil && countFoundTraces(trs) == 0
 		}, 60*time.Second, 2*time.Second, "query-matched trace must not be findable after redaction")
 
 		keepTrs, _, err := tempodbReader.Find(ctx, testTenant, &tempopb.TraceByIDRequest{TraceID: keepID, BlockStart: tempodb.BlockIDMin, BlockEnd: tempodb.BlockIDMax}, common.DefaultSearchOptions())
 		require.NoError(t, err)
-		require.NotEmpty(t, keepTrs, "non-matching trace must survive redaction")
+		require.Positive(t, countFoundTraces(keepTrs), "non-matching trace must survive redaction")
 	})
+}
+
+// countFoundTraces returns the number of responses that contain a trace. Blocks that don't have the
+// trace respond with metrics only, so the number of responses is not the number of blocks with the trace.
+func countFoundTraces(trs []*tempopb.TraceByIDResponse) int {
+	found := 0
+	for _, tr := range trs {
+		if tr.GetTrace() != nil {
+			found++
+		}
+	}
+	return found
 }
 
 // traceWithNamespace builds a trace whose resource carries a specific namespace attribute so a

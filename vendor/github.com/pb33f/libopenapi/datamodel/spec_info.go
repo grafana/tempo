@@ -14,8 +14,9 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/pb33f/go-yaml"
+	"github.com/pb33f/libopenapi/internal/jsonnode"
 	"github.com/pb33f/libopenapi/utils"
-	"go.yaml.in/yaml/v4"
 )
 
 const (
@@ -188,7 +189,7 @@ func extractSpecInfoInternal(spec []byte, bypass bool, skipJSON bool) (*SpecInfo
 		parseBytes = normalizeJSONForYAMLParser(spec)
 	}
 
-	err := yaml.Unmarshal(parseBytes, &parsedSpec)
+	err := jsonnode.Unmarshal(parseBytes, &parsedSpec)
 	if err != nil {
 		if !bypass {
 			return nil, fmt.Errorf("unable to parse specification: %s", err.Error())
@@ -410,7 +411,7 @@ func ExtractSpecInfo(spec []byte) (*SpecInfo, error) {
 }
 
 // checkDuplicateMappingKeys walks a parsed node tree and reports duplicate mapping
-// keys using the exact equality semantics of the go.yaml.in/yaml/v4 decoder: two keys
+// keys using the exact equality semantics of the github.com/pb33f/go-yaml decoder: two keys
 // in the same mapping collide when their node Kind and raw Value match (no tag or
 // alias resolution). The collected construct errors are normalized onto the
 // public one-line error shape, and children of an offending mapping are not
@@ -422,7 +423,7 @@ func ExtractSpecInfo(spec []byte) (*SpecInfo, error) {
 // artifact of construction order, not extra information, so the walker does
 // not replicate it. TestCheckDuplicateMappingKeys_MatchesDecoder pins parity
 // for everything else (and TestCheckDuplicateMappingKeys_AliasedAnchorDivergence
-// pins this exception); revisit both when go.yaml.in/yaml/v4 leaves rc.
+// pins this exception); revisit both if the decoder changes how it reports duplicates.
 func checkDuplicateMappingKeys(node *yaml.Node) error {
 	var errs []string
 	walkDuplicateMappingKeys(node, &errs)
@@ -471,7 +472,7 @@ func parseVersionTypeData(d interface{}) (string, int, error) {
 }
 
 // normalizeJSONForYAMLParser rewrites the small set of JSON escapes accepted by
-// RFC 8259 but rejected by go.yaml.in/yaml/v4. It returns the original slice
+// RFC 8259 but rejected by github.com/pb33f/go-yaml. It returns the original slice
 // without allocation unless a rewrite is required.
 func normalizeJSONForYAMLParser(jsonBytes []byte) []byte {
 	if bytes.IndexByte(jsonBytes, '\\') < 0 {
