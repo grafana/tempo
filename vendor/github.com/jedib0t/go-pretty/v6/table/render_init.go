@@ -64,8 +64,13 @@ func (t *Table) extractMaxColumnLengths(rows []rowStr, hint renderHint) {
 func (t *Table) extractMaxColumnLengthsFromRow(row rowStr, mci mergedColumnIndices) {
 	for colIdx := 0; colIdx < len(row); colIdx++ {
 		colStr := row[colIdx]
-		longestLineLen := text.LongestLineLen(colStr)
 		maxColWidth := t.getColumnWidthMax(colIdx)
+		if maxColWidth > 0 && strings.Contains(colStr, "\n") {
+			// the enforcer may join the lines of the text while wrapping it,
+			// and leave it with lines longer than the ones it came with
+			colStr = t.columnConfigMap[colIdx].getWidthMaxEnforcer()(colStr, maxColWidth)
+		}
+		longestLineLen := text.LongestLineLen(colStr)
 		if maxColWidth > 0 && maxColWidth < longestLineLen {
 			longestLineLen = maxColWidth
 		}
@@ -116,7 +121,8 @@ func (t *Table) reBalanceMaxMergedColumnLengths() {
 				mapReduced := false
 				for mergedColumn := range columnBalanceMap {
 					maxColumnLength := t.maxColumnLengths[mergedColumn]
-					if maxColumnLength >= maxLengthSplitAcrossColumns {
+					// Keep columns at the rounded-down average so they can share the remainder.
+					if maxColumnLength > maxLengthSplitAcrossColumns {
 						mapReduced = true
 						mergedColumnLength -= maxColumnLength
 						delete(columnBalanceMap, mergedColumn)
@@ -206,6 +212,10 @@ func (t *Table) initForRenderColumnLengths() {
 	t.maxColumnLengths = make([]int, t.numColumns)
 	t.maxMergedColumnLengths = make(map[int]map[int]int)
 	t.extractMaxColumnLengths(t.rowsHeader, renderHint{isHeaderRow: true})
+	if t.autoIndex && len(t.rowsHeader) == 0 {
+		// the IDs of the columns (A, B, C, ...) get rendered as the header
+		t.extractMaxColumnLengths([]rowStr{t.getAutoIndexColumnIDs()}, renderHint{isAutoIndexRow: true, isHeaderRow: true})
+	}
 	t.extractMaxColumnLengths(t.rows, renderHint{})
 	t.extractMaxColumnLengths(t.rowsFooter, renderHint{isFooterRow: true})
 
@@ -301,6 +311,11 @@ func (t *Table) initForRenderRows() {
 	t.rowsFooter = t.initForRenderRowsStringify(t.rowsFooterRaw, renderHint{isFooterRow: true})
 	t.rowsHeader = t.initForRenderRowsStringify(t.rowsHeaderRaw, renderHint{isHeaderRow: true})
 
+	// without any (data) rows, no column has been found to be non-numeric
+	if len(t.rows) == 0 {
+		t.initForRenderRowsNonNumericColumns()
+	}
+
 	// sort the rows as requested
 	t.initForRenderSortRows()
 
@@ -365,6 +380,25 @@ func (t *Table) initForRenderFilterRows() {
 			}
 		}
 		t.separators = newSeparators
+	}
+}
+
+// initForRenderRowsNonNumericColumns figures out which columns are numeric when
+// there are no (data) rows to go by: a column is numeric if the footers have
+// numbers, and nothing but numbers, in it. The headers are names of the
+// columns, and say nothing about what the columns hold.
+func (t *Table) initForRenderRowsNonNumericColumns() {
+	for colIdx := range t.columnIsNonNumeric {
+		isNumeric := false
+		for _, row := range t.rowsFooterRaw {
+			if colIdx < len(row) {
+				isNumeric = isNumber(row[colIdx])
+				if !isNumeric {
+					break
+				}
+			}
+		}
+		t.columnIsNonNumeric[colIdx] = !isNumeric
 	}
 }
 
@@ -461,6 +495,10 @@ func (t *Table) initForRenderRowSeparatorStrings() {
 		// When there are headers but no data rows, we still need separatorTypeRowBottom
 		// for the bottom border.
 		addSeparatorType(separatorTypeRowBottom)
+	} else {
+		// When there are neither headers nor data rows, the top border is
+		// still the one that goes above the data rows.
+		addSeparatorType(separatorTypeRowTop)
 	}
 	if len(t.rowsFooter) > 0 || t.autoIndex {
 		addSeparatorType(separatorTypeFooterTop)

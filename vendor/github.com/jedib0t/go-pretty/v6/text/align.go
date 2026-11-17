@@ -129,6 +129,11 @@ func (a Align) trimString(text string) string {
 }
 
 func justifyText(text string, textLength int, maxLength int) string {
+	// there is no length to justify the text to
+	if maxLength < 0 {
+		return text
+	}
+
 	// split the text into individual words
 	words := Filter(strings.Split(text, " "), func(item string) bool {
 		return item != ""

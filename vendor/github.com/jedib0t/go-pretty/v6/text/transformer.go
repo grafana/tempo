@@ -49,12 +49,13 @@ type Transformer func(val interface{}) string
 //
 //gocyclo:ignore
 func NewNumberTransformer(format string) Transformer {
-	// Pre-compute negative format string to avoid repeated allocations
-	negFormat := "-" + format
+	// Pre-compute negative format string to avoid repeated allocations; the
+	// "-" takes the place of any sign that the format asks for
+	negFormat := "-" + formatWithoutSignFlags(format)
 
 	transformInt64 := func(val int64) string {
 		if val < 0 {
-			return colorsNumberNegative.Sprintf(negFormat, -val)
+			return colorsNumberNegative.Sprintf(negFormat, -uint64(val))
 		}
 		if val > 0 {
 			return colorsNumberPositive.Sprintf(format, val)
@@ -192,25 +193,66 @@ func NewURLTransformer(colors ...Color) Transformer {
 	}
 }
 
-func formatTime(t time.Time, layout string, location *time.Location) string {
-	rsp := ""
-	if t.Unix() > 0 {
-		if location != nil {
-			t = t.In(location)
-		}
-		rsp = t.Format(layout)
+// formatWithoutSignFlags returns the format with the flags that ask for a sign
+// ("+" and " ") removed from all its verbs.
+func formatWithoutSignFlags(format string) string {
+	if !strings.ContainsAny(format, "+ ") {
+		return format
 	}
-	return rsp
+
+	var out strings.Builder
+	for idx := 0; idx < len(format); idx++ {
+		out.WriteByte(format[idx])
+		if format[idx] != '%' {
+			continue
+		}
+		// "%%" is a percent sign, and not the beginning of a verb
+		if idx+1 < len(format) && format[idx+1] == '%' {
+			idx++
+			out.WriteByte(format[idx])
+			continue
+		}
+		// the flags come right after the "%"
+		for idx+1 < len(format) && strings.IndexByte("+-# 0", format[idx+1]) >= 0 {
+			idx++
+			if format[idx] != '+' && format[idx] != ' ' {
+				out.WriteByte(format[idx])
+			}
+		}
+	}
+	return out.String()
+}
+
+func formatTime(t time.Time, layout string, location *time.Location) string {
+	// the zero value and the epoch are what a time that was never set looks
+	// like; any other time, before or after the epoch, is a value
+	if t.IsZero() || t.Equal(time.Unix(0, 0)) {
+		return ""
+	}
+	if location != nil {
+		t = t.In(location)
+	}
+	return t.Format(layout)
 }
 
 func formatTimeUnix(unixTime int64, timeTransformer Transformer) string {
-	// Use pre-computed constants instead of repeated time.Second.Nanoseconds() calls
-	if unixTime >= unixTimeMinNanoSeconds {
-		unixTime = unixTime / nanosPerSecond
-	} else if unixTime >= unixTimeMinMicroseconds {
-		unixTime = unixTime / microsPerSecond
-	} else if unixTime >= unixTimeMinMilliseconds {
-		unixTime = unixTime / millisPerSecond
+	// find the unit from the magnitude, so that a timestamp before the epoch
+	// (a negative one) is read the same way as one after it
+	magnitude := uint64(unixTime)
+	if unixTime < 0 {
+		magnitude = -magnitude
 	}
-	return timeTransformer(time.Unix(unixTime, 0))
+	unitsPerSecond := int64(1)
+	if magnitude >= uint64(unixTimeMinNanoSeconds) {
+		unitsPerSecond = nanosPerSecond
+	} else if magnitude >= uint64(unixTimeMinMicroseconds) {
+		unitsPerSecond = microsPerSecond
+	} else if magnitude >= uint64(unixTimeMinMilliseconds) {
+		unitsPerSecond = millisPerSecond
+	}
+	// the remainder is negative for a negative timestamp, which time.Unix
+	// takes away from the seconds as it should
+	seconds := unixTime / unitsPerSecond
+	nanoseconds := (unixTime % unitsPerSecond) * (nanosPerSecond / unitsPerSecond)
+	return timeTransformer(time.Unix(seconds, nanoseconds))
 }
