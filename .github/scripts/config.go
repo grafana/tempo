@@ -9,12 +9,17 @@ import (
 )
 
 const (
-	defaultMarkerLabel = "codeowner-sweep"
-	defaultBotActor    = "github-actions[bot]"
-	closedLoadDays     = 7
-	closedLoadWindow   = closedLoadDays * 24 * time.Hour
+	defaultMarkerLabel        = "codeowner-sweep"
+	defaultBotActor           = "github-actions[bot]"
+	defaultMaxAssignments     = 25
+	defaultOpenLoadMaxAgeDays = 90
+	closedLoadDays            = 7
+	closedLoadWindow          = closedLoadDays * 24 * time.Hour
 )
 
+// config carries sweep settings. A zero-value config is not usable:
+// maxAssignments and openLoadMaxAgeDays must be positive and markerLabel and
+// botActor must be non-empty. configFromEnv enforces all of these invariants.
 type config struct {
 	repo               string
 	assigneePool       string
@@ -32,28 +37,45 @@ func defaultConfig(repo string) config {
 		repo:               repo,
 		assigneePool:       "",
 		excludedOwners:     "",
-		maxAssignments:     25,
-		openLoadMaxAgeDays: 90,
+		maxAssignments:     defaultMaxAssignments,
+		openLoadMaxAgeDays: defaultOpenLoadMaxAgeDays,
 		markerLabel:        defaultMarkerLabel,
 		botActor:           defaultBotActor,
 	}
 }
 
-// configFromEnv requires positive assignment and age limits. Values accepted
-// here are safe to convert to time.Duration during load expiry checks.
-func configFromEnv() (config, error) {
+// repoFromEnv returns and form-validates the owner/repository setting. It is
+// the only config the failure reporter needs.
+func repoFromEnv() (string, error) {
 	repo, err := requiredEnv("REPO")
 	if err != nil {
-		return config{}, err
+		return "", err
 	}
 	if strings.Count(repo, "/") != 1 || strings.HasPrefix(repo, "/") || strings.HasSuffix(repo, "/") {
-		return config{}, fmt.Errorf("REPO must use owner/repository form, got %q", repo)
+		return "", fmt.Errorf("repo must use owner/repository form, got %q", repo)
+	}
+	return repo, nil
+}
+
+// configFromEnv requires positive assignment and age limits and non-empty
+// marker identities. Values accepted here are safe to convert to time.Duration
+// during load expiry checks.
+func configFromEnv() (config, error) {
+	repo, err := repoFromEnv()
+	if err != nil {
+		return config{}, err
 	}
 	cfg := defaultConfig(repo)
 	cfg.assigneePool = os.Getenv("ASSIGNEE_POOL")
 	cfg.excludedOwners = os.Getenv("EXCLUDED_OWNERS")
 	cfg.markerLabel = envDefault("MARKER_LABEL", defaultMarkerLabel)
 	cfg.botActor = envDefault("BOT_ACTOR", defaultBotActor)
+	if cfg.markerLabel == "" {
+		return config{}, fmt.Errorf("MARKER_LABEL must not be empty")
+	}
+	if cfg.botActor == "" {
+		return config{}, fmt.Errorf("BOT_ACTOR must not be empty")
+	}
 	cfg.maxAssignments, err = envPositiveInt("MAX_ASSIGNMENTS", cfg.maxAssignments)
 	if err != nil {
 		return config{}, err

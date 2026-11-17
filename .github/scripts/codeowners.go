@@ -2,15 +2,15 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"maps"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/google/go-github/v93/github"
 )
 
 type ownerKind uint8
@@ -38,7 +38,7 @@ func excludedOwnerLogins(value string) map[string]struct{} {
 }
 
 func parseLogins(value string, stripLeadingSlash bool) map[string]struct{} {
-	result := make(map[string]struct{})
+	result := make(map[string]struct{}, strings.Count(value, ",")+1)
 	for _, token := range strings.FieldsFunc(value, func(r rune) bool {
 		return r == ',' || unicode.IsSpace(r)
 	}) {
@@ -120,69 +120,82 @@ func hasLogin(set map[string]struct{}, login string) bool {
 	return ok
 }
 
-func readCodeowners(ctx context.Context, client *githubClient, repo string) (string, error) {
-	var repository struct {
-		DefaultBranch string `json:"default_branch"`
+func readCodeowners(ctx context.Context, client *github.Client, repo string) (string, error) {
+	owner, name, err := splitRepo(repo)
+	if err != nil {
+		return "", err
 	}
-	if _, err := client.request(ctx, http.MethodGet, repositoryEndpoint(repo, ""), nil, nil, &repository); err != nil {
+	repository, _, err := client.Repositories.Get(ctx, owner, name)
+	if err != nil {
 		return "", fmt.Errorf("read repository default branch: %w", err)
 	}
-	// Fixed GitHub search order; never mutated by callers or tests.
-	codeownersPaths := [...]string{"CODEOWNERS", ".github/CODEOWNERS", "docs/CODEOWNERS"}
+	// GitHub searches these locations in this order and uses the first that
+	// exists: .github/, the root, then docs/.
+	codeownersPaths := [...]string{".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"}
 	for _, path := range codeownersPaths {
-		var content struct {
-			Content string `json:"content"`
-		}
-		query := url.Values{"ref": {repository.DefaultBranch}}
-		_, err := client.request(ctx, http.MethodGet, repositoryEndpoint(repo, "/contents/"+path), query, nil, &content)
+		content, _, _, err := client.Repositories.GetContents(ctx, owner, name, path, &github.RepositoryContentGetOptions{Ref: repository.GetDefaultBranch()})
 		if err != nil {
-			var statusError *apiError
-			if errors.As(err, &statusError) && statusError.status == http.StatusNotFound {
+			var statusError *github.ErrorResponse
+			if errors.As(err, &statusError) && statusError.Response.StatusCode == http.StatusNotFound {
 				continue
 			}
 			return "", fmt.Errorf("read CODEOWNERS candidate %s: %w", path, err)
 		}
-		decoded, err := base64.StdEncoding.DecodeString(content.Content)
+		if content == nil {
+			continue // a directory lives at this path
+		}
+		decoded, err := content.GetContent()
 		if err != nil {
 			return "", fmt.Errorf("decode %s: %w", path, err)
 		}
-		fmt.Printf("Reading %s from %s.\n", path, repository.DefaultBranch)
-		return string(decoded), nil
+		fmt.Printf("Reading %s from %s.\n", path, repository.GetDefaultBranch())
+		return decoded, nil
 	}
 	return "", errors.New("no CODEOWNERS file found at any known location")
 }
 
-func resolvePool(ctx context.Context, client *githubClient, cfg config, groups ownerGroups) ([]string, error) {
-	assignees, err := paginateList[user](ctx, client, repositoryEndpoint(cfg.repo, "/assignees"), pageQuery())
+func resolvePool(ctx context.Context, client *github.Client, cfg config, groups ownerGroups) ([]string, error) {
+	owner, name, err := splitRepo(cfg.repo)
+	if err != nil {
+		return nil, err
+	}
+	assignees, err := eachPage(ctx, func(opts *github.ListOptions) ([]*github.User, *github.Response, error) {
+		return client.Issues.ListAssignees(ctx, owner, name, opts)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list repository assignees: %w", err)
 	}
 	assignable := make(map[string]struct{}, len(assignees))
 	for _, assignee := range assignees {
-		assignable[strings.ToLower(assignee.Login)] = struct{}{}
+		assignable[strings.ToLower(assignee.GetLogin())] = struct{}{}
 	}
 
 	pool := make(map[string]struct{}, len(groups.users)+len(cfg.assigneePool))
 	if cfg.assigneePool != "" {
-		pool = ownerLogins(cfg.assigneePool)
+		for login := range ownerLogins(cfg.assigneePool) {
+			pool[login] = struct{}{}
+		}
 		fmt.Println("Using ASSIGNEE_POOL for the code owner pool.")
 	} else {
-		for owner := range groups.users {
-			pool[owner] = struct{}{}
+		for groupOwner := range groups.users {
+			pool[groupOwner] = struct{}{}
 		}
-		org, _, _ := strings.Cut(cfg.repo, "/") // configFromEnv validates owner/repository.
 		for _, team := range slices.Sorted(maps.Keys(groups.teams)) {
-			_, slug, found := strings.Cut(team, "/")
-			if !found || org == "" || slug == "" {
+			// Expand the team under its own org, not the repository's: a
+			// CODEOWNERS entry may legitimately name a team from another org.
+			teamOrg, slug, found := strings.Cut(team, "/")
+			if !found || teamOrg == "" || slug == "" {
 				return nil, fmt.Errorf("invalid team owner %q; expected org/team", team)
 			}
-			members, err := paginateList[user](ctx, client, "orgs/"+org+"/teams/"+slug+"/members", pageQuery())
+			members, err := eachPage(ctx, func(opts *github.ListOptions) ([]*github.User, *github.Response, error) {
+				return client.Teams.ListTeamMembersBySlug(ctx, teamOrg, slug, &github.TeamListTeamMembersOptions{ListOptions: *opts})
+			})
 			if err != nil {
-				fmt.Printf("::warning::Could not expand team @%s: %v. Set CODEOWNER_ASSIGNEES or provide org team-read permission.\n", team, err)
+				fmt.Printf("::warning::Could not expand team @%s: %v. Set ASSIGNEE_POOL or provide org team-read permission.\n", team, err)
 				continue
 			}
 			for _, member := range members {
-				pool[strings.ToLower(member.Login)] = struct{}{}
+				pool[strings.ToLower(member.GetLogin())] = struct{}{}
 			}
 			fmt.Printf("Expanded @%s to %d member(s).\n", team, len(members))
 		}
@@ -190,9 +203,9 @@ func resolvePool(ctx context.Context, client *githubClient, cfg config, groups o
 
 	excluded := excludedOwnerLogins(cfg.excludedOwners)
 	eligible := make(map[string]struct{}, len(pool))
-	for owner := range pool {
-		if !hasLogin(excluded, owner) && hasLogin(assignable, owner) {
-			eligible[owner] = struct{}{}
+	for groupOwner := range pool {
+		if !hasLogin(excluded, groupOwner) && hasLogin(assignable, groupOwner) {
+			eligible[groupOwner] = struct{}{}
 		}
 	}
 	return slices.Sorted(maps.Keys(eligible)), nil

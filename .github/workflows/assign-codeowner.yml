@@ -80,7 +80,10 @@ jobs:
           # The account that appears as the actor when the workflow assigns
           # through GITHUB_TOKEN. Only used to interpret timeline events.
           BOT_ACTOR: 'github-actions[bot]'
-        run: go run ./.github/scripts
+        # .github/scripts is its own module (matching tools/), so GitHub CI
+        # dependencies never enter the product go.mod.
+        working-directory: .github/scripts
+        run: go run .
 
       - name: Report a failed sweep
         if: failure()
@@ -90,4 +93,5 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         # A scheduled failure notifies only this file's last editor, so record
         # the failure where maintainers will see it.
-        run: go run ./.github/scripts report-failure
+        working-directory: .github/scripts
+        run: go run . report-failure

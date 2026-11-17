@@ -26,6 +26,7 @@ func testPull(number int) pullRequest {
 	return pullRequest{
 		Number:    number,
 		CreatedAt: testNow.Add(-24 * time.Hour),
+		State:     "open",
 		User:      &user{Login: "external", Type: "User"},
 		Assignees: []user{},
 		Labels:    []label{},
@@ -86,6 +87,14 @@ func TestLoadExpiryBoundary(t *testing.T) {
 	}
 }
 
+func TestLoadFutureCreatedAtCountsAsOpen(t *testing.T) {
+	pr := assignedTo(testPull(1), "Alice")
+	pr.CreatedAt = testNow.Add(24 * time.Hour)
+	load, stale := calculateLoad([]pullRequest{pr}, nil, []string{"alice"}, testNow, 90)
+	require.Equal(t, ownerLoad{open: 1}, load["alice"])
+	require.Empty(t, stale)
+}
+
 func TestCandidatesFilterAndOrderByPRNumber(t *testing.T) {
 	marked := testPull(2)
 	marked.Labels = []label{{Name: defaultMarkerLabel}}
@@ -102,6 +111,13 @@ func TestCandidatesFilterAndOrderByPRNumber(t *testing.T) {
 	require.Equal(t, []candidate{{number: 1}, {number: 2, marked: true}}, candidates)
 }
 
+func TestCandidateMarkingIgnoresLabelCase(t *testing.T) {
+	pr := testPull(1)
+	pr.Labels = []label{{Name: "Codeowner-Sweep"}}
+	candidates := findCandidates([]pullRequest{pr}, []string{"alice"}, defaultMarkerLabel)
+	require.Equal(t, []candidate{{number: 1, marked: true}}, candidates)
+}
+
 func TestAssigneeTieBreakPrefersLessOpenLoadThenUsesExactTies(t *testing.T) {
 	load := map[string]ownerLoad{
 		"alice": {open: 1, closed: 1},
@@ -115,22 +131,8 @@ func TestAssigneeTieBreakPrefersLessOpenLoadThenUsesExactTies(t *testing.T) {
 	chosen, ok = chooseAssignee(load, firstChoice)
 	require.True(t, ok)
 	require.Equal(t, "alice", chosen)
-}
-
-func TestRandomChoiceUsesProductionIndexAndHandlesEmpty(t *testing.T) {
-	calls := 0
-	intN := func(limit int) int {
-		calls++
-		require.Equal(t, 3, limit)
-		return 2
-	}
-	require.Equal(t, "carol", randomChoice([]string{"alice", "bob", "carol"}, intN))
-	require.Equal(t, 1, calls)
-	require.Empty(t, randomChoice(nil, func(int) int {
-		t.Fatal("random index must not be called for an empty choice set")
-		return 0
-	}))
-	require.Empty(t, firstChoice(nil))
+	_, ok = chooseAssignee(map[string]ownerLoad{}, firstChoice)
+	require.False(t, ok)
 }
 
 func TestOnlyHumanUnassignAfterLatestBotAssignmentIsSkipped(t *testing.T) {
@@ -142,7 +144,7 @@ func TestOnlyHumanUnassignAfterLatestBotAssignmentIsSkipped(t *testing.T) {
 	require.False(t, deliberatelyUnassigned([]timelineEvent{assigned, automaticUnassigned}, defaultBotActor))
 }
 
-func TestSweepRetriesPaginatesAndAssignsOldestUpToCap(t *testing.T) {
+func TestSweepRetriesPaginatesAndAssignsUpToCap(t *testing.T) {
 	simulation, client := newSimulationClient(t)
 	require.NoError(t, runTestSweep(client, testConfig()))
 	require.Equal(t, 0, simulation.remainingRepoFailures())
@@ -159,6 +161,43 @@ func TestSweepSpreadsBatchAcrossTiedOwners(t *testing.T) {
 	require.NoError(t, runTestSweep(client, cfg))
 	require.Equal(t, []user{{Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
 	require.Equal(t, []user{{Login: "Bob"}}, simulation.pullSnapshot(20).Assignees)
+}
+
+func TestSweepCountsClosedLoadInChoice(t *testing.T) {
+	simulation, client := newSimulationClient(t)
+	// Alice carries one recently closed PR; Bob carries none, so Bob has the
+	// lower total load and must be chosen for the open PR.
+	simulation.setClosedPulls([]pullRequest{assignedTo(testPull(99), "Alice")})
+	require.NoError(t, runTestSweep(client, testConfig()))
+	require.Equal(t, []user{{Login: "Bob"}}, simulation.pullSnapshot(10).Assignees)
+}
+
+func TestSweepSkipsMarkedCandidateUnassignedByAHuman(t *testing.T) {
+	simulation, client := newSimulationClient(t)
+	cfg := testConfig()
+	cfg.maxAssignments = 3
+	marked := testPull(30)
+	marked.Labels = []label{{Name: defaultMarkerLabel}}
+	simulation.pulls[30] = &marked
+	simulation.setTimeline(30, []timelineEvent{
+		{Event: "assigned", Actor: &user{Login: defaultBotActor}},
+		{Event: "unassigned", Actor: &user{Login: "maintainer"}},
+	})
+	require.NoError(t, runTestSweep(client, cfg))
+	require.Equal(t, []user{{Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
+	require.Equal(t, []user{{Login: "Bob"}}, simulation.pullSnapshot(20).Assignees)
+	skipped := simulation.pullSnapshot(30)
+	require.Empty(t, skipped.Assignees)
+	require.Equal(t, []label{{Name: defaultMarkerLabel}}, skipped.Labels)
+}
+
+func TestSweepFailsFastWhenMarkerLabelCannotBeEnsured(t *testing.T) {
+	simulation, client := newSimulationClient(t)
+	simulation.setFlag(&simulation.failEnsureLabel)
+	err := runTestSweep(client, testConfig())
+	require.ErrorContains(t, err, "ensure marker label")
+	require.Empty(t, simulation.pullSnapshot(10).Assignees)
+	require.Empty(t, simulation.pullSnapshot(20).Assignees)
 }
 
 func TestSweepRollsBackAssignmentWhenMarkerFails(t *testing.T) {
@@ -184,6 +223,50 @@ func TestSweepRollsBackOwnAssigneeWhenHumanRaces(t *testing.T) {
 	}
 }
 
+func TestAssignAndMarkConcurrentRollbackFailureSurfacesError(t *testing.T) {
+	simulation, client := newSimulationClient(t)
+	simulation.setConcurrentAssignee("Human")
+	simulation.setFlag(&simulation.failRollbackDelete)
+	_, err := assignAndMark(context.Background(), client, testConfig(), 10, "alice")
+	require.ErrorContains(t, err, "concurrent assignment detected; rollback failed")
+	require.Equal(t, []user{{Login: "Human"}, {Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
+}
+
+func TestAssignAndMarkMarkerRollbackFailureJoinsErrors(t *testing.T) {
+	simulation, client := newSimulationClient(t)
+	simulation.setFlag(&simulation.failMarkerApply)
+	simulation.setFlag(&simulation.failRollbackDelete)
+	_, err := assignAndMark(context.Background(), client, testConfig(), 10, "alice")
+	require.ErrorContains(t, err, "apply marker label")
+	require.ErrorContains(t, err, "rollback assignee")
+	require.Equal(t, []user{{Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
+}
+
+func TestFailureReportCommentFailureSurfaces(t *testing.T) {
+	simulation, client := newSimulationClient(t)
+	simulation.setFailureIssue(42)
+	simulation.setFlag(&simulation.failIssueComments)
+	err := reportFailure(context.Background(), client, simulation.repo, "https://example.invalid/run")
+	require.ErrorContains(t, err, "comment on sweep failure issue #42")
+	require.Empty(t, simulation.issueSnapshot())
+}
+
+func TestFailureReportCreateFailureSurfaces(t *testing.T) {
+	simulation, client := newSimulationClient(t)
+	simulation.setFlag(&simulation.failIssueCreate)
+	err := reportFailure(context.Background(), client, simulation.repo, "https://example.invalid/run")
+	require.ErrorContains(t, err, "create sweep failure issue")
+	require.Empty(t, simulation.issueSnapshot())
+}
+
+func TestRunRejectsUnknownCommandAndMissingToken(t *testing.T) {
+	err := run(context.Background(), "bogus")
+	require.ErrorContains(t, err, "unknown command")
+	unsetEnvironment(t, "GH_TOKEN")
+	err = run(context.Background(), "sweep")
+	require.ErrorContains(t, err, "missing required environment variable: GH_TOKEN")
+}
+
 func TestSimulationRejectsUnknownPRAndInvalidJSON(t *testing.T) {
 	simulation := newGitHubSimulation()
 	for _, test := range []struct {
@@ -193,8 +276,9 @@ func TestSimulationRejectsUnknownPRAndInvalidJSON(t *testing.T) {
 		status int
 	}{
 		{method: http.MethodPost, path: "/repos/grafana/tempo/issues/99/assignees", body: `{"assignees":["alice"]}`, status: http.StatusNotFound},
-		{method: http.MethodPost, path: "/repos/grafana/tempo/issues/99/labels", body: `{"labels":["codeowner-sweep"]}`, status: http.StatusNotFound},
+		{method: http.MethodPost, path: "/repos/grafana/tempo/issues/99/labels", body: `["codeowner-sweep"]`, status: http.StatusNotFound},
 		{method: http.MethodPost, path: "/repos/grafana/tempo/issues/10/assignees", body: `{`, status: http.StatusBadRequest},
+		{method: http.MethodPost, path: "/repos/grafana/tempo/issues/10/assignees", body: `{"assignees":["unknown-login"]}`, status: http.StatusUnprocessableEntity},
 	} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(test.method, test.path, strings.NewReader(test.body))

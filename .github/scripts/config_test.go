@@ -7,9 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -41,6 +40,9 @@ func TestConfigFromEnvValidatesRequiredValues(t *testing.T) {
 		{name: "invalid assignment integer", repo: "grafana/tempo", max: "many", age: "90", wantErr: "parse MAX_ASSIGNMENTS"},
 		{name: "zero assignment cap", repo: "grafana/tempo", max: "0", age: "90", wantErr: "MAX_ASSIGNMENTS must be greater than zero"},
 		{name: "zero open age", repo: "grafana/tempo", max: "25", age: "0", wantErr: "OPEN_LOAD_MAX_AGE_DAYS must be greater than zero"},
+		{name: "negative assignment cap", repo: "grafana/tempo", max: "-1", age: "90", wantErr: "MAX_ASSIGNMENTS must be greater than zero"},
+		{name: "empty marker label", repo: "grafana/tempo", max: "25", age: "90", wantErr: "MARKER_LABEL must not be empty"},
+		{name: "empty bot actor", repo: "grafana/tempo", max: "25", age: "90", wantErr: "BOT_ACTOR must not be empty"},
 		{name: "age duration overflow", repo: "grafana/tempo", max: "25", age: "106752", wantErr: "must not exceed"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -51,6 +53,14 @@ func TestConfigFromEnvValidatesRequiredValues(t *testing.T) {
 			}
 			t.Setenv("MAX_ASSIGNMENTS", test.max)
 			t.Setenv("OPEN_LOAD_MAX_AGE_DAYS", test.age)
+			t.Setenv("MARKER_LABEL", defaultMarkerLabel)
+			t.Setenv("BOT_ACTOR", defaultBotActor)
+			switch test.name {
+			case "empty marker label":
+				t.Setenv("MARKER_LABEL", "")
+			case "empty bot actor":
+				t.Setenv("BOT_ACTOR", "")
+			}
 			_, err := configFromEnv()
 			require.ErrorContains(t, err, test.wantErr)
 		})
@@ -74,16 +84,36 @@ func TestConfigDefaultsAndWorkflowContract(t *testing.T) {
 	require.NoError(t, err)
 	workflow := string(data)
 	for _, expected := range []string{
+		"GH_TOKEN: ${{ github.token }}",
+		"REPO: ${{ github.repository }}",
 		"MAX_ASSIGNMENTS: '25'",
 		"OPEN_LOAD_MAX_AGE_DAYS: '90'",
 		"MARKER_LABEL: " + defaultMarkerLabel,
 		"BOT_ACTOR: '" + defaultBotActor + "'",
+		"ASSIGNEE_POOL: ${{ vars.CODEOWNER_ASSIGNEES ||",
 		"EXCLUDED_OWNERS: 'grafana/docs-traces'",
-		"run: go run ./.github/scripts",
-		"run: go run ./.github/scripts report-failure",
+		"RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+		"working-directory: .github/scripts",
+		"run: go run .",
+		"run: go run . report-failure",
+		"cron: '0 7 * * *'",
+		"permissions: {}",
 	} {
-		require.Contains(t, workflow, expected)
+		require.Contains(t, workflow, expected, "workflow contract string missing: %q", expected)
 	}
+}
+
+func TestRunReportFailureBypassesSweepConfigValidation(t *testing.T) {
+	t.Setenv("GH_TOKEN", "token")
+	t.Setenv("REPO", "grafana/tempo")
+	t.Setenv("MAX_ASSIGNMENTS", "abc")
+	t.Setenv("OPEN_LOAD_MAX_AGE_DAYS", "90")
+	unsetEnvironment(t, "RUN_URL")
+	err := run(context.Background(), "report-failure")
+	require.ErrorContains(t, err, "RUN_URL")
+	require.NotContains(t, err.Error(), "MAX_ASSIGNMENTS")
+	err = run(context.Background(), "sweep")
+	require.ErrorContains(t, err, "parse MAX_ASSIGNMENTS")
 }
 
 func TestReadCodeownersErrors(t *testing.T) {
@@ -94,8 +124,8 @@ func TestReadCodeownersErrors(t *testing.T) {
 		wantErr string
 	}{
 		{name: "missing everywhere", status: http.StatusNotFound, wantErr: "no CODEOWNERS file found"},
-		{name: "server failure preserved", status: http.StatusInternalServerError, wantErr: "HTTP 500"},
-		{name: "invalid base64", status: http.StatusOK, content: "not-base64", wantErr: "decode CODEOWNERS"},
+		{name: "server failure preserved", status: http.StatusInternalServerError, wantErr: "read CODEOWNERS candidate"},
+		{name: "invalid base64", status: http.StatusOK, content: "not-base64", wantErr: "illegal base64 data"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -104,42 +134,89 @@ func TestReadCodeownersErrors(t *testing.T) {
 					return
 				}
 				if test.status == http.StatusOK {
-					fmt.Fprintf(w, `{"content":%q}`, test.content)
+					fmt.Fprintf(w, `{"content":%q,"encoding":"base64"}`, test.content)
 					return
 				}
 				http.Error(w, "failure", test.status)
 			}))
 			defer server.Close()
-			client := newGitHubClient("test")
-			client.baseURL = server.URL
-			client.retryDelay = func(int) time.Duration { return 0 }
+			client := testGitHubClient(t, server.URL)
 			_, err := readCodeowners(context.Background(), client, "grafana/tempo")
 			require.ErrorContains(t, err, test.wantErr)
 		})
 	}
 }
 
-func TestReadCodeownersUsesFallbackPath(t *testing.T) {
+func TestReadCodeownersPrefersGithubDirectory(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/repos/grafana/tempo":
 			fmt.Fprint(w, `{"default_branch":"main"}`)
-		case "/repos/grafana/tempo/contents/CODEOWNERS":
-			http.Error(w, "missing", http.StatusNotFound)
 		case "/repos/grafana/tempo/contents/.github/CODEOWNERS":
 			encoded := base64.StdEncoding.EncodeToString([]byte("* @Alice\n"))
-			fmt.Fprintf(w, `{"content":%q}`, encoded)
+			fmt.Fprintf(w, `{"content":%q,"encoding":"base64"}`, encoded)
+		case "/repos/grafana/tempo/contents/CODEOWNERS":
+			encoded := base64.StdEncoding.EncodeToString([]byte("* @Bob\n"))
+			fmt.Fprintf(w, `{"content":%q,"encoding":"base64"}`, encoded)
 		default:
 			http.Error(w, "unexpected", http.StatusNotFound)
 		}
 	}))
 	defer server.Close()
-	client := newGitHubClient("test")
-	client.baseURL = server.URL
-	client.retryDelay = func(int) time.Duration { return 0 }
+	client := testGitHubClient(t, server.URL)
 	text, err := readCodeowners(context.Background(), client, "grafana/tempo")
 	require.NoError(t, err)
 	require.Equal(t, "* @Alice\n", text)
+}
+
+func TestReadCodeownersUsesRootFallbackPath(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/grafana/tempo":
+			fmt.Fprint(w, `{"default_branch":"main"}`)
+		case "/repos/grafana/tempo/contents/.github/CODEOWNERS":
+			http.Error(w, "missing", http.StatusNotFound)
+		case "/repos/grafana/tempo/contents/CODEOWNERS":
+			encoded := base64.StdEncoding.EncodeToString([]byte("* @Alice\n"))
+			fmt.Fprintf(w, `{"content":%q,"encoding":"base64"}`, encoded)
+		default:
+			http.Error(w, "unexpected", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	client := testGitHubClient(t, server.URL)
+	text, err := readCodeowners(context.Background(), client, "grafana/tempo")
+	require.NoError(t, err)
+	require.Equal(t, "* @Alice\n", text)
+}
+
+func TestResolvePoolExpandsTeamUnderItsOwnOrg(t *testing.T) {
+	var requestedMu sync.Mutex
+	var requested []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedMu.Lock()
+		requested = append(requested, r.URL.Path)
+		requestedMu.Unlock()
+		switch r.URL.Path {
+		case "/repos/grafana/tempo/assignees":
+			fmt.Fprint(w, `[{"login":"Alice"},{"login":"Bob"},{"login":"Carol"}]`)
+		case "/orgs/other-org/teams/tempo/members":
+			fmt.Fprint(w, `[{"login":"Carol"}]`)
+		default:
+			http.Error(w, "unexpected", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	client := testGitHubClient(t, server.URL)
+	cfg := defaultConfig("grafana/tempo")
+	groups := parseCodeowners("* @Alice @other-org/tempo", "")
+	eligible, err := resolvePool(context.Background(), client, cfg, groups)
+	require.NoError(t, err)
+	require.Equal(t, []string{"alice", "carol"}, eligible)
+	requestedMu.Lock()
+	defer requestedMu.Unlock()
+	require.Contains(t, requested, "/orgs/other-org/teams/tempo/members")
+	require.NotContains(t, requested, "/orgs/grafana/teams/tempo/members")
 }
 
 func TestResolvePoolTeamFailureAndInvalidTeam(t *testing.T) {
@@ -154,9 +231,7 @@ func TestResolvePoolTeamFailureAndInvalidTeam(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client := newGitHubClient("test")
-	client.baseURL = server.URL
-	client.retryDelay = func(int) time.Duration { return 0 }
+	client := testGitHubClient(t, server.URL)
 	cfg := defaultConfig("grafana/tempo")
 	groups := parseCodeowners("* @Alice @grafana/tempo", "")
 	eligible, err := resolvePool(context.Background(), client, cfg, groups)
@@ -175,34 +250,34 @@ func TestEnsureMarkerLabelPreservesNon404Error(t *testing.T) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 	}))
 	defer server.Close()
-	client := newGitHubClient("test")
-	client.baseURL = server.URL
-	client.retryDelay = func(int) time.Duration { return 0 }
+	client := testGitHubClient(t, server.URL)
 	err := ensureMarkerLabel(context.Background(), client, testConfig())
 	require.ErrorContains(t, err, "update marker label")
 	require.Equal(t, 1, calls)
 }
 
-func TestEnsureMarkerLabelEscapesName(t *testing.T) {
+func TestEnsureMarkerLabelCreatesMissingLabel(t *testing.T) {
+	var methods []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/repos/grafana/tempo/labels/codeowner%2Fsweep", r.URL.EscapedPath())
-		w.WriteHeader(http.StatusOK)
+		methods = append(methods, r.Method)
+		switch r.Method {
+		case http.MethodPatch:
+			http.Error(w, "missing", http.StatusNotFound)
+		case http.MethodPost:
+			fmt.Fprint(w, `{"name":"codeowner-sweep"}`)
+		default:
+			http.Error(w, "unexpected", http.StatusMethodNotAllowed)
+		}
 	}))
 	defer server.Close()
-	client := newGitHubClient("test")
-	client.baseURL = server.URL
-	client.retryDelay = func(int) time.Duration { return 0 }
-	cfg := testConfig()
-	cfg.markerLabel = "codeowner/sweep"
-	require.NoError(t, ensureMarkerLabel(context.Background(), client, cfg))
+	client := testGitHubClient(t, server.URL)
+	require.NoError(t, ensureMarkerLabel(context.Background(), client, testConfig()))
+	require.Equal(t, []string{http.MethodPatch, http.MethodPost}, methods)
 }
 
-func TestQueryBuilders(t *testing.T) {
-	require.Equal(t, "100", pageQuery().Get("per_page"))
+func TestQueryWithPanicsOnOddArguments(t *testing.T) {
+	require.Panics(t, func() { queryWith("only-key") })
 	values := queryWith("q", "value", "per_page", "1")
 	require.Equal(t, "value", values.Get("q"))
 	require.Equal(t, "1", values.Get("per_page"))
-	require.Panics(t, func() { queryWith("odd") })
-	require.True(t, strings.HasPrefix(repositoryEndpoint("grafana/tempo", "/pulls"), "repos/grafana/tempo/"))
-	require.Equal(t, "repos/grafana/tempo/issues/10/labels", issueEndpoint("grafana/tempo", 10, "/labels"))
 }

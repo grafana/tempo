@@ -8,11 +8,11 @@ import (
 	"maps"
 	"math/rand/v2"
 	"net/http"
-	"net/url"
-	"os"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/google/go-github/v93/github"
 )
 
 type user struct {
@@ -27,6 +27,7 @@ type label struct {
 type pullRequest struct {
 	Number    int       `json:"number"`
 	CreatedAt time.Time `json:"created_at"`
+	State     string    `json:"state"`
 	User      *user     `json:"user"`
 	Assignees []user    `json:"assignees"`
 	Draft     bool      `json:"draft"`
@@ -36,10 +37,6 @@ type pullRequest struct {
 type timelineEvent struct {
 	Event string `json:"event"`
 	Actor *user  `json:"actor"`
-}
-
-type issue struct {
-	Number int `json:"number"`
 }
 
 type candidate struct {
@@ -87,9 +84,18 @@ func calculateLoad(openPRs, closedPRs []pullRequest, eligible []string, now time
 					continue
 				}
 				seen[key] = struct{}{}
-				if state.kind == openLoad && now.Sub(pr.CreatedAt) > maxOpenAge {
-					staleOwners[owner] = struct{}{}
-					continue
+				if state.kind == openLoad {
+					elapsed := now.Sub(pr.CreatedAt)
+					// A future created_at (clock skew) must not wrap negative
+					// and silently mark the owner stale; treat it as fresh
+					// and let it count as load.
+					if elapsed < 0 {
+						elapsed = 0
+					}
+					if elapsed > maxOpenAge {
+						staleOwners[owner] = struct{}{}
+						continue
+					}
 				}
 				counts, ok := load[owner]
 				if !ok {
@@ -133,7 +139,8 @@ func findCandidates(pulls []pullRequest, eligible []string, markerLabel string) 
 		}
 		marked := false
 		for _, label := range pr.Labels {
-			if label.Name == markerLabel {
+			// GitHub label identity is case-insensitive, so compare without case.
+			if strings.EqualFold(label.Name, markerLabel) {
 				marked = true
 				break
 			}
@@ -195,30 +202,22 @@ func chooseAssignee(load map[string]ownerLoad, choose func([]string) string) (st
 	return choose(choices), true
 }
 
-// randomChoice returns empty for an empty set and otherwise uses the supplied
-// random index function. Injection makes the production choice fully testable.
-func randomChoice(choices []string, intN func(int) int) string {
-	if len(choices) == 0 {
-		return ""
+func ensureMarkerLabel(ctx context.Context, client *github.Client, cfg config) error {
+	owner, name, err := splitRepo(cfg.repo)
+	if err != nil {
+		return err
 	}
-	return choices[intN(len(choices))]
-}
-
-func ensureMarkerLabel(ctx context.Context, client *githubClient, cfg config) error {
-	body := map[string]string{
-		"color":       "ededed",
-		"description": "Assigned by the daily code owner sweep",
-	}
-	_, err := client.request(ctx, http.MethodPatch, repositoryEndpoint(cfg.repo, "/labels/"+url.PathEscape(cfg.markerLabel)), nil, body, nil)
+	color := "ededed"
+	description := "Assigned by the daily code owner sweep"
+	_, _, err = client.Issues.UpdateLabel(ctx, owner, name, cfg.markerLabel, github.UpdateIssueLabelRequest{Color: &color, Description: &description})
 	if err == nil {
 		return nil
 	}
-	var statusError *apiError
-	if !errors.As(err, &statusError) || statusError.status != http.StatusNotFound {
+	var statusError *github.ErrorResponse
+	if !errors.As(err, &statusError) || statusError.Response.StatusCode != http.StatusNotFound {
 		return fmt.Errorf("update marker label: %w", err)
 	}
-	body["name"] = cfg.markerLabel
-	if _, err := client.request(ctx, http.MethodPost, repositoryEndpoint(cfg.repo, "/labels"), nil, body, nil); err != nil {
+	if _, _, err := client.Issues.CreateLabel(ctx, owner, name, github.CreateIssueLabelRequest{Name: cfg.markerLabel, Color: &color, Description: &description}); err != nil {
 		return fmt.Errorf("create marker label: %w", err)
 	}
 	return nil
@@ -236,33 +235,41 @@ const (
 // processCandidate handles all per-PR decisions separately from batch/load orchestration.
 func processCandidate(
 	ctx context.Context,
-	client *githubClient,
+	client *github.Client,
 	cfg config,
 	candidate candidate,
 	load map[string]ownerLoad,
 	choose func([]string) string,
 ) candidateOutcome {
+	owner, name, err := splitRepo(cfg.repo)
+	if err != nil {
+		return candidateFailed
+	}
 	if candidate.marked {
-		events, err := paginateList[timelineEvent](ctx, client, issueEndpoint(cfg.repo, candidate.number, "/timeline"), pageQuery())
+		events, err := eachPage(ctx, func(opts *github.ListOptions) ([]*github.Timeline, *github.Response, error) {
+			return client.Issues.ListIssueTimeline(ctx, owner, name, candidate.number, opts)
+		})
 		if err != nil {
 			fmt.Printf("::warning::Could not read the timeline for PR #%d: %v; leaving it for the next run.\n", candidate.number, err)
 			return candidateFailed
 		}
-		if deliberatelyUnassigned(events, cfg.botActor) {
+		if deliberatelyUnassigned(convertTimeline(events), cfg.botActor) {
 			fmt.Printf("PR #%d was auto-assigned before and unassigned by a person; skipping.\n", candidate.number)
 			return candidateDeliberatelySkipped
 		}
 	}
 
-	var current struct {
-		Assignees []user `json:"assignees"`
-	}
-	if _, err := client.request(ctx, http.MethodGet, issueEndpoint(cfg.repo, candidate.number, ""), nil, nil, &current); err != nil {
+	current, _, err := client.Issues.Get(ctx, owner, name, candidate.number)
+	if err != nil {
 		fmt.Printf("::warning::Could not re-read PR #%d before assigning: %v.\n", candidate.number, err)
 		return candidateFailed
 	}
 	if len(current.Assignees) > 0 {
 		fmt.Printf("PR #%d was assigned elsewhere while the sweep ran; leaving it alone.\n", candidate.number)
+		return candidateAlreadyAssigned
+	}
+	if (current.State != nil && *current.State != "open") || current.GetDraft() {
+		fmt.Printf("PR #%d was closed or converted to draft while the sweep ran; leaving it alone.\n", candidate.number)
 		return candidateAlreadyAssigned
 	}
 	assignee, ok := chooseAssignee(load, choose)
@@ -289,23 +296,29 @@ func processCandidate(
 
 // assignAndMark rolls back only this sweep's assignee when another owner races
 // the write or the marker cannot be applied, avoiding silent partial assignments.
-func assignAndMark(ctx context.Context, client *githubClient, cfg config, number int, assignee string) (bool, error) {
-	var response pullRequest
-	payload := map[string][]string{"assignees": {assignee}}
-	if _, err := client.request(ctx, http.MethodPost, issueEndpoint(cfg.repo, number, "/assignees"), nil, payload, &response); err != nil {
+func assignAndMark(ctx context.Context, client *github.Client, cfg config, number int, assignee string) (bool, error) {
+	owner, name, err := splitRepo(cfg.repo)
+	if err != nil {
+		return false, err
+	}
+	issue, _, err := client.Issues.AddAssignees(ctx, owner, name, number, []string{assignee})
+	if err != nil {
 		return false, fmt.Errorf("add assignee: %w", err)
 	}
-	if len(response.Assignees) > 1 {
+	if len(issue.Assignees) > 1 {
 		if err := removeAssignee(ctx, client, cfg, number, assignee); err != nil {
 			return false, fmt.Errorf("concurrent assignment detected; rollback failed: %w", err)
 		}
 		return true, nil
 	}
-	reflected := len(response.Assignees) == 1 && strings.EqualFold(response.Assignees[0].Login, assignee)
+	reflected := len(issue.Assignees) == 1 && strings.EqualFold(issue.Assignees[0].GetLogin(), assignee)
 	if !reflected {
+		// No rollback here: a 2xx with zero or a different assignee means the
+		// write did not apply our assignee on GitHub's side, so there is
+		// nothing of ours to remove.
 		return false, errors.New("assignment response did not reflect the selected owner")
 	}
-	if _, err := client.request(ctx, http.MethodPost, issueEndpoint(cfg.repo, number, "/labels"), nil, map[string][]string{"labels": {cfg.markerLabel}}, nil); err != nil {
+	if _, _, err := client.Issues.AddLabelsToIssue(ctx, owner, name, number, []string{cfg.markerLabel}); err != nil {
 		markerErr := fmt.Errorf("apply marker label: %w", err)
 		if rollbackErr := removeAssignee(ctx, client, cfg, number, assignee); rollbackErr != nil {
 			return false, errors.Join(markerErr, fmt.Errorf("rollback assignee: %w", rollbackErr))
@@ -315,20 +328,94 @@ func assignAndMark(ctx context.Context, client *githubClient, cfg config, number
 	return false, nil
 }
 
-func removeAssignee(ctx context.Context, client *githubClient, cfg config, number int, assignee string) error {
-	_, err := client.request(ctx, http.MethodDelete, issueEndpoint(cfg.repo, number, "/assignees"), nil, map[string][]string{"assignees": {assignee}}, nil)
-	return err
+func removeAssignee(ctx context.Context, client *github.Client, cfg config, number int, assignee string) error {
+	owner, name, err := splitRepo(cfg.repo)
+	if err != nil {
+		return err
+	}
+	if _, _, err := client.Issues.RemoveAssignees(ctx, owner, name, number, []string{assignee}); err != nil {
+		return fmt.Errorf("remove assignee: %w", err)
+	}
+	return nil
 }
 
 // sweep supplies concrete production dependencies; runSweep receives explicit
 // test values without time-zero or nil-function sentinel conventions.
-func sweep(ctx context.Context, client *githubClient, cfg config) error {
+func sweep(ctx context.Context, client *github.Client, cfg config) error {
 	return runSweep(ctx, client, cfg, time.Now().UTC(), func(choices []string) string {
-		return randomChoice(choices, rand.IntN)
+		return choices[rand.IntN(len(choices))]
 	})
 }
 
-func runSweep(ctx context.Context, client *githubClient, cfg config, now time.Time, choose func([]string) string) error {
+// listOpenPRs fetches every open pull request, converting to the internal shape.
+func listOpenPRs(ctx context.Context, client *github.Client, repo string) ([]pullRequest, error) {
+	owner, name, err := splitRepo(repo)
+	if err != nil {
+		return nil, err
+	}
+	pulls, err := eachPage(ctx, func(opts *github.ListOptions) ([]*github.PullRequest, *github.Response, error) {
+		return client.PullRequests.List(ctx, owner, name, &github.PullRequestListOptions{State: "open", ListOptions: *opts})
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]pullRequest, 0, len(pulls))
+	for _, pr := range pulls {
+		result = append(result, convertPullRequest(pr))
+	}
+	return result, nil
+}
+
+func convertPullRequest(pr *github.PullRequest) pullRequest {
+	result := pullRequest{
+		Number:    pr.GetNumber(),
+		CreatedAt: pr.GetCreatedAt().Time,
+		State:     pr.GetState(),
+		Draft:     pr.GetDraft(),
+	}
+	if pr.User != nil {
+		result.User = &user{Login: pr.User.GetLogin(), Type: pr.User.GetType()}
+	}
+	for _, assignee := range pr.Assignees {
+		result.Assignees = append(result.Assignees, user{Login: assignee.GetLogin()})
+	}
+	for _, l := range pr.Labels {
+		result.Labels = append(result.Labels, label{Name: l.GetName()})
+	}
+	return result
+}
+
+// convertIssue adapts a search-result issue (closed PR payloads) to the
+// internal pullRequest shape used by calculateLoad.
+func convertIssue(issue *github.Issue) pullRequest {
+	result := pullRequest{
+		Number:    issue.GetNumber(),
+		CreatedAt: issue.GetCreatedAt().Time,
+		State:     issue.GetState(),
+		Draft:     issue.GetDraft(),
+	}
+	if issue.User != nil {
+		result.User = &user{Login: issue.User.GetLogin(), Type: issue.User.GetType()}
+	}
+	for _, assignee := range issue.Assignees {
+		result.Assignees = append(result.Assignees, user{Login: assignee.GetLogin()})
+	}
+	return result
+}
+
+func convertTimeline(events []*github.Timeline) []timelineEvent {
+	result := make([]timelineEvent, 0, len(events))
+	for _, event := range events {
+		converted := timelineEvent{Event: event.GetEvent()}
+		if event.Actor != nil {
+			converted.Actor = &user{Login: event.Actor.GetLogin()}
+		}
+		result = append(result, converted)
+	}
+	return result
+}
+
+func runSweep(ctx context.Context, client *github.Client, cfg config, now time.Time, choose func([]string) string) error {
 	codeowners, err := readCodeowners(ctx, client, cfg.repo)
 	if err != nil {
 		return err
@@ -348,31 +435,44 @@ func runSweep(ctx context.Context, client *githubClient, cfg config, now time.Ti
 	}
 	fmt.Printf("Eligible owners: %d.\n", len(eligible))
 
-	openPRs, err := paginateList[pullRequest](ctx, client, repositoryEndpoint(cfg.repo, "/pulls"), withQuery(pageQuery(), "state", "open"))
+	// Open PRs once for load, then again for candidates: assignment can change
+	// the pool state between the two passes, and the second fetch keeps the
+	// per-PR decisions close to the assignments they make.
+	openPRs, err := listOpenPRs(ctx, client, cfg.repo)
 	if err != nil {
 		return fmt.Errorf("list open pull requests for load: %w", err)
 	}
 	since := now.Add(-closedLoadWindow).UTC().Format("2006-01-02T15:04:05Z")
 	closedQuery := fmt.Sprintf("repo:%s is:pr is:closed closed:>=%s", cfg.repo, since)
-	var search struct {
-		TotalCount int `json:"total_count"`
-	}
-	if _, err := client.request(ctx, http.MethodGet, "search/issues", queryWith("q", closedQuery, "per_page", "1"), nil, &search); err != nil {
+	var totalClosed int
+	if result, _, err := client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 1}}); err != nil {
 		return fmt.Errorf("count recently closed pull requests: %w", err)
+	} else {
+		totalClosed = result.GetTotal()
 	}
-	if search.TotalCount > 1000 {
-		fmt.Printf("::warning::%d PRs closed in the last %d days, but the search API returns at most 1000. Closed load is undercounted.\n", search.TotalCount, closedLoadDays)
+	if totalClosed > maxSearchResults {
+		fmt.Printf("::warning::%d PRs closed in the last %d days, but the search API returns at most %d. Closed load is undercounted.\n", totalClosed, closedLoadDays, maxSearchResults)
 	}
-	closedPRs, err := paginateSearch[pullRequest](ctx, client, "search/issues", withQuery(pageQuery(), "q", closedQuery))
+	closedIssues, err := eachPage(ctx, func(opts *github.ListOptions) ([]*github.Issue, *github.Response, error) {
+		result, resp, err := client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: *opts})
+		if err != nil {
+			return nil, resp, err
+		}
+		return result.Issues, resp, nil
+	})
 	if err != nil {
 		return fmt.Errorf("list recently closed pull requests: %w", err)
 	}
+	closedPRs := make([]pullRequest, 0, len(closedIssues))
+	for _, issue := range closedIssues {
+		closedPRs = append(closedPRs, convertIssue(issue))
+	}
 	load, staleOwners := calculateLoad(openPRs, closedPRs, eligible, now, cfg.openLoadMaxAgeDays)
 	for _, owner := range slices.Sorted(maps.Keys(staleOwners)) {
-		fmt.Fprintf(os.Stderr, "Open PRs by %s older than %d days no longer count as load.\n", owner, cfg.openLoadMaxAgeDays)
+		fmt.Printf("Open PRs assigned to %s older than %d days no longer count as load.\n", owner, cfg.openLoadMaxAgeDays)
 	}
 
-	currentPRs, err := paginateList[pullRequest](ctx, client, repositoryEndpoint(cfg.repo, "/pulls"), withQuery(pageQuery(), "state", "open"))
+	currentPRs, err := listOpenPRs(ctx, client, cfg.repo)
 	if err != nil {
 		return fmt.Errorf("refresh pull request candidates: %w", err)
 	}
@@ -381,8 +481,11 @@ func runSweep(ctx context.Context, client *githubClient, cfg config, now time.Ti
 	if len(candidates) == 0 {
 		return nil
 	}
+	// The marker label is load-bearing: without it, later runs cannot tell a
+	// deliberate human unassignment from a PR that was never assigned. Fail
+	// the run rather than assigning unmarked PRs.
 	if err := ensureMarkerLabel(ctx, client, cfg); err != nil {
-		fmt.Printf("::warning::Could not ensure the %s label exists: %v.\n", cfg.markerLabel, err)
+		return fmt.Errorf("ensure marker label: %w", err)
 	}
 
 	assigned, deliberatelySkipped, alreadyAssigned, failed := 0, 0, 0, 0
@@ -401,6 +504,8 @@ func runSweep(ctx context.Context, client *githubClient, cfg config, now time.Ti
 		case candidateFailed:
 			failed++
 		default:
+			// candidateOutcome has exactly these four values; a new outcome
+			// must be handled here and reflected in the summary below.
 			return errors.New("unknown candidate outcome")
 		}
 	}
@@ -415,9 +520,4 @@ func printOwnerNotice(message string, owners map[string]struct{}) {
 	if len(owners) > 0 {
 		fmt.Printf("::notice::%s: %s\n", message, strings.Join(slices.Sorted(maps.Keys(owners)), " "))
 	}
-}
-
-func withQuery(values url.Values, key, value string) url.Values {
-	values.Set(key, value)
-	return values
 }

@@ -12,7 +12,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/go-github/v93/github"
+	"github.com/stretchr/testify/require"
 )
+
+type issue struct {
+	Number int `json:"number"`
+}
 
 type createdIssue struct {
 	Title string
@@ -37,13 +44,19 @@ type gitHubSimulation struct {
 	mu                 sync.Mutex
 	repo               string
 	pulls              map[int]*pullRequest
+	closedPulls        []pullRequest
+	timeline           map[int][]timelineEvent
 	labels             map[string]map[string]string
 	createdIssues      []createdIssue
 	comments           []issueComment
 	failureIssue       int
 	failRepoRequests   int
 	failMarkerApply    bool
+	failEnsureLabel    bool
 	failIssueSearch    bool
+	failRollbackDelete bool
+	failIssueComments  bool
+	failIssueCreate    bool
 	concurrentAssignee string
 	baseURL            string
 }
@@ -53,6 +66,7 @@ func newGitHubSimulation() *gitHubSimulation {
 	return &gitHubSimulation{
 		repo:             "grafana/tempo",
 		pulls:            map[int]*pullRequest{20: &pr20, 10: &pr10},
+		timeline:         make(map[int][]timelineEvent),
 		labels:           make(map[string]map[string]string),
 		failRepoRequests: 1,
 	}
@@ -92,7 +106,7 @@ func (s *gitHubSimulation) handleGet(w http.ResponseWriter, r *http.Request, rep
 	switch {
 	case path == repoPath+"/contents/CODEOWNERS":
 		content := base64.StdEncoding.EncodeToString([]byte("* @grafana/tempo\n"))
-		s.reply(w, http.StatusOK, map[string]string{"content": content})
+		s.reply(w, http.StatusOK, map[string]string{"content": content, "encoding": "base64"})
 	case path == repoPath+"/assignees":
 		s.reply(w, http.StatusOK, []user{{Login: "Alice"}, {Login: "Bob"}})
 	case path == repoPath+"/pulls":
@@ -104,7 +118,9 @@ func (s *gitHubSimulation) handleGet(w http.ResponseWriter, r *http.Request, rep
 		w.Header().Set("Link", next)
 		s.reply(w, http.StatusOK, []pullRequest{*s.pulls[20]})
 	case path == "/search/issues":
-		if strings.Contains(r.URL.Query().Get("q"), "is:issue") {
+		q := r.URL.Query().Get("q")
+		switch {
+		case strings.Contains(q, "is:issue"):
 			if s.failIssueSearch {
 				s.reply(w, http.StatusInternalServerError, map[string]string{"message": "search unavailable"})
 				return
@@ -115,12 +131,19 @@ func (s *gitHubSimulation) handleGet(w http.ResponseWriter, r *http.Request, rep
 			}
 			s.reply(w, http.StatusOK, map[string]any{"total_count": len(items), "items": items})
 			return
+		case strings.Contains(q, "is:pr"):
+			s.reply(w, http.StatusOK, map[string]any{"total_count": len(s.closedPulls), "items": s.closedPulls})
+			return
+		default:
+			s.reply(w, http.StatusOK, map[string]any{"total_count": 0, "items": []pullRequest{}})
 		}
-		s.reply(w, http.StatusOK, map[string]any{"total_count": 0, "items": []pullRequest{}})
 	default:
 		if number, ok := parseIssuePath(path, s.repo, "timeline"); ok {
-			_ = number // Empty default timelines are sufficient for these tests.
-			s.reply(w, http.StatusOK, []timelineEvent{})
+			events := s.timeline[number]
+			if events == nil {
+				events = []timelineEvent{}
+			}
+			s.reply(w, http.StatusOK, events)
 			return
 		}
 		if number, ok := parseIssuePath(path, s.repo, ""); ok {
@@ -142,6 +165,10 @@ func (s *gitHubSimulation) handlePatch(w http.ResponseWriter, r *http.Request, r
 		return
 	}
 	name := strings.TrimPrefix(r.URL.Path, prefix)
+	if s.failEnsureLabel {
+		s.reply(w, http.StatusForbidden, map[string]string{"message": "label update forbidden"})
+		return
+	}
 	if _, ok := s.labels[name]; !ok {
 		s.reply(w, http.StatusNotFound, map[string]string{"message": "not found"})
 		return
@@ -155,16 +182,42 @@ func (s *gitHubSimulation) handlePatch(w http.ResponseWriter, r *http.Request, r
 }
 
 func (s *gitHubSimulation) handlePost(w http.ResponseWriter, r *http.Request, repoPath string) {
+	path := r.URL.Path
+	// AddLabelsToIssue posts a raw JSON array of label names, so it cannot be
+	// decoded into simulationRequestBody.
+	if number, ok := parseIssuePath(path, s.repo, "labels"); ok {
+		var names []string
+		if !s.decode(w, r, &names) {
+			return
+		}
+		pr := s.pulls[number]
+		if pr == nil {
+			s.reply(w, http.StatusNotFound, map[string]string{"message": "unknown PR"})
+			return
+		}
+		if s.failMarkerApply {
+			s.reply(w, http.StatusInternalServerError, map[string]string{"message": "label write failed"})
+			return
+		}
+		for _, name := range names {
+			pr.Labels = append(pr.Labels, label{Name: name})
+		}
+		s.reply(w, http.StatusOK, pr.Labels)
+		return
+	}
 	var body simulationRequestBody
 	if !s.decode(w, r, &body) {
 		return
 	}
-	path := r.URL.Path
 	switch {
 	case path == repoPath+"/labels":
 		s.labels[body.Name] = map[string]string{"name": body.Name, "color": body.Color}
 		s.reply(w, http.StatusCreated, body)
 	case path == repoPath+"/issues":
+		if s.failIssueCreate {
+			s.reply(w, http.StatusInternalServerError, map[string]string{"message": "issue create failed"})
+			return
+		}
 		s.createdIssues = append(s.createdIssues, createdIssue{Title: body.Title, Body: body.Body})
 		s.reply(w, http.StatusCreated, issue{Number: 100 + len(s.createdIssues)})
 	default:
@@ -177,30 +230,25 @@ func (s *gitHubSimulation) handlePost(w http.ResponseWriter, r *http.Request, re
 			if s.concurrentAssignee != "" {
 				pr.Assignees = append(pr.Assignees, user{Login: s.concurrentAssignee})
 			}
+			// Matches real GitHub: assigning an unknown login is a 422
+			// Validation Failed, so a wrong login cannot pass tests silently.
 			canonical := map[string]string{"alice": "Alice", "bob": "Bob"}
 			for _, login := range body.Assignees {
-				pr.Assignees = append(pr.Assignees, user{Login: canonical[login]})
+				stored, ok := canonical[login]
+				if !ok {
+					s.reply(w, http.StatusUnprocessableEntity, map[string]string{"message": "Validation Failed"})
+					return
+				}
+				pr.Assignees = append(pr.Assignees, user{Login: stored})
 			}
 			s.reply(w, http.StatusOK, pr)
 			return
 		}
-		if number, ok := parseIssuePath(path, s.repo, "labels"); ok {
-			pr := s.pulls[number]
-			if pr == nil {
-				s.reply(w, http.StatusNotFound, map[string]string{"message": "unknown PR"})
-				return
-			}
-			if s.failMarkerApply {
-				s.reply(w, http.StatusInternalServerError, map[string]string{"message": "label write failed"})
-				return
-			}
-			for _, name := range body.Labels {
-				pr.Labels = append(pr.Labels, label{Name: name})
-			}
-			s.reply(w, http.StatusOK, pr.Labels)
-			return
-		}
 		if number, ok := parseIssuePath(path, s.repo, "comments"); ok {
+			if s.failIssueComments {
+				s.reply(w, http.StatusInternalServerError, map[string]string{"message": "comment failed"})
+				return
+			}
 			s.comments = append(s.comments, issueComment{Number: number, Body: body.Body})
 			s.reply(w, http.StatusCreated, issue{Number: len(s.comments)})
 			return
@@ -214,6 +262,10 @@ func (s *gitHubSimulation) handleDelete(w http.ResponseWriter, r *http.Request, 
 	number, ok := parseIssuePath(r.URL.Path, s.repo, "assignees")
 	if !ok || s.pulls[number] == nil {
 		s.reply(w, http.StatusNotFound, map[string]string{"message": "unknown assignee rollback"})
+		return
+	}
+	if s.failRollbackDelete {
+		s.reply(w, http.StatusInternalServerError, map[string]string{"message": "rollback unavailable"})
 		return
 	}
 	var body simulationRequestBody
@@ -233,13 +285,21 @@ func (s *gitHubSimulation) handleDelete(w http.ResponseWriter, r *http.Request, 
 	s.reply(w, http.StatusOK, pr)
 }
 
+// isIssuePath reports whether path is /repos/<repo>/issues/<number>[/<action>].
+func isIssuePath(parts []string, action string) bool {
+	if action == "" {
+		return len(parts) == 1
+	}
+	return len(parts) == 2 && parts[1] == action
+}
+
 func parseIssuePath(path, repo, action string) (int, bool) {
 	prefix := "/repos/" + repo + "/issues/"
 	if !strings.HasPrefix(path, prefix) {
 		return 0, false
 	}
 	parts := strings.Split(strings.TrimPrefix(path, prefix), "/")
-	if action == "" && len(parts) != 1 || action != "" && (len(parts) != 2 || parts[1] != action) {
+	if !isIssuePath(parts, action) {
 		return 0, false
 	}
 	number, err := strconv.Atoi(parts[0])
@@ -267,17 +327,31 @@ func (s *gitHubSimulation) decode(w http.ResponseWriter, r *http.Request, out an
 	return true
 }
 
-func newSimulationClient(t *testing.T) (*gitHubSimulation, *githubClient) {
+// testGitHubClient builds a go-github client pointed at a test server with a
+// zero-delay retry transport, mirroring production construction.
+func testGitHubClient(t *testing.T, serverURL string) *github.Client {
+	t.Helper()
+	httpClient := &http.Client{
+		Transport: &retryingRoundTripper{base: http.DefaultTransport, maxAttempts: maxRequestAttempts, backoff: func(int) time.Duration { return 0 }},
+	}
+	client, err := github.NewClient(
+		github.WithHTTPClient(httpClient),
+		github.WithAuthToken("test-token"),
+		github.WithMaxSecondaryRateLimitRetryAfterDuration(maxSecondaryRateLimitRetryTime),
+		github.WithURLs(&serverURL, &serverURL),
+	)
+	require.NoError(t, err)
+	return client
+}
+
+func newSimulationClient(t *testing.T) (*gitHubSimulation, *github.Client) {
 	t.Helper()
 	simulation := newGitHubSimulation()
 	server := httptest.NewUnstartedServer(simulation)
 	t.Cleanup(server.Close)
 	simulation.baseURL = server.URL
 	server.Start()
-	client := newGitHubClient("test-token")
-	client.baseURL = server.URL
-	client.retryDelay = func(int) time.Duration { return 0 }
-	return simulation, client
+	return simulation, testGitHubClient(t, server.URL)
 }
 
 func testConfig() config {
@@ -339,6 +413,18 @@ func (s *gitHubSimulation) setConcurrentAssignee(login string) {
 	s.concurrentAssignee = login
 }
 
-func runTestSweep(client *githubClient, cfg config) error {
+func (s *gitHubSimulation) setTimeline(number int, events []timelineEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.timeline[number] = events
+}
+
+func (s *gitHubSimulation) setClosedPulls(pulls []pullRequest) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closedPulls = pulls
+}
+
+func runTestSweep(client *github.Client, cfg config) error {
 	return runSweep(context.Background(), client, cfg, testNow, firstChoice)
 }
