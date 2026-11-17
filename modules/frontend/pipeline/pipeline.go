@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"go.opentelemetry.io/otel"
 )
 
@@ -28,6 +29,9 @@ type Request interface {
 
 	SetResponseData(any) // add data that will be sent back with this requests response
 	ResponseData() any
+
+	SetCost(jobcost.Cost) // estimated cost of the job, sent back with this requests response
+	Cost() jobcost.Cost
 }
 
 type HTTPRequest struct {
@@ -35,6 +39,7 @@ type HTTPRequest struct {
 
 	cacheKey     string
 	responseData any
+	cost         jobcost.Cost
 	weight       int
 	queryShape   QueryShape
 }
@@ -75,6 +80,16 @@ func (r *HTTPRequest) ResponseData() any {
 	return r.responseData
 }
 
+// SetCost sets the estimated cost of the job this request represents.
+func (r *HTTPRequest) SetCost(c jobcost.Cost) {
+	r.cost = c
+}
+
+// Cost returns the estimated cost of the job this request represents.
+func (r *HTTPRequest) Cost() jobcost.Cost {
+	return r.cost
+}
+
 func (r *HTTPRequest) Weight() int {
 	return r.weight
 }
@@ -91,6 +106,8 @@ func (r *HTTPRequest) SetQueryShape(qs QueryShape) {
 	r.queryShape = qs
 }
 
+// CloneFromHTTPRequest returns a request with the same weight, query shape, cache key and response data.
+// The cost is not copied because it describes a single job and has to be set again for every clone.
 func (r *HTTPRequest) CloneFromHTTPRequest(request *http.Request) Request {
 	return &HTTPRequest{
 		req:          request,
@@ -199,10 +216,12 @@ func (b *pipelineBridge) RoundTrip(req Request) (Responses[combiner.PipelineResp
 		return nil, err
 	}
 
-	// check for request data in the context and echo it back if it exists
-	if val := req.ResponseData(); val != nil {
-		return NewHTTPToAsyncResponseWithRequestData(r, val), nil
-	}
-
-	return NewHTTPToAsyncResponse(r), nil
+	// echo the request data and the cost of the request back with the response
+	return syncResponse{
+		r: pipelineResponse{
+			r:           r,
+			requestData: req.ResponseData(),
+			cost:        req.Cost(),
+		},
+	}, nil
 }
