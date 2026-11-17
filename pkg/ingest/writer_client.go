@@ -156,6 +156,8 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 		}),
 	}
 
+	opts = append(opts, apiVersionsMaxVersionOpts(cfg.APIVersionsMaxVersion)...)
+
 	// Enable rack-aware fetching (KIP-392) so consumers can fetch from the closest replica.
 	if cfg.ClientRack != "" {
 		opts = append(opts, kgo.Rack(cfg.ClientRack))

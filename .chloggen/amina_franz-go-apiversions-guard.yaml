@@ -1,0 +1,21 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: enhancement
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: tempo
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Add the `api_versions_max_version` Kafka config option, which caps the ApiVersions request version at 4 by default to keep Kafka clients working with WarpStream on franz-go 1.22.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  franz-go 1.22 sends ApiVersions v5, and some Kafka-compatible backends, such as WarpStream, close the connection instead of replying with an error.
+  On the current franz-go version the default changes nothing. Set it to 0 to remove the cap.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: avolode

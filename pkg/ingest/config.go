@@ -90,6 +90,7 @@ var (
 	ErrInvalidProducerCompression        = errors.New("the configured producer compression must be one of: none, gzip, snappy, lz4, zstd")
 	ErrInvalidSASLMechanism              = fmt.Errorf("the configured SASL mechanism is invalid, must be one of: %s", strings.Join(saslMechanismOptions, ", "))
 	ErrSASLMSKIAMBadConfig               = errors.New("exactly one of static credentials, file path, or HTTP socket path must be configured to enable SASL AWS_MSK_IAM authentication")
+	ErrInvalidAPIVersionsMaxVersion      = fmt.Errorf("the configured ApiVersions max version must be between 0 and %d (0 removes the cap)", DefaultAPIVersionsMaxVersion)
 	ErrSASLOauthbearerBadConfig          = errors.New("exactly one of OAuth token, file path, or HTTP socket path must be configured to enable SASL OAUTHBEARER authentication")
 )
 
@@ -113,6 +114,8 @@ type KafkaConfig struct {
 	ClientRack   string                 `yaml:"client_rack"`
 	DialTimeout  time.Duration          `yaml:"dial_timeout"`
 	WriteTimeout time.Duration          `yaml:"write_timeout"`
+
+	APIVersionsMaxVersion int `yaml:"api_versions_max_version"`
 
 	SASL       KafkaAuthConfig `yaml:",inline"`
 	TLSEnabled bool            `yaml:"tls_enabled"`
@@ -178,6 +181,7 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 	f.StringVar(&cfg.ClientRack, prefix+".client-rack", "", "The rack identifier for this Kafka client. Corresponds to the Kafka client.rack setting and enables fetching from the closest replica (KIP-392). Set this to the instance's availability zone to reduce cross-zone Kafka traffic.")
 	f.DurationVar(&cfg.DialTimeout, prefix+".dial-timeout", 2*time.Second, "The maximum time allowed to open a connection to a Kafka broker.")
 	f.DurationVar(&cfg.WriteTimeout, prefix+".write-timeout", 10*time.Second, "How long to wait for an incoming write request to be successfully committed to the Kafka backend.")
+	f.IntVar(&cfg.APIVersionsMaxVersion, prefix+".api-versions-max-version", DefaultAPIVersionsMaxVersion, apiVersionsMaxVersionUsage)
 
 	cfg.SASL.RegisterFlagsWithPrefix(prefix+".sasl-", f)
 	f.BoolVar(&cfg.TLSEnabled, prefix+".tls-enabled", false, "Enable TLS for the Kafka client connection.")
@@ -219,6 +223,9 @@ func (cfg *KafkaConfig) Validate() error {
 	}
 	if cfg.MaxConsumerLagAtStartup < cfg.TargetConsumerLagAtStartup {
 		return ErrInvalidMaxConsumerLagAtStartup
+	}
+	if cfg.APIVersionsMaxVersion < 0 || cfg.APIVersionsMaxVersion > DefaultAPIVersionsMaxVersion {
+		return ErrInvalidAPIVersionsMaxVersion
 	}
 
 	if err := cfg.SASL.Validate(); err != nil {
