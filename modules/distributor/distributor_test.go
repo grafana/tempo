@@ -1684,7 +1684,7 @@ func TestRateLimitRespected(t *testing.T) {
 	}
 	status, ok := status.FromError(err)
 	assert.True(t, ok)
-	assert.True(t, status.Code() == codes.ResourceExhausted, "Wrong status code")
+	assert.Equal(t, codes.InvalidArgument, status.Code(), "batch exceeds the burst capacity")
 }
 
 func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
@@ -2216,7 +2216,7 @@ func TestCheckForRateLimits(t *testing.T) {
 			rateLimitBytes:  500,
 			burstLimitBytes: 500,
 			expectError:     "RATE_LIMITED: batch size (1100 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes) while adding 1100 bytes for user test-user. consider reducing batch size or increasing rate limit.",
-			errCode:         codes.ResourceExhausted,
+			errCode:         codes.InvalidArgument,
 		},
 		{
 			name:            "size over rate limit and burst limit",
@@ -2224,15 +2224,23 @@ func TestCheckForRateLimits(t *testing.T) {
 			rateLimitBytes:  500,
 			burstLimitBytes: 500,
 			expectError:     "RATE_LIMITED: batch size (1000 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 500 bytes) while adding 1000 bytes for user test-user. consider reducing batch size or increasing rate limit.",
-			errCode:         codes.ResourceExhausted,
+			errCode:         codes.InvalidArgument,
+		},
+		{
+			name:            "size under rate limit but over burst limit",
+			tracesSize:      300,
+			rateLimitBytes:  500,
+			burstLimitBytes: 200,
+			expectError:     "RATE_LIMITED: batch size (300 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 200 bytes) while adding 300 bytes for user test-user. consider reducing batch size or increasing rate limit.",
+			errCode:         codes.InvalidArgument,
 		},
 		{
 			name:            "size exactly at rate limit but over the burst limit",
 			tracesSize:      500,
 			rateLimitBytes:  500,
 			burstLimitBytes: 200,
-			expectError:     "RATE_LIMITED: ingestion rate limit (local: 500 bytes/s, global: 0 bytes/s, burst: 200 bytes) exceeded while adding 500 bytes for user test-user. consider increasing the limit or reducing ingestion rate.",
-			errCode:         codes.ResourceExhausted,
+			expectError:     "RATE_LIMITED: batch size (500 bytes) exceeds ingestion limit (local: 500 bytes/s, global: 0 bytes/s, burst: 200 bytes) while adding 500 bytes for user test-user. consider reducing batch size or increasing rate limit.",
+			errCode:         codes.InvalidArgument,
 		},
 	}
 
@@ -2739,4 +2747,35 @@ func TestPushTraces_CreationGracePeriod(t *testing.T) {
 			require.Equal(t, tc.wantDiscarded, discardedSpans(t, overrides.ReasonTooFarInFuture, tenant)-before)
 		})
 	}
+}
+
+// TestOversizedBatchIsNotRetryable reproduces issue #3831 without consuming any
+// tokens first: the bucket is full, so waiting cannot make this batch fit.
+func TestOversizedBatchIsNotRetryable(t *testing.T) {
+	d := prepare(t, overrides.Config{Defaults: overrides.Overrides{
+		Ingestion: overrides.IngestionOverrides{
+			RateStrategy:   overrides.LocalIngestionRateStrategy,
+			RateLimitBytes: 500,
+			BurstSizeBytes: 500,
+		},
+	}}, kitlog.NewNopLogger())
+
+	err := d.checkForRateLimits(501, 1, "issue-3831")
+	require.Error(t, err)
+	t.Logf("501-byte batch, full 500-byte bucket: %v", err)
+	require.Equal(t, codes.InvalidArgument, status.Code(err),
+		"a batch larger than the full bucket must be rejected permanently, not throttled")
+}
+
+func TestTemporaryIngestionRateLimitIsRetryable(t *testing.T) {
+	d := prepare(t, overrides.Config{Defaults: overrides.Overrides{
+		Ingestion: overrides.IngestionOverrides{
+			RateStrategy:   overrides.LocalIngestionRateStrategy,
+			RateLimitBytes: 1,
+			BurstSizeBytes: 500,
+		},
+	}}, kitlog.NewNopLogger())
+	require.NoError(t, d.checkForRateLimits(500, 1, "issue-3831"))
+	err := d.checkForRateLimits(500, 1, "issue-3831")
+	require.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
