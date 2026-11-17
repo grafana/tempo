@@ -559,6 +559,7 @@ func (t *Table) reset() {
 	t.columnConfigMap = nil
 	t.columnIsNonNumeric = nil
 	t.firstRowOfPage = true
+	t.pendingPageBreak = false
 	t.maxColumnLengths = nil
 	t.maxRowLength = 0
 	t.numColumns = 0

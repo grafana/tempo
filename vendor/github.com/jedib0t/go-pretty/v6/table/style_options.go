@@ -73,6 +73,11 @@ type Options struct {
 	//  │     │            │ TOTAL     │  10000 │                             │
 	//  └─────┴────────────┴───────────┴────────┴─────────────────────────────┘
 	SeparateRows bool
+
+	// SkipEmptyRowsWhenClipped suppresses body-row continuation lines whose
+	// content is entirely clipped by the table width limit. The first line of
+	// each row, headers, footers, and separators are always retained.
+	SkipEmptyRowsWhenClipped bool
 }
 
 var (

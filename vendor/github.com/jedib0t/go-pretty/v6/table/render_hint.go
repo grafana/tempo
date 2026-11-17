@@ -15,6 +15,7 @@ type renderHint struct {
 	isTitleRow        bool // title row?
 	rowLineNumber     int  // the line number for a multi-line row
 	rowNumber         int  // the row number/index
+	rowGroupSize      int  // number of logical rows stacked in this block
 	separatorType     separatorType
 }
 
