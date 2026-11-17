@@ -83,8 +83,9 @@ func (e *Estimator) Observe(op Op, cost Cost, actual uint64) {
 	c.observe(cost.Base, actual)
 }
 
-// Factor returns the factor in use for the block jobs of op, the bytes a job is expected to read per unit of
-// Base (Estimate = Base * Factor). It is 0 for an unknown op or a nil Estimator.
+// Factor returns the factor in use for the block jobs of op.
+// It is the bytes a job is expected to read per unit of Base (Estimate = Base * Factor).
+// It is 0 for an unknown op or a nil Estimator.
 func (e *Estimator) Factor(op Op) float64 {
 	c := e.calibrator(op)
 	if c == nil {

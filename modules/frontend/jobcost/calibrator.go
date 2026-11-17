@@ -45,8 +45,8 @@ func newCalibrator(initial float64, enabled bool) *calibrator {
 	return c
 }
 
-// Factor returns the factor in use, the bytes a job is expected to read per unit of Base. Once calibrated,
-// it is sumActual/sumBase limited to [factorMin, factorMax].
+// Factor returns the factor in use, the bytes a job is expected to read per unit of Base.
+// Once calibrated, it is sumActual/sumBase limited to [factorMin, factorMax].
 func (c *calibrator) Factor() float64 {
 	return math.Float64frombits(c.factor.Load())
 }
