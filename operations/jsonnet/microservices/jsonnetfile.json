@@ -26,7 +26,7 @@
           "subdir": "1.32"
         }
       },
-      "version": "main"
+      "version": "ee5c4c5ee02571eaf82f1170c60af47eee5496be"
     },
     {
       "source": {
@@ -44,7 +44,7 @@
           "subdir": "2.15"
         }
       },
-      "version": "main"
+      "version": "dbc8cf1a9847f123d8325378111155fb135983ab"
     }
   ],
   "legacyImports": true
