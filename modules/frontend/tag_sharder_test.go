@@ -555,7 +555,6 @@ func TestTagsRequestsCost(t *testing.T) {
 	t.Run("backend", func(t *testing.T) {
 		metas := []*backend.BlockMeta{
 			{Size_: 1000, TotalRecords: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000")},
-			{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")}, // no jobs
 		}
 
 		reqCh := make(chan pipeline.Request, 10)

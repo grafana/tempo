@@ -243,7 +243,7 @@ func metricValue(t *testing.T, reg *prometheus.Registry, name string, labels map
 	return nil
 }
 
-func TestFrontendTagsReportsJobCostsAsMetadata(t *testing.T) {
+func TestFrontendTagsReportsJobCosts(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	rdr := &mockReader{
 		metas: []*backend.BlockMeta{{
@@ -276,18 +276,10 @@ func TestFrontendTagsReportsJobCostsAsMetadata(t *testing.T) {
 	require.Equal(t, uint64(1), ratio.GetSampleCount())
 
 	// the other ops did not estimate anything
-	families, err := reg.Gather()
-	require.NoError(t, err)
-	for _, fam := range families {
-		if fam.GetName() != "tempo_query_frontend_job_estimated_bytes_total" {
-			continue
-		}
-		for _, m := range fam.GetMetric() {
-			for _, l := range m.GetLabel() {
-				if l.GetName() == "op" && l.GetValue() != "metadata" {
-					require.Zero(t, m.GetCounter().GetValue(), "op %s", l.GetValue())
-				}
-			}
+	for _, op := range []string{traceByIDOp, searchOp, metricsOp} {
+		for _, kind := range []string{"block", "live_store"} {
+			labels := map[string]string{"op": op, "kind": kind}
+			require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_estimated_bytes_total", labels).GetCounter().GetValue(), "op %s kind %s", op, kind)
 		}
 	}
 }

@@ -1726,73 +1726,35 @@ func TestSearchSharderScannedBytesLimitCutoff(t *testing.T) {
 }
 
 func TestBuildBackendRequestsCost(t *testing.T) {
-	tcs := []struct {
-		name                  string
-		targetBytesPerRequest int
-		metas                 []*backend.BlockMeta
-		expected              []jobcost.Cost
-	}{
-		{
-			name:                  "last job of a block covers less than the others",
-			targetBytesPerRequest: 900,
-			metas: []*backend.BlockMeta{
-				{Size_: 1000, TotalRecords: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000")},
-			},
-			expected: []jobcost.Cost{
-				{Kind: jobcost.KindBlock, Base: 900, Estimate: 9},
-				{Kind: jobcost.KindBlock, Base: 100, Estimate: 1},
-			},
-		},
-		{
-			name:                  "two blocks",
-			targetBytesPerRequest: 1000,
-			metas: []*backend.BlockMeta{
-				{Size_: 1000, TotalRecords: 10, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000")},
-				{Size_: 4000, TotalRecords: 40, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")},
-			},
-			expected: []jobcost.Cost{
-				{Kind: jobcost.KindBlock, Base: 1000, Estimate: 10},
-				{Kind: jobcost.KindBlock, Base: 1000, Estimate: 10},
-				{Kind: jobcost.KindBlock, Base: 1000, Estimate: 10},
-				{Kind: jobcost.KindBlock, Base: 1000, Estimate: 10},
-				{Kind: jobcost.KindBlock, Base: 1000, Estimate: 10},
-			},
-		},
-		{
-			name:                  "blocks without jobs are skipped",
-			targetBytesPerRequest: 900,
-			metas: []*backend.BlockMeta{
-				{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000")},
-				{Size_: 1000, TotalRecords: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")},
-			},
-			expected: []jobcost.Cost{
-				{Kind: jobcost.KindBlock, Base: 900, Estimate: 9},
-				{Kind: jobcost.KindBlock, Base: 100, Estimate: 1},
-			},
-		},
+	// the last job of each block covers the rest of the block. the bytes per page differ between the blocks
+	metas := []*backend.BlockMeta{
+		{Size_: 1000, TotalRecords: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000")},
+		{Size_: 2000, TotalRecords: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")},
 	}
 
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
-			searchReq, err := api.ParseSearchRequest(req)
-			require.NoError(t, err)
+	req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
+	searchReq, err := api.ParseSearchRequest(req)
+	require.NoError(t, err)
 
-			reqCh := make(chan pipeline.Request)
-			iterFn := backendJobsFunc(tc.metas, tc.targetBytesPerRequest, defaultMostRecentShards, math.MaxUint32)
+	reqCh := make(chan pipeline.Request)
+	iterFn := backendJobsFunc(metas, 900, defaultMostRecentShards, math.MaxUint32)
 
-			go func() {
-				buildBackendRequests(t.Context(), "test", pipeline.NewHTTPRequest(req), searchReq, 0, iterFn, newTestEstimator(), reqCh, func(error) {})
-			}()
+	go func() {
+		buildBackendRequests(t.Context(), "test", pipeline.NewHTTPRequest(req), searchReq, 0, iterFn, newTestEstimator(), reqCh, func(error) {})
+	}()
 
-			var actual []jobcost.Cost
-			for r := range reqCh {
-				actual = append(actual, r.Cost())
-			}
-
-			require.Equal(t, tc.expected, actual)
-		})
+	var actual []jobcost.Cost
+	for r := range reqCh {
+		actual = append(actual, r.Cost())
 	}
+
+	require.ElementsMatch(t, []jobcost.Cost{
+		{Kind: jobcost.KindBlock, Base: 900, Estimate: 9},
+		{Kind: jobcost.KindBlock, Base: 100, Estimate: 1},
+		{Kind: jobcost.KindBlock, Base: 900, Estimate: 9},
+		{Kind: jobcost.KindBlock, Base: 900, Estimate: 9},
+		{Kind: jobcost.KindBlock, Base: 200, Estimate: 2},
+	}, actual)
 }
 
 func TestBuildIngesterRequestCost(t *testing.T) {

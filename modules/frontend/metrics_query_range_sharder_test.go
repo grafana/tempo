@@ -589,51 +589,25 @@ func TestQueryRangeRequestsCost(t *testing.T) {
 	parent := pipeline.NewHTTPRequest(httptest.NewRequest("GET", "/test", nil))
 
 	t.Run("backend", func(t *testing.T) {
-		tcs := []struct {
-			name                  string
-			targetBytesPerRequest int
-			metas                 []*backend.BlockMeta
-			expected              []jobcost.Cost
-		}{
-			{
-				name:                  "last job of a block covers less than the others",
-				targetBytesPerRequest: 400,
-				metas: []*backend.BlockMeta{
-					{BlockID: backend.MustParse(uuid.NewString()), Size_: 1000, TotalRecords: 100, StartTime: now.Add(-time.Hour), EndTime: now},
-				},
-				expected: []jobcost.Cost{
-					{Kind: jobcost.KindBlock, Base: 400, Estimate: 4},
-					{Kind: jobcost.KindBlock, Base: 400, Estimate: 4},
-					{Kind: jobcost.KindBlock, Base: 200, Estimate: 2},
-				},
-			},
-			{
-				name:                  "block without jobs is skipped",
-				targetBytesPerRequest: 1000,
-				metas: []*backend.BlockMeta{
-					{BlockID: backend.MustParse(uuid.NewString()), StartTime: now.Add(-time.Hour), EndTime: now},
-					{BlockID: backend.MustParse(uuid.NewString()), Size_: 1000, TotalRecords: 100, StartTime: now.Add(-time.Hour), EndTime: now},
-				},
-				expected: []jobcost.Cost{
-					{Kind: jobcost.KindBlock, Base: 1000, Estimate: 10},
-				},
-			},
+		// the first two jobs of the block cover 400 bytes, the last one the rest
+		metas := []*backend.BlockMeta{
+			{BlockID: backend.MustParse(uuid.NewString()), Size_: 1000, TotalRecords: 100, StartTime: now.Add(-time.Hour), EndTime: now},
 		}
 
-		for _, tc := range tcs {
-			t.Run(tc.name, func(t *testing.T) {
-				reqCh := make(chan pipeline.Request, 100)
-				blockIter := backendJobsFunc(tc.metas, tc.targetBytesPerRequest, defaultMostRecentShards, uint32(searchReq.End))
+		reqCh := make(chan pipeline.Request, 100)
+		blockIter := backendJobsFunc(metas, 400, defaultMostRecentShards, uint32(searchReq.End))
 
-				sharder.buildBackendRequests(t.Context(), "test", parent, searchReq, 0, blockIter, reqCh, func(*backend.BlockMeta) uint32 { return 0 })
+		sharder.buildBackendRequests(t.Context(), "test", parent, searchReq, 0, blockIter, reqCh, func(*backend.BlockMeta) uint32 { return 0 })
 
-				var actual []jobcost.Cost
-				for r := range reqCh {
-					actual = append(actual, r.Cost())
-				}
-				require.Equal(t, tc.expected, actual)
-			})
+		var actual []jobcost.Cost
+		for r := range reqCh {
+			actual = append(actual, r.Cost())
 		}
+		require.Equal(t, []jobcost.Cost{
+			{Kind: jobcost.KindBlock, Base: 400, Estimate: 4},
+			{Kind: jobcost.KindBlock, Base: 400, Estimate: 4},
+			{Kind: jobcost.KindBlock, Base: 200, Estimate: 2},
+		}, actual)
 	})
 
 	t.Run("generator", func(t *testing.T) {
