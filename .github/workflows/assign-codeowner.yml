@@ -50,15 +50,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          # Comma or space separated logins that override the code owner pool.
-          # CODEOWNERS names teams only, and expanding a team needs an
-          # org-scoped token this workflow does not have, so the pool is
-          # hardcoded for now: the global "*" owners from before #8133 switched
-          # CODEOWNERS to @grafana/tempo. Override with the
-          # CODEOWNER_ASSIGNEES repository variable. Delete the fallback only
-          # after CODEOWNERS names individuals or team expansion has an
-          # org-scoped token.
-          ASSIGNEE_POOL: ${{ vars.CODEOWNER_ASSIGNEES || 'mdisibio,mapno,yvrhdn,zalegrala,electron0zero,ie-pham,stoewer,javiermolinar,carles-grafana,ruslan-mikhailov,mattdurham,zhxiaogg' }}
+          # Optional comma/space separated logins that override the code owner
+          # pool. The default pool is hardcoded in
+          # .github/scripts/pool.go (defaultAssigneePool) because CODEOWNERS
+          # names only the @grafana/tempo team and expanding a team needs an
+          # org-scoped token this workflow does not have. Set the
+          # CODEOWNER_ASSIGNEES repository variable, or edit the Go constant in
+          # the same commit as the CODEOWNERS change.
+          ASSIGNEE_POOL: ${{ vars.CODEOWNER_ASSIGNEES }}
           # Space or comma separated owners that are never assigned. Matching
           # is case-insensitive and ignores a leading "@", so
           # "grafana/docs-traces" and "@grafana/docs-traces" are the same

@@ -416,22 +416,13 @@ func convertTimeline(events []*github.Timeline) []timelineEvent {
 }
 
 func runSweep(ctx context.Context, client *github.Client, cfg config, now time.Time, choose func([]string) string) error {
-	codeowners, err := readCodeowners(ctx, client, cfg.repo)
-	if err != nil {
-		return err
-	}
-	groups := parseCodeowners(codeowners, cfg.excludedOwners)
-	printOwnerNotice("Excluded from the pool by EXCLUDED_OWNERS", groups.excluded)
-	printOwnerNotice("These CODEOWNERS owners appear in only some rules and are excluded from the pool", groups.partial)
-
-	eligible, err := resolvePool(ctx, client, cfg, groups)
+	eligible, err := resolvePool(ctx, client, cfg)
 	if err != nil {
 		return err
 	}
 	if len(eligible) == 0 {
-		fmt.Println("::notice::Restore ASSIGNEE_POOL, configure CODEOWNER_ASSIGNEES, or provide org team-read permission.")
-		return fmt.Errorf("no assignable code owner was found (users %v, teams %v, partial %v)",
-			slices.Sorted(maps.Keys(groups.users)), slices.Sorted(maps.Keys(groups.teams)), slices.Sorted(maps.Keys(groups.partial)))
+		fmt.Println("::notice::Set ASSIGNEE_POOL or the CODEOWNER_ASSIGNEES repository variable to name assignable code owners.")
+		return fmt.Errorf("no assignable code owner was found")
 	}
 	fmt.Printf("Eligible owners: %d.\n", len(eligible))
 
@@ -514,10 +505,4 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 		return fmt.Errorf("%d PR(s) could not be processed; they will be retried on the next run", failed)
 	}
 	return nil
-}
-
-func printOwnerNotice(message string, owners map[string]struct{}) {
-	if len(owners) > 0 {
-		fmt.Printf("::notice::%s: %s\n", message, strings.Join(slices.Sorted(maps.Keys(owners)), " "))
-	}
 }

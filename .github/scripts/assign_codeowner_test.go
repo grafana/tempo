@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"maps"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -38,19 +36,6 @@ func assignedTo(pr pullRequest, names ...string) pullRequest {
 		pr.Assignees = append(pr.Assignees, user{Login: name})
 	}
 	return pr
-}
-
-func TestParseCodeownersCatchAllDuplicatesAndExclusions(t *testing.T) {
-	groups := parseCodeowners(`
-# A comment is not a rule.
-* @Alice @alice @grafana/tempo
-/docs/ @grafana/docs-traces @Bob
-/tools/ @Bob
-`, "@grafana/docs-traces")
-	require.Equal(t, []string{"alice"}, slices.Sorted(maps.Keys(groups.users)))
-	require.Equal(t, []string{"grafana/tempo"}, slices.Sorted(maps.Keys(groups.teams)))
-	require.Equal(t, []string{"bob"}, slices.Sorted(maps.Keys(groups.partial)))
-	require.Equal(t, []string{"grafana/docs-traces"}, slices.Sorted(maps.Keys(groups.excluded)))
 }
 
 func TestLoadDeduplicatesAndFiltersBots(t *testing.T) {
@@ -144,10 +129,9 @@ func TestOnlyHumanUnassignAfterLatestBotAssignmentIsSkipped(t *testing.T) {
 	require.False(t, deliberatelyUnassigned([]timelineEvent{assigned, automaticUnassigned}, defaultBotActor))
 }
 
-func TestSweepRetriesPaginatesAndAssignsUpToCap(t *testing.T) {
+func TestSweepPaginatesAndAssignsUpToCap(t *testing.T) {
 	simulation, client := newSimulationClient(t)
 	require.NoError(t, runTestSweep(client, testConfig()))
-	require.Equal(t, 0, simulation.remainingRepoFailures())
 	require.Equal(t, []user{{Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
 	require.Empty(t, simulation.pullSnapshot(20).Assignees)
 	require.Equal(t, []label{{Name: defaultMarkerLabel}}, simulation.pullSnapshot(10).Labels)

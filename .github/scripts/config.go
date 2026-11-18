@@ -35,7 +35,7 @@ type config struct {
 func defaultConfig(repo string) config {
 	return config{
 		repo:               repo,
-		assigneePool:       "",
+		assigneePool:       defaultAssigneePool,
 		excludedOwners:     "",
 		maxAssignments:     defaultMaxAssignments,
 		openLoadMaxAgeDays: defaultOpenLoadMaxAgeDays,
@@ -66,7 +66,11 @@ func configFromEnv() (config, error) {
 		return config{}, err
 	}
 	cfg := defaultConfig(repo)
-	cfg.assigneePool = os.Getenv("ASSIGNEE_POOL")
+	// An empty or unset ASSIGNEE_POOL (e.g. an unset CODEOWNER_ASSIGNEES var)
+	// leaves the hardcoded default pool in place; a non-empty value overrides.
+	if value := os.Getenv("ASSIGNEE_POOL"); value != "" {
+		cfg.assigneePool = value
+	}
 	cfg.excludedOwners = os.Getenv("EXCLUDED_OWNERS")
 	cfg.markerLabel = envDefault("MARKER_LABEL", defaultMarkerLabel)
 	cfg.botActor = envDefault("BOT_ACTOR", defaultBotActor)

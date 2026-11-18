@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -50,7 +49,6 @@ type gitHubSimulation struct {
 	createdIssues      []createdIssue
 	comments           []issueComment
 	failureIssue       int
-	failRepoRequests   int
 	failMarkerApply    bool
 	failEnsureLabel    bool
 	failIssueSearch    bool
@@ -64,11 +62,10 @@ type gitHubSimulation struct {
 func newGitHubSimulation() *gitHubSimulation {
 	pr10, pr20 := testPull(10), testPull(20)
 	return &gitHubSimulation{
-		repo:             "grafana/tempo",
-		pulls:            map[int]*pullRequest{20: &pr20, 10: &pr10},
-		timeline:         make(map[int][]timelineEvent),
-		labels:           make(map[string]map[string]string),
-		failRepoRequests: 1,
+		repo:     "grafana/tempo",
+		pulls:    map[int]*pullRequest{20: &pr20, 10: &pr10},
+		timeline: make(map[int][]timelineEvent),
+		labels:   make(map[string]map[string]string),
 	}
 }
 
@@ -76,15 +73,6 @@ func (s *gitHubSimulation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	repoPath := "/repos/" + s.repo
-	if r.URL.Path == repoPath {
-		if s.failRepoRequests > 0 {
-			s.failRepoRequests--
-			s.reply(w, http.StatusInternalServerError, map[string]string{"message": "temporary failure"})
-		} else {
-			s.reply(w, http.StatusOK, map[string]string{"default_branch": "main"})
-		}
-		return
-	}
 
 	switch r.Method {
 	case http.MethodGet:
@@ -104,9 +92,6 @@ func (s *gitHubSimulation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *gitHubSimulation) handleGet(w http.ResponseWriter, r *http.Request, repoPath string) {
 	path := r.URL.Path
 	switch {
-	case path == repoPath+"/contents/CODEOWNERS":
-		content := base64.StdEncoding.EncodeToString([]byte("* @grafana/tempo\n"))
-		s.reply(w, http.StatusOK, map[string]string{"content": content, "encoding": "base64"})
 	case path == repoPath+"/assignees":
 		s.reply(w, http.StatusOK, []user{{Login: "Alice"}, {Login: "Bob"}})
 	case path == repoPath+"/pulls":
@@ -368,12 +353,6 @@ func (s *gitHubSimulation) pullSnapshot(number int) pullRequest {
 	pr.Assignees = append([]user(nil), pr.Assignees...)
 	pr.Labels = append([]label(nil), pr.Labels...)
 	return pr
-}
-
-func (s *gitHubSimulation) remainingRepoFailures() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.failRepoRequests
 }
 
 func (s *gitHubSimulation) hasLabel(name string) bool {

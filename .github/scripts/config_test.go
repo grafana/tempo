@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -90,7 +88,7 @@ func TestConfigDefaultsAndWorkflowContract(t *testing.T) {
 		"OPEN_LOAD_MAX_AGE_DAYS: '90'",
 		"MARKER_LABEL: " + defaultMarkerLabel,
 		"BOT_ACTOR: '" + defaultBotActor + "'",
-		"ASSIGNEE_POOL: ${{ vars.CODEOWNER_ASSIGNEES ||",
+		"ASSIGNEE_POOL: ${{ vars.CODEOWNER_ASSIGNEES }}",
 		"EXCLUDED_OWNERS: 'grafana/docs-traces'",
 		"RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
 		"working-directory: .github/scripts",
@@ -100,6 +98,29 @@ func TestConfigDefaultsAndWorkflowContract(t *testing.T) {
 		"permissions: {}",
 	} {
 		require.Contains(t, workflow, expected, "workflow contract string missing: %q", expected)
+	}
+}
+
+func TestConfigFromEnvFallsBackToHardcodedPool(t *testing.T) {
+	t.Setenv("REPO", "grafana/tempo")
+	t.Setenv("MAX_ASSIGNMENTS", "25")
+	t.Setenv("OPEN_LOAD_MAX_AGE_DAYS", "90")
+	t.Setenv("MARKER_LABEL", defaultMarkerLabel)
+	t.Setenv("BOT_ACTOR", defaultBotActor)
+	for _, test := range []struct {
+		name string
+		env  string
+		want string
+	}{
+		{name: "env unset falls back", env: "", want: defaultAssigneePool},
+		{name: "non-empty env overrides", env: "Alice,Bob", want: "Alice,Bob"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("ASSIGNEE_POOL", test.env)
+			cfg, err := configFromEnv()
+			require.NoError(t, err)
+			require.Equal(t, test.want, cfg.assigneePool)
+		})
 	}
 }
 
@@ -116,130 +137,19 @@ func TestRunReportFailureBypassesSweepConfigValidation(t *testing.T) {
 	require.ErrorContains(t, err, "parse MAX_ASSIGNMENTS")
 }
 
-func TestReadCodeownersErrors(t *testing.T) {
-	for _, test := range []struct {
-		name    string
-		status  int
-		content string
-		wantErr string
-	}{
-		{name: "missing everywhere", status: http.StatusNotFound, wantErr: "no CODEOWNERS file found"},
-		{name: "server failure preserved", status: http.StatusInternalServerError, wantErr: "read CODEOWNERS candidate"},
-		{name: "invalid base64", status: http.StatusOK, content: "not-base64", wantErr: "illegal base64 data"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/repos/grafana/tempo" {
-					fmt.Fprint(w, `{"default_branch":"main"}`)
-					return
-				}
-				if test.status == http.StatusOK {
-					fmt.Fprintf(w, `{"content":%q,"encoding":"base64"}`, test.content)
-					return
-				}
-				http.Error(w, "failure", test.status)
-			}))
-			defer server.Close()
-			client := testGitHubClient(t, server.URL)
-			_, err := readCodeowners(context.Background(), client, "grafana/tempo")
-			require.ErrorContains(t, err, test.wantErr)
-		})
-	}
-}
-
-func TestReadCodeownersPrefersGithubDirectory(t *testing.T) {
+func TestResolvePoolFiltersPoolToAssignableAndExcluded(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/repos/grafana/tempo":
-			fmt.Fprint(w, `{"default_branch":"main"}`)
-		case "/repos/grafana/tempo/contents/.github/CODEOWNERS":
-			encoded := base64.StdEncoding.EncodeToString([]byte("* @Alice\n"))
-			fmt.Fprintf(w, `{"content":%q,"encoding":"base64"}`, encoded)
-		case "/repos/grafana/tempo/contents/CODEOWNERS":
-			encoded := base64.StdEncoding.EncodeToString([]byte("* @Bob\n"))
-			fmt.Fprintf(w, `{"content":%q,"encoding":"base64"}`, encoded)
-		default:
-			http.Error(w, "unexpected", http.StatusNotFound)
-		}
-	}))
-	defer server.Close()
-	client := testGitHubClient(t, server.URL)
-	text, err := readCodeowners(context.Background(), client, "grafana/tempo")
-	require.NoError(t, err)
-	require.Equal(t, "* @Alice\n", text)
-}
-
-func TestReadCodeownersUsesRootFallbackPath(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/repos/grafana/tempo":
-			fmt.Fprint(w, `{"default_branch":"main"}`)
-		case "/repos/grafana/tempo/contents/.github/CODEOWNERS":
-			http.Error(w, "missing", http.StatusNotFound)
-		case "/repos/grafana/tempo/contents/CODEOWNERS":
-			encoded := base64.StdEncoding.EncodeToString([]byte("* @Alice\n"))
-			fmt.Fprintf(w, `{"content":%q,"encoding":"base64"}`, encoded)
-		default:
-			http.Error(w, "unexpected", http.StatusNotFound)
-		}
-	}))
-	defer server.Close()
-	client := testGitHubClient(t, server.URL)
-	text, err := readCodeowners(context.Background(), client, "grafana/tempo")
-	require.NoError(t, err)
-	require.Equal(t, "* @Alice\n", text)
-}
-
-func TestResolvePoolExpandsTeamUnderItsOwnOrg(t *testing.T) {
-	var requestedMu sync.Mutex
-	var requested []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestedMu.Lock()
-		requested = append(requested, r.URL.Path)
-		requestedMu.Unlock()
-		switch r.URL.Path {
-		case "/repos/grafana/tempo/assignees":
-			fmt.Fprint(w, `[{"login":"Alice"},{"login":"Bob"},{"login":"Carol"}]`)
-		case "/orgs/other-org/teams/tempo/members":
-			fmt.Fprint(w, `[{"login":"Carol"}]`)
-		default:
-			http.Error(w, "unexpected", http.StatusNotFound)
-		}
+		require.Equal(t, "/repos/grafana/tempo/assignees", r.URL.Path)
+		fmt.Fprint(w, `[{"login":"Alice"},{"login":"Bob"},{"login":"Carol"}]`)
 	}))
 	defer server.Close()
 	client := testGitHubClient(t, server.URL)
 	cfg := defaultConfig("grafana/tempo")
-	groups := parseCodeowners("* @Alice @other-org/tempo", "")
-	eligible, err := resolvePool(context.Background(), client, cfg, groups)
-	require.NoError(t, err)
-	require.Equal(t, []string{"alice", "carol"}, eligible)
-	requestedMu.Lock()
-	defer requestedMu.Unlock()
-	require.Contains(t, requested, "/orgs/other-org/teams/tempo/members")
-	require.NotContains(t, requested, "/orgs/grafana/teams/tempo/members")
-}
-
-func TestResolvePoolTeamFailureAndInvalidTeam(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/repos/grafana/tempo/assignees":
-			fmt.Fprint(w, `[{"login":"Alice"},{"login":"Bob"}]`)
-		case "/orgs/grafana/teams/tempo/members":
-			http.Error(w, "unavailable", http.StatusInternalServerError)
-		default:
-			http.Error(w, "unexpected", http.StatusNotFound)
-		}
-	}))
-	defer server.Close()
-	client := testGitHubClient(t, server.URL)
-	cfg := defaultConfig("grafana/tempo")
-	groups := parseCodeowners("* @Alice @grafana/tempo", "")
-	eligible, err := resolvePool(context.Background(), client, cfg, groups)
+	cfg.assigneePool = "Alice, Bob, Unassignable"
+	cfg.excludedOwners = "@Bob"
+	eligible, err := resolvePool(context.Background(), client, cfg)
 	require.NoError(t, err)
 	require.Equal(t, []string{"alice"}, eligible)
-	groups.teams["invalid"] = struct{}{}
-	_, err = resolvePool(context.Background(), client, cfg, groups)
-	require.ErrorContains(t, err, "expected org/team")
 }
 
 func TestEnsureMarkerLabelPreservesNon404Error(t *testing.T) {
