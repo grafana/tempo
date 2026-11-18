@@ -26,7 +26,6 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
-	"github.com/grafana/tempo/v3/tempodb/blocksharding"
 )
 
 type RoundTripperFunc func(*http.Request) (*http.Response, error)
@@ -385,11 +384,6 @@ func cloneRequestforQueriers(parent pipeline.Request, tenant string, modHTTP fun
 	prepareRequestForQueriers(clonedHTTPReq, tenant)
 
 	return parent.CloneFromHTTPRequest(clonedHTTPReq), nil
-}
-
-// blockJobCost returns the cost of a job that reads pages of the block m, starting at startPage.
-func blockJobCost(estimator *jobcost.Estimator, op jobcost.Op, m *backend.BlockMeta, startPage, pages int) jobcost.Cost {
-	return estimator.Block(op, blocksharding.JobBytes(m.Size_, uint32(startPage), uint32(pages), m.TotalRecords))
 }
 
 // prepareRequestForQueriers modifies the request so they will be farmed correctly to the queriers

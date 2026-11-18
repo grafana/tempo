@@ -8,6 +8,8 @@ import (
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blocksharding"
 )
 
 // metricsByKind are the metrics of the kinds of cost that are reported, indexed by jobcost.Kind.
@@ -117,4 +119,9 @@ func newJobCostMetrics(estimator *jobcost.Estimator, registerer prometheus.Regis
 			NativeHistogramMinResetDuration: 1 * time.Hour,
 		}, []string{metricLabelOp, metricLabelKind}),
 	}
+}
+
+// blockJobCost returns the cost of a job that reads pages of the block m, starting at startPage.
+func blockJobCost(estimator *jobcost.Estimator, op jobcost.Op, m *backend.BlockMeta, startPage, pages int) jobcost.Cost {
+	return estimator.Block(op, blocksharding.JobBytes(m.Size_, uint32(startPage), uint32(pages), m.TotalRecords))
 }
