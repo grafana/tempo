@@ -102,11 +102,8 @@ func TestJobCostOpLabels(t *testing.T) {
 func TestJobReporter(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	estimator := newTestEstimator()
-	metrics := newJobCostMetrics(estimator, reg)
-
-	inspected := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes_test"}, []string{"tenant"})
-	jobInspected := prometheus.NewHistogram(prometheus.HistogramOpts{Name: "job_inspected_bytes_test"})
-	reporter := newJobReporter(jobcost.OpSearch, estimator, inspected, jobInspected, metrics)
+	metrics := newTestJobCostMetrics(estimator, reg)
+	reporter := newJobReporter(jobcost.OpSearch, estimator, metrics)
 
 	block := jobcost.Cost{Kind: jobcost.KindBlock, Base: 1000, Estimate: 10}
 	liveStore := jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 20}
@@ -121,8 +118,8 @@ func TestJobReporter(t *testing.T) {
 	c.Combine(&tempopb.SearchMetrics{InspectedBytes: 3}, costedResponse{cost: jobcost.Cost{Kind: jobcost.KindBlock}}) // estimate of zero
 
 	// the counter has the bytes of every job, the histogram has every job
-	require.InDelta(t, 155, testutil.ToFloat64(inspected.WithLabelValues("tenant-a")), 0)
-	require.Equal(t, uint64(6), histogramOf(t, jobInspected).GetSampleCount())
+	require.InDelta(t, 155, testutil.ToFloat64(metrics.inspected.WithLabelValues("tenant-a", "search")), 0)
+	require.Equal(t, uint64(6), histogramOf(t, metrics.jobInspected.WithLabelValues("search")).GetSampleCount())
 
 	// only the jobs with an estimate are estimated, cached jobs are not. a block job with an estimate of zero adds nothing
 	require.InDelta(t, 30, testutil.ToFloat64(metrics.estimated.WithLabelValues("search", "block")), 0)
@@ -138,17 +135,46 @@ func TestJobReporter(t *testing.T) {
 	require.InDelta(t, 2, liveRatio.GetSampleSum(), 1e-9)
 }
 
+func TestJobReporterKinds(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	estimator := newTestEstimator()
+	metrics := newTestJobCostMetrics(estimator, reg)
+	reporter := newJobReporter(jobcost.OpMetadata, estimator, metrics)
+
+	// every kind but none has metrics
+	require.Equal(t, kindMetrics{}, reporter.kinds[jobcost.KindNone])
+	for kind := jobcost.KindBlock; int(kind) < len(reporter.kinds); kind++ {
+		require.NotNil(t, reporter.kinds[kind].estimated, kind.String())
+		require.NotNil(t, reporter.kinds[kind].ratio, kind.String())
+	}
+
+	// the series of every kind exist before the first job is reported
+	for _, kind := range []string{"block", "live_store"} {
+		labels := map[string]string{"op": "metadata", "kind": kind}
+		require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_estimated_bytes_total", labels).GetCounter().GetValue())
+		require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", labels).GetHistogram().GetSampleCount())
+	}
+
+	// a kind without metrics only observes the job
+	reporter.observeJob(10, jobcost.Cost{Kind: jobcost.Kind(99), Estimate: 5})
+	reporter.observeJob(10, jobcost.Cost{Kind: jobcost.KindNone, Estimate: 5})
+
+	require.Equal(t, uint64(2), histogramOf(t, metrics.jobInspected.WithLabelValues("metadata")).GetSampleCount())
+	for _, kind := range []string{"block", "live_store"} {
+		labels := map[string]string{"op": "metadata", "kind": kind}
+		require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_estimated_bytes_total", labels).GetCounter().GetValue())
+		require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", labels).GetHistogram().GetSampleCount())
+	}
+}
+
 func TestJobReporterCalibratesTheEstimator(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	estimator := jobcost.NewEstimator(jobcost.Config{
 		CalibrationEnabled: true,
 		LiveStoreCost:      jobcost.LiveStoreCostConfig{Search: 20},
 	})
-	metrics := newJobCostMetrics(estimator, reg)
-
-	inspected := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes_test"}, []string{"tenant"})
-	jobInspected := prometheus.NewHistogram(prometheus.HistogramOpts{Name: "job_inspected_bytes_test"})
-	reporter := newJobReporter(jobcost.OpSearch, estimator, inspected, jobInspected, metrics)
+	metrics := newTestJobCostMetrics(estimator, reg)
+	reporter := newJobReporter(jobcost.OpSearch, estimator, metrics)
 
 	c := combiner.NewSearchMetricsCombiner(reporter.option("tenant-a"))
 	initial := estimator.Factor(jobcost.OpSearch)
@@ -176,11 +202,19 @@ func TestJobReporterCalibratesTheEstimator(t *testing.T) {
 	require.InDelta(t, 0.01, gaugeValue(t, reg, "tempo_query_frontend_job_cost_factor", "metrics"), 1e-12)
 }
 
-func histogramOf(t *testing.T, h prometheus.Histogram) *dto.Histogram {
+// newTestJobCostMetrics returns metrics that do not share the inspected bytes with the metrics of the frontend.
+func newTestJobCostMetrics(estimator *jobcost.Estimator, reg prometheus.Registerer) *jobCostMetrics {
+	metrics := newJobCostMetrics(estimator, reg)
+	metrics.inspected = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes_test"}, []string{metricLabelTenant, metricLabelOp})
+	metrics.jobInspected = prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "job_inspected_bytes_test"}, []string{metricLabelOp})
+	return metrics
+}
+
+func histogramOf(t *testing.T, h prometheus.Observer) *dto.Histogram {
 	t.Helper()
 
 	var m dto.Metric
-	require.NoError(t, h.Write(&m))
+	require.NoError(t, h.(prometheus.Metric).Write(&m))
 	return m.GetHistogram()
 }
 
@@ -248,7 +282,7 @@ func TestFrontendTagsReportsJobCostsAsMetadata(t *testing.T) {
 	ratio := metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", block).GetHistogram()
 	require.Equal(t, uint64(1), ratio.GetSampleCount())
 
-	// no other op reported anything
+	// the other ops did not estimate anything
 	families, err := reg.Gather()
 	require.NoError(t, err)
 	for _, fam := range families {
@@ -257,8 +291,8 @@ func TestFrontendTagsReportsJobCostsAsMetadata(t *testing.T) {
 		}
 		for _, m := range fam.GetMetric() {
 			for _, l := range m.GetLabel() {
-				if l.GetName() == "op" {
-					require.Equal(t, "metadata", l.GetValue())
+				if l.GetName() == "op" && l.GetValue() != "metadata" {
+					require.Zero(t, m.GetCounter().GetValue(), "op %s", l.GetValue())
 				}
 			}
 		}

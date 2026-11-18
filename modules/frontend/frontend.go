@@ -268,10 +268,10 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	)
 
 	costMetrics := newJobCostMetrics(estimator, registerer)
-	traceByIDReporter := newJobReporter(jobcost.OpTraceByID, estimator, traceByIDInspectedBytes, traceByIDJobInspectedBytes, costMetrics)
-	searchReporter := newJobReporter(jobcost.OpSearch, estimator, searchInspectedBytes, searchJobInspectedBytes, costMetrics)
-	metadataReporter := newJobReporter(jobcost.OpMetadata, estimator, metadataInspectedBytes, metadataJobInspectedBytes, costMetrics)
-	metricsReporter := newJobReporter(jobcost.OpMetrics, estimator, metricsInspectedBytes, metricsJobInspectedBytes, costMetrics)
+	traceByIDReporter := newJobReporter(jobcost.OpTraceByID, estimator, costMetrics)
+	searchReporter := newJobReporter(jobcost.OpSearch, estimator, costMetrics)
+	metadataReporter := newJobReporter(jobcost.OpMetadata, estimator, costMetrics)
+	metricsReporter := newJobReporter(jobcost.OpMetrics, estimator, costMetrics)
 
 	metricsQueryRangeLimiter := newMetricsRangeLimiter(cfg, o, reader)
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, traceByIDReporter, logger, dataAccessController)

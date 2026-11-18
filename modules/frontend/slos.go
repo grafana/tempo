@@ -69,11 +69,6 @@ var (
 		Help:      "Bytes read from storage using queries per tenant",
 	}, []string{metricLabelTenant, metricLabelOp})
 
-	traceByIDInspectedBytes = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
-	searchInspectedBytes    = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": searchOp})
-	metadataInspectedBytes  = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": metadataOp})
-	metricsInspectedBytes   = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": metricsOp})
-
 	// the bytes inspected by a single querier job, which shows how much work a job of each op is
 	queryJobInspectedBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace:                       metricNamespace,
@@ -84,11 +79,6 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{metricLabelOp})
-
-	traceByIDJobInspectedBytes = queryJobInspectedBytes.WithLabelValues(traceByIDOp)
-	searchJobInspectedBytes    = queryJobInspectedBytes.WithLabelValues(searchOp)
-	metadataJobInspectedBytes  = queryJobInspectedBytes.WithLabelValues(metadataOp)
-	metricsJobInspectedBytes   = queryJobInspectedBytes.WithLabelValues(metricsOp)
 )
 
 type (

@@ -1561,7 +1561,7 @@ func TestQueryRangeHandlerLogsErrorReason(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := &recordingLogger{}
-	reporter := newJobReporter(jobcost.OpMetrics, nil, metricsInspectedBytes, metricsJobInspectedBytes, newJobCostMetrics(nil, prometheus.NewRegistry()))
+	reporter := newJobReporter(jobcost.OpMetrics, nil, newJobCostMetrics(nil, prometheus.NewRegistry()))
 	handler := newMetricsQueryRangeHTTPHandler(cfg, next, newMetricsRangeLimiter(cfg, o, nil), reporter, logger, nil)
 
 	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
