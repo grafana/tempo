@@ -32,7 +32,7 @@ func newJobCostMetrics(estimator *jobcost.Estimator, registerer prometheus.Regis
 		estimated: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricNamespace,
 			Name:      "query_frontend_job_estimated_bytes_total",
-			Help:      "Bytes querier jobs were estimated to read when they were created, excluding cached job responses and jobs without an estimate.",
+			Help:      "Bytes querier jobs were estimated to read, counted when the response of the job is combined, excluding cached job responses and jobs without an estimate.",
 		}, []string{metricLabelOp, metricLabelKind}),
 		ratio: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace:                       metricNamespace,
