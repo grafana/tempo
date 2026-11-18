@@ -343,7 +343,7 @@ func newSimulationClient(t *testing.T) (*gitHubSimulation, *github.Client) {
 
 func testConfig() config {
 	cfg := defaultConfig()
-	cfg.assigneePool = "Alice,Bob"
+	cfg.assigneePool = []string{"Alice", "Bob"}
 	cfg.maxAssignments = 1
 	return cfg
 }

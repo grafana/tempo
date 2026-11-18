@@ -73,8 +73,8 @@ func TestResolvePoolFiltersPoolToAssignableAndExcluded(t *testing.T) {
 	defer server.Close()
 	client := testGitHubClient(t, server.URL)
 	cfg := defaultConfig()
-	cfg.assigneePool = "Alice, Bob, Unassignable"
-	cfg.excludedOwners = "@Bob"
+	cfg.assigneePool = []string{"Alice", "Bob", "Unassignable"}
+	cfg.excludedOwners = []string{"@Bob"}
 	eligible, err := resolvePool(context.Background(), client, cfg)
 	require.NoError(t, err)
 	require.Equal(t, []string{"alice"}, eligible)

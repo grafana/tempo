@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"time"
 )
 
@@ -18,18 +19,20 @@ const (
 	defaultBotActor           = "github-actions[bot]"
 	defaultMaxAssignments     = 25
 	defaultOpenLoadMaxAgeDays = 90
-	defaultExcludedOwners     = "grafana/docs-traces"
 	closedLoadDays            = 7
 	closedLoadWindow          = closedLoadDays * 24 * time.Hour
 )
+
+// defaultExcludedOwners never get assigned even if they appear in the pool.
+var defaultExcludedOwners = []string{"grafana/docs-traces"}
 
 // config carries sweep settings. A zero-value config is not usable:
 // maxAssignments and openLoadMaxAgeDays must be positive and markerLabel and
 // botActor must be non-empty. Every production path uses defaultConfig.
 type config struct {
 	repo               string
-	assigneePool       string
-	excludedOwners     string
+	assigneePool       []string
+	excludedOwners     []string
 	maxAssignments     int
 	openLoadMaxAgeDays int
 	markerLabel        string
@@ -39,8 +42,8 @@ type config struct {
 func defaultConfig() config {
 	return config{
 		repo:               defaultRepo,
-		assigneePool:       defaultAssigneePool,
-		excludedOwners:     defaultExcludedOwners,
+		assigneePool:       slices.Clone(defaultAssigneePool),
+		excludedOwners:     slices.Clone(defaultExcludedOwners),
 		maxAssignments:     defaultMaxAssignments,
 		openLoadMaxAgeDays: defaultOpenLoadMaxAgeDays,
 		markerLabel:        defaultMarkerLabel,

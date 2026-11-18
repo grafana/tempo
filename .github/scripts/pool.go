@@ -6,41 +6,38 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"unicode"
 
 	"github.com/google/go-github/v93/github"
 )
 
 // defaultAssigneePool is the hardcoded code owner pool for the scheduled
 // sweep. Tempo's CODEOWNERS names only the @grafana/tempo team, and team
-// expansion needs an org-scoped token this workflow does not have, so the
-// pool is the global "*" owners from before #8133 switched CODEOWNERS to the
-// team. Override at runtime with the ASSIGNEE_POOL environment variable (the
-// workflow maps the CODEOWNER_ASSIGNEES repository variable into it) or by
-// editing this list in the same commit as the CODEOWNERS change.
-const defaultAssigneePool = "mdisibio,mapno,yvrhdn,zalegrala,electron0zero,ie-pham,stoewer,javiermolinar,carles-grafana,ruslan-mikhailov,mattdurham,zhxiaogg"
-
-// ownerLogins parses user logins without treating the slash in a team as decoration.
-func ownerLogins(value string) map[string]struct{} {
-	return parseLogins(value, false)
+// expansion needs an org-scoped token this workflow does not have, so the pool
+// is the global "*" owners from before #8133 switched CODEOWNERS to the team.
+// Change this list in the same commit as the corresponding CODEOWNERS change.
+var defaultAssigneePool = []string{
+	"mdisibio",
+	"mapno",
+	"yvrhdn",
+	"zalegrala",
+	"electron0zero",
+	"ie-pham",
+	"stoewer",
+	"javiermolinar",
+	"carles-grafana",
+	"ruslan-mikhailov",
+	"mattdurham",
+	"zhxiaogg",
 }
 
-// excludedOwnerLogins accepts optional leading @ and / decorations.
-func excludedOwnerLogins(value string) map[string]struct{} {
-	return parseLogins(value, true)
-}
-
-func parseLogins(value string, stripLeadingSlash bool) map[string]struct{} {
-	result := make(map[string]struct{}, strings.Count(value, ",")+1)
-	for _, token := range strings.FieldsFunc(value, func(r rune) bool {
-		return r == ',' || unicode.IsSpace(r)
-	}) {
-		token = strings.TrimPrefix(strings.ToLower(token), "@")
-		if stripLeadingSlash {
-			token = strings.TrimLeft(token, "/")
-		}
-		if token != "" {
-			result[token] = struct{}{}
+// loginSet lowercases logins and drops a leading "@", so entries stay readable
+// in the hardcoded lists above.
+func loginSet(logins []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(logins))
+	for _, login := range logins {
+		login = strings.TrimPrefix(strings.ToLower(login), "@")
+		if login != "" {
+			result[login] = struct{}{}
 		}
 	}
 	return result
@@ -70,8 +67,8 @@ func resolvePool(ctx context.Context, client *github.Client, cfg config) ([]stri
 		assignable[strings.ToLower(assignee.GetLogin())] = struct{}{}
 	}
 
-	pool := ownerLogins(cfg.assigneePool)
-	excluded := excludedOwnerLogins(cfg.excludedOwners)
+	pool := loginSet(cfg.assigneePool)
+	excluded := loginSet(cfg.excludedOwners)
 	eligible := make(map[string]struct{}, len(pool))
 	for login := range pool {
 		if !hasLogin(excluded, login) && hasLogin(assignable, login) {
