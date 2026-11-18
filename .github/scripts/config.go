@@ -3,23 +3,29 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 )
 
+// Hardcoded settings for the daily sweep. The script only runs as
+// "go run ." from its own workflow on grafana/tempo (the job is gated on
+// github.repository), so nothing here needs to be configurable at runtime:
+// changing a setting is a code change made in the same commit as the workflow
+// or CODEOWNERS change it coordinates with. The only genuinely per-run values
+// stay in the environment: GH_TOKEN and, for the failure reporter, RUN_URL.
 const (
+	defaultRepo               = "grafana/tempo"
 	defaultMarkerLabel        = "codeowner-sweep"
 	defaultBotActor           = "github-actions[bot]"
 	defaultMaxAssignments     = 25
 	defaultOpenLoadMaxAgeDays = 90
+	defaultExcludedOwners     = "grafana/docs-traces"
 	closedLoadDays            = 7
 	closedLoadWindow          = closedLoadDays * 24 * time.Hour
 )
 
 // config carries sweep settings. A zero-value config is not usable:
 // maxAssignments and openLoadMaxAgeDays must be positive and markerLabel and
-// botActor must be non-empty. configFromEnv enforces all of these invariants.
+// botActor must be non-empty. Every production path uses defaultConfig.
 type config struct {
 	repo               string
 	assigneePool       string
@@ -30,69 +36,16 @@ type config struct {
 	botActor           string
 }
 
-// defaultConfig is shared by environment parsing and tests so new fields cannot
-// silently acquire different test and production zero-value semantics.
-func defaultConfig(repo string) config {
+func defaultConfig() config {
 	return config{
-		repo:               repo,
+		repo:               defaultRepo,
 		assigneePool:       defaultAssigneePool,
-		excludedOwners:     "",
+		excludedOwners:     defaultExcludedOwners,
 		maxAssignments:     defaultMaxAssignments,
 		openLoadMaxAgeDays: defaultOpenLoadMaxAgeDays,
 		markerLabel:        defaultMarkerLabel,
 		botActor:           defaultBotActor,
 	}
-}
-
-// repoFromEnv returns and form-validates the owner/repository setting. It is
-// the only config the failure reporter needs.
-func repoFromEnv() (string, error) {
-	repo, err := requiredEnv("REPO")
-	if err != nil {
-		return "", err
-	}
-	if strings.Count(repo, "/") != 1 || strings.HasPrefix(repo, "/") || strings.HasSuffix(repo, "/") {
-		return "", fmt.Errorf("repo must use owner/repository form, got %q", repo)
-	}
-	return repo, nil
-}
-
-// configFromEnv requires positive assignment and age limits and non-empty
-// marker identities. Values accepted here are safe to convert to time.Duration
-// during load expiry checks.
-func configFromEnv() (config, error) {
-	repo, err := repoFromEnv()
-	if err != nil {
-		return config{}, err
-	}
-	cfg := defaultConfig(repo)
-	// An empty or unset ASSIGNEE_POOL (e.g. an unset CODEOWNER_ASSIGNEES var)
-	// leaves the hardcoded default pool in place; a non-empty value overrides.
-	if value := os.Getenv("ASSIGNEE_POOL"); value != "" {
-		cfg.assigneePool = value
-	}
-	cfg.excludedOwners = os.Getenv("EXCLUDED_OWNERS")
-	cfg.markerLabel = envDefault("MARKER_LABEL", defaultMarkerLabel)
-	cfg.botActor = envDefault("BOT_ACTOR", defaultBotActor)
-	if cfg.markerLabel == "" {
-		return config{}, fmt.Errorf("MARKER_LABEL must not be empty")
-	}
-	if cfg.botActor == "" {
-		return config{}, fmt.Errorf("BOT_ACTOR must not be empty")
-	}
-	cfg.maxAssignments, err = envPositiveInt("MAX_ASSIGNMENTS", cfg.maxAssignments)
-	if err != nil {
-		return config{}, err
-	}
-	cfg.openLoadMaxAgeDays, err = envPositiveInt("OPEN_LOAD_MAX_AGE_DAYS", cfg.openLoadMaxAgeDays)
-	if err != nil {
-		return config{}, err
-	}
-	maxDurationDays := int((time.Duration(1<<63 - 1)) / (24 * time.Hour))
-	if cfg.openLoadMaxAgeDays > maxDurationDays {
-		return config{}, fmt.Errorf("OPEN_LOAD_MAX_AGE_DAYS must not exceed %d", maxDurationDays)
-	}
-	return cfg, nil
 }
 
 func requiredEnv(name string) (string, error) {
@@ -101,23 +54,4 @@ func requiredEnv(name string) (string, error) {
 		return "", fmt.Errorf("missing required environment variable: %s", name)
 	}
 	return value, nil
-}
-
-func envDefault(name, fallback string) string {
-	if value, ok := os.LookupEnv(name); ok {
-		return value
-	}
-	return fallback
-}
-
-func envPositiveInt(name string, fallback int) (int, error) {
-	value := envDefault(name, strconv.Itoa(fallback))
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return 0, fmt.Errorf("parse %s: %w", name, err)
-	}
-	if parsed <= 0 {
-		return 0, fmt.Errorf("%s must be greater than zero, got %d", name, parsed)
-	}
-	return parsed, nil
 }

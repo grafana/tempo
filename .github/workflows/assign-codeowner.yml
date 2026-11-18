@@ -47,38 +47,11 @@ jobs:
           cache: false
 
       - name: Assign available code owners
+        # Only the token varies per run. The pool and all sweep settings are
+        # hardcoded in .github/scripts (config.go / pool.go), which this job
+        # compiles fresh via "go run ." on the gated repo.
         env:
           GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          # Optional comma/space separated logins that override the code owner
-          # pool. The default pool is hardcoded in
-          # .github/scripts/pool.go (defaultAssigneePool) because CODEOWNERS
-          # names only the @grafana/tempo team and expanding a team needs an
-          # org-scoped token this workflow does not have. Set the
-          # CODEOWNER_ASSIGNEES repository variable, or edit the Go constant in
-          # the same commit as the CODEOWNERS change.
-          ASSIGNEE_POOL: ${{ vars.CODEOWNER_ASSIGNEES }}
-          # Space or comma separated owners that are never assigned. Matching
-          # is case-insensitive and ignores a leading "@", so
-          # "grafana/docs-traces" and "@grafana/docs-traces" are the same
-          # entry; team entries must keep their org prefix. Excluded here
-          # rather than by relying on the intersection rule, so a team that
-          # happens to own every rule is still kept out of the pool.
-          EXCLUDED_OWNERS: 'grafana/docs-traces'
-          # Caps a single run. The first run after merging would otherwise
-          # assign every unassigned PR at once and notify each owner once per
-          # PR. The remainder is picked up on later runs.
-          MAX_ASSIGNMENTS: '25'
-          # Open PRs older than this stop counting as load. Otherwise an
-          # abandoned PR penalises its assignee permanently, while closed PRs
-          # only count for seven days.
-          OPEN_LOAD_MAX_AGE_DAYS: '90'
-          # Marks PRs this sweep has assigned, so a later run can tell
-          # "auto-assigned then cleared" from "never assigned".
-          MARKER_LABEL: codeowner-sweep
-          # The account that appears as the actor when the workflow assigns
-          # through GITHUB_TOKEN. Only used to interpret timeline events.
-          BOT_ACTOR: 'github-actions[bot]'
         # .github/scripts is its own module (matching tools/), so GitHub CI
         # dependencies never enter the product go.mod.
         working-directory: .github/scripts
@@ -88,7 +61,6 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         # A scheduled failure notifies only this file's last editor, so record
         # the failure where maintainers will see it.

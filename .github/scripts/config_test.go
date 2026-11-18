@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/go-github/v93/github"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,72 +25,20 @@ func unsetEnvironment(t *testing.T, name string) {
 	require.NoError(t, os.Unsetenv(name))
 }
 
-func TestConfigFromEnvValidatesRequiredValues(t *testing.T) {
-	for _, test := range []struct {
-		name      string
-		repo      string
-		max       string
-		age       string
-		unsetRepo bool
-		wantErr   string
-	}{
-		{name: "missing repo", unsetRepo: true, max: "25", age: "90", wantErr: "missing required environment variable: REPO"},
-		{name: "invalid repo", repo: "tempo", max: "25", age: "90", wantErr: "owner/repository"},
-		{name: "invalid assignment integer", repo: "grafana/tempo", max: "many", age: "90", wantErr: "parse MAX_ASSIGNMENTS"},
-		{name: "zero assignment cap", repo: "grafana/tempo", max: "0", age: "90", wantErr: "MAX_ASSIGNMENTS must be greater than zero"},
-		{name: "zero open age", repo: "grafana/tempo", max: "25", age: "0", wantErr: "OPEN_LOAD_MAX_AGE_DAYS must be greater than zero"},
-		{name: "negative assignment cap", repo: "grafana/tempo", max: "-1", age: "90", wantErr: "MAX_ASSIGNMENTS must be greater than zero"},
-		{name: "empty marker label", repo: "grafana/tempo", max: "25", age: "90", wantErr: "MARKER_LABEL must not be empty"},
-		{name: "empty bot actor", repo: "grafana/tempo", max: "25", age: "90", wantErr: "BOT_ACTOR must not be empty"},
-		{name: "age duration overflow", repo: "grafana/tempo", max: "25", age: "106752", wantErr: "must not exceed"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			if test.unsetRepo {
-				unsetEnvironment(t, "REPO")
-			} else {
-				t.Setenv("REPO", test.repo)
-			}
-			t.Setenv("MAX_ASSIGNMENTS", test.max)
-			t.Setenv("OPEN_LOAD_MAX_AGE_DAYS", test.age)
-			t.Setenv("MARKER_LABEL", defaultMarkerLabel)
-			t.Setenv("BOT_ACTOR", defaultBotActor)
-			switch test.name {
-			case "empty marker label":
-				t.Setenv("MARKER_LABEL", "")
-			case "empty bot actor":
-				t.Setenv("BOT_ACTOR", "")
-			}
-			_, err := configFromEnv()
-			require.ErrorContains(t, err, test.wantErr)
-		})
-	}
-}
-
 func TestConfigDefaultsAndWorkflowContract(t *testing.T) {
-	t.Setenv("REPO", "grafana/tempo")
-	t.Setenv("MAX_ASSIGNMENTS", "25")
-	t.Setenv("OPEN_LOAD_MAX_AGE_DAYS", "90")
-	t.Setenv("ASSIGNEE_POOL", "Alice,Bob")
-	t.Setenv("EXCLUDED_OWNERS", "grafana/docs-traces")
-	t.Setenv("MARKER_LABEL", defaultMarkerLabel)
-	t.Setenv("BOT_ACTOR", defaultBotActor)
-	cfg, err := configFromEnv()
-	require.NoError(t, err)
-	require.Equal(t, defaultConfig("grafana/tempo").maxAssignments, cfg.maxAssignments)
-	require.Equal(t, defaultConfig("grafana/tempo").openLoadMaxAgeDays, cfg.openLoadMaxAgeDays)
+	cfg := defaultConfig()
+	require.Equal(t, defaultRepo, cfg.repo)
+	require.Equal(t, defaultAssigneePool, cfg.assigneePool)
+	require.Equal(t, defaultMaxAssignments, cfg.maxAssignments)
+	require.Equal(t, defaultOpenLoadMaxAgeDays, cfg.openLoadMaxAgeDays)
+	require.Equal(t, defaultMarkerLabel, cfg.markerLabel)
+	require.Equal(t, defaultBotActor, cfg.botActor)
 
 	data, err := os.ReadFile("../workflows/assign-codeowner.yml")
 	require.NoError(t, err)
 	workflow := string(data)
 	for _, expected := range []string{
 		"GH_TOKEN: ${{ github.token }}",
-		"REPO: ${{ github.repository }}",
-		"MAX_ASSIGNMENTS: '25'",
-		"OPEN_LOAD_MAX_AGE_DAYS: '90'",
-		"MARKER_LABEL: " + defaultMarkerLabel,
-		"BOT_ACTOR: '" + defaultBotActor + "'",
-		"ASSIGNEE_POOL: ${{ vars.CODEOWNER_ASSIGNEES }}",
-		"EXCLUDED_OWNERS: 'grafana/docs-traces'",
 		"RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
 		"working-directory: .github/scripts",
 		"run: go run .",
@@ -99,42 +48,21 @@ func TestConfigDefaultsAndWorkflowContract(t *testing.T) {
 	} {
 		require.Contains(t, workflow, expected, "workflow contract string missing: %q", expected)
 	}
-}
-
-func TestConfigFromEnvFallsBackToHardcodedPool(t *testing.T) {
-	t.Setenv("REPO", "grafana/tempo")
-	t.Setenv("MAX_ASSIGNMENTS", "25")
-	t.Setenv("OPEN_LOAD_MAX_AGE_DAYS", "90")
-	t.Setenv("MARKER_LABEL", defaultMarkerLabel)
-	t.Setenv("BOT_ACTOR", defaultBotActor)
-	for _, test := range []struct {
-		name string
-		env  string
-		want string
-	}{
-		{name: "env unset falls back", env: "", want: defaultAssigneePool},
-		{name: "non-empty env overrides", env: "Alice,Bob", want: "Alice,Bob"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			t.Setenv("ASSIGNEE_POOL", test.env)
-			cfg, err := configFromEnv()
-			require.NoError(t, err)
-			require.Equal(t, test.want, cfg.assigneePool)
-		})
+	// Settings live only in Go now; a workflow env block would silently drift.
+	for _, gone := range []string{"ASSIGNEE_POOL", "MAX_ASSIGNMENTS", "OPEN_LOAD_MAX_AGE_DAYS", "MARKER_LABEL", "BOT_ACTOR", "EXCLUDED_OWNERS", "REPO:"} {
+		require.NotContains(t, workflow, gone+" ", "stale workflow env: %q", gone)
 	}
 }
 
-func TestRunReportFailureBypassesSweepConfigValidation(t *testing.T) {
+func TestRunRequiresTokenAndReportFailureRequiresRunURL(t *testing.T) {
+	unsetEnvironment(t, "GH_TOKEN")
+	err := run(context.Background(), "sweep")
+	require.ErrorContains(t, err, "missing required environment variable: GH_TOKEN")
+
 	t.Setenv("GH_TOKEN", "token")
-	t.Setenv("REPO", "grafana/tempo")
-	t.Setenv("MAX_ASSIGNMENTS", "abc")
-	t.Setenv("OPEN_LOAD_MAX_AGE_DAYS", "90")
 	unsetEnvironment(t, "RUN_URL")
-	err := run(context.Background(), "report-failure")
-	require.ErrorContains(t, err, "RUN_URL")
-	require.NotContains(t, err.Error(), "MAX_ASSIGNMENTS")
-	err = run(context.Background(), "sweep")
-	require.ErrorContains(t, err, "parse MAX_ASSIGNMENTS")
+	err = run(context.Background(), "report-failure")
+	require.ErrorContains(t, err, "missing required environment variable: RUN_URL")
 }
 
 func TestResolvePoolFiltersPoolToAssignableAndExcluded(t *testing.T) {
@@ -144,12 +72,25 @@ func TestResolvePoolFiltersPoolToAssignableAndExcluded(t *testing.T) {
 	}))
 	defer server.Close()
 	client := testGitHubClient(t, server.URL)
-	cfg := defaultConfig("grafana/tempo")
+	cfg := defaultConfig()
 	cfg.assigneePool = "Alice, Bob, Unassignable"
 	cfg.excludedOwners = "@Bob"
 	eligible, err := resolvePool(context.Background(), client, cfg)
 	require.NoError(t, err)
 	require.Equal(t, []string{"alice"}, eligible)
+}
+
+func TestEachPageBoundedStopsAtLimit(t *testing.T) {
+	calls := 0
+	items, err := eachPageBounded(context.Background(), func(opts *github.ListOptions) ([]int, *github.Response, error) {
+		calls++
+		return []int{1, 2, 3}, &github.Response{NextPage: opts.Page + 1}, nil
+	}, 5)
+	require.NoError(t, err)
+	// Stops as soon as the cap is reached: page 1 (3 items) + page 2 fills past
+	// the 5-item limit without requesting a third page.
+	require.Equal(t, []int{1, 2, 3, 1, 2, 3}, items)
+	require.Equal(t, 2, calls)
 }
 
 func TestEnsureMarkerLabelPreservesNon404Error(t *testing.T) {

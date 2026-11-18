@@ -184,16 +184,19 @@ func TestSweepFailsFastWhenMarkerLabelCannotBeEnsured(t *testing.T) {
 	require.Empty(t, simulation.pullSnapshot(20).Assignees)
 }
 
-func TestSweepRollsBackAssignmentWhenMarkerFails(t *testing.T) {
+func TestSweepAbortsBatchWhenMarkerCannotBeApplied(t *testing.T) {
 	simulation, client := newSimulationClient(t)
 	simulation.setFlag(&simulation.failMarkerApply)
 	err := runTestSweep(client, testConfig())
-	require.ErrorContains(t, err, "2 PR(s) could not be processed")
+	require.ErrorContains(t, err, "1 PR(s) could not be processed")
 	for _, number := range []int{10, 20} {
 		pr := simulation.pullSnapshot(number)
 		require.Empty(t, pr.Assignees)
 		require.Empty(t, pr.Labels)
 	}
+	// Only the first candidate was attempted: the batch aborted instead of
+	// assigning and rolling back every PR in one run.
+	require.Equal(t, 1, simulation.assignAttemptCount())
 }
 
 func TestSweepRollsBackOwnAssigneeWhenHumanRaces(t *testing.T) {

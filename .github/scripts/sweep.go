@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	// math/rand/v2 is fine for tie-breaking between equal-load owners; the
+	// output is never used for security. nosemgrep: math-random-used
 	"math/rand/v2"
 	"net/http"
 	"slices"
@@ -229,6 +231,7 @@ const (
 	candidateAssigned candidateOutcome = iota
 	candidateDeliberatelySkipped
 	candidateAlreadyAssigned
+	candidateMarkerFailed
 	candidateFailed
 )
 
@@ -281,6 +284,9 @@ func processCandidate(
 	alreadyAssigned, err := assignAndMark(ctx, client, cfg, candidate.number, assignee)
 	if err != nil {
 		fmt.Printf("::warning::Could not complete assignment of PR #%d to @%s: %v.\n", candidate.number, assignee, err)
+		if errors.Is(err, errApplyMarker) {
+			return candidateMarkerFailed
+		}
 		return candidateFailed
 	}
 	if alreadyAssigned {
@@ -293,6 +299,11 @@ func processCandidate(
 	fmt.Printf("Assigned @%s to PR #%d (load: %d = %d open + %d closed in the past %d days).\n", assignee, candidate.number, counts.open+counts.closed, counts.open, counts.closed, closedLoadDays)
 	return candidateAssigned
 }
+
+// errApplyMarker distinguishes marker-application failures from assignment
+// failures: a marker failure means every later candidate would also assign and
+// roll back, so the sweep aborts instead of churning the whole batch.
+var errApplyMarker = errors.New("apply marker label")
 
 // assignAndMark rolls back only this sweep's assignee when another owner races
 // the write or the marker cannot be applied, avoiding silent partial assignments.
@@ -319,7 +330,7 @@ func assignAndMark(ctx context.Context, client *github.Client, cfg config, numbe
 		return false, errors.New("assignment response did not reflect the selected owner")
 	}
 	if _, _, err := client.Issues.AddLabelsToIssue(ctx, owner, name, number, []string{cfg.markerLabel}); err != nil {
-		markerErr := fmt.Errorf("apply marker label: %w", err)
+		markerErr := fmt.Errorf("%w: %v", errApplyMarker, err)
 		if rollbackErr := removeAssignee(ctx, client, cfg, number, assignee); rollbackErr != nil {
 			return false, errors.Join(markerErr, fmt.Errorf("rollback assignee: %w", rollbackErr))
 		}
@@ -444,13 +455,13 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 	if totalClosed > maxSearchResults {
 		fmt.Printf("::warning::%d PRs closed in the last %d days, but the search API returns at most %d. Closed load is undercounted.\n", totalClosed, closedLoadDays, maxSearchResults)
 	}
-	closedIssues, err := eachPage(ctx, func(opts *github.ListOptions) ([]*github.Issue, *github.Response, error) {
+	closedIssues, err := eachPageBounded(ctx, func(opts *github.ListOptions) ([]*github.Issue, *github.Response, error) {
 		result, resp, err := client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: *opts})
 		if err != nil {
 			return nil, resp, err
 		}
 		return result.Issues, resp, nil
-	})
+	}, maxSearchResults)
 	if err != nil {
 		return fmt.Errorf("list recently closed pull requests: %w", err)
 	}
@@ -480,6 +491,7 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 	}
 
 	assigned, deliberatelySkipped, alreadyAssigned, failed := 0, 0, 0, 0
+Loop:
 	for _, candidate := range candidates {
 		if assigned >= cfg.maxAssignments {
 			fmt.Printf("Reached the per-run cap of %d; the rest are left for the next run.\n", cfg.maxAssignments)
@@ -492,10 +504,14 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 			deliberatelySkipped++
 		case candidateAlreadyAssigned:
 			alreadyAssigned++
+		case candidateMarkerFailed:
+			failed++
+			fmt.Printf("::error::PR #%d was rolled back because the %q marker label could not be applied; aborting so the remaining PRs wait for the next run.\n", candidate.number, cfg.markerLabel)
+			break Loop
 		case candidateFailed:
 			failed++
 		default:
-			// candidateOutcome has exactly these four values; a new outcome
+			// candidateOutcome has exactly these five values; a new outcome
 			// must be handled here and reflected in the summary below.
 			return errors.New("unknown candidate outcome")
 		}

@@ -49,6 +49,7 @@ type gitHubSimulation struct {
 	createdIssues      []createdIssue
 	comments           []issueComment
 	failureIssue       int
+	assignAttempts     int
 	failMarkerApply    bool
 	failEnsureLabel    bool
 	failIssueSearch    bool
@@ -212,6 +213,7 @@ func (s *gitHubSimulation) handlePost(w http.ResponseWriter, r *http.Request, re
 				s.reply(w, http.StatusNotFound, map[string]string{"message": "unknown PR"})
 				return
 			}
+			s.assignAttempts++
 			if s.concurrentAssignee != "" {
 				pr.Assignees = append(pr.Assignees, user{Login: s.concurrentAssignee})
 			}
@@ -340,7 +342,7 @@ func newSimulationClient(t *testing.T) (*gitHubSimulation, *github.Client) {
 }
 
 func testConfig() config {
-	cfg := defaultConfig("grafana/tempo")
+	cfg := defaultConfig()
 	cfg.assigneePool = "Alice,Bob"
 	cfg.maxAssignments = 1
 	return cfg
@@ -353,6 +355,12 @@ func (s *gitHubSimulation) pullSnapshot(number int) pullRequest {
 	pr.Assignees = append([]user(nil), pr.Assignees...)
 	pr.Labels = append([]label(nil), pr.Labels...)
 	return pr
+}
+
+func (s *gitHubSimulation) assignAttemptCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.assignAttempts
 }
 
 func (s *gitHubSimulation) hasLabel(name string) bool {

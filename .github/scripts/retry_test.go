@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -91,6 +92,34 @@ func TestRetryingRoundTripperReplaysRequestBody(t *testing.T) {
 	for _, body := range bodies {
 		require.Equal(t, `{"a":1}`, body)
 	}
+}
+
+func TestRetryingRoundTripperPerAttemptTimeoutLeavesBudgetForRetries(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The first two attempts hang past the per-attempt budget; the final
+		// attempt answers immediately.
+		if calls.Add(1) < maxRequestAttempts {
+			time.Sleep(80 * time.Millisecond)
+		}
+		fmt.Fprint(w, `{"ok":true}`)
+	}))
+	defer server.Close()
+	transport := &retryingRoundTripper{
+		base:           http.DefaultTransport,
+		maxAttempts:    maxRequestAttempts,
+		backoff:        func(int) time.Duration { return 0 },
+		attemptTimeout: 30 * time.Millisecond,
+	}
+	start := time.Now()
+	resp, err := (&http.Client{Transport: transport}).Get(server.URL)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	// Each attempt gets its own 30ms budget, so the third attempt succeeds
+	// around 80ms. A client-wide timeout would have failed the whole request.
+	require.Less(t, time.Since(start), 200*time.Millisecond)
+	require.Equal(t, int32(maxRequestAttempts), calls.Load())
 }
 
 func TestRetryingRoundTripperCancellationStopsBackoff(t *testing.T) {

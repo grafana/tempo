@@ -24,24 +24,13 @@ func run(ctx context.Context, command string) error {
 		return err
 	}
 	if command == "report-failure" {
-		// The reporter needs only REPO (and RUN_URL). It must not inherit the
-		// sweep's configuration validation, or a sweep config failure would
-		// also kill the failure report that exists to surface it.
-		repo, err := repoFromEnv()
-		if err != nil {
-			return err
-		}
 		runURL, err := requiredEnv("RUN_URL")
 		if err != nil {
 			return err
 		}
-		return reportFailure(ctx, client, repo, runURL)
+		return reportFailure(ctx, client, defaultRepo, runURL)
 	}
-	cfg, err := configFromEnv()
-	if err != nil {
-		return err
-	}
-	return sweep(ctx, client, cfg)
+	return sweep(ctx, client, defaultConfig())
 }
 
 func workflowError(err error) {

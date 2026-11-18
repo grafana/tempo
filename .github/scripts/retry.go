@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"time"
 )
@@ -25,9 +27,10 @@ func sleepContext(ctx context.Context, duration time.Duration) error {
 // non-idempotent methods run exactly once. Requests are cloned per attempt so
 // bodies can be replayed, and context cancellation aborts the retry loop.
 type retryingRoundTripper struct {
-	base        http.RoundTripper
-	maxAttempts int
-	backoff     func(attempt int) time.Duration
+	base           http.RoundTripper
+	maxAttempts    int
+	backoff        func(attempt int) time.Duration
+	attemptTimeout time.Duration
 }
 
 // idempotentMethod reports whether a failed request can safely be replayed.
@@ -53,28 +56,43 @@ func (r *retryingRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		backoff = retryDelay
 	}
 
+	attemptTimeout := r.attemptTimeout
+	if attemptTimeout <= 0 {
+		attemptTimeout = apiRequestTimeout
+	}
+
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		attemptReq := req.Clone(req.Context())
+		// Each attempt gets its own deadline: a client-wide timeout would let
+		// one hung attempt consume the budget of the retries that follow it.
+		attemptCtx, cancel := context.WithTimeout(req.Context(), attemptTimeout)
+		attemptReq := req.Clone(attemptCtx)
 		if req.Body != nil && req.GetBody != nil {
 			body, err := req.GetBody()
 			if err != nil {
+				cancel()
 				return nil, err
 			}
 			attemptReq.Body = body
 		}
 		resp, err := r.base.RoundTrip(attemptReq)
 		if err != nil {
+			cancel()
 			lastErr = err
-		} else if resp.StatusCode < 500 || attempt == maxAttempts {
-			return resp, nil
 		} else {
-			if err := sleepContext(req.Context(), backoff(attempt)); err != nil {
-				resp.Body.Close()
-				return nil, err
-			}
+			// Buffer the body so the canceled per-attempt context cannot tear
+			// it down before the caller decodes it; responses here are small
+			// JSON pages.
+			body, readErr := io.ReadAll(resp.Body)
 			resp.Body.Close()
-			continue
+			cancel()
+			if readErr != nil {
+				return nil, readErr
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+			if resp.StatusCode < 500 || attempt == maxAttempts {
+				return resp, nil
+			}
 		}
 		if attempt == maxAttempts {
 			break
