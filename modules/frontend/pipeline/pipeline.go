@@ -198,7 +198,6 @@ func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware
 		next: syncPipeline.Wrap(RoundTripperFunc(func(req Request) (*http.Response, error) {
 			return next.RoundTrip(req)
 		})),
-		convert: NewHTTPToAsyncResponse,
 	}
 	return asyncPipeline.Wrap(bridge)
 }
@@ -206,8 +205,7 @@ func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware
 var _ AsyncRoundTripper[combiner.PipelineResponse] = (*pipelineBridge)(nil)
 
 type pipelineBridge struct {
-	next    RoundTripper
-	convert func(*http.Response) Responses[combiner.PipelineResponse]
+	next RoundTripper
 }
 
 func (b *pipelineBridge) RoundTrip(req Request) (Responses[combiner.PipelineResponse], error) {

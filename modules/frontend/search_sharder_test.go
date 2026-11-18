@@ -1245,11 +1245,13 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				shardIdx := r.ResponseData()
-				return pipeline.NewHTTPToAsyncResponseWithRequestData(&http.Response{
-					Body:       io.NopCloser(strings.NewReader(resString)),
-					StatusCode: 200,
-				}, shardIdx), nil
+				return pipeline.NewAsyncResponse(shardResponse{
+					resp: &http.Response{
+						Body:       io.NopCloser(strings.NewReader(resString)),
+						StatusCode: 200,
+					},
+					shard: r.ResponseData(),
+				}), nil
 			})
 
 			testRT := sharder.Wrap(next)
@@ -1803,3 +1805,13 @@ func TestBuildIngesterRequestCost(t *testing.T) {
 
 	require.Equal(t, jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 2000}, (<-reqCh).Cost())
 }
+
+// shardResponse is the response of a job that echoes the data of its request.
+type shardResponse struct {
+	resp  *http.Response
+	shard any
+}
+
+func (r shardResponse) HTTPResponse() *http.Response { return r.resp }
+func (r shardResponse) RequestData() any             { return r.shard }
+func (r shardResponse) IsMetadata() bool             { return false }

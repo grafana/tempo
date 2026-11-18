@@ -63,15 +63,6 @@ func NewHTTPToAsyncResponse(r *http.Response) Responses[combiner.PipelineRespons
 	}
 }
 
-func NewHTTPToAsyncResponseWithRequestData(r *http.Response, requestData any) Responses[combiner.PipelineResponse] {
-	return syncResponse{
-		r: pipelineResponse{
-			r:           r,
-			requestData: requestData,
-		},
-	}
-}
-
 // NewBadRequest creates a new AsyncResponse that wraps a single http.Response with a 400 status code and the provided error message.
 func NewBadRequest(err error) Responses[combiner.PipelineResponse] {
 	return NewHTTPToAsyncResponse(&http.Response{
