@@ -49,7 +49,8 @@ func TestServiceGraphEdgeStorageVersionValidation(t *testing.T) {
 		wantError     bool
 	}{
 		{"current format", "vParquet5", new(true), false},
-		{"old format rejected", "vParquet4", new(true), true},
+		{"vParquet4 supported", "vParquet4", new(true), false},
+		{"unsupported format rejected", "vParquet3", new(true), true},
 		{"disabled permits old format", "vParquet4", new(false), false},
 		{"unset inherits", "vParquet4", nil, false},
 	} {
@@ -62,7 +63,7 @@ func TestServiceGraphEdgeStorageVersionValidation(t *testing.T) {
 			apiErr := newOverridesValidator(cfg).Validate(limits)
 			for _, err := range []error{runtimeErr, apiErr} {
 				if tc.wantError {
-					require.ErrorContains(t, err, "requires vParquet5")
+					require.ErrorContains(t, err, "requires vParquet4 or vParquet5")
 				} else {
 					require.NoError(t, err)
 				}

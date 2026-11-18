@@ -1,6 +1,15 @@
 change_type: enhancement
 component: metrics-generator
-note: Add opt-in service graph matching for parent and child spans regardless of span kind, including consecutive client spans across ingress gateways.
+note: Add opt-in service graph matching across all span kinds with durable, uncollapsed edges and tenant-configurable presentation blacklists. Trace-by-ID clients can request tenant-default or per-request blacklist hints without changing stored traces or generated metrics.
 issues: []
-subtext: Enable with enable_service_graph_edge_storage. Uses additional memory and disk space. Individual uncollapsed edges are retained in vParquet5 blocks and returned by trace-by-ID queries. Presentation blacklist settings never filter persisted edges or generated metrics. The flag and presentation settings support tenant overrides; API writes require overrides.user_configurable_overrides.api.enable_service_graph_bypass.
+subtext: >-
+  Enable all-span matching and edge persistence with enable_service_graph_edge_storage;
+  this uses additional memory and disk space and retains individual edges in vParquet4 and vParquet5 blocks.
+  Both trace-by-ID API versions support optional include_service_graph_presentation,
+  bypass_service, and bypass_service_regex parameters in JSON and protobuf responses.
+  Request overrides affect presentation hints only and are not saved;
+  requests without these parameters retain their existing response shape.
+  Saved tenant configuration updates through the overrides API require
+  overrides.user_configurable_overrides.api.enable_service_graph_bypass;
+  read-only trace presentation requests do not require this write opt-in.
 user: joseblas

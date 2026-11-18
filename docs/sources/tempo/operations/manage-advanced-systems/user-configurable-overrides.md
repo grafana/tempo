@@ -143,7 +143,7 @@ metrics_generator:
       enable_service_graph_edge_storage: true
 ```
 
-Edge records are written into completed `vParquet5` trace blocks,
+Edge records are written into completed `vParquet4` and `vParquet5` trace blocks,
 using Tempo's configured trace storage backend and trace retention.
 They do not depend on the generator's in-memory matching cache surviving.
 The `wait` and `max_items` settings bound that cache;
@@ -162,7 +162,7 @@ have been upgraded to support the added records.
 This uses more memory and disk space.
 The block builder and live-store honor tenant-specific overrides;
 turning the flag off stops creating new records and preserves existing records.
-The trace backend must use `vParquet5` when enabling edge storage.
+The trace backend must use `vParquet4` or `vParquet5` when enabling edge storage.
 
 ### Presentation blacklist
 

@@ -782,7 +782,7 @@ metrics_generator:
             # MaxItems is the amount of edges that will be stored in the store.
             [max_items: <int> | default = 10000]
 
-            # Persist full parent/child edge records in vParquet5 trace blocks and match all span kinds.
+            # Persist full parent/child edge records in vParquet4 and vParquet5 trace blocks and match all span kinds.
             # Increases memory and disk usage; may also be overridden per tenant.
             [enable_service_graph_edge_storage: <bool> | default = false]
 

@@ -544,8 +544,8 @@ var staticFiles embed.FS
 func (t *App) initStore() (services.Service, error) {
 	if blockCfg := t.cfg.StorageConfig.Trace.Block; blockCfg != nil {
 		blockCfg.PersistServiceGraphEdges = t.cfg.Generator.Processor.ServiceGraphs.EnableServiceGraphEdgeStorage
-		if blockCfg.PersistServiceGraphEdges && blockCfg.Version != "vParquet5" {
-			return nil, fmt.Errorf("enable_service_graph_edge_storage requires vParquet5")
+		if blockCfg.PersistServiceGraphEdges && blockCfg.Version != "vParquet4" && blockCfg.Version != "vParquet5" {
+			return nil, fmt.Errorf("enable_service_graph_edge_storage requires vParquet4 or vParquet5")
 		}
 	}
 

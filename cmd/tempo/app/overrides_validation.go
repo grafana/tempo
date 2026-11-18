@@ -251,8 +251,8 @@ func validateServiceGraphEdgeStorageVersion(enabled *bool, cfg *Config) error {
 		return nil
 	}
 	version := cfg.StorageConfig.Trace.Block.Version
-	if version != "" && version != "vParquet5" {
-		return fmt.Errorf("enable_service_graph_edge_storage requires vParquet5, configured %q", version)
+	if version != "" && version != "vParquet4" && version != "vParquet5" {
+		return fmt.Errorf("enable_service_graph_edge_storage requires vParquet4 or vParquet5, configured %q", version)
 	}
 	return nil
 }
