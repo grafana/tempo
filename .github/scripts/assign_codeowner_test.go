@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,24 +20,6 @@ func firstChoice(choices []string) string {
 		return ""
 	}
 	return choices[0]
-}
-
-func testPull(number int) pullRequest {
-	return pullRequest{
-		Number:    number,
-		CreatedAt: testNow.Add(-24 * time.Hour),
-		State:     "open",
-		User:      &user{Login: "external", Type: "User"},
-		Assignees: []user{},
-		Labels:    []label{},
-	}
-}
-
-func assignedTo(pr pullRequest, names ...string) pullRequest {
-	for _, name := range names {
-		pr.Assignees = append(pr.Assignees, user{Login: name})
-	}
-	return pr
 }
 
 func TestLoadDeduplicatesAndFiltersBots(t *testing.T) {
@@ -151,186 +135,150 @@ func TestOnlyHumanUnassignAfterLatestBotAssignmentIsSkipped(t *testing.T) {
 	require.False(t, deliberatelyUnassigned([]timelineEvent{assigned, automaticUnassigned}, defaultBotActor))
 }
 
-func TestSweepPaginatesAndAssignsUpToCap(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	require.NoError(t, runTestSweep(client, testConfig()))
-	require.Equal(t, []user{{Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
-	require.Empty(t, simulation.pullSnapshot(20).Assignees)
-	require.Equal(t, []label{{Name: defaultMarkerLabel}}, simulation.pullSnapshot(10).Labels)
-	require.True(t, simulation.hasLabel(defaultMarkerLabel))
+// applyStub records the requests an applyAssignment test server received.
+type applyStub struct {
+	mu       sync.Mutex
+	requests []string
 }
 
-func TestSweepSpreadsBatchAcrossTiedOwners(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	cfg := testConfig()
-	cfg.maxAssignments = 2
-	require.NoError(t, runTestSweep(client, cfg))
-	require.Equal(t, []user{{Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
-	require.Equal(t, []user{{Login: "Bob"}}, simulation.pullSnapshot(20).Assignees)
+func (s *applyStub) record(r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requests = append(s.requests, r.Method+" "+r.URL.Path)
 }
 
-func TestSweepCountsClosedLoadInChoice(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	// Alice carries one recently closed PR; Bob carries none, so Bob has the
-	// lower total load and must be chosen for the open PR.
-	simulation.setClosedPulls([]pullRequest{assignedTo(testPull(99), "Alice")})
-	require.NoError(t, runTestSweep(client, testConfig()))
-	require.Equal(t, []user{{Login: "Bob"}}, simulation.pullSnapshot(10).Assignees)
+func (s *applyStub) snapshot() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.requests...)
 }
 
-func TestSweepSkipsMarkedCandidateUnassignedByAHuman(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	cfg := testConfig()
-	cfg.maxAssignments = 3
-	marked := testPull(30)
-	marked.Labels = []label{{Name: defaultMarkerLabel}}
-	simulation.pulls[30] = &marked
-	simulation.setTimeline(30, []timelineEvent{
-		{Event: "assigned", Actor: &user{Login: defaultBotActor}},
-		{Event: "unassigned", Actor: &user{Login: "maintainer"}},
-	})
-	require.NoError(t, runTestSweep(client, cfg))
-	require.Equal(t, []user{{Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
-	require.Equal(t, []user{{Login: "Bob"}}, simulation.pullSnapshot(20).Assignees)
-	skipped := simulation.pullSnapshot(30)
-	require.Empty(t, skipped.Assignees)
-	require.Equal(t, []label{{Name: defaultMarkerLabel}}, skipped.Labels)
+func TestApplyAssignmentAssignsAndMarks(t *testing.T) {
+	stub := &applyStub{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		stub.record(r)
+		switch {
+		case r.Method == http.MethodGet:
+			fmt.Fprint(w, `{"number":10,"state":"open"}`)
+		case strings.HasSuffix(r.URL.Path, "/assignees"):
+			fmt.Fprint(w, `{"number":10,"assignees":[{"login":"alice"}]}`)
+		case strings.HasSuffix(r.URL.Path, "/labels"):
+			fmt.Fprint(w, `[]`)
+		default:
+			http.Error(w, "unexpected", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	outcome, err := applyAssignment(context.Background(), testGitHubClient(t, server.URL), testConfig(), 10, "alice")
+	require.NoError(t, err)
+	require.Equal(t, applySuccess, outcome)
+	require.Equal(t, []string{
+		"GET /repos/grafana/tempo/issues/10",
+		"POST /repos/grafana/tempo/issues/10/assignees",
+		"POST /repos/grafana/tempo/issues/10/labels",
+	}, stub.snapshot())
 }
 
-func TestSweepLeavesClosedCandidateAlone(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	closed := testPull(30)
-	closed.State = "closed"
-	simulation.pulls[30] = &closed
-	cfg := testConfig()
-	cfg.maxAssignments = 3
-	require.NoError(t, runTestSweep(client, cfg))
-	// The candidate snapshot listed PR #30 as open; by the time it was
-	// re-read before assignment it was closed, so it must not be assigned.
-	require.Empty(t, simulation.pullSnapshot(30).Assignees)
-	require.Equal(t, []user{{Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
-}
-
-func TestSweepFailsFastWhenMarkerLabelCannotBeEnsured(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	simulation.setFlag(&simulation.failEnsureLabel)
-	err := runTestSweep(client, testConfig())
-	require.ErrorContains(t, err, "ensure marker label")
-	require.Empty(t, simulation.pullSnapshot(10).Assignees)
-	require.Empty(t, simulation.pullSnapshot(20).Assignees)
-}
-
-func TestSweepAbortsBatchWhenMarkerCannotBeApplied(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	simulation.setFlag(&simulation.failMarkerApply)
-	err := runTestSweep(client, testConfig())
-	require.ErrorContains(t, err, "marker label")
-	for _, number := range []int{10, 20} {
-		pr := simulation.pullSnapshot(number)
-		require.Empty(t, pr.Assignees)
-		require.Empty(t, pr.Labels)
+func TestApplyAssignmentSkipsAssignedOrClosedCandidates(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		issue string
+	}{
+		{name: "already assigned", issue: `{"number":10,"state":"open","assignees":[{"login":"alice"}]}`},
+		{name: "closed", issue: `{"number":10,"state":"closed"}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stub := &applyStub{}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				stub.record(r)
+				fmt.Fprint(w, test.issue)
+			}))
+			defer server.Close()
+			outcome, err := applyAssignment(context.Background(), testGitHubClient(t, server.URL), testConfig(), 10, "alice")
+			require.NoError(t, err)
+			require.Equal(t, applySkipped, outcome)
+			require.Equal(t, []string{"GET /repos/grafana/tempo/issues/10"}, stub.snapshot())
+		})
 	}
-	// Only the first candidate was attempted: the batch aborted instead of
-	// assigning and rolling back every PR in one run.
-	require.Equal(t, 1, simulation.assignAttemptCount())
 }
 
-func TestSweepNeverRetriesAssignmentPost(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	simulation.setFlag(&simulation.failAssignPost)
-	err := runTestSweep(client, testConfig())
-	require.ErrorContains(t, err, "could not be processed")
-	// POST /assignees is not idempotent: a 500 must run exactly once rather
-	// than being replayed by the retry loop.
-	require.Equal(t, 1, simulation.assignAttemptCount())
+func TestApplyAssignmentRollsBackAndAbortsWhenMarkerFails(t *testing.T) {
+	stub := &applyStub{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		stub.record(r)
+		switch {
+		case r.Method == http.MethodGet:
+			fmt.Fprint(w, `{"number":10,"state":"open"}`)
+		case strings.HasSuffix(r.URL.Path, "/assignees") && r.Method == http.MethodPost:
+			fmt.Fprint(w, `{"number":10,"assignees":[{"login":"alice"}]}`)
+		case strings.HasSuffix(r.URL.Path, "/labels"):
+			http.Error(w, "label write failed", http.StatusInternalServerError)
+		case strings.HasSuffix(r.URL.Path, "/assignees") && r.Method == http.MethodDelete:
+			fmt.Fprint(w, `{"number":10,"assignees":[]}`)
+		default:
+			http.Error(w, "unexpected", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	outcome, err := applyAssignment(context.Background(), testGitHubClient(t, server.URL), testConfig(), 10, "alice")
+	require.ErrorContains(t, err, "apply marker label")
+	require.Equal(t, applyAbort, outcome)
+	require.Equal(t, []string{
+		"GET /repos/grafana/tempo/issues/10",
+		"POST /repos/grafana/tempo/issues/10/assignees",
+		"POST /repos/grafana/tempo/issues/10/labels",
+		"DELETE /repos/grafana/tempo/issues/10/assignees",
+	}, stub.snapshot())
 }
 
-func TestSweepRollsBackOwnAssigneeWhenHumanRaces(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	simulation.setConcurrentAssignee("Human")
-	require.NoError(t, runTestSweep(client, testConfig()))
-	// The raced assignment consumed the per-run cap; PR #20 waits for the
-	// next run while PR #10 keeps only the human's assignee.
-	require.Equal(t, []user{{Login: "Human"}}, simulation.pullSnapshot(10).Assignees)
-	require.Empty(t, simulation.pullSnapshot(20).Assignees)
-	require.Empty(t, simulation.pullSnapshot(10).Labels)
-}
-
-func TestAssignAndMarkConcurrentRollbackFailureSurfacesError(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	simulation.setConcurrentAssignee("Human")
-	simulation.setFlag(&simulation.failRollbackDelete)
-	_, err := assignAndMark(context.Background(), client, testConfig(), 10, "alice")
-	require.ErrorContains(t, err, "concurrent assignment detected; rollback failed")
-	require.Equal(t, []user{{Login: "Human"}, {Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
-}
-
-func TestAssignAndMarkMarkerRollbackFailureJoinsErrors(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	simulation.setFlag(&simulation.failMarkerApply)
-	simulation.setFlag(&simulation.failRollbackDelete)
-	_, err := assignAndMark(context.Background(), client, testConfig(), 10, "alice")
+func TestApplyAssignmentSurfacesRollbackFailure(t *testing.T) {
+	zeroRetryDelay(t)
+	stub := &applyStub{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		stub.record(r)
+		switch {
+		case r.Method == http.MethodGet:
+			fmt.Fprint(w, `{"number":10,"state":"open"}`)
+		case strings.HasSuffix(r.URL.Path, "/assignees") && r.Method == http.MethodPost:
+			fmt.Fprint(w, `{"number":10,"assignees":[{"login":"alice"}]}`)
+		case strings.HasSuffix(r.URL.Path, "/labels"):
+			http.Error(w, "label write failed", http.StatusInternalServerError)
+		default:
+			http.Error(w, "rollback unavailable", http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+	outcome, err := applyAssignment(context.Background(), testGitHubClient(t, server.URL), testConfig(), 10, "alice")
 	require.ErrorContains(t, err, "apply marker label")
 	require.ErrorContains(t, err, "rollback assignee")
-	require.Equal(t, []user{{Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
+	require.Equal(t, applyAbort, outcome)
 }
 
-func TestFailureReportCommentFailureSurfaces(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	simulation.setFailureIssue(42)
-	simulation.setFlag(&simulation.failIssueComments)
-	err := reportFailure(context.Background(), client, simulation.repo, "https://example.invalid/run")
-	require.ErrorContains(t, err, "comment on sweep failure issue #42")
-	require.Empty(t, simulation.issueSnapshot())
-}
-
-func TestFailureReportCreateFailureSurfaces(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	simulation.setFlag(&simulation.failIssueCreate)
-	err := reportFailure(context.Background(), client, simulation.repo, "https://example.invalid/run")
-	require.ErrorContains(t, err, "create sweep failure issue")
-	require.Empty(t, simulation.issueSnapshot())
-}
-
-func TestSimulationRejectsUnknownPRAndInvalidJSON(t *testing.T) {
-	simulation := newGitHubSimulation()
-	for _, test := range []struct {
-		method string
-		path   string
-		body   string
-		status int
-	}{
-		{method: http.MethodPost, path: "/repos/grafana/tempo/issues/99/assignees", body: `{"assignees":["alice"]}`, status: http.StatusNotFound},
-		{method: http.MethodPost, path: "/repos/grafana/tempo/issues/99/labels", body: `["codeowner-sweep"]`, status: http.StatusNotFound},
-		{method: http.MethodPost, path: "/repos/grafana/tempo/issues/10/assignees", body: `{`, status: http.StatusBadRequest},
-		{method: http.MethodPost, path: "/repos/grafana/tempo/issues/10/assignees", body: `{"assignees":["unknown-login"]}`, status: http.StatusUnprocessableEntity},
-	} {
-		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(test.method, test.path, strings.NewReader(test.body))
-		simulation.ServeHTTP(recorder, request)
-		require.Equal(t, test.status, recorder.Code)
-	}
-}
-
-func TestFailureReportCreatesThenReusesIssue(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	const runURL = "https://github.com/grafana/tempo/actions/runs/123"
-	require.NoError(t, reportFailure(context.Background(), client, simulation.repo, runURL))
-	created := simulation.issueSnapshot()
-	require.Len(t, created, 1)
-	require.Contains(t, created[0].Body, runURL)
-
-	simulation.setFailureIssue(42)
-	require.NoError(t, reportFailure(context.Background(), client, simulation.repo, runURL))
-	require.Len(t, simulation.issueSnapshot(), 1)
-	require.Equal(t, []issueComment{{Number: 42, Body: created[0].Body}}, simulation.commentSnapshot())
-}
-
-func TestFailureReportSearchErrorDoesNotCreateDuplicate(t *testing.T) {
-	simulation, client := newSimulationClient(t)
-	simulation.setFlag(&simulation.failIssueSearch)
-	err := reportFailure(context.Background(), client, simulation.repo, "https://example.invalid/run")
-	require.ErrorContains(t, err, "find existing sweep failure issue")
-	require.Empty(t, simulation.issueSnapshot())
-	require.Empty(t, simulation.commentSnapshot())
+func TestApplyAssignmentRollsBackWhenAnotherAssigneeRaces(t *testing.T) {
+	stub := &applyStub{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		stub.record(r)
+		switch {
+		case r.Method == http.MethodGet:
+			fmt.Fprint(w, `{"number":10,"state":"open"}`)
+		case strings.HasSuffix(r.URL.Path, "/assignees") && r.Method == http.MethodPost:
+			// The response shows a second, racing assignee.
+			fmt.Fprint(w, `{"number":10,"assignees":[{"login":"alice"},{"login":"human"}]}`)
+		case strings.HasSuffix(r.URL.Path, "/assignees") && r.Method == http.MethodDelete:
+			fmt.Fprint(w, `{"number":10,"assignees":[]}`)
+		case strings.HasSuffix(r.URL.Path, "/labels"):
+			fmt.Fprint(w, `[]`)
+		default:
+			http.Error(w, "unexpected", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	outcome, err := applyAssignment(context.Background(), testGitHubClient(t, server.URL), testConfig(), 10, "alice")
+	require.NoError(t, err)
+	require.Equal(t, applySkipped, outcome)
+	require.Equal(t, []string{
+		"GET /repos/grafana/tempo/issues/10",
+		"POST /repos/grafana/tempo/issues/10/assignees",
+		"DELETE /repos/grafana/tempo/issues/10/assignees",
+	}, stub.snapshot())
 }
