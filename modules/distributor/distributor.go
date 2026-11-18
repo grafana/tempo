@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -477,6 +478,11 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	ctx, span := tracer.Start(ctx, "distributor.PushTraces")
 	defer span.End()
+
+	// Reject excessive nesting before middleware, sizing, or conversion can recurse.
+	if err := validateTraceAttributeDepth(traces); err != nil {
+		return nil, consumererror.NewPermanent(err)
+	}
 
 	// Call trace push middlewares
 	for _, mw := range d.tracePushMiddlewares {
