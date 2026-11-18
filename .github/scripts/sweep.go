@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+
 	// math/rand/v2 is fine for tie-breaking between equal-load owners; the
-	// output is never used for security. nosemgrep: math-random-used
-	"math/rand/v2"
+	// output is never used for security.
+	"math/rand/v2" // nosemgrep: math-random-used
 	"slices"
 	"strings"
 	"time"
@@ -125,10 +126,14 @@ func findCandidates(pulls []pullRequest, eligible []string) []int {
 	return result
 }
 
+// compareLoad orders owners by open load (a PR count is the primary signal of
+// how busy an owner is), breaking ties by recently-closed load so an owner who
+// just shed a batch stays at the back of the queue. The recently-closed count
+// must never outweigh the open count.
 func compareLoad(a, b ownerLoad) int {
 	return cmp.Or(
-		cmp.Compare(a.open+a.closed, b.open+b.closed),
 		cmp.Compare(a.open, b.open),
+		cmp.Compare(a.closed, b.closed),
 	)
 }
 
@@ -191,8 +196,12 @@ const (
 )
 
 // applyAssignment performs one decided assignment: it re-reads the PR to catch
-// mid-sweep changes, adds the chosen owner, and applies the marker label,
-// rolling back and aborting the batch when the marker cannot be applied.
+// mid-sweep changes, adds the chosen owner, and, if the PR gained a competing
+// assignee before the write landed, rolls back our owner so it does not stay
+// double-assigned. Transient errors are wrapped and surfaced through the run's
+// aggregate error so the root cause reaches the job annotation; the next run
+// retries them. There is no marker label or batch abort: a failure only counts
+// the PR as deferred.
 func applyAssignment(ctx context.Context, client *github.Client, number int, owner string) (applyOutcome, error) {
 	var current *github.Issue
 	if err := retryableCall(ctx, func() error {
@@ -200,8 +209,12 @@ func applyAssignment(ctx context.Context, client *github.Client, number int, own
 		current, _, callErr = client.Issues.Get(ctx, repoOwner, repoName, number)
 		return callErr
 	}); err != nil {
-		fmt.Printf("::warning::Could not re-read PR #%d before assigning: %v.\n", number, err)
-		return applyFailed, nil
+		return applyFailed, fmt.Errorf("re-read PR #%d before assigning: %w", number, err)
+	}
+	if current == nil {
+		// go-github returns a nil value for an empty or "null" 2xx body; do
+		// not dereference it.
+		return applyFailed, errors.New("re-read of PR returned an empty response")
 	}
 	if len(current.Assignees) > 0 {
 		fmt.Printf("PR #%d was assigned elsewhere while the sweep ran; leaving it alone.\n", number)
@@ -214,6 +227,11 @@ func applyAssignment(ctx context.Context, client *github.Client, number int, own
 	issue, _, err := client.Issues.AddAssignees(ctx, repoOwner, repoName, number, []string{owner})
 	if err != nil {
 		return applyFailed, fmt.Errorf("add assignee: %w", err)
+	}
+	if issue == nil {
+		// A nil value from an empty or "null" 2xx body: we cannot verify the
+		// write landed, so treat it as a failure rather than dereference.
+		return applyFailed, errors.New("assignment returned an empty response")
 	}
 	if len(issue.Assignees) > 1 {
 		if err := removeAssignee(ctx, client, number, owner); err != nil {
@@ -331,6 +349,9 @@ func runSweep(ctx context.Context, client *github.Client, now time.Time, choose 
 		if err != nil {
 			return nil, resp, err
 		}
+		if result == nil {
+			return nil, resp, errors.New("closed search returned an empty response")
+		}
 		return result.Issues, resp, nil
 	}, maxSearchResults)
 	if err != nil {
@@ -356,11 +377,23 @@ func runSweep(ctx context.Context, client *github.Client, now time.Time, choose 
 	}
 
 	assignments := decideAssignments(load, candidates, defaultMaxAssignments, choose)
+	// Give the apply phase its own deadline (see batchTimeout) so a GitHub
+	// outage fails the run cleanly instead of draining every PR's retry budget
+	// and being SIGTERM-killed mid-write at the workflow's timeout.
+	applyCtx, cancel := context.WithTimeout(ctx, batchTimeout)
+	defer cancel()
 	assigned, alreadyAssigned, failed := 0, 0, 0
+	var firstErr error
 	for _, a := range assignments {
-		outcome, err := applyAssignment(ctx, client, a.number, a.owner)
+		if err := applyCtx.Err(); err != nil {
+			return fmt.Errorf("apply phase exceeded its %s budget: %w", batchTimeout, err)
+		}
+		outcome, err := applyAssignment(applyCtx, client, a.number, a.owner)
 		if err != nil {
 			fmt.Printf("::warning::Could not complete assignment of PR #%d to @%s: %v.\n", a.number, a.owner, err)
+			if firstErr == nil {
+				firstErr = err
+			}
 		}
 		switch outcome {
 		case applySuccess:
@@ -376,7 +409,16 @@ func runSweep(ctx context.Context, client *github.Client, now time.Time, choose 
 		}
 	}
 	fmt.Printf("Done: assigned %d, %d already assigned or closed, %d deferred by errors.\n", assigned, alreadyAssigned, failed)
+	// Surface a cancellation (e.g. SIGTERM) as such, not as an assignment
+	// failure count; the root cause of a deferred batch must reach the job
+	// annotation, not just a per-PR warning.
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("sweep interrupted: %w", err)
+	}
 	if failed > 0 {
+		if firstErr != nil {
+			return fmt.Errorf("%d PR(s) could not be processed (first error: %v); they will be retried on the next run", failed, firstErr)
+		}
 		return fmt.Errorf("%d PR(s) could not be processed; they will be retried on the next run", failed)
 	}
 	return nil

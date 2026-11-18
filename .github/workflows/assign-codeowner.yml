@@ -25,8 +25,10 @@ jobs:
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # Reads repository contents and pull requests; writes assignments and
-    # labels on issues and pull requests.
+    # Reads repository contents; assigns an owner to issues (PRs) and, when a
+    # competing assignee races the write, removes our own. No label writes;
+    # the assignment-only sweep slowed the notification storm the marker label
+    # was meant to cap, so it was dropped.
     permissions:
       contents: read
       issues: write
@@ -48,8 +50,8 @@ jobs:
 
       - name: Assign available code owners
         # Only the token varies per run. The pool and all sweep settings are
-        # hardcoded in .github/scripts (config.go / pool.go), which this job
-        # compiles fresh via "go run ." on the gated repo.
+        # hardcoded in .github/scripts (consts.go), which this job compiles
+        # fresh via "go run ." on the gated repo.
         env:
           GH_TOKEN: ${{ github.token }}
         # .github/scripts is its own module (matching tools/), so GitHub CI

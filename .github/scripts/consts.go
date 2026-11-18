@@ -19,16 +19,23 @@ const (
 	maxRequestAttempts             = 3
 	maxSecondaryRateLimitRetryTime = 5 * time.Minute
 	maxSearchResults               = 1000
+
+	// batchTimeout bounds the assign phase so an outage (each re-read GET
+	// draining its retry budget) cannot run far past the workflow's own
+	// timeout-minutes and get SIGKILLed mid-write. A few minutes under that
+	// cap lets the run fail cleanly and report which PRs were deferred.
+	batchTimeout = 25 * time.Minute
 )
 
 // defaultAssigneePool is the hardcoded code owner pool for the scheduled
 // sweep. Tempo's CODEOWNERS names only the @grafana/tempo team, and team
 // expansion needs an org-scoped token this workflow does not have, so the pool
 // is the global "*" owners from before #8133 switched CODEOWNERS to the team.
-// Entries must be lowercase GitHub logins without a leading @; keep them in
-// the order you want tie-breaking to consider them. A member who leaves the
-// org surfaces as a failed assignment rather than being silently skipped.
-// Change this list in the same commit as the corresponding CODEOWNERS change.
+// Entries must be lowercase GitHub logins without a leading @; assignment among
+// equal-load owners is chosen randomly, so the list order is not significant.
+// A member who leaves the org surfaces as a failed assignment rather than being
+// silently skipped. Change this list in the same commit as the corresponding
+// CODEOWNERS change.
 var defaultAssigneePool = []string{
 	"mdisibio",
 	"mapno",

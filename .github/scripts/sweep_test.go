@@ -89,6 +89,20 @@ func TestAssigneeTieBreakPrefersLessOpenLoadThenUsesExactTies(t *testing.T) {
 	require.False(t, ok)
 }
 
+// TestCompareLoadRecentlyClosedIsOnlyATiebreaker pins that open load is the
+// primary ordering signal and recent closures only break exact open-load ties.
+// Under a sum-first ordering this regression case picks the wrong owner, so it
+// guards against closed load ever outranking an emptier open queue.
+func TestCompareLoadRecentlyClosedIsOnlyATiebreaker(t *testing.T) {
+	// A has zero open PRs but a busy 7-day closure history; B has one open PR
+	// and no closures. A is the least-loaded owner and must win.
+	require.Less(t, compareLoad(ownerLoad{open: 0, closed: 9}, ownerLoad{open: 1, closed: 0}), 0)
+	// Equal open load: fewer recent closures wins the tie.
+	require.Less(t, compareLoad(ownerLoad{open: 1, closed: 0}, ownerLoad{open: 1, closed: 5}), 0)
+	// Exact equality is a tie.
+	require.Equal(t, 0, compareLoad(ownerLoad{open: 1, closed: 2}, ownerLoad{open: 1, closed: 2}))
+}
+
 func TestDecideAssignmentsSpreadsAcrossLeastLoadedOwners(t *testing.T) {
 	load := map[string]ownerLoad{
 		"alice": {open: 1},
