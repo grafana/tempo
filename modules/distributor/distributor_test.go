@@ -33,6 +33,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/collector/consumer/consumererror"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -1395,6 +1397,102 @@ func TestDistributor(t *testing.T) {
 
 			assert.True(t, proto.Equal(tc.expectedResponse, response))
 			assert.Equal(t, tc.expectedError, err)
+		})
+	}
+}
+
+func TestPushTracesAttributeDepth(t *testing.T) {
+	locations := []struct {
+		name       string
+		attributes func(ptrace.Traces) pcommon.Map
+	}{
+		{"resource", func(td ptrace.Traces) pcommon.Map {
+			return td.ResourceSpans().At(0).Resource().Attributes()
+		}},
+		{"scope", func(td ptrace.Traces) pcommon.Map {
+			return td.ResourceSpans().At(0).ScopeSpans().At(0).Scope().Attributes()
+		}},
+		{"span", func(td ptrace.Traces) pcommon.Map {
+			return td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes()
+		}},
+		{"event", func(td ptrace.Traces) pcommon.Map {
+			return td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events().At(0).Attributes()
+		}},
+		{"link", func(td ptrace.Traces) pcommon.Map {
+			return td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Links().At(0).Attributes()
+		}},
+	}
+
+	for _, protocol := range []struct {
+		name        string
+		marshaler   ptrace.Marshaler
+		unmarshaler ptrace.Unmarshaler
+	}{
+		{"protobuf", &ptrace.ProtoMarshaler{}, &ptrace.ProtoUnmarshaler{}},
+		{"json", &ptrace.JSONMarshaler{}, &ptrace.JSONUnmarshaler{}},
+	} {
+		t.Run(protocol.name, func(t *testing.T) {
+			limits := overrides.Config{}
+			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+			d := prepare(t, limits, nil)
+
+			for _, location := range locations {
+				for _, tc := range []struct {
+					name    string
+					shape   string
+					depth   int
+					wantErr bool
+				}{
+					{name: "scalar", shape: "array"},
+					{name: "array_at_limit", shape: "array", depth: 49},
+					{name: "array_over_limit", shape: "array", depth: 50, wantErr: true},
+					{name: "kvlist_at_limit", shape: "kvlist", depth: 32},
+					{name: "kvlist_over_limit", shape: "kvlist", depth: 33, wantErr: true},
+					{name: "mixed_at_limit", shape: "mixed", depth: 39},
+					{name: "mixed_over_limit", shape: "mixed", depth: 40, wantErr: true},
+				} {
+					t.Run(location.name+"/"+tc.name, func(t *testing.T) {
+						td := ptrace.NewTraces()
+						span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+						span.SetTraceID(pcommon.TraceID{1})
+						span.SetSpanID(pcommon.SpanID{1})
+						span.SetName("attribute-depth")
+						span.SetStartTimestamp(1)
+						span.SetEndTimestamp(2)
+						span.Events().AppendEmpty()
+						span.Links().AppendEmpty()
+						attrs := location.attributes(td)
+						// Sibling values must have independent nesting budgets.
+						for _, key := range []string{"first", "second"} {
+							value := attrs.PutEmpty(key)
+							for level := 0; level < tc.depth; level++ {
+								if tc.shape == "array" || (tc.shape == "mixed" && level%2 == 0) {
+									value = value.SetEmptySlice().AppendEmpty()
+								} else {
+									value = value.SetEmptyMap().PutEmpty("child")
+								}
+							}
+							value.SetStr("leaf")
+						}
+						attrs.PutStr("sibling", "retained")
+						payload, err := protocol.marshaler.MarshalTraces(td)
+						require.NoError(t, err)
+						decoded, err := protocol.unmarshaler.UnmarshalTraces(payload)
+						if err != nil {
+							require.True(t, tc.wantErr, "in-budget attributes rejected by decoder: %v", err)
+							return
+						}
+						_, err = d.PushTraces(ctx, decoded)
+						if tc.wantErr {
+							require.Error(t, err, "expected write to reject excessive attribute nesting")
+							require.True(t, consumererror.IsPermanent(err), "expected permanent write rejection, got %v", err)
+							return
+						}
+						require.NoError(t, err)
+						require.Equal(t, attrs.AsRaw(), location.attributes(decoded).AsRaw())
+					})
+				}
+			}
 		})
 	}
 }
