@@ -6,7 +6,6 @@ import (
 
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/grpcutil"
-	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
@@ -95,19 +94,6 @@ var (
 type (
 	handlerPostHook func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error)
 )
-
-// inspectedBytesReporter returns a combiner option that adds to the inspected bytes counter as query jobs complete,
-// and observes the bytes inspected by every job.
-func inspectedBytesReporter(vec *prometheus.CounterVec, jobBytes prometheus.Observer, tenant string) combiner.Option {
-	return combiner.WithOptions(
-		combiner.WithInspectedBytesReporter(func(b uint64) {
-			vec.WithLabelValues(tenant).Add(float64(b))
-		}),
-		combiner.WithJobInspectedBytesObserver(func(b uint64) {
-			jobBytes.Observe(float64(b))
-		}),
-	)
-}
 
 // todo: remove post hooks and implement as a handler
 func traceByIDSLOPostHook(cfg SLOConfig) handlerPostHook {

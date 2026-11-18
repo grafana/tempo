@@ -20,6 +20,7 @@ import (
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/api"
@@ -1560,7 +1561,8 @@ func TestQueryRangeHandlerLogsErrorReason(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := &recordingLogger{}
-	handler := newMetricsQueryRangeHTTPHandler(cfg, next, newMetricsRangeLimiter(cfg, o, nil), logger, nil)
+	reporter := newJobReporter(jobcost.OpMetrics, nil, metricsInspectedBytes, metricsJobInspectedBytes, newJobCostMetrics(nil, prometheus.NewRegistry()))
+	handler := newMetricsQueryRangeHTTPHandler(cfg, next, newMetricsRangeLimiter(cfg, o, nil), reporter, logger, nil)
 
 	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
 	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{

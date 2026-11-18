@@ -53,6 +53,11 @@ func TestEstimatorLiveStore(t *testing.T) {
 	require.Equal(t, Cost{Kind: KindLiveStore, Estimate: 3}, e.LiveStore(OpMetadata))
 	require.Equal(t, Cost{Kind: KindLiveStore, Estimate: 4}, e.LiveStore(OpMetrics))
 	require.Equal(t, Cost{}, e.LiveStore(numOps))
+
+	// a cost of 0 disables the estimate
+	e = NewEstimator(Config{LiveStoreCost: LiveStoreCostConfig{Search: 2}})
+	require.Equal(t, Cost{}, e.LiveStore(OpTraceByID))
+	require.Equal(t, Cost{Kind: KindLiveStore, Estimate: 2}, e.LiveStore(OpSearch))
 }
 
 func TestEstimatorCalibration(t *testing.T) {

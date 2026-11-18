@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/api"
@@ -360,6 +361,49 @@ func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 	grpcReq := &tempopb.SearchRequest{Query: "{}"}
 	err := f.streamingSearch(grpcReq, srv)
 	require.Equal(t, status.Error(codes.Canceled, "context canceled"), err)
+}
+
+func TestFrontendSearchReportsJobCosts(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	f := frontendWithSettingsAndRegisterer(t, nil, nil, nil, nil, nil, reg, func(cfg *Config, _ *overrides.Config) {
+		cfg.JobCost = jobcost.DefaultConfig()
+	})
+
+	search := func(req *tempopb.SearchRequest) {
+		httpReq, err := api.BuildSearchRequest(httptest.NewRequest("GET", "/api/search", nil), req)
+		require.NoError(t, err)
+		httpReq = httpReq.WithContext(user.InjectOrgID(httpReq.Context(), "single-tenant"))
+
+		httpResp := httptest.NewRecorder()
+		f.SearchHandler.ServeHTTP(httpResp, httpReq)
+		require.Equal(t, http.StatusOK, httpResp.Code)
+	}
+
+	counter := func(name string, labels map[string]string) float64 {
+		return metricValue(t, reg, name, labels).GetCounter().GetValue()
+	}
+
+	// 4 blocks x 2 jobs, the queriers report 1 inspected byte for each job
+	search(&tempopb.SearchRequest{Query: "{resource.service.name = `test`}", Start: 1, End: 100000})
+
+	// every job covers 100 MiB of a block and is estimated to read 1% of it
+	block := map[string]string{"op": "search", "kind": "block"}
+	require.InDelta(t, 8*defaultTargetBytesPerRequest/100, counter("tempo_query_frontend_job_estimated_bytes_total", block), 8) // the estimate of each job is truncated
+	ratio := metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", block).GetHistogram()
+	require.Equal(t, uint64(8), ratio.GetSampleCount())
+	require.InDelta(t, 8.0/(defaultTargetBytesPerRequest/100), ratio.GetSampleSum(), 1e-9)
+
+	// a search without a time range only searches the ingesters, which have a fixed cost
+	search(&tempopb.SearchRequest{Query: "{resource.service.name = `test`}"})
+
+	liveStore := map[string]string{"op": "search", "kind": "live_store"}
+	require.InDelta(t, 262144, counter("tempo_query_frontend_job_estimated_bytes_total", liveStore), 0)
+	ratio = metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", liveStore).GetHistogram()
+	require.Equal(t, uint64(1), ratio.GetSampleCount())
+	require.InDelta(t, 1.0/262144, ratio.GetSampleSum(), 1e-12)
+
+	// the ingester job does not change what the block jobs were estimated to read
+	require.InDelta(t, 8*defaultTargetBytesPerRequest/100, counter("tempo_query_frontend_job_estimated_bytes_total", block), 8) // the estimate of each job is truncated
 }
 
 func TestSearchLimitHonored(t *testing.T) {
@@ -954,6 +998,12 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 func frontendWithSettingsAndDataAccessController(t require.TestingT, next pipeline.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider, dataAccessController DataAccessController,
 	opts ...func(*Config, *overrides.Config),
 ) *QueryFrontend {
+	return frontendWithSettingsAndRegisterer(t, next, rdr, cfg, cacheProvider, dataAccessController, nil, opts...)
+}
+
+func frontendWithSettingsAndRegisterer(t require.TestingT, next pipeline.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider, dataAccessController DataAccessController, registerer prometheus.Registerer,
+	opts ...func(*Config, *overrides.Config),
+) *QueryFrontend {
 	if next == nil {
 		next = &mockRoundTripper{
 			responseFn: func() proto.Message {
@@ -1050,7 +1100,7 @@ func frontendWithSettingsAndDataAccessController(t require.TestingT, next pipeli
 	o, err := overrides.NewOverrides(*overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	f, err := New(*cfg, next, o, rdr, cacheProvider, "", fakeHTTPAuthMiddleware, dataAccessController, log.NewNopLogger(), nil)
+	f, err := New(*cfg, next, o, rdr, cacheProvider, "", fakeHTTPAuthMiddleware, dataAccessController, log.NewNopLogger(), registerer)
 	require.NoError(t, err)
 
 	return f

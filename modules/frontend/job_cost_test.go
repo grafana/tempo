@@ -1,10 +1,22 @@
 package frontend
 
 import (
+	"maps"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
+	"github.com/grafana/tempo/v3/modules/overrides"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,5 +74,193 @@ func TestBlockJobCost(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.expected, blockJobCost(tc.estimator, jobcost.OpSearch, m, tc.startPage, tc.pages))
 		})
+	}
+}
+
+// costedResponse is a job response that carries the cost of its job, like the responses of the pipeline.
+type costedResponse struct {
+	slosTestResponse
+	cost jobcost.Cost
+}
+
+func (r costedResponse) Cost() jobcost.Cost { return r.cost }
+
+func cacheHitResponse(cost jobcost.Cost) costedResponse {
+	return costedResponse{
+		slosTestResponse: slosTestResponse{header: http.Header{combiner.TempoCacheHeader: {combiner.TempoCacheHit}}},
+		cost:             cost,
+	}
+}
+
+func TestJobCostOpLabels(t *testing.T) {
+	require.Equal(t, traceByIDOp, jobcost.OpTraceByID.String())
+	require.Equal(t, searchOp, jobcost.OpSearch.String())
+	require.Equal(t, metadataOp, jobcost.OpMetadata.String())
+	require.Equal(t, metricsOp, jobcost.OpMetrics.String())
+}
+
+func TestJobReporter(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	estimator := newTestEstimator()
+	metrics := newJobCostMetrics(estimator, reg)
+
+	inspected := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes_test"}, []string{"tenant"})
+	jobInspected := prometheus.NewHistogram(prometheus.HistogramOpts{Name: "job_inspected_bytes_test"})
+	reporter := newJobReporter(jobcost.OpSearch, estimator, inspected, jobInspected, metrics)
+
+	block := jobcost.Cost{Kind: jobcost.KindBlock, Base: 1000, Estimate: 10}
+	liveStore := jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 20}
+
+	c := combiner.NewSearchMetricsCombiner(reporter.option("tenant-a"))
+	c.Combine(&tempopb.SearchMetrics{InspectedBytes: 100}, costedResponse{cost: block})                               // 10x the estimate
+	c.Combine(&tempopb.SearchMetrics{InspectedBytes: 5}, costedResponse{cost: block})                                 // half the estimate
+	c.Combine(&tempopb.SearchMetrics{}, costedResponse{cost: block})                                                  // read nothing
+	c.Combine(&tempopb.SearchMetrics{InspectedBytes: 40}, costedResponse{cost: liveStore})                            // twice the estimate
+	c.Combine(&tempopb.SearchMetrics{InspectedBytes: 7}, slosTestResponse{})                                          // no cost
+	c.Combine(&tempopb.SearchMetrics{InspectedBytes: 1000}, cacheHitResponse(block))                                  // cached
+	c.Combine(&tempopb.SearchMetrics{InspectedBytes: 3}, costedResponse{cost: jobcost.Cost{Kind: jobcost.KindBlock}}) // estimate of zero
+
+	// the counter has the bytes of every job, the histogram has every job
+	require.InDelta(t, 155, testutil.ToFloat64(inspected.WithLabelValues("tenant-a")), 0)
+	require.Equal(t, uint64(6), histogramOf(t, jobInspected).GetSampleCount())
+
+	// only the jobs with an estimate are estimated, cached jobs are not. a block job with an estimate of zero adds nothing
+	require.InDelta(t, 30, testutil.ToFloat64(metrics.estimated.WithLabelValues("search", "block")), 0)
+	require.InDelta(t, 20, testutil.ToFloat64(metrics.estimated.WithLabelValues("search", "live_store")), 0)
+
+	// the ratio is observed for jobs with an estimate greater than zero, including jobs that read nothing
+	blockRatio := histogramOf(t, metrics.ratio.WithLabelValues("search", "block").(prometheus.Histogram))
+	require.Equal(t, uint64(3), blockRatio.GetSampleCount())
+	require.InDelta(t, 10+0.5+0, blockRatio.GetSampleSum(), 1e-9)
+
+	liveRatio := histogramOf(t, metrics.ratio.WithLabelValues("search", "live_store").(prometheus.Histogram))
+	require.Equal(t, uint64(1), liveRatio.GetSampleCount())
+	require.InDelta(t, 2, liveRatio.GetSampleSum(), 1e-9)
+}
+
+func TestJobReporterCalibratesTheEstimator(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	estimator := jobcost.NewEstimator(jobcost.Config{
+		CalibrationEnabled: true,
+		LiveStoreCost:      jobcost.LiveStoreCostConfig{Search: 20},
+	})
+	metrics := newJobCostMetrics(estimator, reg)
+
+	inspected := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "inspected_bytes_test"}, []string{"tenant"})
+	jobInspected := prometheus.NewHistogram(prometheus.HistogramOpts{Name: "job_inspected_bytes_test"})
+	reporter := newJobReporter(jobcost.OpSearch, estimator, inspected, jobInspected, metrics)
+
+	c := combiner.NewSearchMetricsCombiner(reporter.option("tenant-a"))
+	initial := estimator.Factor(jobcost.OpSearch)
+	require.InDelta(t, 0.01, initial, 1e-12)
+	require.InDelta(t, initial, gaugeValue(t, reg, "tempo_query_frontend_job_cost_factor", "search"), 1e-12)
+
+	// jobs that do not say how much a block job reads do not calibrate the estimator
+	for range 2 * 100 {
+		c.Combine(&tempopb.SearchMetrics{InspectedBytes: 1_000_000}, costedResponse{cost: estimator.LiveStore(jobcost.OpSearch)}) // live store jobs
+		c.Combine(nil, costedResponse{cost: estimator.Block(jobcost.OpSearch, 1000)})                                             // jobs without metrics
+		c.Combine(&tempopb.SearchMetrics{}, cacheHitResponse(estimator.Block(jobcost.OpSearch, 1000)))                            // cached jobs
+		c.Combine(&tempopb.SearchMetrics{InspectedBytes: 5}, slosTestResponse{})                                                  // jobs without a cost
+	}
+	require.Equal(t, initial, estimator.Factor(jobcost.OpSearch))
+
+	// block jobs read 5% of the bytes they cover, the factor follows after enough of them
+	for range 100 {
+		c.Combine(&tempopb.SearchMetrics{InspectedBytes: 50}, costedResponse{cost: estimator.Block(jobcost.OpSearch, 1000)})
+	}
+	require.InDelta(t, 0.05, estimator.Factor(jobcost.OpSearch), 1e-9)
+	require.InDelta(t, 0.05, gaugeValue(t, reg, "tempo_query_frontend_job_cost_factor", "search"), 1e-9)
+
+	// the other ops are not affected
+	require.InDelta(t, 0.01, estimator.Factor(jobcost.OpMetrics), 1e-12)
+	require.InDelta(t, 0.01, gaugeValue(t, reg, "tempo_query_frontend_job_cost_factor", "metrics"), 1e-12)
+}
+
+func histogramOf(t *testing.T, h prometheus.Histogram) *dto.Histogram {
+	t.Helper()
+
+	var m dto.Metric
+	require.NoError(t, h.Write(&m))
+	return m.GetHistogram()
+}
+
+func gaugeValue(t *testing.T, reg *prometheus.Registry, name, op string) float64 {
+	t.Helper()
+
+	return metricValue(t, reg, name, map[string]string{"op": op}).GetGauge().GetValue()
+}
+
+// metricValue returns the metric with the name and exactly the labels from the registry.
+func metricValue(t *testing.T, reg *prometheus.Registry, name string, labels map[string]string) *dto.Metric {
+	t.Helper()
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	for _, f := range families {
+		if f.GetName() != name {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			actual := map[string]string{}
+			for _, l := range m.GetLabel() {
+				actual[l.GetName()] = l.GetValue()
+			}
+			if maps.Equal(actual, labels) {
+				return m
+			}
+		}
+	}
+
+	require.FailNow(t, "metric not found", "%s%v", name, labels)
+	return nil
+}
+
+func TestFrontendTagsReportsJobCostsAsMetadata(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	rdr := &mockReader{
+		metas: []*backend.BlockMeta{{
+			StartTime:    time.Unix(15, 0),
+			EndTime:      time.Unix(16, 0),
+			Size_:        defaultTargetBytesPerRequest,
+			TotalRecords: 1,
+			BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000123"),
+		}},
+	}
+	f := frontendWithSettingsAndRegisterer(t, &mockRoundTripper{
+		responseFn: func() proto.Message {
+			return &tempopb.SearchTagsV2Response{Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
+		},
+	}, rdr, nil, nil, nil, reg, func(cfg *Config, _ *overrides.Config) {
+		cfg.JobCost = jobcost.DefaultConfig()
+	})
+
+	req := httptest.NewRequest("GET", "/api/v2/search/tags?start=10&end=20&scope=resource", nil)
+	req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))
+	resp := httptest.NewRecorder()
+	f.SearchTagsV2Handler.ServeHTTP(resp, req)
+	require.Equal(t, http.StatusOK, resp.Code)
+
+	// one block job that covers the whole block and is estimated to read 1% of it
+	block := map[string]string{"op": "metadata", "kind": "block"}
+	estimated := metricValue(t, reg, "tempo_query_frontend_job_estimated_bytes_total", block).GetCounter().GetValue()
+	require.InDelta(t, defaultTargetBytesPerRequest/100, estimated, 1)
+	ratio := metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", block).GetHistogram()
+	require.Equal(t, uint64(1), ratio.GetSampleCount())
+
+	// no other op reported anything
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	for _, fam := range families {
+		if fam.GetName() != "tempo_query_frontend_job_estimated_bytes_total" {
+			continue
+		}
+		for _, m := range fam.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "op" {
+					require.Equal(t, "metadata", l.GetValue())
+				}
+			}
+		}
 	}
 }

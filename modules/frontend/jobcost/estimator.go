@@ -66,9 +66,10 @@ func (e *Estimator) Block(op Op, base uint64) Cost {
 	}
 }
 
-// LiveStore returns the cost of a job that reads recent data. An unknown op or a nil Estimator has no cost.
+// LiveStore returns the cost of a job that reads recent data. An unknown op, a nil Estimator or a configured
+// cost of 0 has no cost.
 func (e *Estimator) LiveStore(op Op) Cost {
-	if e == nil || op >= numOps {
+	if e == nil || op >= numOps || e.liveStore[op] == 0 {
 		return Cost{}
 	}
 	return Cost{Kind: KindLiveStore, Estimate: e.liveStore[op]}

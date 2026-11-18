@@ -39,7 +39,7 @@ var (
 // streaming grpc handlers
 
 // newTagsStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingTagsHandler {
+func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) streamingTagsHandler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTags)
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
@@ -62,7 +62,7 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 		}
 
 		var finalResponse *tempopb.SearchTagsResponse
-		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, api.MarshallingFormatProtobuf, inspectedBytesReporter(metadataInspectedBytes, metadataJobInspectedBytes, tenant))
+		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, api.MarshallingFormatProtobuf, reporter.option(tenant))
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, comb, func(res *tempopb.SearchTagsResponse) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
@@ -97,7 +97,7 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 	}
 }
 
-func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingTagsV2Handler {
+func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) streamingTagsV2Handler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTagsV2)
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
@@ -128,7 +128,7 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 
 		var finalResponse *tempopb.SearchTagsV2Response
-		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, api.MarshallingFormatProtobuf, inspectedBytesReporter(metadataInspectedBytes, metadataJobInspectedBytes, tenant))
+		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, api.MarshallingFormatProtobuf, reporter.option(tenant))
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, comb, func(res *tempopb.SearchTagsV2Response) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
@@ -170,7 +170,7 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 	}
 }
 
-func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingTagValuesHandler {
+func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) streamingTagValuesHandler {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
@@ -199,7 +199,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 		}
 
 		var finalResponse *tempopb.SearchTagValuesResponse
-		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, api.MarshallingFormatProtobuf, inspectedBytesReporter(metadataInspectedBytes, metadataJobInspectedBytes, tenant))
+		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, api.MarshallingFormatProtobuf, reporter.option(tenant))
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, comb, func(res *tempopb.SearchTagValuesResponse) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
@@ -221,7 +221,7 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 	}
 }
 
-func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingTagValuesV2Handler {
+func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) streamingTagValuesV2Handler {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
@@ -256,7 +256,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		}
 
 		var finalResponse *tempopb.SearchTagValuesV2Response
-		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, api.MarshallingFormatProtobuf, inspectedBytesReporter(metadataInspectedBytes, metadataJobInspectedBytes, tenant))
+		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, api.MarshallingFormatProtobuf, reporter.option(tenant))
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, cfg.MaxGRPCStreamingPacketSize, comb, func(res *tempopb.SearchTagValuesV2Response) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
@@ -279,7 +279,7 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 }
 
 // HTTP Handlers
-func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -303,7 +303,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold, marshallingFormat, inspectedBytesReporter(metadataInspectedBytes, metadataJobInspectedBytes, tenant))
+		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold, marshallingFormat, reporter.option(tenant))
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
 		// NOTE - V1 tag lookup only returns intrinsics when scope is set explicitly.
@@ -339,7 +339,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 	})
 }
 
-func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -370,7 +370,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold, marshallingFormat, inspectedBytesReporter(metadataInspectedBytes, metadataJobInspectedBytes, tenant))
+		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold, marshallingFormat, reporter.option(tenant))
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
 		// NOTE - V2 tag lookup returns intrinsics for both unscoped and explicit scope requests.
@@ -413,7 +413,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 	})
 }
 
-func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -438,7 +438,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold, marshallingFormat, inspectedBytesReporter(metadataInspectedBytes, metadataJobInspectedBytes, tenant))
+		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold, marshallingFormat, reporter.option(tenant))
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagValuesRequest(logger, tenant, "SearchTagValues", tagName, query, rangeDur)
@@ -460,7 +460,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 	})
 }
 
-func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -492,7 +492,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold, marshallingFormat, inspectedBytesReporter(metadataInspectedBytes, metadataJobInspectedBytes, tenant))
+		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold, marshallingFormat, reporter.option(tenant))
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagValuesRequest(logger, tenant, "SearchTagValuesV2", tagName, query, rangeDur)

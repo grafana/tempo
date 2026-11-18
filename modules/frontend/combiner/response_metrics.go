@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
@@ -9,7 +10,12 @@ type Option func(*options)
 
 type options struct {
 	reportInspectedBytes     func(uint64)
-	observeJobInspectedBytes func(uint64)
+	observeJobInspectedBytes func(inspectedBytes uint64, cost jobcost.Cost)
+}
+
+// responseWithCost is implemented by the responses that carry the estimated cost of their job.
+type responseWithCost interface {
+	Cost() jobcost.Cost
 }
 
 // WithInspectedBytesReporter reports the bytes inspected by each non-cached job response as soon as it is
@@ -19,8 +25,9 @@ func WithInspectedBytesReporter(fn func(uint64)) Option {
 }
 
 // WithJobInspectedBytesObserver observes the bytes inspected by every non-cached job response that has metrics,
-// including responses of jobs that inspected nothing. Responses that only summarize the jobs of a query are not observed.
-func WithJobInspectedBytesObserver(fn func(uint64)) Option {
+// including responses of jobs that inspected nothing, together with the estimated cost of the job. The cost is
+// zero if the response does not carry one. Responses that only summarize the jobs of a query are not observed.
+func WithJobInspectedBytesObserver(fn func(inspectedBytes uint64, cost jobcost.Cost)) Option {
 	return func(o *options) { o.observeJobInspectedBytes = fn }
 }
 
@@ -45,6 +52,18 @@ func report(fn func(uint64), bytes uint64) {
 	if fn != nil && bytes > 0 {
 		fn(bytes)
 	}
+}
+
+func (o options) observeJob(resp PipelineResponse, bytes uint64) {
+	if o.observeJobInspectedBytes == nil {
+		return
+	}
+
+	var cost jobcost.Cost
+	if c, ok := resp.(responseWithCost); ok {
+		cost = c.Cost()
+	}
+	o.observeJobInspectedBytes(bytes, cost)
 }
 
 // These structs combine response metrics in a single place
@@ -88,9 +107,7 @@ func (mc *SearchMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, resp
 			mc.Metrics.InspectedTraces += newMetrics.InspectedTraces
 			mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
 			report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
-			if mc.opts.observeJobInspectedBytes != nil {
-				mc.opts.observeJobInspectedBytes(newMetrics.InspectedBytes)
-			}
+			mc.opts.observeJob(resp, newMetrics.InspectedBytes)
 			mc.Metrics.BackendReads += newMetrics.BackendReads
 			mc.Metrics.BackendBytes += newMetrics.BackendBytes
 		}
@@ -130,9 +147,7 @@ func (mc *TraceByIDMetricsCombiner) Combine(newMetrics *tempopb.TraceByIDMetrics
 	if !cacheHit {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
 		report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
-		if mc.opts.observeJobInspectedBytes != nil {
-			mc.opts.observeJobInspectedBytes(newMetrics.InspectedBytes)
-		}
+		mc.opts.observeJob(resp, newMetrics.InspectedBytes)
 		mc.Metrics.BackendReads += newMetrics.BackendReads
 		mc.Metrics.BackendBytes += newMetrics.BackendBytes
 	}
@@ -159,9 +174,7 @@ func (mc *MetadataMetricsCombiner) Combine(newMetrics *tempopb.MetadataMetrics, 
 	if !cacheHit {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
 		report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
-		if mc.opts.observeJobInspectedBytes != nil {
-			mc.opts.observeJobInspectedBytes(newMetrics.InspectedBytes)
-		}
+		mc.opts.observeJob(resp, newMetrics.InspectedBytes)
 		mc.Metrics.BackendReads += newMetrics.BackendReads
 		mc.Metrics.BackendBytes += newMetrics.BackendBytes
 	}
@@ -197,9 +210,7 @@ func (mc *QueryRangeMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, 
 			mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
 			report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
 			if !resp.IsMetadata() { // otherwise the response only summarizes the jobs
-				if mc.opts.observeJobInspectedBytes != nil {
-					mc.opts.observeJobInspectedBytes(newMetrics.InspectedBytes)
-				}
+				mc.opts.observeJob(resp, newMetrics.InspectedBytes)
 			}
 			mc.Metrics.InspectedTraces += newMetrics.InspectedTraces
 			mc.Metrics.InspectedSpans += newMetrics.InspectedSpans

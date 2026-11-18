@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/stretchr/testify/assert"
 )
@@ -13,6 +14,7 @@ import (
 type fakePipelineResponse struct {
 	cacheHit   bool
 	isMetadata bool
+	cost       jobcost.Cost
 }
 
 func (f *fakePipelineResponse) HTTPResponse() *http.Response {
@@ -25,6 +27,13 @@ func (f *fakePipelineResponse) HTTPResponse() *http.Response {
 
 func (f *fakePipelineResponse) RequestData() any { return nil }
 func (f *fakePipelineResponse) IsMetadata() bool { return f.isMetadata }
+
+// fakeCostedResponse also carries the cost of its job, like the responses of the pipeline.
+type fakeCostedResponse struct {
+	fakePipelineResponse
+}
+
+func (f *fakeCostedResponse) Cost() jobcost.Cost { return f.cost }
 
 func TestSearchMetricsCombiner_SumsNewFields(t *testing.T) {
 	mc := NewSearchMetricsCombiner()
@@ -189,10 +198,18 @@ func TestMergeAdditionalMetrics(t *testing.T) {
 }
 
 func TestMetricsCombiners_ReportAndObserveInspectedBytes(t *testing.T) {
-	var reported, observed []uint64
+	type observation struct {
+		bytes uint64
+		cost  jobcost.Cost
+	}
+
+	var (
+		reported []uint64
+		observed []observation
+	)
 	opt := WithOptions(
 		WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) }),
-		WithJobInspectedBytesObserver(func(b uint64) { observed = append(observed, b) }),
+		WithJobInspectedBytesObserver(func(b uint64, c jobcost.Cost) { observed = append(observed, observation{b, c}) }),
 	)
 
 	traceByID := NewTraceByIDMetricsCombiner(opt)
@@ -200,22 +217,36 @@ func TestMetricsCombiners_ReportAndObserveInspectedBytes(t *testing.T) {
 	metadata := NewMetadataMetricsCombiner(opt)
 	queryRange := NewQueryRangeMetricsCombiner(opt)
 
-	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 3}, &fakePipelineResponse{})
-	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 30}, &fakePipelineResponse{cacheHit: true})
+	block := jobcost.Cost{Kind: jobcost.KindBlock, Base: 100, Estimate: 7}
+	liveStore := jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 9}
+	costed := func(cost jobcost.Cost, cacheHit, isMetadata bool) *fakeCostedResponse {
+		return &fakeCostedResponse{fakePipelineResponse{cacheHit: cacheHit, isMetadata: isMetadata, cost: cost}}
+	}
+
+	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 3}, costed(block, false, false))
+	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 30}, costed(block, true, false))
 	traceByID.Combine(&tempopb.TraceByIDMetrics{}, &fakePipelineResponse{})
-	traceByID.Combine(nil, &fakePipelineResponse{})
-	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 1}, &fakePipelineResponse{})
-	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 10}, &fakePipelineResponse{cacheHit: true})
+	traceByID.Combine(nil, costed(block, false, false))
+	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 1}, costed(liveStore, false, false))
+	search.Combine(&tempopb.SearchMetrics{InspectedBytes: 10}, costed(block, true, false))
 	// the sharder summarizes the jobs of a query, which is not a job
-	search.CombineMetadata(&tempopb.SearchMetrics{TotalJobs: 5, TotalBlocks: 2}, &fakePipelineResponse{})
-	metadata.Combine(&tempopb.MetadataMetrics{InspectedBytes: 100}, &fakePipelineResponse{})
-	queryRange.Combine(&tempopb.SearchMetrics{InspectedBytes: 1000}, &fakePipelineResponse{})
-	queryRange.Combine(&tempopb.SearchMetrics{InspectedBytes: 10000}, &fakePipelineResponse{cacheHit: true})
+	search.CombineMetadata(&tempopb.SearchMetrics{TotalJobs: 5, TotalBlocks: 2}, costed(block, false, true))
+	metadata.Combine(&tempopb.MetadataMetrics{InspectedBytes: 100}, costed(block, false, false))
+	queryRange.Combine(&tempopb.SearchMetrics{InspectedBytes: 1000}, costed(block, false, false))
+	queryRange.Combine(&tempopb.SearchMetrics{InspectedBytes: 10000}, costed(block, true, false))
 	queryRange.Combine(&tempopb.SearchMetrics{}, &fakePipelineResponse{})
-	queryRange.Combine(&tempopb.SearchMetrics{TotalJobs: 5, TotalBlocks: 2, TotalBlockBytes: 100}, &fakePipelineResponse{isMetadata: true})
+	queryRange.Combine(&tempopb.SearchMetrics{TotalJobs: 5, TotalBlocks: 2, TotalBlockBytes: 100}, costed(block, false, true))
 
 	// cache hits and zero-byte responses are not reported
 	assert.Equal(t, []uint64{3, 1, 100, 1000}, reported)
-	// cache hits, missing metrics and summaries are not observed, zero-byte responses are
-	assert.Equal(t, []uint64{3, 0, 1, 100, 1000, 0}, observed)
+	// cache hits, missing metrics and summaries are not observed, zero-byte responses are.
+	// responses that do not carry a cost are observed without one
+	assert.Equal(t, []observation{
+		{3, block},
+		{0, jobcost.Cost{}},
+		{1, liveStore},
+		{100, block},
+		{1000, block},
+		{0, jobcost.Cost{}},
+	}, observed)
 }

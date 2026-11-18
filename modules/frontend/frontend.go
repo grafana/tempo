@@ -267,17 +267,23 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		next,
 	)
 
+	costMetrics := newJobCostMetrics(estimator, registerer)
+	traceByIDReporter := newJobReporter(jobcost.OpTraceByID, estimator, traceByIDInspectedBytes, traceByIDJobInspectedBytes, costMetrics)
+	searchReporter := newJobReporter(jobcost.OpSearch, estimator, searchInspectedBytes, searchJobInspectedBytes, costMetrics)
+	metadataReporter := newJobReporter(jobcost.OpMetadata, estimator, metadataInspectedBytes, metadataJobInspectedBytes, costMetrics)
+	metricsReporter := newJobReporter(jobcost.OpMetrics, estimator, metricsInspectedBytes, metricsJobInspectedBytes, costMetrics)
+
 	metricsQueryRangeLimiter := newMetricsRangeLimiter(cfg, o, reader)
-	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
-	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
+	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, traceByIDReporter, logger, dataAccessController)
+	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, traceByIDReporter, logger, dataAccessController)
 	traceDiff := newTraceDiffHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, cacheProvider, logger, dataAccessController)
-	search := newSearchHTTPHandler(cfg, searchPipeline, o, logger, dataAccessController)
-	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
-	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
-	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger, dataAccessController)
-	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger, dataAccessController)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, metricsQueryRangeLimiter, logger, dataAccessController) // Reuses the same pipeline
-	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, logger, dataAccessController)
+	search := newSearchHTTPHandler(cfg, searchPipeline, o, searchReporter, logger, dataAccessController)
+	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, metadataReporter, logger, dataAccessController)
+	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, metadataReporter, logger, dataAccessController)
+	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, metadataReporter, logger, dataAccessController)
+	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, metadataReporter, logger, dataAccessController)
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, metricsQueryRangeLimiter, metricsReporter, logger, dataAccessController) // Reuses the same pipeline
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, metricsReporter, logger, dataAccessController)
 
 	queryTrackerInstance := newQueryTracker(cfg.QueryTracker, logger, registerer)
 	f := &QueryFrontend{
@@ -294,13 +300,13 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger, queryTrackerInstance),
 
 		// grpc/streaming
-		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, o, logger, dataAccessController),
-		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
-		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
-		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger, dataAccessController),
-		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger, dataAccessController),
-		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, apiPrefix, logger, dataAccessController),
-		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
+		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, o, searchReporter, logger, dataAccessController),
+		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, metadataReporter, logger, dataAccessController),
+		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, metadataReporter, logger, dataAccessController),
+		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, metadataReporter, logger, dataAccessController),
+		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, metadataReporter, logger, dataAccessController),
+		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, apiPrefix, metricsReporter, logger, dataAccessController),
+		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, apiPrefix, metricsReporter, logger, dataAccessController), // Reuses the same pipeline
 
 		queryTracker:  queryTrackerInstance,
 		cacheProvider: cacheProvider,

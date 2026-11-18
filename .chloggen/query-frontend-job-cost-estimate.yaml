@@ -1,0 +1,13 @@
+change_type: enhancement
+
+component: query-frontend
+
+note: Estimate the bytes each querier job reads when it is created and compare the estimate with the bytes the job actually read. Adds `tempo_query_frontend_job_estimated_bytes_total`, `tempo_query_frontend_job_actual_to_estimated_bytes_ratio` and `tempo_query_frontend_job_cost_factor`, and the `query_frontend.job_cost` configuration block
+
+issues: []
+
+subtext: |
+  Estimates for jobs that read blocks are calibrated with the bytes the jobs actually read. The estimates are only reported in metrics and don't change how queries run.
+  Estimates for jobs that read recent data from the live store or the generators are fixed values set with `query_frontend.job_cost.live_store_cost`.
+
+user: stoewer
