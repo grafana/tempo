@@ -15,19 +15,28 @@ import (
 // changes nothing there.
 const DefaultAPIVersionsMaxVersion = 4
 
-const apiVersionsMaxVersionUsage = "The highest ApiVersions request version the Kafka client sends, from 1 to 4. " +
+const apiVersionsMaxVersionUsage = "The highest ApiVersions request version the Kafka client sends, up to the highest version the client supports. " +
 	"The default of 4 keeps the client compatible with backends that close the connection on ApiVersions v5, such as WarpStream. " +
 	"0 removes the cap, so the client sends the highest version it supports."
 
+// supportedAPIVersionsMaxVersion returns the highest ApiVersions version this
+// franz-go supports, so the allowed values move up with franz-go upgrades.
+func supportedAPIVersionsMaxVersion() int {
+	if v, ok := kversion.Stable().LookupMaxKeyVersion(kmsg.ApiVersions.Int16()); ok {
+		return int(v)
+	}
+	return DefaultAPIVersionsMaxVersion
+}
+
 // apiVersionsMaxVersionOpts returns the client options that cap ApiVersions at
-// maxVersion, or none if maxVersion is 0 or less. Values above
-// DefaultAPIVersionsMaxVersion are capped at it, for callers that don't
-// validate their config.
+// maxVersion, or none if maxVersion is 0 or less. franz-go sends whatever
+// version it is given, so values above supportedAPIVersionsMaxVersion are
+// lowered to it, for callers that don't validate their config.
 func apiVersionsMaxVersionOpts(maxVersion int) []kgo.Opt {
 	if maxVersion <= 0 {
 		return nil
 	}
-	maxVersion = min(maxVersion, DefaultAPIVersionsMaxVersion)
+	maxVersion = min(maxVersion, supportedAPIVersionsMaxVersion())
 	// kversion.Stable() is franz-go's default, so only ApiVersions changes.
 	versions := kversion.Stable()
 	versions.SetMaxKeyVersion(kmsg.ApiVersions.Int16(), int16(maxVersion))

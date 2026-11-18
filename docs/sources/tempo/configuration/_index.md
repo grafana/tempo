@@ -472,7 +472,8 @@ ingest:
         # How long to wait for an incoming write request to be successfully committed to the Kafka backend.
         [write_timeout: <duration> | default = 10s]
 
-        # The highest ApiVersions request version the Kafka client sends, from 1 to 4.
+        # The highest ApiVersions request version the Kafka client sends, up to the
+        # highest version the client supports (4 with the current Kafka client).
         # The default of 4 keeps the client compatible with backends that close the
         # connection on ApiVersions v5, such as WarpStream. 0 removes the cap, so the
         # client sends the highest version it supports.

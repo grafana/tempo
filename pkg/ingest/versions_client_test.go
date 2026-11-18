@@ -69,7 +69,8 @@ func TestClientsCapAPIVersions(t *testing.T) {
 	}{
 		{name: "default", maxVersion: DefaultAPIVersionsMaxVersion, want: DefaultAPIVersionsMaxVersion},
 		{name: "lower cap", maxVersion: 3, want: 3},
-		{name: "too high is capped at the default", maxVersion: 65539, want: DefaultAPIVersionsMaxVersion},
+		// franz-go sends whatever version it is given, so this checks it is lowered.
+		{name: "higher than franz-go supports", maxVersion: supportedAPIVersionsMaxVersion() + 1, want: int16(supportedAPIVersionsMaxVersion())},
 	}
 
 	newClients := map[string]func(t *testing.T, cfg KafkaConfig) (*kgo.Client, error){

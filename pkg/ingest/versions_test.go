@@ -39,7 +39,7 @@ func TestAPIVersionsMaxVersionOpts(t *testing.T) {
 	}{
 		{name: "default", maxVersion: DefaultAPIVersionsMaxVersion, want: 4},
 		{name: "lower cap", maxVersion: 3, want: 3},
-		{name: "too high is capped", maxVersion: 5, want: 4},
+		{name: "higher is lowered to what franz-go supports", maxVersion: int(stableMax) + 1, want: stableMax},
 		{name: "zero removes the cap", maxVersion: 0, want: stableMax},
 		{name: "negative removes the cap", maxVersion: -1, want: stableMax},
 	}
@@ -71,11 +71,13 @@ func TestKafkaConfig_Validate_APIVersionsMaxVersion(t *testing.T) {
 	cfg.Topic = "test"
 	require.Equal(t, DefaultAPIVersionsMaxVersion, cfg.APIVersionsMaxVersion)
 
-	for _, v := range []int{0, 1, 4} {
+	supported := supportedAPIVersionsMaxVersion()
+	for _, v := range []int{0, 1, DefaultAPIVersionsMaxVersion, supported} {
 		cfg.APIVersionsMaxVersion = v
 		require.NoError(t, cfg.Validate(), "value %d", v)
 	}
-	for _, v := range []int{-1, 5} {
+	// Above what franz-go supports is rejected, so a typo like 10 fails at startup.
+	for _, v := range []int{-1, supported + 1, 10} {
 		cfg.APIVersionsMaxVersion = v
 		require.ErrorIs(t, cfg.Validate(), ErrInvalidAPIVersionsMaxVersion, "value %d", v)
 	}

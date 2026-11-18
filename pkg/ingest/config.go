@@ -90,7 +90,7 @@ var (
 	ErrInvalidProducerCompression        = errors.New("the configured producer compression must be one of: none, gzip, snappy, lz4, zstd")
 	ErrInvalidSASLMechanism              = fmt.Errorf("the configured SASL mechanism is invalid, must be one of: %s", strings.Join(saslMechanismOptions, ", "))
 	ErrSASLMSKIAMBadConfig               = errors.New("exactly one of static credentials, file path, or HTTP socket path must be configured to enable SASL AWS_MSK_IAM authentication")
-	ErrInvalidAPIVersionsMaxVersion      = fmt.Errorf("the configured ApiVersions max version must be between 0 and %d (0 removes the cap)", DefaultAPIVersionsMaxVersion)
+	ErrInvalidAPIVersionsMaxVersion      = fmt.Errorf("the configured ApiVersions max version must be between 0 and %d (0 removes the cap)", supportedAPIVersionsMaxVersion())
 	ErrSASLOauthbearerBadConfig          = errors.New("exactly one of OAuth token, file path, or HTTP socket path must be configured to enable SASL OAUTHBEARER authentication")
 )
 
@@ -224,7 +224,7 @@ func (cfg *KafkaConfig) Validate() error {
 	if cfg.MaxConsumerLagAtStartup < cfg.TargetConsumerLagAtStartup {
 		return ErrInvalidMaxConsumerLagAtStartup
 	}
-	if cfg.APIVersionsMaxVersion < 0 || cfg.APIVersionsMaxVersion > DefaultAPIVersionsMaxVersion {
+	if cfg.APIVersionsMaxVersion < 0 || cfg.APIVersionsMaxVersion > supportedAPIVersionsMaxVersion() {
 		return ErrInvalidAPIVersionsMaxVersion
 	}
 
