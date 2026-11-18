@@ -8,7 +8,6 @@ func testPull(number int) pullRequest {
 		CreatedAt: testNow.Add(-24 * time.Hour),
 		User:      &user{Login: "external", Type: "User"},
 		Assignees: []user{},
-		Labels:    []label{},
 	}
 }
 

@@ -56,13 +56,3 @@ jobs:
         # dependencies never enter the product go.mod.
         working-directory: .github/scripts
         run: go run .
-
-      - name: Report a failed sweep
-        if: failure()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        # A scheduled failure notifies only this file's last editor, so record
-        # the failure where maintainers will see it.
-        working-directory: .github/scripts
-        run: go run . report-failure

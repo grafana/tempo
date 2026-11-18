@@ -59,8 +59,6 @@ func TestLoadFutureCreatedAtCountsAsOpen(t *testing.T) {
 }
 
 func TestCandidatesFilterAndOrderByPRNumber(t *testing.T) {
-	marked := testPull(2)
-	marked.Labels = []label{{Name: defaultMarkerLabel}}
 	bot := testPull(6)
 	bot.User = &user{Login: "dependabot[bot]", Type: "Bot"}
 	deletedAuthor := testPull(4)
@@ -70,15 +68,8 @@ func TestCandidatesFilterAndOrderByPRNumber(t *testing.T) {
 	ownerAuthored := testPull(7)
 	ownerAuthored.User.Login = "Alice"
 	assigned := assignedTo(testPull(5), "Bob")
-	candidates := findCandidates([]pullRequest{ownerAuthored, assigned, marked, testPull(1), bot, deletedAuthor, draft}, []string{"alice", "bob"}, defaultMarkerLabel)
-	require.Equal(t, []candidate{{number: 1}, {number: 2, marked: true}}, candidates)
-}
-
-func TestCandidateMarkingIgnoresLabelCase(t *testing.T) {
-	pr := testPull(1)
-	pr.Labels = []label{{Name: "Codeowner-Sweep"}}
-	candidates := findCandidates([]pullRequest{pr}, []string{"alice"}, defaultMarkerLabel)
-	require.Equal(t, []candidate{{number: 1, marked: true}}, candidates)
+	candidates := findCandidates([]pullRequest{ownerAuthored, assigned, testPull(1), bot, deletedAuthor, draft}, []string{"alice", "bob"})
+	require.Equal(t, []int{1}, candidates)
 }
 
 func TestAssigneeTieBreakPrefersLessOpenLoadThenUsesExactTies(t *testing.T) {
@@ -103,14 +94,14 @@ func TestDecideAssignmentsSpreadsAcrossLeastLoadedOwners(t *testing.T) {
 		"alice": {open: 1},
 		"bob":   {},
 	}
-	candidates := []candidate{{number: 10}, {number: 20}, {number: 30}}
+	candidates := []int{10, 20, 30}
 	assignments := decideAssignments(load, candidates, 2, firstChoice)
 	require.Equal(t, []assignment{{number: 10, owner: "bob"}, {number: 20, owner: "alice"}}, assignments)
 }
 
 func TestDecideAssignmentsTiesUseChooserAndHonorCap(t *testing.T) {
 	load := map[string]ownerLoad{"alice": {}, "bob": {}}
-	candidates := []candidate{{number: 10}, {number: 20}, {number: 30}, {number: 40}, {number: 50}}
+	candidates := []int{10, 20, 30, 40, 50}
 	assignments := decideAssignments(load, candidates, 4, firstChoice)
 	require.Equal(t, []assignment{
 		{number: 10, owner: "alice"},
@@ -118,13 +109,4 @@ func TestDecideAssignmentsTiesUseChooserAndHonorCap(t *testing.T) {
 		{number: 30, owner: "alice"},
 		{number: 40, owner: "bob"},
 	}, assignments)
-}
-
-func TestOnlyHumanUnassignAfterLatestBotAssignmentIsSkipped(t *testing.T) {
-	assigned := timelineEvent{Event: "assigned", Actor: &user{Login: defaultBotActor}}
-	humanUnassigned := timelineEvent{Event: "unassigned", Actor: &user{Login: "maintainer"}}
-	automaticUnassigned := timelineEvent{Event: "unassigned"}
-	require.True(t, deliberatelyUnassigned([]timelineEvent{assigned, humanUnassigned}, defaultBotActor))
-	require.False(t, deliberatelyUnassigned([]timelineEvent{humanUnassigned, assigned}, defaultBotActor))
-	require.False(t, deliberatelyUnassigned([]timelineEvent{assigned, automaticUnassigned}, defaultBotActor))
 }

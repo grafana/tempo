@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -19,10 +18,7 @@ func requiredEnv(name string) (string, error) {
 	return value, nil
 }
 
-func run(ctx context.Context, command string) error {
-	if command != "sweep" && command != "report-failure" {
-		return fmt.Errorf("unknown command %q; expected sweep or report-failure", command)
-	}
+func run(ctx context.Context) error {
 	token, err := requiredEnv("GH_TOKEN")
 	if err != nil {
 		return err
@@ -30,13 +26,6 @@ func run(ctx context.Context, command string) error {
 	client, err := newGitHubClient(token)
 	if err != nil {
 		return err
-	}
-	if command == "report-failure" {
-		runURL, err := requiredEnv("RUN_URL")
-		if err != nil {
-			return err
-		}
-		return reportFailure(ctx, client, runURL)
 	}
 	return sweep(ctx, client)
 }
@@ -47,17 +36,9 @@ func workflowError(err error) {
 }
 
 func main() {
-	command := "sweep"
-	if len(os.Args) > 2 {
-		workflowError(errors.New("usage: assign_codeowner [sweep|report-failure]"))
-		os.Exit(2)
-	}
-	if len(os.Args) == 2 {
-		command = os.Args[1]
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, command); err != nil {
+	if err := run(ctx); err != nil {
 		workflowError(err)
 		os.Exit(1)
 	}

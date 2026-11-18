@@ -28,10 +28,8 @@ func TestSettingsAndWorkflowContract(t *testing.T) {
 	workflow := string(data)
 	for _, expected := range []string{
 		"GH_TOKEN: ${{ github.token }}",
-		"RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
 		"working-directory: .github/scripts",
 		"run: go run .",
-		"run: go run . report-failure",
 		"cron: '0 7 * * *'",
 		"permissions: {}",
 	} {
@@ -43,22 +41,10 @@ func TestSettingsAndWorkflowContract(t *testing.T) {
 	}
 }
 
-func TestRunEntryPointErrors(t *testing.T) {
-	t.Run("unknown command", func(t *testing.T) {
-		err := run(context.Background(), "bogus")
-		require.ErrorContains(t, err, "unknown command")
-	})
-	t.Run("missing token", func(t *testing.T) {
-		unsetEnvironment(t, "GH_TOKEN")
-		err := run(context.Background(), "sweep")
-		require.ErrorContains(t, err, "missing required environment variable: GH_TOKEN")
-	})
-	t.Run("missing run url", func(t *testing.T) {
-		t.Setenv("GH_TOKEN", "token")
-		unsetEnvironment(t, "RUN_URL")
-		err := run(context.Background(), "report-failure")
-		require.ErrorContains(t, err, "missing required environment variable: RUN_URL")
-	})
+func TestRunRequiresToken(t *testing.T) {
+	unsetEnvironment(t, "GH_TOKEN")
+	err := run(context.Background())
+	require.ErrorContains(t, err, "missing required environment variable: GH_TOKEN")
 }
 
 func TestEachPageBoundedStopsAtLimit(t *testing.T) {
