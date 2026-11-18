@@ -11,7 +11,6 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
-	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus"
@@ -258,9 +257,7 @@ func TestFrontendTagsReportsJobCosts(t *testing.T) {
 		responseFn: func() proto.Message {
 			return &tempopb.SearchTagsV2Response{Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 		},
-	}, rdr, nil, nil, nil, reg, func(cfg *Config, _ *overrides.Config) {
-		cfg.JobCost = jobcost.DefaultConfig()
-	})
+	}, rdr, nil, nil, nil, reg)
 
 	req := httptest.NewRequest("GET", "/api/v2/search/tags?start=10&end=20&scope=resource", nil)
 	req = req.WithContext(user.InjectOrgID(req.Context(), "tenant"))

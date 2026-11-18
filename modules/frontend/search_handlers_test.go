@@ -365,9 +365,7 @@ func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 
 func TestFrontendSearchReportsJobCosts(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	f := frontendWithSettingsAndRegisterer(t, nil, nil, nil, nil, nil, reg, func(cfg *Config, _ *overrides.Config) {
-		cfg.JobCost = jobcost.DefaultConfig()
-	})
+	f := frontendWithSettingsAndRegisterer(t, nil, nil, nil, nil, nil, reg)
 
 	search := func(req *tempopb.SearchRequest) {
 		httpReq, err := api.BuildSearchRequest(httptest.NewRequest("GET", "/api/search", nil), req)
@@ -1068,6 +1066,7 @@ func frontendWithSettingsAndRegisterer(t require.TestingT, next pipeline.RoundTr
 				SLO:         testSLOcfg,
 			},
 			QueryEndCutoff: 0,
+			JobCost:        jobcost.DefaultConfig(),
 			Search: SearchConfig{
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
