@@ -6,7 +6,9 @@ import "time"
 // from its own gated workflow, so everything here is hardcoded; the only
 // per-run values (GH_TOKEN, RUN_URL) stay in the environment.
 const (
-	defaultRepo               = "grafana/tempo"
+	repoOwner                 = "grafana"
+	repoName                  = "tempo"
+	defaultRepo               = repoOwner + "/" + repoName
 	defaultMarkerLabel        = "codeowner-sweep"
 	defaultBotActor           = "github-actions[bot]"
 	defaultMaxAssignments     = 25

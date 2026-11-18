@@ -36,7 +36,7 @@ func run(ctx context.Context, command string) error {
 		if err != nil {
 			return err
 		}
-		return reportFailure(ctx, client, defaultRepo, runURL)
+		return reportFailure(ctx, client, runURL)
 	}
 	return sweep(ctx, client)
 }

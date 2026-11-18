@@ -29,7 +29,6 @@ type label struct {
 type pullRequest struct {
 	Number    int       `json:"number"`
 	CreatedAt time.Time `json:"created_at"`
-	State     string    `json:"state"`
 	User      *user     `json:"user"`
 	Assignees []user    `json:"assignees"`
 	Draft     bool      `json:"draft"`
@@ -206,23 +205,20 @@ func chooseAssignee(load map[string]ownerLoad, choose func([]string) string) (st
 }
 
 func ensureMarkerLabel(ctx context.Context, client *github.Client) error {
-	owner, name, err := splitRepo(defaultRepo)
-	if err != nil {
-		return err
-	}
+	owner, name := repoOwner, repoName
 	color := "ededed"
 	description := "Assigned by the daily code owner sweep"
-	err = retryableCall(ctx, func() error {
+	if err := retryableCall(ctx, func() error {
 		var callErr error
 		_, _, callErr = client.Issues.UpdateLabel(ctx, owner, name, defaultMarkerLabel, github.UpdateIssueLabelRequest{Color: &color, Description: &description})
 		return callErr
-	})
-	if err == nil {
+	}); err == nil {
 		return nil
-	}
-	var statusError *github.ErrorResponse
-	if !errors.As(err, &statusError) || statusError.Response.StatusCode != http.StatusNotFound {
-		return fmt.Errorf("update marker label: %w", err)
+	} else {
+		var statusError *github.ErrorResponse
+		if !errors.As(err, &statusError) || statusError.Response.StatusCode != http.StatusNotFound {
+			return fmt.Errorf("update marker label: %w", err)
+		}
 	}
 	if _, _, err := client.Issues.CreateLabel(ctx, owner, name, github.CreateIssueLabelRequest{Name: defaultMarkerLabel, Color: &color, Description: &description}); err != nil {
 		return fmt.Errorf("create marker label: %w", err)
@@ -272,10 +268,6 @@ const (
 // mid-sweep changes, adds the chosen owner, and applies the marker label,
 // rolling back and aborting the batch when the marker cannot be applied.
 func applyAssignment(ctx context.Context, client *github.Client, number int, owner string) (applyOutcome, error) {
-	repoOwner, repoName, err := splitRepo(defaultRepo)
-	if err != nil {
-		return applyFailed, err
-	}
 	var current *github.Issue
 	if err := retryableCall(ctx, func() error {
 		var callErr error
@@ -316,11 +308,7 @@ var errApplyMarker = errors.New("apply marker label")
 // assignAndMark rolls back only this sweep's assignee when another owner races
 // the write or the marker cannot be applied, avoiding silent partial assignments.
 func assignAndMark(ctx context.Context, client *github.Client, number int, assignee string) (bool, error) {
-	owner, name, err := splitRepo(defaultRepo)
-	if err != nil {
-		return false, err
-	}
-	issue, _, err := client.Issues.AddAssignees(ctx, owner, name, number, []string{assignee})
+	issue, _, err := client.Issues.AddAssignees(ctx, repoOwner, repoName, number, []string{assignee})
 	if err != nil {
 		return false, fmt.Errorf("add assignee: %w", err)
 	}
@@ -337,7 +325,7 @@ func assignAndMark(ctx context.Context, client *github.Client, number int, assig
 		// nothing of ours to remove.
 		return false, errors.New("assignment response did not reflect the selected owner")
 	}
-	if _, _, err := client.Issues.AddLabelsToIssue(ctx, owner, name, number, []string{defaultMarkerLabel}); err != nil {
+	if _, _, err := client.Issues.AddLabelsToIssue(ctx, repoOwner, repoName, number, []string{defaultMarkerLabel}); err != nil {
 		markerErr := fmt.Errorf("%w: %v", errApplyMarker, err)
 		if rollbackErr := removeAssignee(ctx, client, number, assignee); rollbackErr != nil {
 			return false, errors.Join(markerErr, fmt.Errorf("rollback assignee: %w", rollbackErr))
@@ -348,13 +336,9 @@ func assignAndMark(ctx context.Context, client *github.Client, number int, assig
 }
 
 func removeAssignee(ctx context.Context, client *github.Client, number int, assignee string) error {
-	owner, name, err := splitRepo(defaultRepo)
-	if err != nil {
-		return err
-	}
 	if err := retryableCall(ctx, func() error {
 		var callErr error
-		_, _, callErr = client.Issues.RemoveAssignees(ctx, owner, name, number, []string{assignee})
+		_, _, callErr = client.Issues.RemoveAssignees(ctx, repoOwner, repoName, number, []string{assignee})
 		return callErr
 	}); err != nil {
 		return fmt.Errorf("remove assignee: %w", err)
@@ -371,13 +355,9 @@ func sweep(ctx context.Context, client *github.Client) error {
 }
 
 // listOpenPRs fetches every open pull request, converting to the internal shape.
-func listOpenPRs(ctx context.Context, client *github.Client, repo string) ([]pullRequest, error) {
-	owner, name, err := splitRepo(repo)
-	if err != nil {
-		return nil, err
-	}
+func listOpenPRs(ctx context.Context, client *github.Client) ([]pullRequest, error) {
 	pulls, err := eachPage(ctx, func(opts *github.ListOptions) ([]*github.PullRequest, *github.Response, error) {
-		return client.PullRequests.List(ctx, owner, name, &github.PullRequestListOptions{State: "open", ListOptions: *opts})
+		return client.PullRequests.List(ctx, repoOwner, repoName, &github.PullRequestListOptions{State: "open", ListOptions: *opts})
 	})
 	if err != nil {
 		return nil, err
@@ -393,7 +373,6 @@ func convertPullRequest(pr *github.PullRequest) pullRequest {
 	result := pullRequest{
 		Number:    pr.GetNumber(),
 		CreatedAt: pr.GetCreatedAt().Time,
-		State:     pr.GetState(),
 		Draft:     pr.GetDraft(),
 	}
 	if pr.User != nil {
@@ -414,8 +393,6 @@ func convertIssue(issue *github.Issue) pullRequest {
 	result := pullRequest{
 		Number:    issue.GetNumber(),
 		CreatedAt: issue.GetCreatedAt().Time,
-		State:     issue.GetState(),
-		Draft:     issue.GetDraft(),
 	}
 	if issue.User != nil {
 		result.User = &user{Login: issue.User.GetLogin(), Type: issue.User.GetType()}
@@ -439,10 +416,6 @@ func convertTimeline(events []*github.Timeline) []timelineEvent {
 }
 
 func runSweep(ctx context.Context, client *github.Client, now time.Time, choose func([]string) string) error {
-	repoOwner, repoName, err := splitRepo(defaultRepo)
-	if err != nil {
-		return err
-	}
 	if len(defaultAssigneePool) == 0 {
 		fmt.Println("::notice::The code owner pool is empty; add members in .github/scripts/consts.go.")
 		return errors.New("code owner pool is empty")
@@ -451,7 +424,7 @@ func runSweep(ctx context.Context, client *github.Client, now time.Time, choose 
 	// Open PRs once for load, then again for candidates: assignment can change
 	// the pool state between the two passes, and the second fetch keeps the
 	// per-PR decisions close to the assignments they make.
-	openPRs, err := listOpenPRs(ctx, client, defaultRepo)
+	openPRs, err := listOpenPRs(ctx, client)
 	if err != nil {
 		return fmt.Errorf("list open pull requests for load: %w", err)
 	}
@@ -489,7 +462,7 @@ func runSweep(ctx context.Context, client *github.Client, now time.Time, choose 
 		fmt.Printf("Open PRs assigned to %s older than %d days no longer count as load.\n", owner, defaultOpenLoadMaxAgeDays)
 	}
 
-	currentPRs, err := listOpenPRs(ctx, client, defaultRepo)
+	currentPRs, err := listOpenPRs(ctx, client)
 	if err != nil {
 		return fmt.Errorf("refresh pull request candidates: %w", err)
 	}

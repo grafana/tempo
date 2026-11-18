@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/google/go-github/v93/github"
 )
@@ -25,15 +24,6 @@ func newGitHubClient(token string) (*github.Client, error) {
 		return nil, fmt.Errorf("create GitHub client: %w", err)
 	}
 	return client, nil
-}
-
-// splitRepo splits an owner/repository string into its two parts.
-func splitRepo(repo string) (owner, name string, err error) {
-	owner, name, found := strings.Cut(repo, "/")
-	if !found || owner == "" || name == "" {
-		return "", "", fmt.Errorf("invalid repository %q; expected owner/repository", repo)
-	}
-	return owner, name, nil
 }
 
 // eachPage collects every page of a paginated go-github list call. The next

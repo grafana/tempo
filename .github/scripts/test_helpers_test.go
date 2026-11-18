@@ -6,7 +6,6 @@ func testPull(number int) pullRequest {
 	return pullRequest{
 		Number:    number,
 		CreatedAt: testNow.Add(-24 * time.Hour),
-		State:     "open",
 		User:      &user{Login: "external", Type: "User"},
 		Assignees: []user{},
 		Labels:    []label{},
