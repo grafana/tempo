@@ -24,3 +24,25 @@ const (
 	// the created issue; the two must stay in lockstep.
 	failureIssueTitle = "assign-codeowner sweep failed"
 )
+
+// defaultAssigneePool is the hardcoded code owner pool for the scheduled
+// sweep. Tempo's CODEOWNERS names only the @grafana/tempo team, and team
+// expansion needs an org-scoped token this workflow does not have, so the pool
+// is the global "*" owners from before #8133 switched CODEOWNERS to the team.
+// Entries must be lowercase GitHub logins without a leading @; keep them in
+// the order you want tie-breaking to consider them. A member who leaves the
+// org surfaces as a failed assignment rather than being silently skipped.
+// Change this list in the same commit as the corresponding CODEOWNERS change.
+var defaultAssigneePool = []string{
+	"mdisibio",
+	"mapno",
+	"zalegrala",
+	"electron0zero",
+	"ie-pham",
+	"stoewer",
+	"javiermolinar",
+	"carles-grafana",
+	"ruslan-mikhailov",
+	"mattdurham",
+	"zhxiaogg",
+}

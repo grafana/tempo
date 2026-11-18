@@ -443,15 +443,10 @@ func runSweep(ctx context.Context, client *github.Client, now time.Time, choose 
 	if err != nil {
 		return err
 	}
-	eligible, err := resolvePool(ctx, client)
-	if err != nil {
-		return err
+	if len(defaultAssigneePool) == 0 {
+		fmt.Println("::notice::The code owner pool is empty; add members in .github/scripts/consts.go.")
+		return errors.New("code owner pool is empty")
 	}
-	if len(eligible) == 0 {
-		fmt.Println("::notice::The code owner pool resolved to nobody; check .github/scripts/pool.go and that pool members are assignable in the repository.")
-		return fmt.Errorf("no assignable code owner was found")
-	}
-	fmt.Printf("Eligible owners: %d.\n", len(eligible))
 
 	// Open PRs once for load, then again for candidates: assignment can change
 	// the pool state between the two passes, and the second fetch keeps the
@@ -489,7 +484,7 @@ func runSweep(ctx context.Context, client *github.Client, now time.Time, choose 
 	for _, issue := range closedIssues {
 		closedPRs = append(closedPRs, convertIssue(issue))
 	}
-	load, staleOwners := calculateLoad(openPRs, closedPRs, eligible, now, defaultOpenLoadMaxAgeDays)
+	load, staleOwners := calculateLoad(openPRs, closedPRs, defaultAssigneePool, now, defaultOpenLoadMaxAgeDays)
 	for _, owner := range slices.Sorted(maps.Keys(staleOwners)) {
 		fmt.Printf("Open PRs assigned to %s older than %d days no longer count as load.\n", owner, defaultOpenLoadMaxAgeDays)
 	}
@@ -498,7 +493,7 @@ func runSweep(ctx context.Context, client *github.Client, now time.Time, choose 
 	if err != nil {
 		return fmt.Errorf("refresh pull request candidates: %w", err)
 	}
-	candidates := findCandidates(currentPRs, eligible, defaultMarkerLabel)
+	candidates := findCandidates(currentPRs, defaultAssigneePool, defaultMarkerLabel)
 	fmt.Printf("Found %d unassigned PR(s).\n", len(candidates))
 	if len(candidates) == 0 {
 		return nil
