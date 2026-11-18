@@ -15,7 +15,7 @@ local utils = import 'mixin-utils/utils.libsonnet';
       rows+: [row { panels: panels }],
     },
 
-    addTemplate(name, metric_name, label_name, hide=0, allValue=null, includeAll=false, sort=2):: self {
+    addTemplate(name, metric_name, label_name, hide=0, allValue=null, includeAll=false, sort=2, regex=''):: self {
       templating+: {
         list+: [{
           allValue: allValue,
@@ -32,7 +32,7 @@ local utils = import 'mixin-utils/utils.libsonnet';
           options: [],
           query: 'label_values(%s, %s)' % [metric_name, label_name],
           refresh: 1,
-          regex: '',
+          regex: regex,
           sort: sort,
           tagValuesQuery: '',
           tags: [],
@@ -43,7 +43,7 @@ local utils = import 'mixin-utils/utils.libsonnet';
       },
     },
 
-    addMultiTemplate(name, metric_name, label_name, hide=0, allValue='.+', sort=2, includeAll=true):: self {
+    addMultiTemplate(name, metric_name, label_name, hide=0, allValue='.+', sort=2, includeAll=true, regex=''):: self {
       templating+: {
         list+: [{
           allValue: allValue,
@@ -61,7 +61,7 @@ local utils = import 'mixin-utils/utils.libsonnet';
           options: [],
           query: 'label_values(%s, %s)' % [metric_name, label_name],
           refresh: 1,
-          regex: '',
+          regex: regex,
           sort: sort,
           tagValuesQuery: '',
           tags: [],
