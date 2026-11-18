@@ -17,10 +17,11 @@ func reportFailure(ctx context.Context, client *github.Client, runURL string) er
 
 Run: %s
 
-The most common cause is the code owner pool resolving to nobody: the pool
-and exclusions are hardcoded in .github/scripts (config.go and pool.go), and
-every pool member must be assignable in the repository. Inspect the run log
-for the exact failure.
+The most common cause is a stale member in the hardcoded pool
+(.github/scripts/consts.go): assigning someone who is no longer assignable
+in the repository returns a 422, so remove them from defaultAssigneePool in
+the same change that removed their access. Transient API errors are retried
+and self-heal on the next run; inspect the run log for the exact failure.
 `, runURL)
 	query := url.Values{"q": {fmt.Sprintf(`repo:%s is:issue is:open in:title "%s"`, defaultRepo, title)}}
 	var result *github.IssuesSearchResult
