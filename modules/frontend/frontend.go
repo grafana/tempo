@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/api"
@@ -25,6 +26,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/blocksharding"
 )
 
 type RoundTripperFunc func(*http.Request) (*http.Response, error)
@@ -154,6 +156,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"op"})
 
+	estimator := jobcost.NewEstimator(cfg.JobCost)
+
 	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, false)
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer, logger)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
@@ -171,7 +175,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTraceIDSharder(&cfg.TraceByID, cfg.Config.MaxOutstandingPerTenant, reader, jobsPerQuery, logger),
+			newAsyncTraceIDSharder(&cfg.TraceByID, cfg.Config.MaxOutstandingPerTenant, reader, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
 		next,
@@ -186,7 +190,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLSearch, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, cfg.SkipASTTransformations, jobsPerQuery, logger),
+			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, cfg.SkipASTTransformations, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -200,7 +204,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, jobsPerQuery, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -214,7 +218,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, jobsPerQuery, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -228,7 +232,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, jobsPerQuery, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -243,7 +247,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, false, jobsPerQuery, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, false, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -257,7 +261,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, true, jobsPerQuery, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, true, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -375,6 +379,11 @@ func cloneRequestforQueriers(parent pipeline.Request, tenant string, modHTTP fun
 	prepareRequestForQueriers(clonedHTTPReq, tenant)
 
 	return parent.CloneFromHTTPRequest(clonedHTTPReq), nil
+}
+
+// blockJobCost returns the cost of a job that reads pages of the block m, starting at startPage.
+func blockJobCost(estimator *jobcost.Estimator, op jobcost.Op, m *backend.BlockMeta, startPage, pages int) jobcost.Cost {
+	return estimator.Block(op, blocksharding.JobBytes(m.Size_, uint32(startPage), uint32(pages), m.TotalRecords))
 }
 
 // prepareRequestForQueriers modifies the request so they will be farmed correctly to the queriers

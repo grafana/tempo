@@ -456,7 +456,7 @@ func TestRangeLimitersRecordQueryRange(t *testing.T) {
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			MostRecentShards:      defaultMostRecentShards,
 			MaxDuration:           time.Hour,
-		}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
+		}, nil, newJobsPerQueryHistogram(), nil, log.NewNopLogger())
 		roundTrip := func(query string) {
 			req := httptest.NewRequest("GET", query, nil)
 			// Unblocks the sharder's sender goroutine, since the allowed search's response is never read.

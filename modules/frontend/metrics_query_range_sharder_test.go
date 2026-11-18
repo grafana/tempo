@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/modules/querier"
@@ -535,7 +536,7 @@ func TestQueryRangeSharderResolvesExtrapolate(t *testing.T) {
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				QueryBackendAfter:     time.Hour,
-			}, nil, false, nil, log.NewNopLogger())
+			}, nil, false, nil, nil, log.NewNopLogger())
 			testRT := sharder.Wrap(next)
 
 			req := &tempopb.QueryRangeRequest{
@@ -569,4 +570,75 @@ func TestQueryRangeSharderResolvesExtrapolate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestQueryRangeRequestsCost(t *testing.T) {
+	sharder := &queryRangeSharder{
+		logger:    log.NewNopLogger(),
+		cfg:       QueryRangeSharderConfig{StreamingShards: defaultMostRecentShards},
+		estimator: newTestEstimator(),
+	}
+
+	now := time.Now()
+	searchReq := tempopb.QueryRangeRequest{
+		Query: "{} | rate()",
+		Start: uint64(now.Add(-time.Hour).UnixNano()),
+		End:   uint64(now.UnixNano()),
+		Step:  uint64(time.Minute.Nanoseconds()),
+	}
+	parent := pipeline.NewHTTPRequest(httptest.NewRequest("GET", "/test", nil))
+
+	t.Run("backend", func(t *testing.T) {
+		tcs := []struct {
+			name                  string
+			targetBytesPerRequest int
+			metas                 []*backend.BlockMeta
+			expected              []jobcost.Cost
+		}{
+			{
+				name:                  "last job of a block covers less than the others",
+				targetBytesPerRequest: 400,
+				metas: []*backend.BlockMeta{
+					{BlockID: backend.MustParse(uuid.NewString()), Size_: 1000, TotalRecords: 100, StartTime: now.Add(-time.Hour), EndTime: now},
+				},
+				expected: []jobcost.Cost{
+					{Kind: jobcost.KindBlock, Base: 400, Estimate: 4},
+					{Kind: jobcost.KindBlock, Base: 400, Estimate: 4},
+					{Kind: jobcost.KindBlock, Base: 200, Estimate: 2},
+				},
+			},
+			{
+				name:                  "block without jobs is skipped",
+				targetBytesPerRequest: 1000,
+				metas: []*backend.BlockMeta{
+					{BlockID: backend.MustParse(uuid.NewString()), StartTime: now.Add(-time.Hour), EndTime: now},
+					{BlockID: backend.MustParse(uuid.NewString()), Size_: 1000, TotalRecords: 100, StartTime: now.Add(-time.Hour), EndTime: now},
+				},
+				expected: []jobcost.Cost{
+					{Kind: jobcost.KindBlock, Base: 1000, Estimate: 10},
+				},
+			},
+		}
+
+		for _, tc := range tcs {
+			t.Run(tc.name, func(t *testing.T) {
+				reqCh := make(chan pipeline.Request, 100)
+				blockIter := backendJobsFunc(tc.metas, tc.targetBytesPerRequest, defaultMostRecentShards, uint32(searchReq.End))
+
+				sharder.buildBackendRequests(t.Context(), "test", parent, searchReq, 0, blockIter, reqCh, func(*backend.BlockMeta) uint32 { return 0 })
+
+				var actual []jobcost.Cost
+				for r := range reqCh {
+					actual = append(actual, r.Cost())
+				}
+				require.Equal(t, tc.expected, actual)
+			})
+		}
+	})
+
+	t.Run("generator", func(t *testing.T) {
+		req, _ := sharder.generatorRequest("test", parent, searchReq, now.Add(-30*time.Minute))
+		require.NotNil(t, req)
+		require.Equal(t, jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 4000}, req.Cost())
+	})
 }

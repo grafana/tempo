@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/v3/modules/overrides"
@@ -42,6 +43,7 @@ type queryRangeSharder struct {
 	logger                 log.Logger
 	instantMode            bool
 	jobsPerQuery           *prometheus.HistogramVec
+	estimator              *jobcost.Estimator
 }
 
 type QueryRangeSharderConfig struct {
@@ -61,7 +63,7 @@ type QueryRangeSharderConfig struct {
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
-func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, skipASTTransformations []string, instantMode bool, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, skipASTTransformations []string, instantMode bool, jobsPerQuery *prometheus.HistogramVec, estimator *jobcost.Estimator, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return queryRangeSharder{
 			next:                   next,
@@ -72,6 +74,7 @@ func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg
 			skipASTTransformations: skipASTTransformations,
 			logger:                 logger,
 			jobsPerQuery:           jobsPerQuery,
+			estimator:              estimator,
 		}
 	})
 }
@@ -323,6 +326,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 
 		// Set which shard this request belongs to
 		pipelineR.SetResponseData(shard + firstShardIdx)
+		pipelineR.SetCost(blockJobCost(s.estimator, jobcost.OpMetrics, m, startPage, pages))
 
 		select {
 		case reqCh <- pipelineR:
@@ -360,6 +364,7 @@ func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Re
 	})
 
 	subR.SetResponseData(0) // generator requests are always shard 0
+	subR.SetCost(s.estimator.LiveStore(jobcost.OpMetrics))
 
 	return subR, jobMetadata
 }
