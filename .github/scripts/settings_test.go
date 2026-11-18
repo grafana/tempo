@@ -22,15 +22,7 @@ func unsetEnvironment(t *testing.T, name string) {
 	require.NoError(t, os.Unsetenv(name))
 }
 
-func TestConfigDefaultsAndWorkflowContract(t *testing.T) {
-	cfg := defaultConfig()
-	require.Equal(t, defaultRepo, cfg.repo)
-	require.Equal(t, defaultAssigneePool, cfg.assigneePool)
-	require.Equal(t, defaultMaxAssignments, cfg.maxAssignments)
-	require.Equal(t, defaultOpenLoadMaxAgeDays, cfg.openLoadMaxAgeDays)
-	require.Equal(t, defaultMarkerLabel, cfg.markerLabel)
-	require.Equal(t, defaultBotActor, cfg.botActor)
-
+func TestSettingsAndWorkflowContract(t *testing.T) {
 	data, err := os.ReadFile("../workflows/assign-codeowner.yml")
 	require.NoError(t, err)
 	workflow := string(data)

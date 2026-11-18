@@ -12,9 +12,6 @@ import (
 // zero it; production always uses one second.
 var retryWaitDelay = time.Second
 
-// maxRequestAttempts bounds retryableCall.
-const maxRequestAttempts = 3
-
 // retryableCall runs fn up to maxRequestAttempts times with a retryWaitDelay
 // pause between attempts, for transient 5xx responses and transport failures.
 // Callers use it only around idempotent operations (GET, PATCH, DELETE);

@@ -5,16 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/google/go-github/v93/github"
-)
-
-const (
-	apiPageSize                    = 100
-	apiRequestTimeout              = 30 * time.Second
-	maxSecondaryRateLimitRetryTime = 5 * time.Minute
-	maxSearchResults               = 1000
 )
 
 // newGitHubClient builds the go-github REST client used by the sweep. The

@@ -123,7 +123,8 @@ func candidateEligible(pr pullRequest, owners map[string]struct{}) bool {
 	if pr.User.Type == "Bot" {
 		return false
 	}
-	return !hasLogin(owners, strings.ToLower(pr.User.Login))
+	_, isOwner := owners[strings.ToLower(pr.User.Login)]
+	return !isOwner
 }
 
 func findCandidates(pulls []pullRequest, eligible []string, markerLabel string) []candidate {
@@ -204,8 +205,8 @@ func chooseAssignee(load map[string]ownerLoad, choose func([]string) string) (st
 	return choose(choices), true
 }
 
-func ensureMarkerLabel(ctx context.Context, client *github.Client, cfg config) error {
-	owner, name, err := splitRepo(cfg.repo)
+func ensureMarkerLabel(ctx context.Context, client *github.Client) error {
+	owner, name, err := splitRepo(defaultRepo)
 	if err != nil {
 		return err
 	}
@@ -213,7 +214,7 @@ func ensureMarkerLabel(ctx context.Context, client *github.Client, cfg config) e
 	description := "Assigned by the daily code owner sweep"
 	err = retryableCall(ctx, func() error {
 		var callErr error
-		_, _, callErr = client.Issues.UpdateLabel(ctx, owner, name, cfg.markerLabel, github.UpdateIssueLabelRequest{Color: &color, Description: &description})
+		_, _, callErr = client.Issues.UpdateLabel(ctx, owner, name, defaultMarkerLabel, github.UpdateIssueLabelRequest{Color: &color, Description: &description})
 		return callErr
 	})
 	if err == nil {
@@ -223,7 +224,7 @@ func ensureMarkerLabel(ctx context.Context, client *github.Client, cfg config) e
 	if !errors.As(err, &statusError) || statusError.Response.StatusCode != http.StatusNotFound {
 		return fmt.Errorf("update marker label: %w", err)
 	}
-	if _, _, err := client.Issues.CreateLabel(ctx, owner, name, github.CreateIssueLabelRequest{Name: cfg.markerLabel, Color: &color, Description: &description}); err != nil {
+	if _, _, err := client.Issues.CreateLabel(ctx, owner, name, github.CreateIssueLabelRequest{Name: defaultMarkerLabel, Color: &color, Description: &description}); err != nil {
 		return fmt.Errorf("create marker label: %w", err)
 	}
 	return nil
@@ -270,8 +271,8 @@ const (
 // applyAssignment performs one decided assignment: it re-reads the PR to catch
 // mid-sweep changes, adds the chosen owner, and applies the marker label,
 // rolling back and aborting the batch when the marker cannot be applied.
-func applyAssignment(ctx context.Context, client *github.Client, cfg config, number int, owner string) (applyOutcome, error) {
-	repoOwner, repoName, err := splitRepo(cfg.repo)
+func applyAssignment(ctx context.Context, client *github.Client, number int, owner string) (applyOutcome, error) {
+	repoOwner, repoName, err := splitRepo(defaultRepo)
 	if err != nil {
 		return applyFailed, err
 	}
@@ -292,7 +293,7 @@ func applyAssignment(ctx context.Context, client *github.Client, cfg config, num
 		fmt.Printf("PR #%d was closed or converted to draft while the sweep ran; leaving it alone.\n", number)
 		return applySkipped, nil
 	}
-	alreadyAssigned, err := assignAndMark(ctx, client, cfg, number, owner)
+	alreadyAssigned, err := assignAndMark(ctx, client, number, owner)
 	if err != nil {
 		if errors.Is(err, errApplyMarker) {
 			return applyAbort, err
@@ -314,8 +315,8 @@ var errApplyMarker = errors.New("apply marker label")
 
 // assignAndMark rolls back only this sweep's assignee when another owner races
 // the write or the marker cannot be applied, avoiding silent partial assignments.
-func assignAndMark(ctx context.Context, client *github.Client, cfg config, number int, assignee string) (bool, error) {
-	owner, name, err := splitRepo(cfg.repo)
+func assignAndMark(ctx context.Context, client *github.Client, number int, assignee string) (bool, error) {
+	owner, name, err := splitRepo(defaultRepo)
 	if err != nil {
 		return false, err
 	}
@@ -324,7 +325,7 @@ func assignAndMark(ctx context.Context, client *github.Client, cfg config, numbe
 		return false, fmt.Errorf("add assignee: %w", err)
 	}
 	if len(issue.Assignees) > 1 {
-		if err := removeAssignee(ctx, client, cfg, number, assignee); err != nil {
+		if err := removeAssignee(ctx, client, number, assignee); err != nil {
 			return false, fmt.Errorf("concurrent assignment detected; rollback failed: %w", err)
 		}
 		return true, nil
@@ -336,9 +337,9 @@ func assignAndMark(ctx context.Context, client *github.Client, cfg config, numbe
 		// nothing of ours to remove.
 		return false, errors.New("assignment response did not reflect the selected owner")
 	}
-	if _, _, err := client.Issues.AddLabelsToIssue(ctx, owner, name, number, []string{cfg.markerLabel}); err != nil {
+	if _, _, err := client.Issues.AddLabelsToIssue(ctx, owner, name, number, []string{defaultMarkerLabel}); err != nil {
 		markerErr := fmt.Errorf("%w: %v", errApplyMarker, err)
-		if rollbackErr := removeAssignee(ctx, client, cfg, number, assignee); rollbackErr != nil {
+		if rollbackErr := removeAssignee(ctx, client, number, assignee); rollbackErr != nil {
 			return false, errors.Join(markerErr, fmt.Errorf("rollback assignee: %w", rollbackErr))
 		}
 		return false, markerErr
@@ -346,8 +347,8 @@ func assignAndMark(ctx context.Context, client *github.Client, cfg config, numbe
 	return false, nil
 }
 
-func removeAssignee(ctx context.Context, client *github.Client, cfg config, number int, assignee string) error {
-	owner, name, err := splitRepo(cfg.repo)
+func removeAssignee(ctx context.Context, client *github.Client, number int, assignee string) error {
+	owner, name, err := splitRepo(defaultRepo)
 	if err != nil {
 		return err
 	}
@@ -363,8 +364,8 @@ func removeAssignee(ctx context.Context, client *github.Client, cfg config, numb
 
 // sweep supplies concrete production dependencies; runSweep receives explicit
 // test values without time-zero or nil-function sentinel conventions.
-func sweep(ctx context.Context, client *github.Client, cfg config) error {
-	return runSweep(ctx, client, cfg, time.Now().UTC(), func(choices []string) string {
+func sweep(ctx context.Context, client *github.Client) error {
+	return runSweep(ctx, client, time.Now().UTC(), func(choices []string) string {
 		return choices[rand.IntN(len(choices))]
 	})
 }
@@ -437,12 +438,12 @@ func convertTimeline(events []*github.Timeline) []timelineEvent {
 	return result
 }
 
-func runSweep(ctx context.Context, client *github.Client, cfg config, now time.Time, choose func([]string) string) error {
-	repoOwner, repoName, err := splitRepo(cfg.repo)
+func runSweep(ctx context.Context, client *github.Client, now time.Time, choose func([]string) string) error {
+	repoOwner, repoName, err := splitRepo(defaultRepo)
 	if err != nil {
 		return err
 	}
-	eligible, err := resolvePool(ctx, client, cfg)
+	eligible, err := resolvePool(ctx, client)
 	if err != nil {
 		return err
 	}
@@ -455,12 +456,12 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 	// Open PRs once for load, then again for candidates: assignment can change
 	// the pool state between the two passes, and the second fetch keeps the
 	// per-PR decisions close to the assignments they make.
-	openPRs, err := listOpenPRs(ctx, client, cfg.repo)
+	openPRs, err := listOpenPRs(ctx, client, defaultRepo)
 	if err != nil {
 		return fmt.Errorf("list open pull requests for load: %w", err)
 	}
 	since := now.Add(-closedLoadWindow).UTC().Format("2006-01-02T15:04:05Z")
-	closedQuery := fmt.Sprintf("repo:%s is:pr is:closed closed:>=%s", cfg.repo, since)
+	closedQuery := fmt.Sprintf("repo:%s is:pr is:closed closed:>=%s", defaultRepo, since)
 	var totalClosed int
 	var countResult *github.IssuesSearchResult
 	if err := retryableCall(ctx, func() error {
@@ -488,16 +489,16 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 	for _, issue := range closedIssues {
 		closedPRs = append(closedPRs, convertIssue(issue))
 	}
-	load, staleOwners := calculateLoad(openPRs, closedPRs, eligible, now, cfg.openLoadMaxAgeDays)
+	load, staleOwners := calculateLoad(openPRs, closedPRs, eligible, now, defaultOpenLoadMaxAgeDays)
 	for _, owner := range slices.Sorted(maps.Keys(staleOwners)) {
-		fmt.Printf("Open PRs assigned to %s older than %d days no longer count as load.\n", owner, cfg.openLoadMaxAgeDays)
+		fmt.Printf("Open PRs assigned to %s older than %d days no longer count as load.\n", owner, defaultOpenLoadMaxAgeDays)
 	}
 
-	currentPRs, err := listOpenPRs(ctx, client, cfg.repo)
+	currentPRs, err := listOpenPRs(ctx, client, defaultRepo)
 	if err != nil {
 		return fmt.Errorf("refresh pull request candidates: %w", err)
 	}
-	candidates := findCandidates(currentPRs, eligible, cfg.markerLabel)
+	candidates := findCandidates(currentPRs, eligible, defaultMarkerLabel)
 	fmt.Printf("Found %d unassigned PR(s).\n", len(candidates))
 	if len(candidates) == 0 {
 		return nil
@@ -519,7 +520,7 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 			failed++
 			continue
 		}
-		if deliberatelyUnassigned(convertTimeline(events), cfg.botActor) {
+		if deliberatelyUnassigned(convertTimeline(events), defaultBotActor) {
 			fmt.Printf("PR #%d was auto-assigned before and unassigned by a person; skipping.\n", candidate.number)
 			deliberatelySkipped++
 			continue
@@ -529,14 +530,14 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 	// The marker label is load-bearing: without it, later runs cannot tell a
 	// deliberate human unassignment from a PR that was never assigned. Fail
 	// the run rather than assigning unmarked PRs.
-	if err := ensureMarkerLabel(ctx, client, cfg); err != nil {
+	if err := ensureMarkerLabel(ctx, client); err != nil {
 		return fmt.Errorf("ensure marker label: %w", err)
 	}
 
-	assignments := decideAssignments(load, active, cfg.maxAssignments, choose)
+	assignments := decideAssignments(load, active, defaultMaxAssignments, choose)
 	assigned, alreadyAssigned := 0, 0
 	for _, a := range assignments {
-		outcome, err := applyAssignment(ctx, client, cfg, a.number, a.owner)
+		outcome, err := applyAssignment(ctx, client, a.number, a.owner)
 		if err != nil && outcome != applyAbort {
 			fmt.Printf("::warning::Could not complete assignment of PR #%d to @%s: %v.\n", a.number, a.owner, err)
 		}
@@ -549,7 +550,7 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 			failed++
 		case applyAbort:
 			failed++
-			return fmt.Errorf("PR #%d was rolled back because the %q marker label could not be applied; remaining PRs wait for the next run", a.number, cfg.markerLabel)
+			return fmt.Errorf("PR #%d was rolled back because the %q marker label could not be applied; remaining PRs wait for the next run", a.number, defaultMarkerLabel)
 		default:
 			// applyOutcome has exactly these four values; a new outcome must
 			// be handled here and reflected in the summary below.

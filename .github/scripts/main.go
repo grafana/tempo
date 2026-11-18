@@ -11,6 +11,14 @@ import (
 	"syscall"
 )
 
+func requiredEnv(name string) (string, error) {
+	value, ok := os.LookupEnv(name)
+	if !ok {
+		return "", fmt.Errorf("missing required environment variable: %s", name)
+	}
+	return value, nil
+}
+
 func run(ctx context.Context, command string) error {
 	if command != "sweep" && command != "report-failure" {
 		return fmt.Errorf("unknown command %q; expected sweep or report-failure", command)
@@ -30,7 +38,7 @@ func run(ctx context.Context, command string) error {
 		}
 		return reportFailure(ctx, client, defaultRepo, runURL)
 	}
-	return sweep(ctx, client, defaultConfig())
+	return sweep(ctx, client)
 }
 
 func workflowError(err error) {

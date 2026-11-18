@@ -18,7 +18,6 @@ import (
 var defaultAssigneePool = []string{
 	"mdisibio",
 	"mapno",
-	"yvrhdn",
 	"zalegrala",
 	"electron0zero",
 	"ie-pham",
@@ -43,16 +42,11 @@ func loginSet(logins []string) map[string]struct{} {
 	return result
 }
 
-func hasLogin(set map[string]struct{}, login string) bool {
-	_, ok := set[login]
-	return ok
-}
-
-// resolvePool derives the eligible assignees: the configured pool minus the
-// excluded set, intersected with the repository's assignable users so a stale
-// pool entry cannot trigger a 422 assignment storm.
-func resolvePool(ctx context.Context, client *github.Client, cfg config) ([]string, error) {
-	owner, name, err := splitRepo(cfg.repo)
+// resolvePool derives the eligible assignees: the hardcoded pool intersected
+// with the repository's assignable users, so a stale pool entry cannot trigger
+// a 422 assignment storm. The pool is explicit, so nothing needs excluding.
+func resolvePool(ctx context.Context, client *github.Client) ([]string, error) {
+	owner, name, err := splitRepo(defaultRepo)
 	if err != nil {
 		return nil, err
 	}
@@ -67,11 +61,10 @@ func resolvePool(ctx context.Context, client *github.Client, cfg config) ([]stri
 		assignable[strings.ToLower(assignee.GetLogin())] = struct{}{}
 	}
 
-	pool := loginSet(cfg.assigneePool)
-	excluded := loginSet(cfg.excludedOwners)
+	pool := loginSet(defaultAssigneePool)
 	eligible := make(map[string]struct{}, len(pool))
 	for login := range pool {
-		if !hasLogin(excluded, login) && hasLogin(assignable, login) {
+		if _, ok := assignable[login]; ok {
 			eligible[login] = struct{}{}
 		}
 	}

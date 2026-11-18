@@ -8,11 +8,6 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
-// failureIssueTitle identifies failure issues in both the dedupe search and
-// the created issue; the two must stay in lockstep.
-const failureIssueTitle = "assign-codeowner sweep failed"
-
-// reportFailure records a failed sweep run where maintainers will see it. The
 // search query is a substring match on the title; search indexing lag can
 // briefly produce two issues for consecutive failures, and nothing closes
 // stale ones. Results are sorted oldest-first so the recipient issue is stable.
