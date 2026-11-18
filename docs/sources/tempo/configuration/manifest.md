@@ -232,6 +232,7 @@ distributor:
         client_rack: ""
         dial_timeout: 0s
         write_timeout: 0s
+        api_versions_max_version: 0
         sasl_mechanism: ""
         sasl_username: ""
         sasl_password: ""
@@ -545,6 +546,7 @@ ingest:
         client_rack: ""
         dial_timeout: 2s
         write_timeout: 10s
+        api_versions_max_version: 4
         sasl_mechanism: PLAIN
         sasl_username: ""
         sasl_password: ""
