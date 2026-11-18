@@ -1,0 +1,20 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: enhancement
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: operations
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Add compactor health tables to the Compactions row of the `Tempo - Backend Work` dashboard. They show how long it has been since compaction and retention last succeeded, as Ok, Delayed, Late, or Very late.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  One table shows each backend-scheduler job type and the other shows each backend-worker. Compaction shows "Idle" instead of Late or Very late when there are no outstanding blocks. Requires the `last_successful_job_timestamp_seconds` gauges added in the same release.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: ankit--sethi
