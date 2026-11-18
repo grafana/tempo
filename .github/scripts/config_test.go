@@ -54,15 +54,22 @@ func TestConfigDefaultsAndWorkflowContract(t *testing.T) {
 	}
 }
 
-func TestRunRequiresTokenAndReportFailureRequiresRunURL(t *testing.T) {
-	unsetEnvironment(t, "GH_TOKEN")
-	err := run(context.Background(), "sweep")
-	require.ErrorContains(t, err, "missing required environment variable: GH_TOKEN")
-
-	t.Setenv("GH_TOKEN", "token")
-	unsetEnvironment(t, "RUN_URL")
-	err = run(context.Background(), "report-failure")
-	require.ErrorContains(t, err, "missing required environment variable: RUN_URL")
+func TestRunEntryPointErrors(t *testing.T) {
+	t.Run("unknown command", func(t *testing.T) {
+		err := run(context.Background(), "bogus")
+		require.ErrorContains(t, err, "unknown command")
+	})
+	t.Run("missing token", func(t *testing.T) {
+		unsetEnvironment(t, "GH_TOKEN")
+		err := run(context.Background(), "sweep")
+		require.ErrorContains(t, err, "missing required environment variable: GH_TOKEN")
+	})
+	t.Run("missing run url", func(t *testing.T) {
+		t.Setenv("GH_TOKEN", "token")
+		unsetEnvironment(t, "RUN_URL")
+		err := run(context.Background(), "report-failure")
+		require.ErrorContains(t, err, "missing required environment variable: RUN_URL")
+	})
 }
 
 func TestResolvePoolFiltersPoolToAssignableAndExcluded(t *testing.T) {
@@ -124,11 +131,4 @@ func TestEnsureMarkerLabelCreatesMissingLabel(t *testing.T) {
 	client := testGitHubClient(t, server.URL)
 	require.NoError(t, ensureMarkerLabel(context.Background(), client, testConfig()))
 	require.Equal(t, []string{http.MethodPatch, http.MethodPost}, methods)
-}
-
-func TestQueryWithPanicsOnOddArguments(t *testing.T) {
-	require.Panics(t, func() { queryWith("only-key") })
-	values := queryWith("q", "value", "per_page", "1")
-	require.Equal(t, "value", values.Get("q"))
-	require.Equal(t, "1", values.Get("per_page"))
 }

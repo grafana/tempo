@@ -8,19 +8,6 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
-// queryWith builds a url.Values from key/value pairs. It panics on an odd
-// argument count; callers must pass complete key/value pairs.
-func queryWith(keyValues ...string) url.Values {
-	if len(keyValues)%2 != 0 {
-		panic("queryWith requires key/value pairs")
-	}
-	values := make(url.Values, len(keyValues)/2)
-	for index := 0; index < len(keyValues); index += 2 {
-		values.Set(keyValues[index], keyValues[index+1])
-	}
-	return values
-}
-
 // failureIssueTitle identifies failure issues in both the dedupe search and
 // the created issue; the two must stay in lockstep.
 const failureIssueTitle = "assign-codeowner sweep failed"
@@ -35,8 +22,16 @@ func reportFailure(ctx context.Context, client *github.Client, repo, runURL stri
 		return err
 	}
 	title := failureIssueTitle
-	body := fmt.Sprintf("The daily code owner sweep failed.\n\nRun: %s\n\nThis is expected when the code owner pool resolves to nobody: CODEOWNERS may name teams only, and a team cannot be assigned to a pull request. Set the ASSIGNEE_POOL repository variable, or name individuals in CODEOWNERS.\n", runURL)
-	query := queryWith("q", fmt.Sprintf(`repo:%s is:issue is:open in:title "%s"`, repo, title))
+	body := fmt.Sprintf(`The daily code owner sweep failed.
+
+Run: %s
+
+The most common cause is the code owner pool resolving to nobody: the pool
+and exclusions are hardcoded in .github/scripts (config.go and pool.go), and
+every pool member must be assignable in the repository. Inspect the run log
+for the exact failure.
+`, runURL)
+	query := url.Values{"q": {fmt.Sprintf(`repo:%s is:issue is:open in:title "%s"`, repo, title)}}
 	result, _, err := client.Search.Issues(ctx, query.Get("q"), &github.SearchOptions{Sort: "created", Order: "asc"})
 	if err != nil {
 		return fmt.Errorf("find existing sweep failure issue: %w", err)

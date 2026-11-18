@@ -48,9 +48,9 @@ func hasLogin(set map[string]struct{}, login string) bool {
 	return ok
 }
 
-// resolvePool derives the eligible assignees: the configured pool minus
-// EXCLUDED_OWNERS, intersected with the repository's assignable users so a
-// stale pool entry cannot trigger a 422 assignment storm.
+// resolvePool derives the eligible assignees: the configured pool minus the
+// excluded set, intersected with the repository's assignable users so a stale
+// pool entry cannot trigger a 422 assignment storm.
 func resolvePool(ctx context.Context, client *github.Client, cfg config) ([]string, error) {
 	owner, name, err := splitRepo(cfg.repo)
 	if err != nil {

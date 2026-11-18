@@ -175,6 +175,20 @@ func TestSweepSkipsMarkedCandidateUnassignedByAHuman(t *testing.T) {
 	require.Equal(t, []label{{Name: defaultMarkerLabel}}, skipped.Labels)
 }
 
+func TestSweepLeavesClosedCandidateAlone(t *testing.T) {
+	simulation, client := newSimulationClient(t)
+	closed := testPull(30)
+	closed.State = "closed"
+	simulation.pulls[30] = &closed
+	cfg := testConfig()
+	cfg.maxAssignments = 3
+	require.NoError(t, runTestSweep(client, cfg))
+	// The candidate snapshot listed PR #30 as open; by the time it was
+	// re-read before assignment it was closed, so it must not be assigned.
+	require.Empty(t, simulation.pullSnapshot(30).Assignees)
+	require.Equal(t, []user{{Login: "Alice"}}, simulation.pullSnapshot(10).Assignees)
+}
+
 func TestSweepFailsFastWhenMarkerLabelCannotBeEnsured(t *testing.T) {
 	simulation, client := newSimulationClient(t)
 	simulation.setFlag(&simulation.failEnsureLabel)
@@ -244,14 +258,6 @@ func TestFailureReportCreateFailureSurfaces(t *testing.T) {
 	err := reportFailure(context.Background(), client, simulation.repo, "https://example.invalid/run")
 	require.ErrorContains(t, err, "create sweep failure issue")
 	require.Empty(t, simulation.issueSnapshot())
-}
-
-func TestRunRejectsUnknownCommandAndMissingToken(t *testing.T) {
-	err := run(context.Background(), "bogus")
-	require.ErrorContains(t, err, "unknown command")
-	unsetEnvironment(t, "GH_TOKEN")
-	err = run(context.Background(), "sweep")
-	require.ErrorContains(t, err, "missing required environment variable: GH_TOKEN")
 }
 
 func TestSimulationRejectsUnknownPRAndInvalidJSON(t *testing.T) {

@@ -432,7 +432,7 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 		return err
 	}
 	if len(eligible) == 0 {
-		fmt.Println("::notice::Set ASSIGNEE_POOL or the CODEOWNER_ASSIGNEES repository variable to name assignable code owners.")
+		fmt.Println("::notice::The code owner pool resolved to nobody; check .github/scripts/pool.go and that pool members are assignable in the repository.")
 		return fmt.Errorf("no assignable code owner was found")
 	}
 	fmt.Printf("Eligible owners: %d.\n", len(eligible))
