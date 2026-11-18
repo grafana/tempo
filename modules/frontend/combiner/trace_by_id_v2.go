@@ -22,6 +22,7 @@ type TraceFilter interface {
 
 // TraceByIDV2Options holds optional post-processing configuration for the v2 trace combiner.
 type TraceByIDV2Options struct {
+	ServiceGraphPresentation *tempopb.ServiceGraphPresentation
 	// SpanPruningConfig holds processor configuration when span pruning is active. nil = off.
 	SpanPruningConfig *spanpruningprocessor.Config
 	// Logger is used to log non-fatal pruning errors.
@@ -115,6 +116,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat api.MarshallingFormat, traceR
 				messages = append(messages, "Trace filtered, only a subset of spans matching the filter is returned")
 			}
 			trace.ReconcileServiceGraphEdges(traceResult)
+			traceResult.ServiceGraphPresentation = opts.ServiceGraphPresentation
 
 			resp.PruneStatus = toPruneStatus(pruneStatus)
 			// Even if span pruning is disabled, check whether trace was already pruned on write

@@ -175,6 +175,59 @@ frontend.
 By default, this endpoint returns a mostly compatible [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON,
 but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is passed.
 
+### Service graph presentation rules
+
+Both query-frontend trace endpoints,
+`GET /api/traces/<traceid>` and `GET /api/v2/traces/<traceid>`,
+accept optional service graph presentation parameters.
+Without these parameters, the response shape is unchanged.
+
+| Parameter | Behavior |
+|-----------|----------|
+| `include_service_graph_presentation=true` | Include the tenant's `bypass_services` and `bypass_service_regex` presentation defaults. |
+| `bypass_service=<name>` | Repeat to replace the exact service-name list for this response. A single empty value clears this list. |
+| `bypass_service_regex=<pattern>` | Repeat to replace the Go regular expression list for this response. A single empty value clears this list. |
+
+Supplying either bypass parameter implicitly enables presentation metadata.
+An omitted list inherits its tenant default.
+Explicitly setting `include_service_graph_presentation=false` together with a bypass parameter returns HTTP `400`.
+Invalid regexes, mixed empty and nonempty list values,
+and rules exceeding 128 total entries or 65,536 total UTF-8 bytes also return HTTP `400`.
+
+For example, request the tenant defaults:
+
+```bash
+curl -H 'X-Scope-OrgID: example' \
+  'http://localhost:3200/api/v2/traces/<traceid>?include_service_graph_presentation=true'
+```
+
+Override the exact-name list and clear the regex list for one request:
+
+```bash
+curl -G -H 'X-Scope-OrgID: example' \
+  --data-urlencode 'bypass_service=gateway' \
+  --data-urlencode 'bypass_service=sidecar' \
+  --data-urlencode 'bypass_service_regex=' \
+  'http://localhost:3200/api/v2/traces/<traceid>'
+```
+
+The response includes `serviceGraphPresentation` inside the trace object:
+at the root for v1, or under `trace` for v2.
+The field is available in JSON and protobuf responses.
+Empty lists can be omitted from the encoded metadata object and mean no rules for that list.
+
+```json
+{
+  "bypassServices": ["gateway", "sidecar"]
+}
+```
+
+These parameters supply hints for a visualization client to apply.
+Tempo returns the original spans and service graph edges;
+it does not collapse `A → gateway → B` into a persisted `A → B` edge.
+Request overrides are not saved and do not change the tenant configuration.
+They do not require the optional API-write flag `enable_service_graph_bypass`.
+
 ### Query V2
 
 The following request is used to retrieve a trace from the query frontend service in

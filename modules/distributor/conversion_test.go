@@ -25,7 +25,7 @@ func TestDirectTracesSchemaFields(t *testing.T) {
 		message any
 		fields  string
 	}{
-		{&tempopb.Trace{}, "1:resourceSpans"},
+		{&tempopb.Trace{}, "1:resourceSpans 2:service_graph_edges 3:service_graph_presentation"},
 		{&trace.ResourceSpans{}, "1:resource 2:scope_spans 3:schema_url"},
 		{&resource.Resource{}, "1:attributes 2:dropped_attributes_count 3:entity_refs"},
 		{&trace.ScopeSpans{}, "1:scope 2:spans 3:schema_url"},

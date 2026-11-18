@@ -564,3 +564,16 @@ func TestServiceGraphEdgesJSONMatchesJsonpb(t *testing.T) {
 		})
 	}
 }
+
+// TestTraceJSONServiceGraphPresentation compares the typed JSON encoder with
+// jsonpb for absent, empty, and populated hints, including escaped service names.
+// Both API formats must encode consistently without mutating the input trace.
+func TestTraceJSONServiceGraphPresentation(t *testing.T) {
+	for _, hints := range []*ServiceGraphPresentation{
+		nil,
+		{},
+		{BypassServices: []string{"gateway", "quoted\"service"}, BypassServiceRegex: []string{`^proxy-.*$`}},
+	} {
+		requireMatchesJsonpb(t, func() *Trace { return &Trace{ServiceGraphPresentation: hints} })
+	}
+}

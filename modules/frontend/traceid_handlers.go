@@ -37,6 +37,14 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			return httpInvalidRequest(reqErr), nil
 		}
 
+		presentation, presentationErr := api.ParseServiceGraphPresentationRequest(req,
+			o.MetricsGeneratorProcessorServiceGraphsBypassServices(tenant),
+			o.MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(tenant))
+		if presentationErr != nil {
+			return httpInvalidRequest(presentationErr), nil
+		}
+		req = api.WithoutServiceGraphPresentationParams(req)
+
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
@@ -61,6 +69,7 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 		}
 
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, logger, inspectedBytesReporter(traceByIDInspectedBytes, traceByIDJobInspectedBytes, tenant))
+		comb.SetServiceGraphPresentation(presentation)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		start := time.Now()
@@ -155,6 +164,14 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		}
 		// filter runs in finalize(), after combine and redaction.
 
+		presentation, presentationErr := api.ParseServiceGraphPresentationRequest(req,
+			o.MetricsGeneratorProcessorServiceGraphsBypassServices(tenant),
+			o.MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(tenant))
+		if presentationErr != nil {
+			return httpInvalidRequest(presentationErr), nil
+		}
+		req = api.WithoutServiceGraphPresentationParams(req)
+
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
@@ -189,6 +206,7 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			opts.Logger = logger
 		}
 		opts.TraceFilter = traceFilter
+		opts.ServiceGraphPresentation = presentation
 
 		comb := combinerFn(o.MaxBytesPerTrace(tenant), marshallingFormat, traceRedactor, opts, inspectedBytesReporter(traceByIDInspectedBytes, traceByIDJobInspectedBytes, tenant))
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)

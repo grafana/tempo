@@ -201,6 +201,13 @@ func (e *traceJSONEncoder) trace(v *Trace, rootField string) {
 	e.buf = append(e.buf, '{')
 	appendJSONArray(e, rootField, v.ResourceSpans, (*traceJSONEncoder).resourceSpans)
 	appendJSONArray(e, "serviceGraphEdges", v.ServiceGraphEdges, (*traceJSONEncoder).serviceGraphEdge)
+	if v.ServiceGraphPresentation != nil {
+		e.field("serviceGraphPresentation")
+		e.buf = append(e.buf, '{')
+		e.stringsField("bypassServices", v.ServiceGraphPresentation.BypassServices)
+		e.stringsField("bypassServiceRegex", v.ServiceGraphPresentation.BypassServiceRegex)
+		e.buf = append(e.buf, '}')
+	}
 	e.buf = append(e.buf, '}')
 }
 

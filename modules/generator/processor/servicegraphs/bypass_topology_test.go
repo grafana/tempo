@@ -21,7 +21,7 @@ import (
 	tracev1 "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
 )
 
-// TestRelaxedServiceGraphsBypassTopology exercises this tree through the public
+// TestServiceGraphStoragePreservesTopology exercises this tree through the public
 // processor API. Numbers are span IDs; each span lasts its ID in seconds.
 //
 // A(1) -> gateway(2) -> proxy(3) -> B(4) -> sidecar(6) -> D(7)

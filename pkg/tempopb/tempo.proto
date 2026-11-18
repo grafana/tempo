@@ -342,9 +342,16 @@ message ServiceGraphEdge {
   bool parent_missing = 7;
 }
 
+// Query-response presentation hints; never persisted with trace data.
+message ServiceGraphPresentation {
+  repeated string bypass_services = 1;
+  repeated string bypass_service_regex = 2;
+}
+
 message Trace {
   repeated tempopb.trace.v1.ResourceSpans resourceSpans = 1;
   repeated ServiceGraphEdge service_graph_edges = 2;
+  ServiceGraphPresentation service_graph_presentation = 3;
 }
 
 // Write

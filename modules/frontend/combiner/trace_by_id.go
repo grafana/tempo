@@ -26,7 +26,8 @@ const (
 )
 
 type TraceByIDCombiner struct {
-	mu sync.Mutex
+	mu                       sync.Mutex
+	serviceGraphPresentation *tempopb.ServiceGraphPresentation
 
 	c           *trace.Combiner
 	contentType api.MarshallingFormat
@@ -38,6 +39,13 @@ type TraceByIDCombiner struct {
 
 	traceRedactor TraceRedactor
 	logger        log.Logger
+}
+
+// SetServiceGraphPresentation sets response-only hints before collecting backend responses.
+func (c *TraceByIDCombiner) SetServiceGraphPresentation(p *tempopb.ServiceGraphPresentation) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.serviceGraphPresentation = p
 }
 
 // NewTraceByID returns a trace id combiner. The trace by id combiner has a few different behaviors then the others
@@ -181,6 +189,7 @@ func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (resp *http.Response,
 	}
 
 	trace.ReconcileServiceGraphEdges(traceResult)
+	traceResult.ServiceGraphPresentation = c.serviceGraphPresentation
 
 	// marshal in the requested format
 	encoding := "json"
