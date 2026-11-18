@@ -23,7 +23,6 @@ const (
 // that is meant to represent bytes.
 type calibrator struct {
 	enabled              bool
-	initial              float64
 	factorMin, factorMax float64
 
 	factor atomic.Uint64 // float64 bits, the factor in use
@@ -37,7 +36,6 @@ type calibrator struct {
 func newCalibrator(initial float64, enabled bool) *calibrator {
 	c := &calibrator{
 		enabled:   enabled,
-		initial:   initial,
 		factorMin: initial / maxDeviation,
 		factorMax: initial * maxDeviation,
 	}
