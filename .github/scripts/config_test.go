@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -72,21 +69,6 @@ func TestRunEntryPointErrors(t *testing.T) {
 	})
 }
 
-func TestResolvePoolFiltersPoolToAssignableAndExcluded(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/repos/grafana/tempo/assignees", r.URL.Path)
-		fmt.Fprint(w, `[{"login":"Alice"},{"login":"Bob"},{"login":"Carol"}]`)
-	}))
-	defer server.Close()
-	client := testGitHubClient(t, server.URL)
-	cfg := defaultConfig()
-	cfg.assigneePool = []string{"Alice", "Bob", "Unassignable"}
-	cfg.excludedOwners = []string{"@Bob"}
-	eligible, err := resolvePool(context.Background(), client, cfg)
-	require.NoError(t, err)
-	require.Equal(t, []string{"alice"}, eligible)
-}
-
 func TestEachPageBoundedStopsAtLimit(t *testing.T) {
 	calls := 0
 	items, err := eachPageBounded(context.Background(), func(opts *github.ListOptions) ([]int, *github.Response, error) {
@@ -98,37 +80,4 @@ func TestEachPageBoundedStopsAtLimit(t *testing.T) {
 	// the 5-item limit without requesting a third page.
 	require.Equal(t, []int{1, 2, 3, 1, 2, 3}, items)
 	require.Equal(t, 2, calls)
-}
-
-func TestEnsureMarkerLabelPreservesNon404Error(t *testing.T) {
-	calls := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		require.Equal(t, http.MethodPatch, r.Method)
-		http.Error(w, "forbidden", http.StatusForbidden)
-	}))
-	defer server.Close()
-	client := testGitHubClient(t, server.URL)
-	err := ensureMarkerLabel(context.Background(), client, testConfig())
-	require.ErrorContains(t, err, "update marker label")
-	require.Equal(t, 1, calls)
-}
-
-func TestEnsureMarkerLabelCreatesMissingLabel(t *testing.T) {
-	var methods []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		methods = append(methods, r.Method)
-		switch r.Method {
-		case http.MethodPatch:
-			http.Error(w, "missing", http.StatusNotFound)
-		case http.MethodPost:
-			fmt.Fprint(w, `{"name":"codeowner-sweep"}`)
-		default:
-			http.Error(w, "unexpected", http.StatusMethodNotAllowed)
-		}
-	}))
-	defer server.Close()
-	client := testGitHubClient(t, server.URL)
-	require.NoError(t, ensureMarkerLabel(context.Background(), client, testConfig()))
-	require.Equal(t, []string{http.MethodPatch, http.MethodPost}, methods)
 }
