@@ -45,7 +45,12 @@ func TestAPIVersionsMaxVersionOpts(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, apiVersionsMax(t, apiVersionsMaxVersionOpts(tc.maxVersion)))
+			opts := apiVersionsMaxVersionOpts(tc.maxVersion)
+			// franz-go's default may equal the cap, so check that no cap is set.
+			if tc.maxVersion <= 0 {
+				require.Empty(t, opts)
+			}
+			require.Equal(t, tc.want, apiVersionsMax(t, opts))
 		})
 	}
 }
