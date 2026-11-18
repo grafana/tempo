@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"maps"
-	"slices"
 	"strings"
 
 	"github.com/google/go-github/v93/github"
@@ -14,6 +12,8 @@ import (
 // sweep. Tempo's CODEOWNERS names only the @grafana/tempo team, and team
 // expansion needs an org-scoped token this workflow does not have, so the pool
 // is the global "*" owners from before #8133 switched CODEOWNERS to the team.
+// Entries must be lowercase GitHub logins without a leading @; resolvePool
+// matches them case-insensitively against the repository's assignable users.
 // Change this list in the same commit as the corresponding CODEOWNERS change.
 var defaultAssigneePool = []string{
 	"mdisibio",
@@ -29,22 +29,10 @@ var defaultAssigneePool = []string{
 	"zhxiaogg",
 }
 
-// loginSet lowercases logins and drops a leading "@", so entries stay readable
-// in the hardcoded lists above.
-func loginSet(logins []string) map[string]struct{} {
-	result := make(map[string]struct{}, len(logins))
-	for _, login := range logins {
-		login = strings.TrimPrefix(strings.ToLower(login), "@")
-		if login != "" {
-			result[login] = struct{}{}
-		}
-	}
-	return result
-}
-
 // resolvePool derives the eligible assignees: the hardcoded pool intersected
 // with the repository's assignable users, so a stale pool entry cannot trigger
-// a 422 assignment storm. The pool is explicit, so nothing needs excluding.
+// a 422 assignment storm. Pool order is preserved, which keeps tie-breaking
+// deterministic.
 func resolvePool(ctx context.Context, client *github.Client) ([]string, error) {
 	owner, name, err := splitRepo(defaultRepo)
 	if err != nil {
@@ -61,12 +49,11 @@ func resolvePool(ctx context.Context, client *github.Client) ([]string, error) {
 		assignable[strings.ToLower(assignee.GetLogin())] = struct{}{}
 	}
 
-	pool := loginSet(defaultAssigneePool)
-	eligible := make(map[string]struct{}, len(pool))
-	for login := range pool {
+	eligible := make([]string, 0, len(defaultAssigneePool))
+	for _, login := range defaultAssigneePool {
 		if _, ok := assignable[login]; ok {
-			eligible[login] = struct{}{}
+			eligible = append(eligible, login)
 		}
 	}
-	return slices.Sorted(maps.Keys(eligible)), nil
+	return eligible, nil
 }
