@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: distributor
+note: Reject overly nested attributes for OTLP JSON writes, using the same budget as the protobuf decoder.
+issues: []
+subtext:
+user: ruslan-mikhailov
