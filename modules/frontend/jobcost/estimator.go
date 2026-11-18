@@ -47,7 +47,7 @@ func (e *Estimator) Block(op Op, base uint64) Cost {
 	return Cost{
 		Kind:     KindBlock,
 		Base:     base,
-		Estimate: uint64(float64(base) * c.Factor()),
+		Estimate: uint64(float64(base) * c.factor()),
 	}
 }
 
@@ -77,7 +77,7 @@ func (e *Estimator) Factor(op Op) float64 {
 	if c == nil {
 		return 0
 	}
-	return c.Factor()
+	return c.factor()
 }
 
 func (e *Estimator) calibrator(op Op) *calibrator {
