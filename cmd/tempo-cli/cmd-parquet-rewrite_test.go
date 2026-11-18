@@ -288,10 +288,10 @@ func TestParquetRewriteBlockConfig(t *testing.T) {
 
 func TestParquetRewriteRejectsSignedBlocks(t *testing.T) {
 	dir := t.TempDir()
-	meta := []byte(`{"format":"vParquet5","options":{"trace_signature_version":"1"}}`)
+	meta := []byte(`{"format":"vParquet5","options":{"minhash":"v1"}}`)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "meta.json"), meta, 0o600))
 
 	cmd := parquetRewrite{In: dir, Out: filepath.Join(dir, "out")}
 	err := cmd.Run()
-	require.ErrorContains(t, err, "parquet rewrite does not support trace signature version 1")
+	require.ErrorContains(t, err, "parquet rewrite does not support trace signature version v1")
 }

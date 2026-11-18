@@ -1282,7 +1282,7 @@ func TestTraceSimilaritySchemaVersions(t *testing.T) {
 		{name: "empty options", options: map[string]string{}, want: false},
 		{name: "unrelated option", options: map[string]string{"feature": "on"}, want: false},
 		{name: "empty version", options: map[string]string{TraceSignatureVersionOption: TraceSignatureVersionNone}, want: false},
-		{name: "v1", options: map[string]string{TraceSignatureVersionOption: TraceSignatureVersionV1}, want: true},
+		{name: "v1", options: map[string]string{"minhash": "v1"}, want: true},
 		{name: "unsupported", options: map[string]string{TraceSignatureVersionOption: "99"}, want: false},
 	}
 

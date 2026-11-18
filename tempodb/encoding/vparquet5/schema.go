@@ -87,9 +87,9 @@ const (
 )
 
 const (
-	TraceSignatureVersionOption = "trace_signature_version"
+	TraceSignatureVersionOption = "minhash"
 	TraceSignatureVersionNone   = ""
-	TraceSignatureVersionV1     = "1"
+	TraceSignatureVersionV1     = "v1"
 )
 
 const (
