@@ -32,6 +32,8 @@ type Table struct {
 	directionModifier string
 	// firstRowOfPage tells if the renderer is on the first row of a page?
 	firstRowOfPage bool
+	// pendingPageBreak waits for a retained line before starting another page.
+	pendingPageBreak bool
 	// htmlCSSClass stores the HTML CSS Class to use on the <table> node
 	htmlCSSClass string
 	// indexColumn stores the number of the column considered as the "index"

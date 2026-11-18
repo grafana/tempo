@@ -237,6 +237,11 @@ func (w *GzipResponseWriter) startCompression(remain []byte) error {
 		return w.startPlain()
 	}
 
+	// The handler may have replaced the Vary header that the wrapper added.
+	if !varyListsAcceptEncoding(w.Header()) {
+		w.Header().Add(vary, acceptEncoding)
+	}
+
 	// if the Content-Length is already set, then calls to Write on compression
 	// will fail to set the Content-Length header since its already set
 	// See: https://github.com/golang/go/issues/14975.
@@ -496,16 +501,23 @@ func (w *GzipResponseWriter) writeZstdSkippableFrame(data []byte) error {
 }
 
 // Flush flushes the underlying compression writer and then the underlying
-// http.ResponseWriter if it is an http.Flusher. This makes GzipResponseWriter
-// an http.Flusher.
+// http.ResponseWriter, using http.ResponseController so writers that only
+// expose Unwrap are flushed too. This makes GzipResponseWriter an http.Flusher.
 // If not enough bytes has been written to determine if we have reached minimum size,
 // this will be ignored.
 // If nothing has been written yet, nothing will be flushed.
 func (w *GzipResponseWriter) Flush() {
+	_ = w.FlushError()
+}
+
+// FlushError is like Flush, but returns the error from flushing the encoder
+// or the underlying http.ResponseWriter.
+// http.ResponseController uses it in preference to Flush.
+func (w *GzipResponseWriter) FlushError() error {
 	if w.gw == nil && w.zw == nil && !w.ignore {
 		if len(w.buf) == 0 {
 			// Nothing written yet.
-			return
+			return nil
 		}
 		var (
 			cl, _ = atoi(w.Header().Get(contentLength))
@@ -538,24 +550,24 @@ func (w *GzipResponseWriter) Flush() {
 	}
 
 	if w.gw != nil {
-		w.gw.Flush()
+		if err := w.gw.Flush(); err != nil {
+			return err
+		}
 	}
 	if w.zw != nil {
-		w.zw.Flush()
+		if err := w.zw.Flush(); err != nil {
+			return err
+		}
 	}
 
-	if fw, ok := w.ResponseWriter.(http.Flusher); ok {
-		fw.Flush()
-	}
+	return http.NewResponseController(w.ResponseWriter).Flush()
 }
 
-// Hijack implements http.Hijacker. If the underlying ResponseWriter is a
-// Hijacker, its Hijack method is returned. Otherwise an error is returned.
+// Hijack implements http.Hijacker. It hijacks the underlying ResponseWriter
+// through http.ResponseController, which also follows Unwrap.
+// http.ErrNotSupported is returned if nothing underneath supports it.
 func (w *GzipResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if hj, ok := w.ResponseWriter.(http.Hijacker); ok {
-		return hj.Hijack()
-	}
-	return nil, nil, fmt.Errorf("http.Hijacker interface is not supported")
+	return http.NewResponseController(w.ResponseWriter).Hijack()
 }
 
 // verify Hijacker interface implementation
@@ -619,10 +631,13 @@ func NewWrapper(opts ...option) (func(http.Handler) http.HandlerFunc, error) {
 				} else {
 					r.Header.Del(contentEncoding)
 				}
+				// The decoded length is unknown, as for a response Transport decodes.
+				r.Header.Del(contentLength)
+				r.ContentLength = -1
 				r.Body = &gzipReader{body: r.Body}
 			}
 
-			enc := selectEncoding(r, c.gzipEnabled, c.zstdEnabled, c.preferZstd)
+			enc := selectEncoding(r, c.gzipEnabled, c.zstdEnabled, c.preferZstd, c.acceptWildcards)
 			if enc != encodingNone {
 				gw := grwPool.Get().(*GzipResponseWriter)
 				*gw = GzipResponseWriter{
@@ -717,6 +732,8 @@ type config struct {
 	zstdWriter  writer.ZstdWriterFactory
 	preferZstd  bool
 	gzipEnabled bool
+
+	acceptWildcards bool
 }
 
 func (c *config) validate() error {
@@ -834,6 +851,17 @@ func ZstdImplementation(zw writer.ZstdWriterFactory) option {
 func PreferZstd(prefer bool) option {
 	return func(c *config) {
 		c.preferZstd = prefer
+	}
+}
+
+// AcceptWildcards sets whether a "*" entry in Accept-Encoding selects
+// gzip or zstd when the encoding is not listed by name.
+// RFC 9110 allows this, but many servers ignore "*", and clients that send
+// it often expect raw bytes, so it is disabled by default.
+// Use PreferZstd(false) to answer "*" with gzip rather than zstd.
+func AcceptWildcards(b bool) option {
+	return func(c *config) {
+		c.acceptWildcards = b
 	}
 }
 
@@ -991,6 +1019,19 @@ func RandomJitter(n, buffer int, paranoid bool) option {
 	}
 }
 
+// varyListsAcceptEncoding reports whether the Vary header lists Accept-Encoding or "*".
+func varyListsAcceptEncoding(h http.Header) bool {
+	for _, v := range h.Values(vary) {
+		for field := range strings.SplitSeq(v, ",") {
+			field = strings.TrimSpace(field)
+			if field == "*" || strings.EqualFold(field, acceptEncoding) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // contentGzip returns true if the outermost content coding of the request body is gzip.
 func contentGzip(r *http.Request) bool {
 	if r.Method == http.MethodHead || r.Body == nil {
@@ -1033,7 +1074,7 @@ func acceptsGzip(r *http.Request) bool {
 }
 
 // selectEncoding determines the best encoding based on Accept-Encoding header.
-func selectEncoding(r *http.Request, gzipEnabled, zstdEnabled, preferZstd bool) encoding {
+func selectEncoding(r *http.Request, gzipEnabled, zstdEnabled, preferZstd, acceptWildcards bool) encoding {
 	// Don't compress HEAD requests due to nginx bug.
 	if r.Method == http.MethodHead {
 		return encodingNone
@@ -1044,8 +1085,8 @@ func selectEncoding(r *http.Request, gzipEnabled, zstdEnabled, preferZstd bool) 
 		return encodingNone
 	}
 
-	gzipQ := parseEncodingQValue(ae, "gzip")
-	zstdQ := parseEncodingQValue(ae, "zstd")
+	gzipQ := parseEncodingQValue(ae, "gzip", acceptWildcards)
+	zstdQ := parseEncodingQValue(ae, "zstd", acceptWildcards)
 
 	// Neither accepted
 	if (!gzipEnabled || gzipQ <= 0) && (!zstdEnabled || zstdQ <= 0) {
@@ -1081,8 +1122,12 @@ func selectEncoding(r *http.Request, gzipEnabled, zstdEnabled, preferZstd bool) 
 }
 
 // parseEncodingQValue returns the qvalue for a specific encoding.
-func parseEncodingQValue(header, enc string) float64 {
+// If wildcard is true, a "*" entry applies when the encoding is not listed
+// by name; an entry naming the encoding always takes precedence
+// (RFC 9110, section 12.5.3).
+func parseEncodingQValue(header, enc string, wildcard bool) float64 {
 	header = strings.TrimSpace(header)
+	wildcardQ := -1.0
 	for len(header) > 0 {
 		stop := strings.IndexByte(header, ',')
 		if stop < 0 {
@@ -1092,10 +1137,16 @@ func parseEncodingQValue(header, enc string) float64 {
 		if coding == enc {
 			return qvalue
 		}
+		if wildcard && coding == "*" && wildcardQ < 0 {
+			wildcardQ = qvalue
+		}
 		if stop == len(header) {
 			break
 		}
 		header = header[stop+1:]
+	}
+	if wildcardQ > 0 {
+		return wildcardQ
 	}
 	return 0
 }
@@ -1123,24 +1174,7 @@ func handleContentType(contentTypes []parsedContentType, ct string) bool {
 
 // parseEncodingGzip returns the qvalue of gzip compression.
 func parseEncodingGzip(s string) float64 {
-	s = strings.TrimSpace(s)
-
-	for len(s) > 0 {
-		stop := strings.IndexByte(s, ',')
-		if stop < 0 {
-			stop = len(s)
-		}
-		coding, qvalue, _ := parseCoding(s[:stop])
-
-		if coding == "gzip" {
-			return qvalue
-		}
-		if stop == len(s) {
-			break
-		}
-		s = s[stop+1:]
-	}
-	return 0
+	return parseEncodingQValue(s, "gzip", false)
 }
 
 func parseEncodings(s string) (codings, error) {
@@ -1319,13 +1353,17 @@ func (n *NoGzipResponseWriter) CloseNotify() <-chan bool {
 }
 
 func (n *NoGzipResponseWriter) Flush() {
+	_ = n.FlushError()
+}
+
+// FlushError is like Flush, but returns the error from flushing the
+// underlying http.ResponseWriter.
+func (n *NoGzipResponseWriter) FlushError() error {
 	if !n.hdrCleaned {
 		n.ResponseWriter.Header().Del(HeaderNoCompression)
 		n.hdrCleaned = true
 	}
-	if f, ok := n.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
-	}
+	return http.NewResponseController(n.ResponseWriter).Flush()
 }
 
 func (n *NoGzipResponseWriter) Header() http.Header {
