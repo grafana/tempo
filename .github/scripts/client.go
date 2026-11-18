@@ -12,25 +12,18 @@ import (
 
 const (
 	apiPageSize                    = 100
-	maxRequestAttempts             = 3
 	apiRequestTimeout              = 30 * time.Second
 	maxSecondaryRateLimitRetryTime = 5 * time.Minute
 	maxSearchResults               = 1000
 )
 
-// newGitHubClient builds the go-github REST client used by the sweep. The HTTP
-// layer wraps the default transport in retryingRoundTripper, so idempotent
-// requests (GET, PUT, PATCH, DELETE) are retried up to maxRequestAttempts in
-// total on transient transport errors and 5xx responses; POST requests run
-// exactly once. Rate limiting and Retry-After backoff are handled by go-github
-// itself, with the secondary rate-limit retry clamped to
-// maxSecondaryRateLimitRetryTime.
+// newGitHubClient builds the go-github REST client used by the sweep. The
+// client timeout bounds a single attempt; retryableCall wraps the idempotent
+// call sites around it, so each attempt gets its own budget. Rate limiting
+// and Retry-After backoff are handled by go-github itself, with the secondary
+// rate-limit retry clamped to maxSecondaryRateLimitRetryTime.
 func newGitHubClient(token string) (*github.Client, error) {
-	httpClient := &http.Client{
-		// No client-level Timeout: retryingRoundTripper gives each attempt its
-		// own deadline so a hung attempt cannot consume the retry budget.
-		Transport: &retryingRoundTripper{base: http.DefaultTransport, maxAttempts: maxRequestAttempts, backoff: retryDelay, attemptTimeout: apiRequestTimeout},
-	}
+	httpClient := &http.Client{Timeout: apiRequestTimeout}
 	client, err := github.NewClient(
 		github.WithHTTPClient(httpClient),
 		github.WithAuthToken(token),
@@ -40,11 +33,6 @@ func newGitHubClient(token string) (*github.Client, error) {
 		return nil, fmt.Errorf("create GitHub client: %w", err)
 	}
 	return client, nil
-}
-
-// retryDelay returns the exponential backoff between retry attempts.
-func retryDelay(attempt int) time.Duration {
-	return time.Duration(attempt*2) * time.Second
 }
 
 // splitRepo splits an owner/repository string into its two parts.
@@ -71,8 +59,13 @@ func eachPageBounded[T any](ctx context.Context, next func(*github.ListOptions) 
 	var all []T
 	opts := &github.ListOptions{PerPage: apiPageSize}
 	for {
-		items, resp, err := next(opts)
-		if err != nil {
+		var items []T
+		var resp *github.Response
+		if err := retryableCall(ctx, func() error {
+			var callErr error
+			items, resp, callErr = next(opts)
+			return callErr
+		}); err != nil {
 			return nil, err
 		}
 		all = append(all, items...)

@@ -32,8 +32,12 @@ every pool member must be assignable in the repository. Inspect the run log
 for the exact failure.
 `, runURL)
 	query := url.Values{"q": {fmt.Sprintf(`repo:%s is:issue is:open in:title "%s"`, repo, title)}}
-	result, _, err := client.Search.Issues(ctx, query.Get("q"), &github.SearchOptions{Sort: "created", Order: "asc"})
-	if err != nil {
+	var result *github.IssuesSearchResult
+	if err := retryableCall(ctx, func() error {
+		var callErr error
+		result, _, callErr = client.Search.Issues(ctx, query.Get("q"), &github.SearchOptions{Sort: "created", Order: "asc"})
+		return callErr
+	}); err != nil {
 		return fmt.Errorf("find existing sweep failure issue: %w", err)
 	}
 	if len(result.Issues) > 0 {

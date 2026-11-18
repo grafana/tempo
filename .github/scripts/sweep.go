@@ -211,7 +211,11 @@ func ensureMarkerLabel(ctx context.Context, client *github.Client, cfg config) e
 	}
 	color := "ededed"
 	description := "Assigned by the daily code owner sweep"
-	_, _, err = client.Issues.UpdateLabel(ctx, owner, name, cfg.markerLabel, github.UpdateIssueLabelRequest{Color: &color, Description: &description})
+	err = retryableCall(ctx, func() error {
+		var callErr error
+		_, _, callErr = client.Issues.UpdateLabel(ctx, owner, name, cfg.markerLabel, github.UpdateIssueLabelRequest{Color: &color, Description: &description})
+		return callErr
+	})
 	if err == nil {
 		return nil
 	}
@@ -225,79 +229,82 @@ func ensureMarkerLabel(ctx context.Context, client *github.Client, cfg config) e
 	return nil
 }
 
-type candidateOutcome uint8
+// assignment pairs one candidate PR with the owner chosen for it.
+type assignment struct {
+	number int
+	owner  string
+}
+
+// decideAssignments is the pure decision core of the sweep. Given each owner's
+// current load and the ordered candidate PRs, it picks the least-loaded owner
+// for each PR (exact ties go through the random chooser), updates load as it
+// goes so a batch spreads across owners, and honors the per-run cap. It
+// performs no I/O; runSweep fetches the inputs and applies the output.
+func decideAssignments(load map[string]ownerLoad, candidates []candidate, maxAssignments int, choose func([]string) string) []assignment {
+	assignments := make([]assignment, 0, maxAssignments)
+	for _, candidate := range candidates {
+		if len(assignments) >= maxAssignments {
+			break
+		}
+		owner, ok := chooseAssignee(load, choose)
+		if !ok {
+			continue
+		}
+		assignments = append(assignments, assignment{number: candidate.number, owner: owner})
+		counts := load[owner]
+		counts.open++
+		load[owner] = counts
+	}
+	return assignments
+}
+
+type applyOutcome uint8
 
 const (
-	candidateAssigned candidateOutcome = iota
-	candidateDeliberatelySkipped
-	candidateAlreadyAssigned
-	candidateMarkerFailed
-	candidateFailed
+	applySuccess applyOutcome = iota
+	applySkipped              // the PR changed state (assigned, closed, draft) since the decision
+	applyFailed               // transient error; the next run retries
+	applyAbort                // the marker label could not be applied; stop applying
 )
 
-// processCandidate handles all per-PR decisions separately from batch/load orchestration.
-func processCandidate(
-	ctx context.Context,
-	client *github.Client,
-	cfg config,
-	candidate candidate,
-	load map[string]ownerLoad,
-	choose func([]string) string,
-) candidateOutcome {
-	owner, name, err := splitRepo(cfg.repo)
+// applyAssignment performs one decided assignment: it re-reads the PR to catch
+// mid-sweep changes, adds the chosen owner, and applies the marker label,
+// rolling back and aborting the batch when the marker cannot be applied.
+func applyAssignment(ctx context.Context, client *github.Client, cfg config, number int, owner string) (applyOutcome, error) {
+	repoOwner, repoName, err := splitRepo(cfg.repo)
 	if err != nil {
-		return candidateFailed
+		return applyFailed, err
 	}
-	if candidate.marked {
-		events, err := eachPage(ctx, func(opts *github.ListOptions) ([]*github.Timeline, *github.Response, error) {
-			return client.Issues.ListIssueTimeline(ctx, owner, name, candidate.number, opts)
-		})
-		if err != nil {
-			fmt.Printf("::warning::Could not read the timeline for PR #%d: %v; leaving it for the next run.\n", candidate.number, err)
-			return candidateFailed
-		}
-		if deliberatelyUnassigned(convertTimeline(events), cfg.botActor) {
-			fmt.Printf("PR #%d was auto-assigned before and unassigned by a person; skipping.\n", candidate.number)
-			return candidateDeliberatelySkipped
-		}
-	}
-
-	current, _, err := client.Issues.Get(ctx, owner, name, candidate.number)
-	if err != nil {
-		fmt.Printf("::warning::Could not re-read PR #%d before assigning: %v.\n", candidate.number, err)
-		return candidateFailed
+	var current *github.Issue
+	if err := retryableCall(ctx, func() error {
+		var callErr error
+		current, _, callErr = client.Issues.Get(ctx, repoOwner, repoName, number)
+		return callErr
+	}); err != nil {
+		fmt.Printf("::warning::Could not re-read PR #%d before assigning: %v.\n", number, err)
+		return applyFailed, nil
 	}
 	if len(current.Assignees) > 0 {
-		fmt.Printf("PR #%d was assigned elsewhere while the sweep ran; leaving it alone.\n", candidate.number)
-		return candidateAlreadyAssigned
+		fmt.Printf("PR #%d was assigned elsewhere while the sweep ran; leaving it alone.\n", number)
+		return applySkipped, nil
 	}
 	if (current.State != nil && *current.State != "open") || current.GetDraft() {
-		fmt.Printf("PR #%d was closed or converted to draft while the sweep ran; leaving it alone.\n", candidate.number)
-		return candidateAlreadyAssigned
+		fmt.Printf("PR #%d was closed or converted to draft while the sweep ran; leaving it alone.\n", number)
+		return applySkipped, nil
 	}
-	assignee, ok := chooseAssignee(load, choose)
-	if !ok {
-		fmt.Printf("::warning::No eligible code owner is available for PR #%d.\n", candidate.number)
-		return candidateFailed
-	}
-
-	alreadyAssigned, err := assignAndMark(ctx, client, cfg, candidate.number, assignee)
+	alreadyAssigned, err := assignAndMark(ctx, client, cfg, number, owner)
 	if err != nil {
-		fmt.Printf("::warning::Could not complete assignment of PR #%d to @%s: %v.\n", candidate.number, assignee, err)
 		if errors.Is(err, errApplyMarker) {
-			return candidateMarkerFailed
+			return applyAbort, err
 		}
-		return candidateFailed
+		return applyFailed, err
 	}
 	if alreadyAssigned {
-		fmt.Printf("PR #%d gained another assignee during assignment; rolled back @%s.\n", candidate.number, assignee)
-		return candidateAlreadyAssigned
+		fmt.Printf("PR #%d gained another assignee during assignment; rolled back @%s.\n", number, owner)
+		return applySkipped, nil
 	}
-	counts := load[assignee]
-	counts.open++
-	load[assignee] = counts
-	fmt.Printf("Assigned @%s to PR #%d (load: %d = %d open + %d closed in the past %d days).\n", assignee, candidate.number, counts.open+counts.closed, counts.open, counts.closed, closedLoadDays)
-	return candidateAssigned
+	fmt.Printf("Assigned @%s to PR #%d.\n", owner, number)
+	return applySuccess, nil
 }
 
 // errApplyMarker distinguishes marker-application failures from assignment
@@ -344,7 +351,11 @@ func removeAssignee(ctx context.Context, client *github.Client, cfg config, numb
 	if err != nil {
 		return err
 	}
-	if _, _, err := client.Issues.RemoveAssignees(ctx, owner, name, number, []string{assignee}); err != nil {
+	if err := retryableCall(ctx, func() error {
+		var callErr error
+		_, _, callErr = client.Issues.RemoveAssignees(ctx, owner, name, number, []string{assignee})
+		return callErr
+	}); err != nil {
 		return fmt.Errorf("remove assignee: %w", err)
 	}
 	return nil
@@ -427,6 +438,10 @@ func convertTimeline(events []*github.Timeline) []timelineEvent {
 }
 
 func runSweep(ctx context.Context, client *github.Client, cfg config, now time.Time, choose func([]string) string) error {
+	repoOwner, repoName, err := splitRepo(cfg.repo)
+	if err != nil {
+		return err
+	}
 	eligible, err := resolvePool(ctx, client, cfg)
 	if err != nil {
 		return err
@@ -447,11 +462,15 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 	since := now.Add(-closedLoadWindow).UTC().Format("2006-01-02T15:04:05Z")
 	closedQuery := fmt.Sprintf("repo:%s is:pr is:closed closed:>=%s", cfg.repo, since)
 	var totalClosed int
-	if result, _, err := client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 1}}); err != nil {
+	var countResult *github.IssuesSearchResult
+	if err := retryableCall(ctx, func() error {
+		var callErr error
+		countResult, _, callErr = client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 1}})
+		return callErr
+	}); err != nil {
 		return fmt.Errorf("count recently closed pull requests: %w", err)
-	} else {
-		totalClosed = result.GetTotal()
 	}
+	totalClosed = countResult.GetTotal()
 	if totalClosed > maxSearchResults {
 		fmt.Printf("::warning::%d PRs closed in the last %d days, but the search API returns at most %d. Closed load is undercounted.\n", totalClosed, closedLoadDays, maxSearchResults)
 	}
@@ -483,6 +502,30 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 	if len(candidates) == 0 {
 		return nil
 	}
+	// Marked candidates need their timeline read before the pure decision: a
+	// PR a human deliberately unassigned after a bot assignment is excluded.
+	active := make([]candidate, 0, len(candidates))
+	deliberatelySkipped, failed := 0, 0
+	for _, candidate := range candidates {
+		if !candidate.marked {
+			active = append(active, candidate)
+			continue
+		}
+		events, err := eachPage(ctx, func(opts *github.ListOptions) ([]*github.Timeline, *github.Response, error) {
+			return client.Issues.ListIssueTimeline(ctx, repoOwner, repoName, candidate.number, opts)
+		})
+		if err != nil {
+			fmt.Printf("::warning::Could not read the timeline for PR #%d: %v; leaving it for the next run.\n", candidate.number, err)
+			failed++
+			continue
+		}
+		if deliberatelyUnassigned(convertTimeline(events), cfg.botActor) {
+			fmt.Printf("PR #%d was auto-assigned before and unassigned by a person; skipping.\n", candidate.number)
+			deliberatelySkipped++
+			continue
+		}
+		active = append(active, candidate)
+	}
 	// The marker label is load-bearing: without it, later runs cannot tell a
 	// deliberate human unassignment from a PR that was never assigned. Fail
 	// the run rather than assigning unmarked PRs.
@@ -490,33 +533,30 @@ func runSweep(ctx context.Context, client *github.Client, cfg config, now time.T
 		return fmt.Errorf("ensure marker label: %w", err)
 	}
 
-	assigned, deliberatelySkipped, alreadyAssigned, failed := 0, 0, 0, 0
-Loop:
-	for _, candidate := range candidates {
-		if assigned >= cfg.maxAssignments {
-			fmt.Printf("Reached the per-run cap of %d; the rest are left for the next run.\n", cfg.maxAssignments)
-			break
+	assignments := decideAssignments(load, active, cfg.maxAssignments, choose)
+	assigned, alreadyAssigned := 0, 0
+	for _, a := range assignments {
+		outcome, err := applyAssignment(ctx, client, cfg, a.number, a.owner)
+		if err != nil && outcome != applyAbort {
+			fmt.Printf("::warning::Could not complete assignment of PR #%d to @%s: %v.\n", a.number, a.owner, err)
 		}
-		switch processCandidate(ctx, client, cfg, candidate, load, choose) {
-		case candidateAssigned:
+		switch outcome {
+		case applySuccess:
 			assigned++
-		case candidateDeliberatelySkipped:
-			deliberatelySkipped++
-		case candidateAlreadyAssigned:
+		case applySkipped:
 			alreadyAssigned++
-		case candidateMarkerFailed:
+		case applyFailed:
 			failed++
-			fmt.Printf("::error::PR #%d was rolled back because the %q marker label could not be applied; aborting so the remaining PRs wait for the next run.\n", candidate.number, cfg.markerLabel)
-			break Loop
-		case candidateFailed:
+		case applyAbort:
 			failed++
+			return fmt.Errorf("PR #%d was rolled back because the %q marker label could not be applied; remaining PRs wait for the next run", a.number, cfg.markerLabel)
 		default:
-			// candidateOutcome has exactly these five values; a new outcome
-			// must be handled here and reflected in the summary below.
-			return errors.New("unknown candidate outcome")
+			// applyOutcome has exactly these four values; a new outcome must
+			// be handled here and reflected in the summary below.
+			return errors.New("unknown apply outcome")
 		}
 	}
-	fmt.Printf("Done: assigned %d, skipped %d deliberately unassigned, %d already assigned, %d deferred by errors.\n", assigned, deliberatelySkipped, alreadyAssigned, failed)
+	fmt.Printf("Done: assigned %d, skipped %d deliberately unassigned, %d already assigned or closed, %d deferred by errors.\n", assigned, deliberatelySkipped, alreadyAssigned, failed)
 	if failed > 0 {
 		return fmt.Errorf("%d PR(s) could not be processed; they will be retried on the next run", failed)
 	}

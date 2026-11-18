@@ -120,6 +120,28 @@ func TestAssigneeTieBreakPrefersLessOpenLoadThenUsesExactTies(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestDecideAssignmentsSpreadsAcrossLeastLoadedOwners(t *testing.T) {
+	load := map[string]ownerLoad{
+		"alice": {open: 1},
+		"bob":   {},
+	}
+	candidates := []candidate{{number: 10}, {number: 20}, {number: 30}}
+	assignments := decideAssignments(load, candidates, 2, firstChoice)
+	require.Equal(t, []assignment{{number: 10, owner: "bob"}, {number: 20, owner: "alice"}}, assignments)
+}
+
+func TestDecideAssignmentsTiesUseChooserAndHonorCap(t *testing.T) {
+	load := map[string]ownerLoad{"alice": {}, "bob": {}}
+	candidates := []candidate{{number: 10}, {number: 20}, {number: 30}, {number: 40}, {number: 50}}
+	assignments := decideAssignments(load, candidates, 4, firstChoice)
+	require.Equal(t, []assignment{
+		{number: 10, owner: "alice"},
+		{number: 20, owner: "bob"},
+		{number: 30, owner: "alice"},
+		{number: 40, owner: "bob"},
+	}, assignments)
+}
+
 func TestOnlyHumanUnassignAfterLatestBotAssignmentIsSkipped(t *testing.T) {
 	assigned := timelineEvent{Event: "assigned", Actor: &user{Login: defaultBotActor}}
 	humanUnassigned := timelineEvent{Event: "unassigned", Actor: &user{Login: "maintainer"}}
@@ -202,7 +224,7 @@ func TestSweepAbortsBatchWhenMarkerCannotBeApplied(t *testing.T) {
 	simulation, client := newSimulationClient(t)
 	simulation.setFlag(&simulation.failMarkerApply)
 	err := runTestSweep(client, testConfig())
-	require.ErrorContains(t, err, "1 PR(s) could not be processed")
+	require.ErrorContains(t, err, "marker label")
 	for _, number := range []int{10, 20} {
 		pr := simulation.pullSnapshot(number)
 		require.Empty(t, pr.Assignees)
@@ -213,15 +235,25 @@ func TestSweepAbortsBatchWhenMarkerCannotBeApplied(t *testing.T) {
 	require.Equal(t, 1, simulation.assignAttemptCount())
 }
 
+func TestSweepNeverRetriesAssignmentPost(t *testing.T) {
+	simulation, client := newSimulationClient(t)
+	simulation.setFlag(&simulation.failAssignPost)
+	err := runTestSweep(client, testConfig())
+	require.ErrorContains(t, err, "could not be processed")
+	// POST /assignees is not idempotent: a 500 must run exactly once rather
+	// than being replayed by the retry loop.
+	require.Equal(t, 1, simulation.assignAttemptCount())
+}
+
 func TestSweepRollsBackOwnAssigneeWhenHumanRaces(t *testing.T) {
 	simulation, client := newSimulationClient(t)
 	simulation.setConcurrentAssignee("Human")
 	require.NoError(t, runTestSweep(client, testConfig()))
-	for _, number := range []int{10, 20} {
-		pr := simulation.pullSnapshot(number)
-		require.Equal(t, []user{{Login: "Human"}}, pr.Assignees)
-		require.Empty(t, pr.Labels)
-	}
+	// The raced assignment consumed the per-run cap; PR #20 waits for the
+	// next run while PR #10 keeps only the human's assignee.
+	require.Equal(t, []user{{Login: "Human"}}, simulation.pullSnapshot(10).Assignees)
+	require.Empty(t, simulation.pullSnapshot(20).Assignees)
+	require.Empty(t, simulation.pullSnapshot(10).Labels)
 }
 
 func TestAssignAndMarkConcurrentRollbackFailureSurfacesError(t *testing.T) {

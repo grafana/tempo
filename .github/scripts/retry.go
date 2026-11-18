@@ -1,15 +1,60 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"io"
-	"net/http"
+	"errors"
 	"time"
+
+	"github.com/google/go-github/v93/github"
 )
 
-// sleepContext sleeps for the duration or returns early when the context is
-// canceled, so callers can abort backoff from the deadline or SIGTERM handler.
+// retryWaitDelay is the pause between attempts. It is a variable so tests can
+// zero it; production always uses one second.
+var retryWaitDelay = time.Second
+
+// maxRequestAttempts bounds retryableCall.
+const maxRequestAttempts = 3
+
+// retryableCall runs fn up to maxRequestAttempts times with a retryWaitDelay
+// pause between attempts, for transient 5xx responses and transport failures.
+// Callers use it only around idempotent operations (GET, PATCH, DELETE);
+// POSTs run exactly once, so their failure semantics stay unambiguous.
+func retryableCall(ctx context.Context, fn func() error) error {
+	var err error
+	for attempt := 1; ; attempt++ {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		err = fn()
+		if err == nil || attempt == maxRequestAttempts || !retryableError(err) {
+			return err
+		}
+		if err := sleepContext(ctx, retryWaitDelay); err != nil {
+			return err
+		}
+	}
+}
+
+// retryableError reports whether a failed call is worth replaying.
+func retryableError(err error) bool {
+	var statusError *github.ErrorResponse
+	if errors.As(err, &statusError) {
+		return statusError.Response.StatusCode >= 500
+	}
+	// Rate-limit responses are handled by go-github itself (which sleeps on
+	// Retry-After); retrying them here would add a second, competing backoff.
+	var rateLimit *github.RateLimitError
+	var abuse *github.AbuseRateLimitError
+	if errors.As(err, &rateLimit) || errors.As(err, &abuse) {
+		return false
+	}
+	// Anything else without a response (DNS, connection refused, reset) is a
+	// transport failure and safe to retry.
+	return true
+}
+
+// sleepContext waits for the duration, returning early when the context is
+// canceled so a SIGTERM can abort the retry loop.
 func sleepContext(ctx context.Context, duration time.Duration) error {
 	timer := time.NewTimer(duration)
 	defer timer.Stop()
@@ -19,87 +64,4 @@ func sleepContext(ctx context.Context, duration time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
-}
-
-// retryingRoundTripper re-runs idempotent requests on transient failures:
-// transport (network) errors and 5xx responses are retried up to maxAttempts
-// in total, sleeping the exponential backoff between attempts. POST and other
-// non-idempotent methods run exactly once. Requests are cloned per attempt so
-// bodies can be replayed, and context cancellation aborts the retry loop.
-type retryingRoundTripper struct {
-	base           http.RoundTripper
-	maxAttempts    int
-	backoff        func(attempt int) time.Duration
-	attemptTimeout time.Duration
-}
-
-// idempotentMethod reports whether a failed request can safely be replayed.
-func idempotentMethod(method string) bool {
-	switch method {
-	case http.MethodGet, http.MethodPut, http.MethodPatch, http.MethodDelete:
-		return true
-	default:
-		return false
-	}
-}
-
-func (r *retryingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if !idempotentMethod(req.Method) {
-		return r.base.RoundTrip(req)
-	}
-	maxAttempts := r.maxAttempts
-	if maxAttempts <= 0 {
-		maxAttempts = maxRequestAttempts
-	}
-	backoff := r.backoff
-	if backoff == nil {
-		backoff = retryDelay
-	}
-
-	attemptTimeout := r.attemptTimeout
-	if attemptTimeout <= 0 {
-		attemptTimeout = apiRequestTimeout
-	}
-
-	var lastErr error
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		// Each attempt gets its own deadline: a client-wide timeout would let
-		// one hung attempt consume the budget of the retries that follow it.
-		attemptCtx, cancel := context.WithTimeout(req.Context(), attemptTimeout)
-		attemptReq := req.Clone(attemptCtx)
-		if req.Body != nil && req.GetBody != nil {
-			body, err := req.GetBody()
-			if err != nil {
-				cancel()
-				return nil, err
-			}
-			attemptReq.Body = body
-		}
-		resp, err := r.base.RoundTrip(attemptReq)
-		if err != nil {
-			cancel()
-			lastErr = err
-		} else {
-			// Buffer the body so the canceled per-attempt context cannot tear
-			// it down before the caller decodes it; responses here are small
-			// JSON pages.
-			body, readErr := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			cancel()
-			if readErr != nil {
-				return nil, readErr
-			}
-			resp.Body = io.NopCloser(bytes.NewReader(body))
-			if resp.StatusCode < 500 || attempt == maxAttempts {
-				return resp, nil
-			}
-		}
-		if attempt == maxAttempts {
-			break
-		}
-		if err := sleepContext(req.Context(), backoff(attempt)); err != nil {
-			return nil, err
-		}
-	}
-	return nil, lastErr
 }

@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/go-github/v93/github"
 	"github.com/stretchr/testify/require"
@@ -50,6 +49,7 @@ type gitHubSimulation struct {
 	comments           []issueComment
 	failureIssue       int
 	assignAttempts     int
+	failAssignPost     bool
 	failMarkerApply    bool
 	failEnsureLabel    bool
 	failIssueSearch    bool
@@ -214,6 +214,10 @@ func (s *gitHubSimulation) handlePost(w http.ResponseWriter, r *http.Request, re
 				return
 			}
 			s.assignAttempts++
+			if s.failAssignPost {
+				s.reply(w, http.StatusInternalServerError, map[string]string{"message": "assign failed"})
+				return
+			}
 			if s.concurrentAssignee != "" {
 				pr.Assignees = append(pr.Assignees, user{Login: s.concurrentAssignee})
 			}
@@ -314,15 +318,12 @@ func (s *gitHubSimulation) decode(w http.ResponseWriter, r *http.Request, out an
 	return true
 }
 
-// testGitHubClient builds a go-github client pointed at a test server with a
-// zero-delay retry transport, mirroring production construction.
+// testGitHubClient builds a go-github client pointed at a test server,
+// mirroring production construction.
 func testGitHubClient(t *testing.T, serverURL string) *github.Client {
 	t.Helper()
-	httpClient := &http.Client{
-		Transport: &retryingRoundTripper{base: http.DefaultTransport, maxAttempts: maxRequestAttempts, backoff: func(int) time.Duration { return 0 }},
-	}
 	client, err := github.NewClient(
-		github.WithHTTPClient(httpClient),
+		github.WithHTTPClient(&http.Client{Timeout: apiRequestTimeout}),
 		github.WithAuthToken("test-token"),
 		github.WithMaxSecondaryRateLimitRetryAfterDuration(maxSecondaryRateLimitRetryTime),
 		github.WithURLs(&serverURL, &serverURL),
