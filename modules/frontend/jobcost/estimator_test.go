@@ -45,19 +45,12 @@ func TestEstimatorBlock(t *testing.T) {
 }
 
 func TestEstimatorLiveStore(t *testing.T) {
-	cfg := Config{LiveStoreCost: LiveStoreCostConfig{TraceByID: 1, Search: 2, Metadata: 3, Metrics: 4}}
-	e := NewEstimator(cfg)
-
-	require.Equal(t, Cost{Kind: KindLiveStore, Estimate: 1}, e.LiveStore(OpTraceByID))
-	require.Equal(t, Cost{Kind: KindLiveStore, Estimate: 2}, e.LiveStore(OpSearch))
-	require.Equal(t, Cost{Kind: KindLiveStore, Estimate: 3}, e.LiveStore(OpMetadata))
-	require.Equal(t, Cost{Kind: KindLiveStore, Estimate: 4}, e.LiveStore(OpMetrics))
-	require.Equal(t, Cost{}, e.LiveStore(numOps))
+	e := NewEstimator(Config{LiveStoreCost: 7})
+	require.Equal(t, Cost{Kind: KindLiveStore, Estimate: 7}, e.LiveStore())
 
 	// a cost of 0 disables the estimate
-	e = NewEstimator(Config{LiveStoreCost: LiveStoreCostConfig{Search: 2}})
-	require.Equal(t, Cost{}, e.LiveStore(OpTraceByID))
-	require.Equal(t, Cost{Kind: KindLiveStore, Estimate: 2}, e.LiveStore(OpSearch))
+	e = NewEstimator(Config{})
+	require.Equal(t, Cost{}, e.LiveStore())
 }
 
 func TestEstimatorCalibration(t *testing.T) {
@@ -229,7 +222,7 @@ func TestNilEstimator(t *testing.T) {
 	var e *Estimator
 
 	require.Equal(t, Cost{}, e.Block(OpSearch, 1_000_000))
-	require.Equal(t, Cost{}, e.LiveStore(OpSearch))
+	require.Equal(t, Cost{}, e.LiveStore())
 	require.Zero(t, e.Factor(OpSearch))
 	require.NotPanics(t, func() { e.Observe(OpSearch, Cost{Kind: KindBlock, Base: 1}, 1) })
 
@@ -244,12 +237,10 @@ func TestConfigYAML(t *testing.T) {
 	cfg := DefaultConfig()
 	err := yaml.UnmarshalStrict([]byte(`
 calibration_enabled: false
-live_store_cost:
-  search: 100
-  metrics: 200
+live_store_cost: 100
 `), &cfg)
 	require.NoError(t, err)
 
 	require.False(t, cfg.CalibrationEnabled)
-	require.Equal(t, LiveStoreCostConfig{TraceByID: 256 * 1024, Search: 100, Metadata: 256 * 1024, Metrics: 200}, cfg.LiveStoreCost)
+	require.Equal(t, uint64(100), cfg.LiveStoreCost)
 }

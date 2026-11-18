@@ -1289,11 +1289,7 @@ query_frontend:
 
         # Fixed estimate in bytes for jobs that read recent data from the live store or generators.
         # Set to 0 to not estimate these jobs.
-        live_store_cost:
-            [trace_by_id: <int> | default = 262144]
-            [search: <int> | default = 262144]
-            [metadata: <int> | default = 262144]
-            [metrics: <int> | default = 262144]
+        [live_store_cost: <int> | default = 262144]
 
 ```
 

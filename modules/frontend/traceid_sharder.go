@@ -164,7 +164,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 	if err != nil {
 		return nil, err
 	}
-	req.SetCost(s.estimator.LiveStore(jobcost.OpTraceByID))
+	req.SetCost(s.estimator.LiveStore())
 	reqs = append(reqs, req)
 
 	// Job 1: external job (if enabled)

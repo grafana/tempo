@@ -364,7 +364,7 @@ func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Re
 	})
 
 	subR.SetResponseData(0) // generator requests are always shard 0
-	subR.SetCost(s.estimator.LiveStore(jobcost.OpMetrics))
+	subR.SetCost(s.estimator.LiveStore())
 
 	return subR, jobMetadata
 }

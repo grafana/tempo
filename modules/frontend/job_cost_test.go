@@ -20,16 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newTestEstimator returns an estimator with its initial factors and a different live store cost per op.
+// newTestEstimator returns an estimator with its initial factors and a live store cost of 1000.
 func newTestEstimator() *jobcost.Estimator {
-	return jobcost.NewEstimator(jobcost.Config{
-		LiveStoreCost: jobcost.LiveStoreCostConfig{
-			TraceByID: 1000,
-			Search:    2000,
-			Metadata:  3000,
-			Metrics:   4000,
-		},
-	})
+	return jobcost.NewEstimator(jobcost.Config{LiveStoreCost: 1000})
 }
 
 func TestBlockJobCost(t *testing.T) {
@@ -171,7 +164,7 @@ func TestJobReporterCalibratesTheEstimator(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	estimator := jobcost.NewEstimator(jobcost.Config{
 		CalibrationEnabled: true,
-		LiveStoreCost:      jobcost.LiveStoreCostConfig{Search: 20},
+		LiveStoreCost:      20,
 	})
 	metrics := newTestJobCostMetrics(estimator, reg)
 	reporter := newJobReporter(jobcost.OpSearch, estimator, metrics)
@@ -183,10 +176,10 @@ func TestJobReporterCalibratesTheEstimator(t *testing.T) {
 
 	// jobs that do not say how much a block job reads do not calibrate the estimator
 	for range 2 * 100 {
-		c.Combine(&tempopb.SearchMetrics{InspectedBytes: 1_000_000}, costedResponse{cost: estimator.LiveStore(jobcost.OpSearch)}) // live store jobs
-		c.Combine(nil, costedResponse{cost: estimator.Block(jobcost.OpSearch, 1000)})                                             // jobs without metrics
-		c.Combine(&tempopb.SearchMetrics{}, cacheHitResponse(estimator.Block(jobcost.OpSearch, 1000)))                            // cached jobs
-		c.Combine(&tempopb.SearchMetrics{InspectedBytes: 5}, slosTestResponse{})                                                  // jobs without a cost
+		c.Combine(&tempopb.SearchMetrics{InspectedBytes: 1_000_000}, costedResponse{cost: estimator.LiveStore()}) // live store jobs
+		c.Combine(nil, costedResponse{cost: estimator.Block(jobcost.OpSearch, 1000)})                             // jobs without metrics
+		c.Combine(&tempopb.SearchMetrics{}, cacheHitResponse(estimator.Block(jobcost.OpSearch, 1000)))            // cached jobs
+		c.Combine(&tempopb.SearchMetrics{InspectedBytes: 5}, slosTestResponse{})                                  // jobs without a cost
 	}
 	require.Equal(t, initial, estimator.Factor(jobcost.OpSearch))
 

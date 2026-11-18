@@ -374,7 +374,7 @@ func (s searchTagSharder) buildIngesterRequest(tenantID string, parent pipeline.
 	if err != nil {
 		return nil, err
 	}
-	subR.SetCost(s.estimator.LiveStore(jobcost.OpMetadata))
+	subR.SetCost(s.estimator.LiveStore())
 	return subR, nil
 }
 

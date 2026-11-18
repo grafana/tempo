@@ -639,6 +639,6 @@ func TestQueryRangeRequestsCost(t *testing.T) {
 	t.Run("generator", func(t *testing.T) {
 		req, _ := sharder.generatorRequest("test", parent, searchReq, now.Add(-30*time.Minute))
 		require.NotNil(t, req)
-		require.Equal(t, jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 4000}, req.Cost())
+		require.Equal(t, jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 1000}, req.Cost())
 	})
 }

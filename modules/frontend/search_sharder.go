@@ -456,7 +456,7 @@ func buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq *t
 	}
 
 	subR.SetResponseData(0) // ingester requests are always shard 0
-	subR.SetCost(estimator.LiveStore(jobcost.OpSearch))
+	subR.SetCost(estimator.LiveStore())
 	reqCh <- subR
 
 	return nil

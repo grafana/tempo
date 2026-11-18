@@ -1803,7 +1803,7 @@ func TestBuildIngesterRequestCost(t *testing.T) {
 	reqCh := make(chan pipeline.Request, 1)
 	require.NoError(t, buildIngesterRequest("test", pipeline.NewHTTPRequest(req), searchReq, newTestEstimator(), reqCh))
 
-	require.Equal(t, jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 2000}, (<-reqCh).Cost())
+	require.Equal(t, jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 1000}, (<-reqCh).Cost())
 }
 
 // shardResponse is the response of a job that echoes the data of its request.

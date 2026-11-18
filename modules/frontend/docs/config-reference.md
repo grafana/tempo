@@ -399,11 +399,7 @@ query_frontend:
         max_query_text_bytes: 4096
     job_cost:
         calibration_enabled: true
-        live_store_cost:
-            trace_by_id: 262144
-            search: 262144
-            metadata: 262144
-            metrics: 262144
+        live_store_cost: 262144
     max_grpc_streaming_packet_size: 1048576
     max_query_expression_size_bytes: 131072
     query_end_cutoff: 30s

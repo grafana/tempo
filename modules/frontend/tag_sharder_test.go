@@ -578,6 +578,6 @@ func TestTagsRequestsCost(t *testing.T) {
 		req, err := s.ingesterRequest("test", pipeline.NewHTTPRequest(r), &fakeReq{})
 		require.NoError(t, err)
 
-		require.Equal(t, jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 3000}, req.Cost())
+		require.Equal(t, jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 1000}, req.Cost())
 	})
 }

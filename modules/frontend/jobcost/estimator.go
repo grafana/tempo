@@ -16,36 +16,21 @@ type Config struct {
 	// If disabled the initial factors are used.
 	CalibrationEnabled bool `yaml:"calibration_enabled"`
 
-	// LiveStoreCost is the estimate in bytes of a job that reads recent data from the live-stores.
-	// 0 means the job has no estimate.
-	LiveStoreCost LiveStoreCostConfig `yaml:"live_store_cost"`
-}
-
-// LiveStoreCostConfig is the estimated bytes of a live-store job per query type.
-type LiveStoreCostConfig struct {
-	TraceByID uint64 `yaml:"trace_by_id"`
-	Search    uint64 `yaml:"search"`
-	Metadata  uint64 `yaml:"metadata"`
-	Metrics   uint64 `yaml:"metrics"`
+	// LiveStoreCost is the estimate in bytes of a job that reads recent data from the live-stores or the
+	// generators. 0 means the job has no estimate.
+	LiveStoreCost uint64 `yaml:"live_store_cost"`
 }
 
 // Estimator estimates the bytes a job reads and calibrates the estimates with finished jobs.
 // It is safe for concurrent use.
 type Estimator struct {
 	block     [numOps]*calibrator
-	liveStore [numOps]uint64
+	liveStore uint64
 }
 
 // NewEstimator returns an Estimator for cfg.
 func NewEstimator(cfg Config) *Estimator {
-	e := &Estimator{
-		liveStore: [numOps]uint64{
-			OpTraceByID: cfg.LiveStoreCost.TraceByID,
-			OpSearch:    cfg.LiveStoreCost.Search,
-			OpMetadata:  cfg.LiveStoreCost.Metadata,
-			OpMetrics:   cfg.LiveStoreCost.Metrics,
-		},
-	}
+	e := &Estimator{liveStore: cfg.LiveStoreCost}
 	for op := range numOps {
 		e.block[op] = newCalibrator(initialFactors[op], cfg.CalibrationEnabled)
 	}
@@ -66,13 +51,13 @@ func (e *Estimator) Block(op Op, base uint64) Cost {
 	}
 }
 
-// LiveStore returns the cost of a job that reads recent data. An unknown op, a nil Estimator or a configured
-// cost of 0 has no cost.
-func (e *Estimator) LiveStore(op Op) Cost {
-	if e == nil || op >= numOps || e.liveStore[op] == 0 {
+// LiveStore returns the cost of a job that reads recent data. A nil Estimator or a configured cost of 0
+// has no cost.
+func (e *Estimator) LiveStore() Cost {
+	if e == nil || e.liveStore == 0 {
 		return Cost{}
 	}
-	return Cost{Kind: KindLiveStore, Estimate: e.liveStore[op]}
+	return Cost{Kind: KindLiveStore, Estimate: e.liveStore}
 }
 
 // Observe adds a finished job with the bytes it actually read. Only block jobs calibrate the factors.
@@ -104,15 +89,8 @@ func (e *Estimator) calibrator(op Op) *calibrator {
 
 // DefaultConfig returns the default configuration.
 func DefaultConfig() Config {
-	const liveStoreCost = 256 * 1024
-
 	return Config{
 		CalibrationEnabled: true,
-		LiveStoreCost: LiveStoreCostConfig{
-			TraceByID: liveStoreCost,
-			Search:    liveStoreCost,
-			Metadata:  liveStoreCost,
-			Metrics:   liveStoreCost,
-		},
+		LiveStoreCost:      256 * 1024,
 	}
 }
