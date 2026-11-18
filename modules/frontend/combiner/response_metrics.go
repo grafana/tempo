@@ -48,9 +48,9 @@ func optionsFrom(opts []Option) options {
 	return o
 }
 
-func report(fn func(uint64), bytes uint64) {
-	if fn != nil && bytes > 0 {
-		fn(bytes)
+func (o options) report(bytes uint64) {
+	if o.reportInspectedBytes != nil && bytes > 0 {
+		o.reportInspectedBytes(bytes)
 	}
 }
 
@@ -106,7 +106,7 @@ func (mc *SearchMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, resp
 		if !cacheHit {
 			mc.Metrics.InspectedTraces += newMetrics.InspectedTraces
 			mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
-			report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
+			mc.opts.report(newMetrics.InspectedBytes)
 			mc.opts.observeJob(resp, newMetrics.InspectedBytes)
 			mc.Metrics.BackendReads += newMetrics.BackendReads
 			mc.Metrics.BackendBytes += newMetrics.BackendBytes
@@ -146,7 +146,7 @@ func (mc *TraceByIDMetricsCombiner) Combine(newMetrics *tempopb.TraceByIDMetrics
 	cacheHit := IsCacheHit(resp.HTTPResponse())
 	if !cacheHit {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
-		report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
+		mc.opts.report(newMetrics.InspectedBytes)
 		mc.opts.observeJob(resp, newMetrics.InspectedBytes)
 		mc.Metrics.BackendReads += newMetrics.BackendReads
 		mc.Metrics.BackendBytes += newMetrics.BackendBytes
@@ -173,7 +173,7 @@ func (mc *MetadataMetricsCombiner) Combine(newMetrics *tempopb.MetadataMetrics, 
 	cacheHit := IsCacheHit(resp.HTTPResponse())
 	if !cacheHit {
 		mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
-		report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
+		mc.opts.report(newMetrics.InspectedBytes)
 		mc.opts.observeJob(resp, newMetrics.InspectedBytes)
 		mc.Metrics.BackendReads += newMetrics.BackendReads
 		mc.Metrics.BackendBytes += newMetrics.BackendBytes
@@ -208,7 +208,7 @@ func (mc *QueryRangeMetricsCombiner) Combine(newMetrics *tempopb.SearchMetrics, 
 			mc.Metrics.TotalBlocks += newMetrics.TotalBlocks
 			mc.Metrics.TotalBlockBytes += newMetrics.TotalBlockBytes
 			mc.Metrics.InspectedBytes += newMetrics.InspectedBytes
-			report(mc.opts.reportInspectedBytes, newMetrics.InspectedBytes)
+			mc.opts.report(newMetrics.InspectedBytes)
 			if !resp.IsMetadata() { // otherwise the response only summarizes the jobs
 				mc.opts.observeJob(resp, newMetrics.InspectedBytes)
 			}
