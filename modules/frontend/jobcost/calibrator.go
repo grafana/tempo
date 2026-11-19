@@ -25,7 +25,7 @@ type calibrator struct {
 	enabled              bool
 	factorMin, factorMax float64
 
-	bits atomic.Uint64 // float64 bits of the factor in use
+	factorBits atomic.Uint64 // float64 factorBits of the factor in use
 
 	mu        sync.Mutex
 	sumActual float64
@@ -39,14 +39,14 @@ func newCalibrator(initial float64, enabled bool) *calibrator {
 		factorMin: initial / maxDeviation,
 		factorMax: initial * maxDeviation,
 	}
-	c.bits.Store(math.Float64bits(initial))
+	c.factorBits.Store(math.Float64bits(initial))
 	return c
 }
 
 // factor returns the factor in use, the bytes a job is expected to read per unit of Base.
 // Once calibrated, it is sumActual/sumBase limited to [factorMin, factorMax].
 func (c *calibrator) factor() float64 {
-	return math.Float64frombits(c.bits.Load())
+	return math.Float64frombits(c.factorBits.Load())
 }
 
 // observe adds a finished job. Jobs that read nothing are valid samples, jobs without a Base are ignored.
@@ -67,5 +67,5 @@ func (c *calibrator) observe(base, actual uint64) {
 	}
 
 	f := min(max(c.sumActual/c.sumBase, c.factorMin), c.factorMax)
-	c.bits.Store(math.Float64bits(f))
+	c.factorBits.Store(math.Float64bits(f))
 }
