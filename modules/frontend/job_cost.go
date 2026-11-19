@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"context"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/blocksharding"
 )
@@ -53,13 +55,19 @@ func newJobReporter(op jobcost.Op, estimator *jobcost.Estimator, metrics *jobCos
 	return r
 }
 
-// option returns a combiner option that reports the jobs of a query of tenant as they complete.
-func (r *jobReporter) option(tenant string) combiner.Option {
+// option returns a combiner option that reports the jobs of a query of tenant as they complete. The
+// estimates of the jobs are also added to the cell on ctx, which makes them available when the query is logged.
+func (r *jobReporter) option(ctx context.Context, tenant string) combiner.Option {
+	addEstimatedBytes := pipeline.EstimatedBytesAdder(ctx)
+
 	return combiner.WithOptions(
 		combiner.WithInspectedBytesReporter(func(b uint64) {
 			r.inspected.WithLabelValues(tenant).Add(float64(b))
 		}),
-		combiner.WithJobInspectedBytesObserver(r.observeJob),
+		combiner.WithJobInspectedBytesObserver(func(inspectedBytes uint64, cost jobcost.Cost) {
+			r.observeJob(inspectedBytes, cost)
+			addEstimatedBytes(cost.Estimate)
+		}),
 	)
 }
 

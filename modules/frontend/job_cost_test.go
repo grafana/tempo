@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"context"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
+	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus"
@@ -100,7 +102,8 @@ func TestJobReporter(t *testing.T) {
 	block := jobcost.Cost{Kind: jobcost.KindBlock, Base: 1000, Estimate: 10}
 	liveStore := jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 20}
 
-	c := combiner.NewSearchMetricsCombiner(reporter.option("tenant-a"))
+	ctx := pipeline.WithQueryShapeCell(context.Background())
+	c := combiner.NewSearchMetricsCombiner(reporter.option(ctx, "tenant-a"))
 	c.Combine(&tempopb.SearchMetrics{InspectedBytes: 100}, costedResponse{cost: block})                               // 10x the estimate
 	c.Combine(&tempopb.SearchMetrics{InspectedBytes: 5}, costedResponse{cost: block})                                 // half the estimate
 	c.Combine(&tempopb.SearchMetrics{}, costedResponse{cost: block})                                                  // read nothing
@@ -112,6 +115,12 @@ func TestJobReporter(t *testing.T) {
 	// the counter has the bytes of every job, the histogram has every job
 	require.InDelta(t, 155, testutil.ToFloat64(metrics.inspected.WithLabelValues("tenant-a", "search")), 0)
 	require.Equal(t, uint64(6), histogramOf(t, metrics.jobInspected.WithLabelValues("search")).GetSampleCount())
+
+	// the estimates of the jobs are summed up for the query: 3 block jobs and 1 live store job, cached jobs
+	// and jobs without an estimate add nothing
+	estimatedBytes, ok := pipeline.EstimatedBytesFromContext(ctx)
+	require.True(t, ok)
+	require.Equal(t, uint64(3*10+20), estimatedBytes)
 
 	// the ratio is observed for jobs with an estimate greater than zero, including jobs that read nothing.
 	// jobs without an estimate and cached jobs are not observed
@@ -161,7 +170,7 @@ func TestJobReporterCalibratesTheEstimator(t *testing.T) {
 	metrics := newTestJobCostMetrics(estimator, reg)
 	reporter := newJobReporter(jobcost.OpSearch, estimator, metrics)
 
-	c := combiner.NewSearchMetricsCombiner(reporter.option("tenant-a"))
+	c := combiner.NewSearchMetricsCombiner(reporter.option(context.Background(), "tenant-a"))
 	initial := estimator.Factor(jobcost.OpSearch)
 	require.InDelta(t, 0.01, initial, 1e-12)
 	require.InDelta(t, initial, gaugeValue(t, reg, "tempo_query_frontend_job_cost_factor", "search"), 1e-12)

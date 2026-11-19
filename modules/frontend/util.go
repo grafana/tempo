@@ -56,12 +56,16 @@ func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
 
 // recordResult logs the response fields and mirrors them as span attributes.
 // Every entry in additionalMetrics is appended as a log key/value (keys sorted).
+// The estimated bytes of the jobs of the query are appended as estimated_bytes, if the context has a cell.
 // Pass nil when the response has no AdditionalMetrics.
 //
 //nolint:revive // logger first to match logWithShape's calling convention: recordResult(level.Info(logger), ctx, ...)
 func recordResult(logger log.Logger, ctx context.Context, additionalMetrics map[string]int64, fields ...any) {
 	for _, k := range slices.Sorted(maps.Keys(additionalMetrics)) {
 		fields = append(fields, k, additionalMetrics[k])
+	}
+	if estimatedBytes, ok := pipeline.EstimatedBytesFromContext(ctx); ok {
+		fields = append(fields, "estimated_bytes", estimatedBytes)
 	}
 	logWithShape(logger, ctx, fields...)
 	setSpanAttrsWithShape(ctx, fields...)

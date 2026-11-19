@@ -22,6 +22,9 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -397,6 +400,60 @@ func TestFrontendSearchReportsJobCosts(t *testing.T) {
 	// the ingester job did not add to the block jobs
 	ratio = metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", block).GetHistogram()
 	require.Equal(t, uint64(8), ratio.GetSampleCount())
+}
+
+// the estimated bytes of the jobs of a search end up on the request span, for HTTP and gRPC requests
+func TestFrontendSearchRecordsEstimatedBytes(t *testing.T) {
+	// 4 blocks x 2 jobs, every job covers 100 MiB and is estimated to read 1% of it. the estimate of each job is truncated
+	const expected = 8 * defaultTargetBytesPerRequest / 100
+	searchReq := &tempopb.SearchRequest{Query: "{resource.service.name = `test`}", Start: 1, End: 100000}
+
+	estimatedBytesOf := func(t *testing.T, rec *tracetest.SpanRecorder) int64 {
+		t.Helper()
+
+		ended := rec.Ended()
+		require.Len(t, ended, 1)
+		for _, kv := range ended[0].Attributes() {
+			if kv.Key == "estimated_bytes" {
+				return kv.Value.AsInt64()
+			}
+		}
+		require.FailNow(t, "span has no estimated_bytes attribute")
+		return 0
+	}
+
+	newSpan := func() (*tracetest.SpanRecorder, context.Context, trace.Span) {
+		rec := tracetest.NewSpanRecorder()
+		tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+		ctx, span := tp.Tracer("test").Start(context.Background(), "test")
+		return rec, user.InjectOrgID(ctx, "single-tenant"), span
+	}
+
+	t.Run("http", func(t *testing.T) {
+		f := frontendWithSettings(t, nil, nil, nil, nil)
+		rec, ctx, span := newSpan()
+
+		httpReq, err := api.BuildSearchRequest(httptest.NewRequest("GET", "/api/search", nil), searchReq)
+		require.NoError(t, err)
+		httpResp := httptest.NewRecorder()
+		f.SearchHandler.ServeHTTP(httpResp, httpReq.WithContext(ctx))
+		span.End()
+
+		require.Equal(t, http.StatusOK, httpResp.Code)
+		require.InDelta(t, expected, estimatedBytesOf(t, rec), 8)
+	})
+
+	t.Run("grpc", func(t *testing.T) {
+		f := frontendWithSettings(t, nil, nil, nil, nil)
+		rec, ctx, span := newSpan()
+
+		srv := newMockStreamingServer[*tempopb.SearchResponse]("", nil)
+		srv.ctx = ctx
+		require.NoError(t, f.streamingSearch(searchReq, srv))
+		span.End()
+
+		require.InDelta(t, expected, estimatedBytesOf(t, rec), 8)
+	})
 }
 
 func TestSearchLimitHonored(t *testing.T) {
