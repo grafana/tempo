@@ -390,6 +390,20 @@ func TestUserConfigOverridesManager_WriteStatusRuntimeConfig(t *testing.T) {
 	}
 }
 
+func TestUserConfigOverridesManager_TenantLimitsSnapshot(t *testing.T) {
+	original := &userconfigurableoverrides.Limits{Forwarders: &[]string{"original"}}
+	mgr := &userConfigurableOverridesManager{
+		tenantLimits: tenantLimits{tenant1: original, tenant2: original},
+	}
+
+	snapshot := mgr.getAllTenantLimits()
+	mgr.setTenantLimit(tenant1, &userconfigurableoverrides.Limits{Forwarders: &[]string{"updated"}})
+	mgr.setTenantLimit(tenant2, nil)
+	mgr.setTenantLimit("tenant-3", original)
+
+	require.Equal(t, tenantLimits{tenant1: original, tenant2: original}, snapshot)
+}
+
 func localUserConfigOverrides(t *testing.T, baseLimits Overrides, perTenantOverrides []byte) (string, *userConfigurableOverridesManager, func()) {
 	path := t.TempDir()
 
