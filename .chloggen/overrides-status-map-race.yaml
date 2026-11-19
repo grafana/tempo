@@ -1,0 +1,6 @@
+change_type: security
+component: overrides
+note: Prevent race condition when status endpoints are read during user-configurable overrides reloads.
+issues: []
+subtext:
+user: ruslan-mikhailov
