@@ -50,6 +50,15 @@ func TestTagValueSearchRequestHashIncludesLimits(t *testing.T) {
 	require.NotEqual(t, base.hash(), withStale.hash(), "hash must vary with StaleValueThreshold")
 }
 
+func TestTagsSearchRequestHashIncludesQuery(t *testing.T) {
+	newReq := func(q string) *tagsSearchRequest {
+		return &tagsSearchRequest{request: tempopb.SearchTagsRequest{Scope: "span", Query: q}}
+	}
+
+	require.NotEqual(t, newReq("{ span.foo = `a` }").hash(), newReq("{ span.foo = `b` }").hash(), "hash must vary with Query")
+	require.Equal(t, newReq("{ span.foo = `a` }").hash(), newReq("{span.foo=`a`}").hash(), "equivalent queries must share a hash")
+}
+
 type fakeReq struct {
 	startValue uint32
 	endValue   uint32

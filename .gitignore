@@ -29,3 +29,4 @@ gh-token.txt
 .cache
 operations/jsonnet/microservices/vendor/
 .claude/skills/evals-workspace/
+.worktrees

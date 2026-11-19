@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: query-frontend
+note: Include the TraceQL query in the tag-names search cache key so requests with different filters no longer share cached results.
+issues: []
+subtext:
+user: 'ie-pham'
