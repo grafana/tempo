@@ -8,11 +8,12 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
-// newGitHubClient builds the go-github REST client used by the sweep. The
-// client timeout bounds a single attempt; retryableCall wraps the idempotent
-// call sites around it, so each attempt gets its own budget. Rate limiting
-// and Retry-After backoff are handled by go-github itself, with the secondary
-// rate-limit retry clamped to maxSecondaryRateLimitRetryTime.
+// newGitHubClient builds the plain go-github REST client used by the sweep.
+// The client timeout bounds each request so a hung response cannot stall the
+// run; go-github handles rate-limit and Retry-After backoff internally, with
+// the secondary rate-limit retry clamped to maxSecondaryRateLimitRetryTime. We
+// layer no retries on top — if transient failures become a problem, add them
+// back at the caller.
 func newGitHubClient(token string) (*github.Client, error) {
 	httpClient := &http.Client{Timeout: apiRequestTimeout}
 	client, err := github.NewClient(
@@ -41,13 +42,8 @@ func eachPageBounded[T any](ctx context.Context, next func(*github.ListOptions) 
 	var all []T
 	opts := &github.ListOptions{PerPage: apiPageSize}
 	for {
-		var items []T
-		var resp *github.Response
-		if err := retryableCall(ctx, func() error {
-			var callErr error
-			items, resp, callErr = next(opts)
-			return callErr
-		}); err != nil {
+		items, resp, err := next(opts)
+		if err != nil {
 			return nil, err
 		}
 		all = append(all, items...)

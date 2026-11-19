@@ -16,13 +16,12 @@ const (
 
 	apiPageSize                    = 100
 	apiRequestTimeout              = 30 * time.Second
-	maxRequestAttempts             = 3
 	maxSecondaryRateLimitRetryTime = 5 * time.Minute
 	maxSearchResults               = 1000
 
-	// batchTimeout bounds the assign phase so an outage (each re-read GET
-	// draining its retry budget) cannot run far past the workflow's own
-	// timeout-minutes and get SIGKILLed mid-write. A few minutes under that
+	// batchTimeout bounds the assign phase so a GitHub outage (each request is
+	// already bounded by apiRequestTimeout) cannot run far past the workflow's
+	// own timeout-minutes and get SIGKILLed mid-write. A few minutes under that
 	// cap lets the run fail cleanly and report which PRs were deferred.
 	batchTimeout = 25 * time.Minute
 )

@@ -303,16 +303,11 @@ func loadSnapshot(ctx context.Context, client *github.Client, now time.Time) (ma
 // the set, in which case closed load is undercounted.
 func recentlyClosedPRs(ctx context.Context, client *github.Client, now time.Time) ([]pullRequest, error) {
 	closedQuery := fmt.Sprintf("repo:%s is:pr is:closed closed:>=%s", defaultRepo, now.Add(-closedLoadWindow).UTC().Format("2006-01-02T15:04:05Z"))
-	var total int
-	var count *github.IssuesSearchResult
-	if err := retryableCall(ctx, func() error {
-		var callErr error
-		count, _, callErr = client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 1}})
-		return callErr
-	}); err != nil {
+	count, _, err := client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 1}})
+	if err != nil {
 		return nil, fmt.Errorf("count recently closed pull requests: %w", err)
 	}
-	total = count.GetTotal()
+	total := count.GetTotal()
 	if total > maxSearchResults {
 		fmt.Printf("::warning::%d PRs closed in the last %d days, but the search API returns at most %d. Closed load is undercounted.\n", total, closedLoadDays, maxSearchResults)
 	}
@@ -354,8 +349,8 @@ func planAssignments(ctx context.Context, client *github.Client, load map[string
 // cancellation itself) so the job annotation stays actionable.
 func applyAssignments(ctx context.Context, client *github.Client, assignments []assignment) error {
 	// Bound the apply phase (see batchTimeout) so a GitHub outage fails the run
-	// cleanly instead of draining every PR's retry budget and being
-	// SIGTERM-killed mid-write at the workflow's timeout.
+	// cleanly instead of burning the workflow's whole timeout and being
+	// SIGTERM-killed mid-write.
 	applyCtx, cancel := context.WithTimeout(ctx, batchTimeout)
 	defer cancel()
 	assigned, failed := 0, 0
