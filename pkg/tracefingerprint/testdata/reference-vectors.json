@@ -1,0 +1,91 @@
+[
+  {
+    "scenario": "chain",
+    "count": 6,
+    "signature": "64 b1 39 49 f5 fc f1 bc a5 9a 95 7c f9 95 39 2f f6 81 b1 d3 2e 1e a3 cd 81 f4 86 0b b7 a3 7c 7b 56 b3 35 ca 4a 1c 8f d3 78 58 9f ad 8a d2 fd 62 a0 40 5a 60 b5 25 3d 9a 07 85 93 34 71 5b 9d 19",
+    "shingleHashes": [
+      "662b194a671a1775",
+      "7a81625ccc749f5e",
+      "8d01ff2ca82d0a77",
+      "922dbe2976a89562",
+      "97548a20369c9b0e",
+      "cb9d10d4a784685d"
+    ]
+  },
+  {
+    "scenario": "repeat",
+    "count": 6,
+    "signature": "64 b1 39 49 f5 fc f1 bc a5 9a 95 7c f9 95 39 2f f6 81 b1 d3 2e 1e a3 cd 81 f4 86 0b b7 a3 7c 7b 56 b3 35 ca 4a 1c 8f d3 78 58 9f ad 8a d2 fd 62 a0 40 5a 60 b5 25 3d 9a 07 85 93 34 71 5b 9d 19",
+    "shingleHashes": [
+      "662b194a671a1775",
+      "7a81625ccc749f5e",
+      "8d01ff2ca82d0a77",
+      "922dbe2976a89562",
+      "97548a20369c9b0e",
+      "cb9d10d4a784685d"
+    ]
+  },
+  {
+    "scenario": "branch",
+    "count": 8,
+    "signature": "64 99 b9 79 77 fc f1 bc a4 99 15 70 f9 94 39 3f f6 91 b1 db 2f 1c a3 4d c1 f4 92 0b b7 83 f4 7f 56 f3 35 5a 5b 2d ae db 78 d0 9f ad 0b 9e ed e4 a5 40 5a 6e b5 65 35 da 06 85 13 f4 75 c8 9d 99",
+    "shingleHashes": [
+      "662b194a671a1775",
+      "7a81625ccc749f5e",
+      "8d01ff2ca82d0a77",
+      "922dbe2976a89562",
+      "929107c9ce83a258",
+      "97548a20369c9b0e",
+      "cb9d10d4a784685d",
+      "f672719d2461c666"
+    ]
+  },
+  {
+    "scenario": "orphan",
+    "count": 2,
+    "signature": "45 b2 fe 0d f5 fc f3 77 50 0a 85 39 fb d9 5d 20 7b 80 b9 f1 fd 5e b1 42 91 e7 1f 03 04 ed 13 73 59 c3 74 0a ca 5f 27 85 59 5c 9f bc 43 74 fd 76 92 52 e8 68 b0 16 3d be a3 8b af 14 34 50 95 9d",
+    "shingleHashes": [
+      "662b194a671a1775",
+      "97548a20369c9b0e"
+    ]
+  },
+  {
+    "scenario": "empty",
+    "count": 6,
+    "signature": "61 b9 69 1c f4 ad 11 b7 8a a2 15 62 d7 35 0c 9e da 9c b4 d7 26 06 be e5 2c e2 85 0b 37 e2 5e b3 7f 30 3d 93 4a c4 bf d3 b9 7d 8f 8d 1e 15 7c 79 aa c1 2e fc 91 6e 9b d6 04 a0 b2 15 0f a4 9d b9",
+    "shingleHashes": [
+      "1b0ecf207259cabc",
+      "232c1b8531f4a0fa",
+      "7a81625ccc749f5e",
+      "87900298ece2b9ea",
+      "922dbe2976a89562",
+      "97548a20369c9b0e"
+    ]
+  },
+  {
+    "scenario": "unicode",
+    "count": 6,
+    "signature": "68 9f 09 91 30 ec 69 b9 d1 48 35 ec bb 94 38 79 32 a3 31 b0 37 cc 07 e1 c1 f4 1c 49 ff 77 72 55 97 b1 06 9b 6b ee 0f d6 4c 5a ee 2f 0a 7c 7b 55 88 fa 3b 42 d6 e5 18 84 21 94 12 60 7d 19 9d 38",
+    "shingleHashes": [
+      "662b194a671a1775",
+      "7183ab62010b1c82",
+      "922dbe2976a89562",
+      "c33abb62e7f2ca2d",
+      "cb9d10d4a784685d",
+      "d32f2b3f8f944766"
+    ]
+  },
+  {
+    "scenario": "long",
+    "count": 6,
+    "signature": "29 13 d9 58 e9 fc 61 a2 90 58 95 f4 ab 83 38 7a 34 ab b1 90 2e de 23 41 c1 54 ac 52 af 86 74 71 57 f3 34 ce df ea af 57 48 49 d9 ac 09 d4 6f b7 50 c8 62 19 f4 a5 18 ae 03 c4 b7 84 35 d8 bf 1a",
+    "shingleHashes": [
+      "4c2a77f026e75cf8",
+      "54d62e2335523113",
+      "6186abcaf0d7d607",
+      "662b194a671a1775",
+      "922dbe2976a89562",
+      "cb9d10d4a784685d"
+    ]
+  }
+]
