@@ -1285,7 +1285,7 @@ query_frontend:
     job_cost:
         # Calibrate the estimates for jobs that read blocks with the bytes the jobs actually read.
         calibration:
-            # If disabled, the estimates use fixed starting values.
+            # If disabled, the estimates use predefined constant values.
             [enabled: <bool> | default = true]
 
             # Limits of the share of the bytes of a block that search, metadata and metrics jobs are estimated
@@ -1293,7 +1293,7 @@ query_frontend:
             [min_factor: <float> | default = 0.001]
             [max_factor: <float> | default = 0.1]
 
-        # Fixed estimate in bytes for jobs that read recent data from the live store or generators.
+        # Fixed estimate in bytes for jobs that read recent data from the live stores.
         # Set to 0 to not estimate these jobs.
         [live_store_cost: <int> | default = 262144]
 
