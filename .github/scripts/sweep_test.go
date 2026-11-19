@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -123,4 +124,18 @@ func TestDecideAssignmentsTiesUseChooserAndHonorCap(t *testing.T) {
 		{number: 30, owner: "alice"},
 		{number: 40, owner: "bob"},
 	}, assignments)
+}
+
+// TestApplyAssignmentsStopsWhenContextCanceled pins that a canceled context
+// (e.g. SIGTERM) is reported as an interruption, not as an assignment failure;
+// the client is nil so it must return before any API call.
+func TestApplyAssignmentsStopsWhenContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := applyAssignments(ctx, nil, []assignment{{number: 1, owner: "alice"}})
+	require.ErrorContains(t, err, "sweep interrupted")
+}
+
+func TestApplyAssignmentsWithNothingToDoSucceeds(t *testing.T) {
+	require.NoError(t, applyAssignments(context.Background(), nil, nil))
 }

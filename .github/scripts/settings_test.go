@@ -54,8 +54,8 @@ func TestEachPageBoundedStopsAtLimit(t *testing.T) {
 		return []int{1, 2, 3}, &github.Response{NextPage: opts.Page + 1}, nil
 	}, 5)
 	require.NoError(t, err)
-	// Stops as soon as the cap is reached: page 1 (3 items) + page 2 fills past
-	// the 5-item limit without requesting a third page.
-	require.Equal(t, []int{1, 2, 3, 1, 2, 3}, items)
+	// Stops as soon as the cap is reached and truncates to it: page 1 (3 items)
+	// + page 2 would reach 6, so the result is cut to 5 without a third request.
+	require.Equal(t, []int{1, 2, 3, 1, 2}, items)
 	require.Equal(t, 2, calls)
 }

@@ -18,16 +18,16 @@ import (
 )
 
 type user struct {
-	Login string `json:"login"`
-	Type  string `json:"type"`
+	Login string
+	Type  string
 }
 
 type pullRequest struct {
-	Number    int       `json:"number"`
-	CreatedAt time.Time `json:"created_at"`
-	User      *user     `json:"user"`
-	Assignees []user    `json:"assignees"`
-	Draft     bool      `json:"draft"`
+	Number    int
+	CreatedAt time.Time
+	User      *user
+	Assignees []user
+	Draft     bool
 }
 
 type ownerLoad struct {
@@ -224,6 +224,9 @@ func listOpenPRs(ctx context.Context, client *github.Client) ([]pullRequest, err
 }
 
 func convertPullRequest(pr *github.PullRequest) pullRequest {
+	if pr == nil {
+		return pullRequest{}
+	}
 	result := pullRequest{
 		Number:    pr.GetNumber(),
 		CreatedAt: pr.GetCreatedAt().Time,
@@ -241,6 +244,9 @@ func convertPullRequest(pr *github.PullRequest) pullRequest {
 // convertIssue adapts a search-result issue (closed PR payloads) to the
 // internal pullRequest shape used by calculateLoad.
 func convertIssue(issue *github.Issue) pullRequest {
+	if issue == nil {
+		return pullRequest{}
+	}
 	result := pullRequest{
 		Number:    issue.GetNumber(),
 		CreatedAt: issue.GetCreatedAt().Time,
@@ -263,39 +269,35 @@ func runSweep(ctx context.Context, client *github.Client, now time.Time, choose 
 		return errors.New("code owner pool is empty")
 	}
 
-	load, err := loadSnapshot(ctx, client, now)
+	openPRs, load, err := loadSnapshot(ctx, client, now)
 	if err != nil {
 		return err
 	}
-	assignments, err := planAssignments(ctx, client, load, choose)
-	if err != nil {
-		return err
-	}
+	assignments := planAssignments(openPRs, load, choose)
 	if len(assignments) == 0 {
 		return nil
 	}
 	return applyAssignments(ctx, client, assignments)
 }
 
-// loadSnapshot computes each pool owner's load from the currently open PRs and
-// the PRs closed within closedLoadWindow, reporting stale (over-maxOpenAgeDays)
-// open PRs. Open PRs are fetched again later for candidates, because assignment
-// changes pool state between the two passes and the later fetch keeps the
-// per-PR decisions close to the assignments they make.
-func loadSnapshot(ctx context.Context, client *github.Client, now time.Time) (map[string]ownerLoad, error) {
+// loadSnapshot fetches the open PRs and the PRs closed within closedLoadWindow,
+// computes each pool owner's load, and reports stale (over-maxOpenAgeDays) open
+// PRs. It also returns the open-PR snapshot so candidate selection reuses the
+// same fetch instead of hitting the API twice.
+func loadSnapshot(ctx context.Context, client *github.Client, now time.Time) ([]pullRequest, map[string]ownerLoad, error) {
 	openPRs, err := listOpenPRs(ctx, client)
 	if err != nil {
-		return nil, fmt.Errorf("list open pull requests for load: %w", err)
+		return nil, nil, fmt.Errorf("list open pull requests: %w", err)
 	}
 	closedPRs, err := recentlyClosedPRs(ctx, client, now)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	load, staleOwners := calculateLoad(openPRs, closedPRs, defaultAssigneePool, now, defaultOpenLoadMaxAgeDays)
 	for _, owner := range slices.Sorted(maps.Keys(staleOwners)) {
 		fmt.Printf("Open PRs assigned to %s older than %d days no longer count as load.\n", owner, defaultOpenLoadMaxAgeDays)
 	}
-	return load, nil
+	return openPRs, load, nil
 }
 
 // recentlyClosedPRs fetches the PRs closed within closedLoadWindow, converted
@@ -306,6 +308,9 @@ func recentlyClosedPRs(ctx context.Context, client *github.Client, now time.Time
 	count, _, err := client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 1}})
 	if err != nil {
 		return nil, fmt.Errorf("count recently closed pull requests: %w", err)
+	}
+	if count == nil {
+		return nil, errors.New("closed count returned an empty response")
 	}
 	total := count.GetTotal()
 	if total > maxSearchResults {
@@ -331,35 +336,26 @@ func recentlyClosedPRs(ctx context.Context, client *github.Client, now time.Time
 	return closed, nil
 }
 
-// planAssignments refreshes the open-PR candidates and decides which owners get
-// which PRs this run, honoring the per-run cap. An empty result means nothing
-// to assign this cycle.
-func planAssignments(ctx context.Context, client *github.Client, load map[string]ownerLoad, choose func([]string) string) ([]assignment, error) {
-	openPRs, err := listOpenPRs(ctx, client)
-	if err != nil {
-		return nil, fmt.Errorf("refresh pull request candidates: %w", err)
-	}
+// planAssignments selects the unassigned candidates from the open-PR snapshot
+// and decides which owners get which PRs this run, honoring the per-run cap. An
+// empty result means nothing to assign this cycle.
+func planAssignments(openPRs []pullRequest, load map[string]ownerLoad, choose func([]string) string) []assignment {
 	candidates := findCandidates(openPRs, defaultAssigneePool)
 	fmt.Printf("Found %d unassigned PR(s).\n", len(candidates))
-	return decideAssignments(load, candidates, defaultMaxAssignments, choose), nil
+	return decideAssignments(load, candidates, defaultMaxAssignments, choose)
 }
 
-// applyAssignments runs the decided assignments under a batch deadline and
-// returns an aggregate error carrying the first failure's root cause (or the
-// cancellation itself) so the job annotation stays actionable.
+// applyAssignments runs the decided assignments and returns an aggregate error
+// carrying the first failure's root cause, or the cancellation itself, so the
+// job annotation stays actionable.
 func applyAssignments(ctx context.Context, client *github.Client, assignments []assignment) error {
-	// Bound the apply phase (see batchTimeout) so a GitHub outage fails the run
-	// cleanly instead of burning the workflow's whole timeout and being
-	// SIGTERM-killed mid-write.
-	applyCtx, cancel := context.WithTimeout(ctx, batchTimeout)
-	defer cancel()
 	assigned, failed := 0, 0
 	var firstErr error
 	for _, a := range assignments {
-		if err := applyCtx.Err(); err != nil {
-			return fmt.Errorf("apply phase exceeded its %s budget: %w", batchTimeout, err)
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("sweep interrupted: %w", err)
 		}
-		if err := applyAssignment(applyCtx, client, a.number, a.owner); err != nil {
+		if err := applyAssignment(ctx, client, a.number, a.owner); err != nil {
 			failed++
 			fmt.Printf("::warning::Could not complete assignment of PR #%d to @%s: %v.\n", a.number, a.owner, err)
 			if firstErr == nil {

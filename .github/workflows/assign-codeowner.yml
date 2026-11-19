@@ -25,10 +25,9 @@ jobs:
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # Reads repository contents; assigns an owner to issues (PRs) and, when a
-    # competing assignee races the write, removes our own. No label writes;
-    # the assignment-only sweep slowed the notification storm the marker label
-    # was meant to cap, so it was dropped.
+    # Reads repository contents and assigns a single owner to issues (PRs).
+    # The sweep only adds an assignee — it writes no labels and removes
+    # nothing, so issue-write is needed solely for AddAssignees.
     permissions:
       contents: read
       issues: write
@@ -45,7 +44,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version-file: go.mod
+          go-version-file: .github/scripts/go.mod
           cache: false
 
       - name: Assign available code owners

@@ -14,16 +14,9 @@ const (
 	closedLoadDays            = 7
 	closedLoadWindow          = closedLoadDays * 24 * time.Hour
 
-	apiPageSize                    = 100
-	apiRequestTimeout              = 30 * time.Second
-	maxSecondaryRateLimitRetryTime = 5 * time.Minute
-	maxSearchResults               = 1000
-
-	// batchTimeout bounds the assign phase so a GitHub outage (each request is
-	// already bounded by apiRequestTimeout) cannot run far past the workflow's
-	// own timeout-minutes and get SIGKILLed mid-write. A few minutes under that
-	// cap lets the run fail cleanly and report which PRs were deferred.
-	batchTimeout = 25 * time.Minute
+	apiPageSize       = 100
+	apiRequestTimeout = 30 * time.Second
+	maxSearchResults  = 1000
 )
 
 // defaultAssigneePool is the hardcoded code owner pool for the scheduled
