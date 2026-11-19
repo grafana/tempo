@@ -361,6 +361,80 @@ func TestRescanAppliesWindowToOutputBlocks(t *testing.T) {
 		"the only output block is out of window, so the rescan should enqueue nothing")
 }
 
+// TestRescanAppliesWindowToFailedJobInputs verifies the rescan applies the batch window to the input
+// blocks of a skipped compaction job that failed. The job was merging an in-window block with an
+// out-of-window one. Its failure leaves both inputs live, so the in-window one must be redacted, but
+// the submit-time filter excluded the out-of-window one and the rescan must not re-widen past that.
+func TestRescanAppliesWindowToFailedJobInputs(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.ProviderConfig.Redaction.RescanDelay = 0
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	ctx, cancel := context.WithCancel(context.Background())
+	store, rr, ww := newStore(ctx, t, tmpDir)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	tenant := "t-rescan-window-failed"
+	base := time.Now().Add(-20 * 24 * time.Hour)
+	day := func(n int) time.Time { return base.Add(time.Duration(n) * 24 * time.Hour) }
+
+	ids := writeTenantBlocksWithRanges(ctx, t, backend.NewWriter(ww), tenant, [][2]time.Time{
+		{day(3), day(4)},   // in window
+		{day(12), day(13)}, // outside the window
+	})
+	inWindow, outOfWindow := ids[0].String(), ids[1].String()
+	require.Eventually(t, func() bool { return len(store.BlockMetas(tenant)) == 2 },
+		5*time.Second, 50*time.Millisecond, "both blocks must be polled before submitting")
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	compJob := &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:     tenant,
+			Compaction: &tempopb.CompactionDetail{Input: []string{inWindow, outOfWindow}},
+		},
+	}
+	s.work.RegisterJob(compJob)
+	require.NoError(t, s.work.AddJob(compJob))
+	s.work.StartJob(compJob.ID)
+
+	// The in-window block is busy, so the submission creates no job for it and arms a rescan.
+	_, err = s.SubmitRedaction(user.InjectOrgID(ctx, tenant), &tempopb.SubmitRedactionRequest{
+		Selector:          &tempopb.SubmitRedactionRequest_Query{Query: &tempopb.TraceQLSelector{Query: `{resource.namespace = "checkout"}`}},
+		StartTimeUnixNano: day(2).UnixNano(),
+		EndTimeUnixNano:   day(5).UnixNano(),
+	})
+	require.NoError(t, err)
+	batch := s.work.GetBatch(tenant)
+	require.NotNil(t, batch)
+	require.ElementsMatch(t, []string{compJob.ID}, batch.SkippedCompactionJobIds, "the busy in-window block arms the rescan")
+	require.Empty(t, s.work.ListAllPendingJobs(), "both blocks are either busy or out of window at submit")
+
+	// The compaction fails, leaving both inputs live.
+	s.work.FailJob(compJob.ID)
+
+	s.performRescan(ctx, batch)
+
+	var redacted []string
+	for _, j := range s.work.ListAllPendingJobs() {
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+			redacted = append(redacted, j.GetRedactionBlockID())
+		}
+	}
+	require.Equal(t, []string{inWindow}, redacted,
+		"only the failed job's in-window input may be redacted: the window excluded the other at submit")
+}
+
 // TestSubmitRedactionWindowMatchingNothing verifies a window that overlaps no block is refused rather
 // than accepted as an empty batch.
 //

@@ -698,6 +698,121 @@ func TestRescanSkipsRunningJob(t *testing.T) {
 	require.Zero(t, batch.RescanAfterUnixNano, "rescan deadline must be cleared after successful enqueue")
 }
 
+// TestRescanByCompactionJobStatus verifies how the rescan treats a skipped compaction job in each
+// state. A running job re-arms the rescan. A succeeded job has its output blocks redacted. A failed
+// job produced no output, so its input blocks are still live and still hold the traces the submission
+// skipped: they must be redacted, and the rescan must not wait on the job.
+func TestRescanByCompactionJobStatus(t *testing.T) {
+	outputBlock := uuid.New().String()
+
+	tests := []struct {
+		name string
+		// finish moves the skipped compaction job to the state under test.
+		finish func(w work.Interface, jobID string)
+		// wantRedacted reports which blocks must get a pending redaction job, given the job's inputs.
+		wantRedacted func(inputs []string) []string
+		wantRearmed  bool
+	}{
+		{
+			name:         "running job re-arms",
+			finish:       func(work.Interface, string) {},
+			wantRedacted: func([]string) []string { return nil },
+			wantRearmed:  true,
+		},
+		{
+			name: "succeeded job redacts its outputs",
+			finish: func(w work.Interface, jobID string) {
+				w.SetJobCompactionOutput(jobID, []string{outputBlock})
+				w.CompleteJob(jobID)
+			},
+			wantRedacted: func([]string) []string { return []string{outputBlock} },
+		},
+		{
+			name:         "failed job redacts its inputs",
+			finish:       func(w work.Interface, jobID string) { w.FailJob(jobID) },
+			wantRedacted: func(inputs []string) []string { return inputs },
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+			cfg.ProviderConfig.Redaction.RescanDelay = 0
+			tmpDir := t.TempDir()
+			cfg.LocalWorkPath = tmpDir
+
+			ctx, cancel := context.WithCancel(context.Background())
+			store, rr, ww := newStore(ctx, t, tmpDir)
+			defer func() {
+				cancel()
+				store.Shutdown()
+			}()
+
+			limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+			require.NoError(t, err)
+
+			tenant := "tenant-rescan-status"
+			blockIDs := writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 3)
+			require.Eventually(t, func() bool { return len(store.BlockMetas(tenant)) == 3 },
+				5*time.Second, 50*time.Millisecond, "all blocks must be polled before submitting")
+
+			s, err := New(cfg, store, limits, rr, ww)
+			require.NoError(t, err)
+
+			inputs := []string{blockIDs[0].String(), blockIDs[1].String()}
+			compJob := &work.Job{
+				ID:   uuid.New().String(),
+				Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+				JobDetail: tempopb.JobDetail{
+					Tenant:     tenant,
+					Compaction: &tempopb.CompactionDetail{Input: inputs},
+				},
+			}
+			s.work.RegisterJob(compJob)
+			require.NoError(t, s.work.AddJob(compJob))
+			s.work.StartJob(compJob.ID)
+
+			resp, err := s.SubmitRedaction(user.InjectOrgID(ctx, tenant), &tempopb.SubmitRedactionRequest{
+				TraceIds: [][]byte{[]byte(uuid.New().String())},
+			})
+			require.NoError(t, err)
+			require.Equal(t, int32(1), resp.JobsCreated, "only the block outside the compaction gets a job at submit")
+			batch := s.work.GetBatch(tenant)
+			require.NotNil(t, batch)
+			require.Equal(t, []string{compJob.ID}, batch.SkippedCompactionJobIds)
+
+			tc.finish(s.work, compJob.ID)
+
+			time.Sleep(time.Millisecond)
+			s.checkPendingRescans(ctx)
+
+			pending := make(map[string]bool)
+			for _, j := range s.work.ListAllPendingJobs() {
+				if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+					pending[j.GetRedactionBlockID()] = true
+				}
+			}
+			wantRedacted := tc.wantRedacted(inputs)
+			for _, id := range wantRedacted {
+				require.True(t, pending[id], "block %s must have a pending redaction job", id)
+			}
+			// The submit-time job for block 2 plus one job per block the rescan enqueued.
+			require.Len(t, pending, 1+len(wantRedacted), "the rescan must enqueue exactly the expected blocks")
+
+			batch = s.work.GetBatch(tenant)
+			require.NotNil(t, batch)
+			if tc.wantRearmed {
+				require.Equal(t, []string{compJob.ID}, batch.SkippedCompactionJobIds, "a running job must stay in the skipped list")
+				require.Positive(t, batch.RescanAfterUnixNano, "a running job must re-arm the rescan")
+			} else {
+				require.Empty(t, batch.SkippedCompactionJobIds, "a finished job must not be waited on again")
+				require.Zero(t, batch.RescanAfterUnixNano, "a finished job must not re-arm the rescan")
+			}
+		})
+	}
+}
+
 func TestProviderBasedScheduling(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})

@@ -413,17 +413,18 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_RUNNING:
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
+		// Record the compaction output before marking the job complete: a concurrent redaction
+		// rescan treats a SUCCEEDED job's output as final, so it must never see the job complete
+		// without its output.
+		if j.GetType() == tempopb.JobType_JOB_TYPE_COMPACTION && req.Compaction != nil && req.Compaction.Output != nil {
+			s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
+		}
 		s.work.CompleteJob(req.JobId)
 		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Dec()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
-		switch j.GetType() {
-		case tempopb.JobType_JOB_TYPE_COMPACTION:
-			if req.Compaction != nil && req.Compaction.Output != nil {
-				s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
-			}
-		case tempopb.JobType_JOB_TYPE_REDACTION:
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
 			if req.Redaction != nil {
 				recordRedactionResult(j.Tenant(), j.JobDetail.GetRedaction().GetMode(), req.Redaction.TracesFound)
 				level.Info(log.Logger).Log("msg", "redaction job result",
@@ -807,7 +808,8 @@ func (s *BackendScheduler) flushBatches(ctx context.Context) {
 
 // checkPendingRescans is called on each maintenance tick. It looks for batches whose
 // rescan window has elapsed, looks up the output blocks from the skipped compaction
-// jobs, and enqueues new pending redaction jobs for those blocks.
+// jobs (or, for a skipped job that failed, its still-live input blocks), and enqueues
+// new pending redaction jobs for those blocks.
 func (s *BackendScheduler) checkPendingRescans(ctx context.Context) {
 	now := time.Now().UnixNano()
 	for _, batch := range s.work.ListBatches() {
@@ -821,9 +823,12 @@ func (s *BackendScheduler) checkPendingRescans(ctx context.Context) {
 // performRescan handles one batch that is ready for a rescan.
 //
 // It loops over the skipped compaction job IDs, classifying each job as still-running
-// (output not yet available) or complete (output blocks known). For complete jobs it
-// further classifies output blocks as ready (enqueue a redaction job) or still being
-// compacted (discover the covering job and advance to that inline).
+// (output not yet available), complete (output blocks known), or failed. A failed job
+// produced no output, so its input blocks are still live and still hold the traces the
+// submission skipped; they are redacted in place of an output. Output blocks and failed
+// jobs' input blocks are then classified the same way: ready (enqueue a redaction job),
+// outside the batch window (skip), or still being compacted (discover the covering job
+// and advance to that inline).
 //
 // The loop resolves cascaded compaction chains in a single maintenance tick. It only
 // bails out and re-arms when it encounters a still-running job whose output is not yet
@@ -841,7 +846,7 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 	// Validated on both paths into the store (SubmitRedaction, dropBatchesWithUnusableWindows).
 	rescanWindow := tempodb.RedactionWindow{StartNano: batch.StartTimeUnixNano, EndNano: batch.EndTimeUnixNano}
 
-	// Output blocks are discovered by ID, so re-applying the window means looking their metas up. Snapshot
+	// Candidate blocks are discovered by ID, so re-applying the window means looking their metas up. Snapshot
 	// once: BlockMetas returns a private slice copy and metas are not mutated after publication, so the
 	// pointers cannot be read torn even though the poller mutates the blocklist concurrently. A block
 	// missing from the snapshot resolves to unknown and is enqueued, so staleness can only over-include.
@@ -863,16 +868,30 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 			skippedSet[id] = struct{}{}
 		}
 
-		var stillRunningIDs, outputBlockIDs []string
+		var stillRunningIDs, candidateBlockIDs []string
+		var outputBlocks, failedJobs int
 		for _, j := range s.work.ListJobs() {
 			if _, ok := skippedSet[j.ID]; !ok {
 				continue
 			}
 			delete(skippedSet, j.ID)
-			if !j.IsComplete() {
+			// Read the status once so the job cannot change state between checks.
+			switch j.GetStatus() {
+			case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
+				output := j.GetCompactionOutput()
+				outputBlocks += len(output)
+				candidateBlockIDs = append(candidateBlockIDs, output...)
+			case tempopb.JobStatus_JOB_STATUS_FAILED:
+				// No output will be recorded, use input in this case
+				input := j.GetCompactionInput()
+				failedJobs++
+				candidateBlockIDs = append(candidateBlockIDs, input...)
+				level.Info(log.Logger).Log(
+					"msg", "redaction rescan: skipped compaction job failed; redacting its input blocks",
+					"tenant", tenantID, "batch_id", batchID, "job_id", j.ID, "input_blocks", len(input),
+				)
+			default:
 				stillRunningIDs = append(stillRunningIDs, j.ID)
-			} else {
-				outputBlockIDs = append(outputBlockIDs, j.GetCompactionOutput()...)
 			}
 		}
 		for id := range skippedSet {
@@ -882,21 +901,22 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 			)
 		}
 
-		// Classify output blocks: ready to redact vs still being compacted.
+		// Classify candidate blocks: ready to redact vs still being compacted.
 		busyBlocks := s.work.BusyBlocksForTenant(tenantID)
 		var nextJobIDs []string
-		for _, blockID := range outputBlockIDs {
+		for _, blockID := range candidateBlockIDs {
 			if jobID, busy := busyBlocks[blockID]; busy {
 				nextJobIDs = append(nextJobIDs, jobID)
 				continue
 			}
 
-			// Skip an output block lying wholly outside the window. This is an I/O saving, not a safety
+			// Skip a block lying wholly outside the window. This is an I/O saving, not a safety
 			// property: an output merging an in-window input still overlaps, and the per-block scan bound
-			// is what actually limits deletion. An unknown block is treated as in scope.
+			// is what actually limits deletion. A failed job's inputs can include out-of-window blocks it
+			// was merging with the busy in-window one. An unknown block is treated as in scope.
 			if m, known := metaByID[blockID]; known {
 				if overlaps, _ := blockOverlapsWindow(m, rescanWindow.StartNano, rescanWindow.EndNano); !overlaps {
-					level.Debug(log.Logger).Log("msg", "redaction rescan: output block outside the window; not enqueued",
+					level.Debug(log.Logger).Log("msg", "redaction rescan: block outside the window; not enqueued",
 						"tenant", tenantID, "batch_id", batchID, "block_id", blockID)
 					continue
 				}
@@ -918,7 +938,7 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 		level.Info(log.Logger).Log(
 			"msg", "redaction rescan: iteration",
 			"tenant", tenantID, "batch_id", batchID,
-			"still_running", len(stillRunningIDs), "output_blocks", len(outputBlockIDs),
+			"still_running", len(stillRunningIDs), "output_blocks", outputBlocks, "failed_jobs", failedJobs,
 			"ready_jobs", len(allReadyJobs), "next_job_ids", len(nextJobIDs),
 		)
 
