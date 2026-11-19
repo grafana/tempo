@@ -113,11 +113,8 @@ func TestJobReporter(t *testing.T) {
 	require.InDelta(t, 155, testutil.ToFloat64(metrics.inspected.WithLabelValues("tenant-a", "search")), 0)
 	require.Equal(t, uint64(6), histogramOf(t, metrics.jobInspected.WithLabelValues("search")).GetSampleCount())
 
-	// only the jobs with an estimate are estimated, cached jobs are not. a block job with an estimate of zero adds nothing
-	require.InDelta(t, 30, testutil.ToFloat64(metrics.estimated.WithLabelValues("search", "block")), 0)
-	require.InDelta(t, 20, testutil.ToFloat64(metrics.estimated.WithLabelValues("search", "live_store")), 0)
-
-	// the ratio is observed for jobs with an estimate greater than zero, including jobs that read nothing
+	// the ratio is observed for jobs with an estimate greater than zero, including jobs that read nothing.
+	// jobs without an estimate and cached jobs are not observed
 	blockRatio := histogramOf(t, metrics.ratio.WithLabelValues("search", "block").(prometheus.Histogram))
 	require.Equal(t, uint64(3), blockRatio.GetSampleCount())
 	require.InDelta(t, 10+0.5+0, blockRatio.GetSampleSum(), 1e-9)
@@ -133,17 +130,15 @@ func TestJobReporterKinds(t *testing.T) {
 	metrics := newTestJobCostMetrics(estimator, reg)
 	reporter := newJobReporter(jobcost.OpMetadata, estimator, metrics)
 
-	// every kind but none has metrics
-	require.Equal(t, kindMetrics{}, reporter.kinds[jobcost.KindNone])
-	for kind := jobcost.KindBlock; int(kind) < len(reporter.kinds); kind++ {
-		require.NotNil(t, reporter.kinds[kind].estimated, kind.String())
-		require.NotNil(t, reporter.kinds[kind].ratio, kind.String())
+	// every kind but none has a ratio histogram
+	require.Nil(t, reporter.ratios[jobcost.KindNone])
+	for kind := jobcost.KindBlock; int(kind) < len(reporter.ratios); kind++ {
+		require.NotNil(t, reporter.ratios[kind], kind.String())
 	}
 
 	// the series of every kind exist before the first job is reported
 	for _, kind := range []string{"block", "live_store"} {
 		labels := map[string]string{"op": "metadata", "kind": kind}
-		require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_estimated_bytes_total", labels).GetCounter().GetValue())
 		require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", labels).GetHistogram().GetSampleCount())
 	}
 
@@ -154,7 +149,6 @@ func TestJobReporterKinds(t *testing.T) {
 	require.Equal(t, uint64(2), histogramOf(t, metrics.jobInspected.WithLabelValues("metadata")).GetSampleCount())
 	for _, kind := range []string{"block", "live_store"} {
 		labels := map[string]string{"op": "metadata", "kind": kind}
-		require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_estimated_bytes_total", labels).GetCounter().GetValue())
 		require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", labels).GetHistogram().GetSampleCount())
 	}
 }
@@ -264,18 +258,18 @@ func TestFrontendTagsReportsJobCosts(t *testing.T) {
 	f.SearchTagsV2Handler.ServeHTTP(resp, req)
 	require.Equal(t, http.StatusOK, resp.Code)
 
-	// one block job that covers the whole block and is estimated to read 1% of it
+	// one block job that covers the whole block and is estimated to read 1% of it, the job reads 1 byte
 	block := map[string]string{"op": "metadata", "kind": "block"}
-	estimated := metricValue(t, reg, "tempo_query_frontend_job_estimated_bytes_total", block).GetCounter().GetValue()
-	require.InDelta(t, defaultTargetBytesPerRequest/100, estimated, 1)
 	ratio := metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", block).GetHistogram()
 	require.Equal(t, uint64(1), ratio.GetSampleCount())
+	require.InDelta(t, 1.0/(defaultTargetBytesPerRequest/100), ratio.GetSampleSum(), 1e-9)
 
-	// the other ops did not estimate anything
+	// the other ops did not report any job
 	for _, op := range []string{traceByIDOp, searchOp, metricsOp} {
 		for _, kind := range []string{"block", "live_store"} {
 			labels := map[string]string{"op": op, "kind": kind}
-			require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_estimated_bytes_total", labels).GetCounter().GetValue(), "op %s kind %s", op, kind)
+			ratio := metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", labels).GetHistogram()
+			require.Zero(t, ratio.GetSampleCount(), "op %s kind %s", op, kind)
 		}
 	}
 }

@@ -12,15 +12,9 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/blocksharding"
 )
 
-// metricsByKind are the metrics of the kinds of cost that are reported, indexed by jobcost.Kind.
-// jobcost.KindNone has no metrics. A new kind has to be the last one and extends the array.
-type metricsByKind [jobcost.KindLiveStore + 1]kindMetrics
-
-// kindMetrics are the metrics of one op and kind of cost.
-type kindMetrics struct {
-	estimated prometheus.Counter
-	ratio     prometheus.Observer
-}
+// ratiosByKind are the ratio histograms of the kinds of cost that are reported, indexed by jobcost.Kind.
+// jobcost.KindNone has none. A new kind has to be the last one and extends the array.
+type ratiosByKind [jobcost.KindLiveStore + 1]prometheus.Observer
 
 // jobCostMetrics are the metrics the reporters of all ops write to.
 type jobCostMetrics struct {
@@ -28,9 +22,8 @@ type jobCostMetrics struct {
 	inspected    *prometheus.CounterVec
 	jobInspected *prometheus.HistogramVec
 
-	// estimated and ratio have the labels op and kind.
-	estimated *prometheus.CounterVec
-	ratio     *prometheus.HistogramVec
+	// ratio has the labels op and kind.
+	ratio *prometheus.HistogramVec
 }
 
 // jobReporter reports what the jobs of a single op read and were estimated to read as they complete, and
@@ -41,7 +34,7 @@ type jobReporter struct {
 
 	inspected    *prometheus.CounterVec
 	jobInspected prometheus.Observer
-	kinds        metricsByKind
+	ratios       ratiosByKind
 }
 
 // newJobReporter returns a reporter for op.
@@ -53,11 +46,8 @@ func newJobReporter(op jobcost.Op, estimator *jobcost.Estimator, metrics *jobCos
 		jobInspected: metrics.jobInspected.WithLabelValues(op.String()),
 	}
 
-	for kind := jobcost.KindBlock; int(kind) < len(r.kinds); kind++ {
-		r.kinds[kind] = kindMetrics{
-			estimated: metrics.estimated.WithLabelValues(op.String(), kind.String()),
-			ratio:     metrics.ratio.WithLabelValues(op.String(), kind.String()),
-		}
+	for kind := jobcost.KindBlock; int(kind) < len(r.ratios); kind++ {
+		r.ratios[kind] = metrics.ratio.WithLabelValues(op.String(), kind.String())
 	}
 
 	return r
@@ -76,14 +66,12 @@ func (r *jobReporter) option(tenant string) combiner.Option {
 func (r *jobReporter) observeJob(inspectedBytes uint64, cost jobcost.Cost) {
 	r.jobInspected.Observe(float64(inspectedBytes))
 
-	if cost.Kind == jobcost.KindNone || int(cost.Kind) >= len(r.kinds) {
+	if cost.Kind == jobcost.KindNone || int(cost.Kind) >= len(r.ratios) {
 		return
 	}
 
-	m := r.kinds[cost.Kind]
-	m.estimated.Add(float64(cost.Estimate))
 	if cost.Estimate > 0 {
-		m.ratio.Observe(float64(inspectedBytes) / float64(cost.Estimate))
+		r.ratios[cost.Kind].Observe(float64(inspectedBytes) / float64(cost.Estimate))
 	}
 
 	r.estimator.Observe(r.op, cost, inspectedBytes)
@@ -104,11 +92,6 @@ func newJobCostMetrics(estimator *jobcost.Estimator, registerer prometheus.Regis
 	return &jobCostMetrics{
 		inspected:    queryInspectedBytes,
 		jobInspected: queryJobInspectedBytes,
-		estimated: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: metricNamespace,
-			Name:      "query_frontend_job_estimated_bytes_total",
-			Help:      "Bytes querier jobs were estimated to read, counted when the response of the job is combined, excluding cached job responses and jobs without an estimate.",
-		}, []string{metricLabelOp, metricLabelKind}),
 		ratio: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace:                       metricNamespace,
 			Name:                            "query_frontend_job_actual_to_estimated_bytes_ratio",

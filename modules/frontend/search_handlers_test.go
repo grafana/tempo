@@ -377,16 +377,11 @@ func TestFrontendSearchReportsJobCosts(t *testing.T) {
 		require.Equal(t, http.StatusOK, httpResp.Code)
 	}
 
-	counter := func(name string, labels map[string]string) float64 {
-		return metricValue(t, reg, name, labels).GetCounter().GetValue()
-	}
-
 	// 4 blocks x 2 jobs, the queriers report 1 inspected byte for each job
 	search(&tempopb.SearchRequest{Query: "{resource.service.name = `test`}", Start: 1, End: 100000})
 
 	// every job covers 100 MiB of a block and is estimated to read 1% of it
 	block := map[string]string{"op": "search", "kind": "block"}
-	require.InDelta(t, 8*defaultTargetBytesPerRequest/100, counter("tempo_query_frontend_job_estimated_bytes_total", block), 8) // the estimate of each job is truncated
 	ratio := metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", block).GetHistogram()
 	require.Equal(t, uint64(8), ratio.GetSampleCount())
 	require.InDelta(t, 8.0/(defaultTargetBytesPerRequest/100), ratio.GetSampleSum(), 1e-9)
@@ -395,13 +390,13 @@ func TestFrontendSearchReportsJobCosts(t *testing.T) {
 	search(&tempopb.SearchRequest{Query: "{resource.service.name = `test`}"})
 
 	liveStore := map[string]string{"op": "search", "kind": "live_store"}
-	require.InDelta(t, 262144, counter("tempo_query_frontend_job_estimated_bytes_total", liveStore), 0)
 	ratio = metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", liveStore).GetHistogram()
 	require.Equal(t, uint64(1), ratio.GetSampleCount())
 	require.InDelta(t, 1.0/262144, ratio.GetSampleSum(), 1e-12)
 
-	// the ingester job does not change what the block jobs were estimated to read
-	require.InDelta(t, 8*defaultTargetBytesPerRequest/100, counter("tempo_query_frontend_job_estimated_bytes_total", block), 8) // the estimate of each job is truncated
+	// the ingester job did not add to the block jobs
+	ratio = metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", block).GetHistogram()
+	require.Equal(t, uint64(8), ratio.GetSampleCount())
 }
 
 func TestSearchLimitHonored(t *testing.T) {
