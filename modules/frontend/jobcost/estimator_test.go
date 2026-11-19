@@ -1,6 +1,7 @@
 package jobcost
 
 import (
+	"math"
 	"sync"
 	"testing"
 
@@ -106,13 +107,13 @@ func TestEstimatorCalibration(t *testing.T) {
 			name:    "jobs that read nothing are samples",
 			cfg:     DefaultConfig(),
 			observe: func(e *Estimator) { observe(e, OpSearch, KindBlock, 2*minSamples, 1_000_000, 0) },
-			want:    map[Op]float64{OpSearch: 0.001}, // limited to initial / maxDeviation
+			want:    map[Op]float64{OpSearch: defaultMinFactor},
 		},
 		{
 			name:    "factor is limited upwards",
 			cfg:     DefaultConfig(),
 			observe: func(e *Estimator) { observe(e, OpSearch, KindBlock, 2*minSamples, 1_000_000, 900_000) },
-			want:    map[Op]float64{OpSearch: 0.1}, // limited to initial * maxDeviation
+			want:    map[Op]float64{OpSearch: defaultMaxFactor},
 		},
 		{
 			name: "factor can exceed 1 and ops are independent",
@@ -125,7 +126,7 @@ func TestEstimatorCalibration(t *testing.T) {
 		},
 		{
 			name:    "disabled calibration keeps the initial factor",
-			cfg:     Config{CalibrationEnabled: false},
+			cfg:     Config{Calibration: CalibrationConfig{Enabled: false}},
 			observe: func(e *Estimator) { observe(e, OpSearch, KindBlock, 5*minSamples, 1_000_000, 50_000) },
 			want:    map[Op]float64{OpSearch: 0.01},
 		},
@@ -236,11 +237,111 @@ func TestNilEstimator(t *testing.T) {
 func TestConfigYAML(t *testing.T) {
 	cfg := DefaultConfig()
 	err := yaml.UnmarshalStrict([]byte(`
-calibration_enabled: false
+calibration:
+  enabled: false
+  min_factor: 0.002
+  max_factor: 0.9
 live_store_cost: 100
 `), &cfg)
 	require.NoError(t, err)
 
-	require.False(t, cfg.CalibrationEnabled)
+	require.Equal(t, CalibrationConfig{Enabled: false, MinFactor: 0.002, MaxFactor: 0.9}, cfg.Calibration)
 	require.Equal(t, uint64(100), cfg.LiveStoreCost)
+
+	// the flat key of earlier versions is not accepted
+	require.Error(t, yaml.UnmarshalStrict([]byte("calibration_enabled: true\n"), &cfg))
+}
+
+func TestConfigValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     CalibrationConfig
+		wantErr bool
+	}{
+		{name: "defaults", cfg: DefaultConfig().Calibration},
+		{name: "custom range", cfg: CalibrationConfig{Enabled: true, MinFactor: 0.0001, MaxFactor: 0.9}},
+		{name: "full share of the block", cfg: CalibrationConfig{Enabled: true, MinFactor: 0.5, MaxFactor: 1}},
+		{name: "equal bounds", cfg: CalibrationConfig{Enabled: true, MinFactor: 0.5, MaxFactor: 0.5}},
+		{name: "bounds are not checked when disabled", cfg: CalibrationConfig{}},
+		{name: "min is zero", cfg: CalibrationConfig{Enabled: true, MaxFactor: 0.1}, wantErr: true},
+		{name: "max is zero", cfg: CalibrationConfig{Enabled: true, MinFactor: 0.001}, wantErr: true},
+		{name: "min is negative", cfg: CalibrationConfig{Enabled: true, MinFactor: -1, MaxFactor: 0.1}, wantErr: true},
+		{name: "min is greater than max", cfg: CalibrationConfig{Enabled: true, MinFactor: 0.5, MaxFactor: 0.1}, wantErr: true},
+		{name: "max is greater than 1", cfg: CalibrationConfig{Enabled: true, MinFactor: 0.001, MaxFactor: 1.5}, wantErr: true},
+		{name: "min is greater than 1", cfg: CalibrationConfig{Enabled: true, MinFactor: 2, MaxFactor: 3}, wantErr: true},
+		{name: "max is infinite", cfg: CalibrationConfig{Enabled: true, MinFactor: 0.001, MaxFactor: math.Inf(1)}, wantErr: true},
+		{name: "max is not a number", cfg: CalibrationConfig{Enabled: true, MinFactor: 0.001, MaxFactor: math.NaN()}, wantErr: true},
+		{name: "min is not a number", cfg: CalibrationConfig{Enabled: true, MinFactor: math.NaN(), MaxFactor: 0.1}, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Config{Calibration: tc.cfg}.Validate()
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestEstimatorCalibrationBounds(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Calibration.MinFactor = 0.02
+	cfg.Calibration.MaxFactor = 0.9
+
+	t.Run("factor is limited by the configured range", func(t *testing.T) {
+		e := NewEstimator(cfg)
+		for range 3 * minSamples {
+			e.Observe(OpSearch, Cost{Kind: KindBlock, Base: 1_000_000}, 800_000) // reads 80%, above the default maximum
+			e.Observe(OpMetrics, Cost{Kind: KindBlock, Base: 1_000_000}, 1_000)  // reads 0.1%, below the minimum
+			e.Observe(OpMetadata, Cost{Kind: KindBlock, Base: 1_000_000}, 5_000_000)
+		}
+
+		require.InDelta(t, 0.8, e.Factor(OpSearch), 1e-9)
+		require.InDelta(t, 0.02, e.Factor(OpMetrics), 1e-12)
+		require.InDelta(t, 0.9, e.Factor(OpMetadata), 1e-12)
+	})
+
+	t.Run("initial factor is moved into the range", func(t *testing.T) {
+		e := NewEstimator(cfg)
+		for _, op := range []Op{OpSearch, OpMetadata, OpMetrics} {
+			require.InDelta(t, 0.02, e.Factor(op), 1e-12, op.String())
+		}
+
+		c := cfg
+		c.Calibration.MinFactor = 0.0001
+		c.Calibration.MaxFactor = 0.005
+		e = NewEstimator(c)
+		for _, op := range []Op{OpSearch, OpMetadata, OpMetrics} {
+			require.InDelta(t, 0.005, e.Factor(op), 1e-12, op.String())
+		}
+	})
+
+	t.Run("trace by id keeps its own limits", func(t *testing.T) {
+		e := NewEstimator(cfg)
+		require.Equal(t, initialFactors[OpTraceByID], e.Factor(OpTraceByID))
+
+		for range 3 * minSamples {
+			e.Observe(OpTraceByID, Cost{Kind: KindBlock, Base: 10}, 10*100*1024*1024) // 100 MiB per block
+		}
+		require.Equal(t, initialFactors[OpTraceByID]*maxDeviation, e.Factor(OpTraceByID))
+	})
+
+	t.Run("invalid limits fall back to the defaults", func(t *testing.T) {
+		for _, c := range []CalibrationConfig{
+			{Enabled: true},
+			{Enabled: true, MinFactor: 0.5, MaxFactor: 0.1},
+			{Enabled: true, MinFactor: 0.001, MaxFactor: math.Inf(1)},
+		} {
+			e := NewEstimator(Config{Calibration: c})
+			require.InDelta(t, 0.01, e.Factor(OpSearch), 1e-12)
+
+			for range 3 * minSamples {
+				e.Observe(OpSearch, Cost{Kind: KindBlock, Base: 1_000_000}, 900_000)
+			}
+			require.InDelta(t, defaultMaxFactor, e.Factor(OpSearch), 1e-12)
+		}
+	})
 }

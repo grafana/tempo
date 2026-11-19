@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	// maxDeviation limits how far calibration moves a factor away from its initial value, in both directions.
+	// maxDeviation limits how far calibration moves the factor of trace by id jobs away from its initial value,
+	// in both directions.
 	maxDeviation = 10.0
 
 	// minSamples is the number of jobs a factor must have seen before it is calibrated.
@@ -25,7 +26,7 @@ type calibrator struct {
 	enabled              bool
 	factorMin, factorMax float64
 
-	factorBits atomic.Uint64 // float64 factorBits of the factor in use
+	factorBits atomic.Uint64 // float64 bits of the factor in use
 
 	mu        sync.Mutex
 	sumActual float64
@@ -33,11 +34,11 @@ type calibrator struct {
 	samples   uint64
 }
 
-func newCalibrator(initial float64, enabled bool) *calibrator {
+func newCalibrator(initial, factorMin, factorMax float64, enabled bool) *calibrator {
 	c := &calibrator{
 		enabled:   enabled,
-		factorMin: initial / maxDeviation,
-		factorMax: initial * maxDeviation,
+		factorMin: factorMin,
+		factorMax: factorMax,
 	}
 	c.factorBits.Store(math.Float64bits(initial))
 	return c

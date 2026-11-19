@@ -161,10 +161,9 @@ func TestJobReporterKinds(t *testing.T) {
 
 func TestJobReporterCalibratesTheEstimator(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	estimator := jobcost.NewEstimator(jobcost.Config{
-		CalibrationEnabled: true,
-		LiveStoreCost:      20,
-	})
+	cfg := jobcost.DefaultConfig()
+	cfg.LiveStoreCost = 20
+	estimator := jobcost.NewEstimator(cfg)
 	metrics := newTestJobCostMetrics(estimator, reg)
 	reporter := newJobReporter(jobcost.OpSearch, estimator, metrics)
 

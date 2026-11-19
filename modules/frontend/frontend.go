@@ -98,6 +98,10 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("frontend search concurrent requests should be greater than 0")
 	}
 
+	if err := cfg.JobCost.Validate(); err != nil {
+		return nil, fmt.Errorf("frontend job cost: %w", err)
+	}
+
 	if cfg.Search.Sharder.TargetBytesPerRequest <= 0 {
 		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
 	}
