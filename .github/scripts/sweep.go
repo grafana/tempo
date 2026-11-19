@@ -316,35 +316,69 @@ func convertIssue(issue *github.Issue) pullRequest {
 	return result
 }
 
+// runSweep orchestrates the daily sweep as three focused stages — build the
+// load snapshot, plan the assignments, then apply them — so each stage is a
+// small, individually reviewable function.
 func runSweep(ctx context.Context, client *github.Client, now time.Time, choose func([]string) string) error {
 	if len(defaultAssigneePool) == 0 {
 		fmt.Println("::notice::The code owner pool is empty; add members in .github/scripts/consts.go.")
 		return errors.New("code owner pool is empty")
 	}
 
-	// Open PRs once for load, then again for candidates: assignment can change
-	// the pool state between the two passes, and the second fetch keeps the
-	// per-PR decisions close to the assignments they make.
+	load, err := loadSnapshot(ctx, client, now)
+	if err != nil {
+		return err
+	}
+	assignments, err := planAssignments(ctx, client, load, choose)
+	if err != nil {
+		return err
+	}
+	if len(assignments) == 0 {
+		return nil
+	}
+	return applyAssignments(ctx, client, assignments)
+}
+
+// loadSnapshot computes each pool owner's load from the currently open PRs and
+// the PRs closed within closedLoadWindow, reporting stale (over-maxOpenAgeDays)
+// open PRs. Open PRs are fetched again later for candidates, because assignment
+// changes pool state between the two passes and the later fetch keeps the
+// per-PR decisions close to the assignments they make.
+func loadSnapshot(ctx context.Context, client *github.Client, now time.Time) (map[string]ownerLoad, error) {
 	openPRs, err := listOpenPRs(ctx, client)
 	if err != nil {
-		return fmt.Errorf("list open pull requests for load: %w", err)
+		return nil, fmt.Errorf("list open pull requests for load: %w", err)
 	}
-	since := now.Add(-closedLoadWindow).UTC().Format("2006-01-02T15:04:05Z")
-	closedQuery := fmt.Sprintf("repo:%s is:pr is:closed closed:>=%s", defaultRepo, since)
-	var totalClosed int
-	var countResult *github.IssuesSearchResult
+	closedPRs, err := recentlyClosedPRs(ctx, client, now)
+	if err != nil {
+		return nil, err
+	}
+	load, staleOwners := calculateLoad(openPRs, closedPRs, defaultAssigneePool, now, defaultOpenLoadMaxAgeDays)
+	for _, owner := range slices.Sorted(maps.Keys(staleOwners)) {
+		fmt.Printf("Open PRs assigned to %s older than %d days no longer count as load.\n", owner, defaultOpenLoadMaxAgeDays)
+	}
+	return load, nil
+}
+
+// recentlyClosedPRs fetches the PRs closed within closedLoadWindow, converted
+// to internal shape. It warns when the search API's 1000-result cap truncates
+// the set, in which case closed load is undercounted.
+func recentlyClosedPRs(ctx context.Context, client *github.Client, now time.Time) ([]pullRequest, error) {
+	closedQuery := fmt.Sprintf("repo:%s is:pr is:closed closed:>=%s", defaultRepo, now.Add(-closedLoadWindow).UTC().Format("2006-01-02T15:04:05Z"))
+	var total int
+	var count *github.IssuesSearchResult
 	if err := retryableCall(ctx, func() error {
 		var callErr error
-		countResult, _, callErr = client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 1}})
+		count, _, callErr = client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: github.ListOptions{PerPage: 1}})
 		return callErr
 	}); err != nil {
-		return fmt.Errorf("count recently closed pull requests: %w", err)
+		return nil, fmt.Errorf("count recently closed pull requests: %w", err)
 	}
-	totalClosed = countResult.GetTotal()
-	if totalClosed > maxSearchResults {
-		fmt.Printf("::warning::%d PRs closed in the last %d days, but the search API returns at most %d. Closed load is undercounted.\n", totalClosed, closedLoadDays, maxSearchResults)
+	total = count.GetTotal()
+	if total > maxSearchResults {
+		fmt.Printf("::warning::%d PRs closed in the last %d days, but the search API returns at most %d. Closed load is undercounted.\n", total, closedLoadDays, maxSearchResults)
 	}
-	closedIssues, err := eachPageBounded(ctx, func(opts *github.ListOptions) ([]*github.Issue, *github.Response, error) {
+	issues, err := eachPageBounded(ctx, func(opts *github.ListOptions) ([]*github.Issue, *github.Response, error) {
 		result, resp, err := client.Search.Issues(ctx, closedQuery, &github.SearchOptions{ListOptions: *opts})
 		if err != nil {
 			return nil, resp, err
@@ -355,31 +389,35 @@ func runSweep(ctx context.Context, client *github.Client, now time.Time, choose 
 		return result.Issues, resp, nil
 	}, maxSearchResults)
 	if err != nil {
-		return fmt.Errorf("list recently closed pull requests: %w", err)
+		return nil, fmt.Errorf("list recently closed pull requests: %w", err)
 	}
-	closedPRs := make([]pullRequest, 0, len(closedIssues))
-	for _, issue := range closedIssues {
-		closedPRs = append(closedPRs, convertIssue(issue))
+	closed := make([]pullRequest, 0, len(issues))
+	for _, issue := range issues {
+		closed = append(closed, convertIssue(issue))
 	}
-	load, staleOwners := calculateLoad(openPRs, closedPRs, defaultAssigneePool, now, defaultOpenLoadMaxAgeDays)
-	for _, owner := range slices.Sorted(maps.Keys(staleOwners)) {
-		fmt.Printf("Open PRs assigned to %s older than %d days no longer count as load.\n", owner, defaultOpenLoadMaxAgeDays)
-	}
+	return closed, nil
+}
 
-	currentPRs, err := listOpenPRs(ctx, client)
+// planAssignments refreshes the open-PR candidates and decides which owners get
+// which PRs this run, honoring the per-run cap. An empty result means nothing
+// to assign this cycle.
+func planAssignments(ctx context.Context, client *github.Client, load map[string]ownerLoad, choose func([]string) string) ([]assignment, error) {
+	openPRs, err := listOpenPRs(ctx, client)
 	if err != nil {
-		return fmt.Errorf("refresh pull request candidates: %w", err)
+		return nil, fmt.Errorf("refresh pull request candidates: %w", err)
 	}
-	candidates := findCandidates(currentPRs, defaultAssigneePool)
+	candidates := findCandidates(openPRs, defaultAssigneePool)
 	fmt.Printf("Found %d unassigned PR(s).\n", len(candidates))
-	if len(candidates) == 0 {
-		return nil
-	}
+	return decideAssignments(load, candidates, defaultMaxAssignments, choose), nil
+}
 
-	assignments := decideAssignments(load, candidates, defaultMaxAssignments, choose)
-	// Give the apply phase its own deadline (see batchTimeout) so a GitHub
-	// outage fails the run cleanly instead of draining every PR's retry budget
-	// and being SIGTERM-killed mid-write at the workflow's timeout.
+// applyAssignments runs the decided assignments under a batch deadline and
+// returns an aggregate error carrying the first failure's root cause (or the
+// cancellation itself) so the job annotation stays actionable.
+func applyAssignments(ctx context.Context, client *github.Client, assignments []assignment) error {
+	// Bound the apply phase (see batchTimeout) so a GitHub outage fails the run
+	// cleanly instead of draining every PR's retry budget and being
+	// SIGTERM-killed mid-write at the workflow's timeout.
 	applyCtx, cancel := context.WithTimeout(ctx, batchTimeout)
 	defer cancel()
 	assigned, alreadyAssigned, failed := 0, 0, 0
