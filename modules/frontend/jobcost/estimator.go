@@ -47,8 +47,7 @@ type CalibrationConfig struct {
 
 	// MinFactor and MaxFactor limit the calibrated factors of search, metadata and metrics jobs, which are the
 	// share of the bytes of a block range that a job reads, so 0 < MinFactor <= MaxFactor <= 1. A factor never
-	// leaves this range, which also moves the initial factor into it if it lies outside. The factor of trace by id
-	// jobs is the bytes read per block and is limited to a tenth and ten times its initial factor.
+	// leaves this range.
 	MinFactor float64 `yaml:"min_factor"`
 	MaxFactor float64 `yaml:"max_factor"`
 }
