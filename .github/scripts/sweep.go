@@ -187,78 +187,16 @@ func decideAssignments(load map[string]ownerLoad, candidates []int, maxAssignmen
 	return assignments
 }
 
-type applyOutcome uint8
-
-const (
-	applySuccess applyOutcome = iota
-	applySkipped              // the PR changed state (assigned, closed, draft) since the decision
-	applyFailed               // transient error; the next run retries
-)
-
-// applyAssignment performs one decided assignment: it re-reads the PR to catch
-// mid-sweep changes, adds the chosen owner, and, if the PR gained a competing
-// assignee before the write landed, rolls back our owner so it does not stay
-// double-assigned. Transient errors are wrapped and surfaced through the run's
-// aggregate error so the root cause reaches the job annotation; the next run
-// retries them. There is no marker label or batch abort: a failure only counts
-// the PR as deferred.
-func applyAssignment(ctx context.Context, client *github.Client, number int, owner string) (applyOutcome, error) {
-	var current *github.Issue
-	if err := retryableCall(ctx, func() error {
-		var callErr error
-		current, _, callErr = client.Issues.Get(ctx, repoOwner, repoName, number)
-		return callErr
-	}); err != nil {
-		return applyFailed, fmt.Errorf("re-read PR #%d before assigning: %w", number, err)
-	}
-	if current == nil {
-		// go-github returns a nil value for an empty or "null" 2xx body; do
-		// not dereference it.
-		return applyFailed, errors.New("re-read of PR returned an empty response")
-	}
-	if len(current.Assignees) > 0 {
-		fmt.Printf("PR #%d was assigned elsewhere while the sweep ran; leaving it alone.\n", number)
-		return applySkipped, nil
-	}
-	if (current.State != nil && *current.State != "open") || current.GetDraft() {
-		fmt.Printf("PR #%d was closed or converted to draft while the sweep ran; leaving it alone.\n", number)
-		return applySkipped, nil
-	}
-	issue, _, err := client.Issues.AddAssignees(ctx, repoOwner, repoName, number, []string{owner})
-	if err != nil {
-		return applyFailed, fmt.Errorf("add assignee: %w", err)
-	}
-	if issue == nil {
-		// A nil value from an empty or "null" 2xx body: we cannot verify the
-		// write landed, so treat it as a failure rather than dereference.
-		return applyFailed, errors.New("assignment returned an empty response")
-	}
-	if len(issue.Assignees) > 1 {
-		if err := removeAssignee(ctx, client, number, owner); err != nil {
-			return applyFailed, fmt.Errorf("concurrent assignment detected; rollback failed: %w", err)
-		}
-		fmt.Printf("PR #%d gained another assignee during assignment; rolled back @%s.\n", number, owner)
-		return applySkipped, nil
-	}
-	reflected := len(issue.Assignees) == 1 && strings.EqualFold(issue.Assignees[0].GetLogin(), owner)
-	if !reflected {
-		// No rollback here: a 2xx with zero or a different assignee means the
-		// write did not apply our assignee on GitHub's side, so there is
-		// nothing of ours to remove.
-		return applyFailed, errors.New("assignment response did not reflect the selected owner")
+// applyAssignment adds the chosen owner to the PR. AddAssignees is additive and
+// idempotent, so a PR that changed since the decision (already assigned, closed,
+// or converted to draft) is handled by the API rather than pre-checked, and the
+// 2xx response is not inspected: there is no rollback logic for a concurrent
+// assignee, so we trust the write and surface only hard failures.
+func applyAssignment(ctx context.Context, client *github.Client, number int, owner string) error {
+	if _, _, err := client.Issues.AddAssignees(ctx, repoOwner, repoName, number, []string{owner}); err != nil {
+		return fmt.Errorf("add assignee to PR #%d: %w", number, err)
 	}
 	fmt.Printf("Assigned @%s to PR #%d.\n", owner, number)
-	return applySuccess, nil
-}
-
-func removeAssignee(ctx context.Context, client *github.Client, number int, assignee string) error {
-	if err := retryableCall(ctx, func() error {
-		var callErr error
-		_, _, callErr = client.Issues.RemoveAssignees(ctx, repoOwner, repoName, number, []string{assignee})
-		return callErr
-	}); err != nil {
-		return fmt.Errorf("remove assignee: %w", err)
-	}
 	return nil
 }
 
@@ -420,33 +358,23 @@ func applyAssignments(ctx context.Context, client *github.Client, assignments []
 	// SIGTERM-killed mid-write at the workflow's timeout.
 	applyCtx, cancel := context.WithTimeout(ctx, batchTimeout)
 	defer cancel()
-	assigned, alreadyAssigned, failed := 0, 0, 0
+	assigned, failed := 0, 0
 	var firstErr error
 	for _, a := range assignments {
 		if err := applyCtx.Err(); err != nil {
 			return fmt.Errorf("apply phase exceeded its %s budget: %w", batchTimeout, err)
 		}
-		outcome, err := applyAssignment(applyCtx, client, a.number, a.owner)
-		if err != nil {
+		if err := applyAssignment(applyCtx, client, a.number, a.owner); err != nil {
+			failed++
 			fmt.Printf("::warning::Could not complete assignment of PR #%d to @%s: %v.\n", a.number, a.owner, err)
 			if firstErr == nil {
 				firstErr = err
 			}
+			continue
 		}
-		switch outcome {
-		case applySuccess:
-			assigned++
-		case applySkipped:
-			alreadyAssigned++
-		case applyFailed:
-			failed++
-		default:
-			// applyOutcome has exactly these three values; a new outcome must
-			// be handled here and reflected in the summary below.
-			return errors.New("unknown apply outcome")
-		}
+		assigned++
 	}
-	fmt.Printf("Done: assigned %d, %d already assigned or closed, %d deferred by errors.\n", assigned, alreadyAssigned, failed)
+	fmt.Printf("Done: assigned %d, %d deferred by errors.\n", assigned, failed)
 	// Surface a cancellation (e.g. SIGTERM) as such, not as an assignment
 	// failure count; the root cause of a deferred batch must reach the job
 	// annotation, not just a per-PR warning.
