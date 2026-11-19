@@ -686,7 +686,7 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 	// setup query
 	tenant := "foo"
 	scope := "resource"
-	hash := fnv1a.HashString64(scope)
+	hash := (&tagsSearchRequest{request: tempopb.SearchTagsRequest{Scope: scope}}).hash()
 	start := uint32(10)
 	end := uint32(20)
 	startTime := time.Unix(int64(start), 0)
@@ -900,7 +900,7 @@ func TestTagsCachedMetrics(t *testing.T) {
 	// setup query
 	tenant := "foo"
 	scope := "resource"
-	hash := fnv1a.HashString64(scope)
+	hash := (&tagsSearchRequest{request: tempopb.SearchTagsRequest{Scope: scope}}).hash()
 	start := uint32(10)
 	end := uint32(20)
 	startTime := time.Unix(int64(start), 0)

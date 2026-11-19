@@ -35,7 +35,10 @@ func (r *tagsSearchRequest) end() uint32 {
 }
 
 func (r *tagsSearchRequest) hash() uint64 {
-	return fnv1a.HashString64(r.request.Scope)
+	hash := fnv1a.HashString64(r.request.Scope)
+	hash = fnv1a.AddString64(hash, traceql.NormalizeQuery(r.request.Query))
+
+	return hash
 }
 
 func (r *tagsSearchRequest) keyPrefix() string {
