@@ -15,6 +15,7 @@ const (
 	// OpMetrics is TraceQL metrics.
 	OpMetrics
 
+	// numOps count the number of Op values
 	numOps
 )
 
@@ -45,6 +46,9 @@ const (
 	KindBlock
 	// KindLiveStore jobs read recent data from live-stores or generators. Their estimate is a fixed cost.
 	KindLiveStore
+
+	// NumKinds counts the number of Kind values
+	NumKinds
 )
 
 // String returns the label of the kind used on query-frontend metrics.

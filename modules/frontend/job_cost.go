@@ -16,7 +16,7 @@ import (
 
 // ratiosByKind are the ratio histograms of the kinds of cost that are reported, indexed by jobcost.Kind.
 // jobcost.KindNone has none. A new kind has to be the last one and extends the array.
-type ratiosByKind [jobcost.KindLiveStore + 1]prometheus.Observer
+type ratiosByKind [jobcost.NumKinds]prometheus.Observer
 
 // jobCostMetrics are the metrics the reporters of all ops write to.
 type jobCostMetrics struct {
