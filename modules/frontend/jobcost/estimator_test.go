@@ -326,7 +326,7 @@ func TestEstimatorCalibrationBounds(t *testing.T) {
 		for range 3 * minSamples {
 			e.Observe(OpTraceByID, Cost{Kind: KindBlock, Base: 10}, 10*100*1024*1024) // 100 MiB per block
 		}
-		require.Equal(t, initialFactors[OpTraceByID]*maxDeviation, e.Factor(OpTraceByID))
+		require.Equal(t, initialFactors[OpTraceByID]*traceByIDMaxDeviation, e.Factor(OpTraceByID))
 	})
 
 	t.Run("invalid limits fall back to the defaults", func(t *testing.T) {
@@ -344,4 +344,23 @@ func TestEstimatorCalibrationBounds(t *testing.T) {
 			require.InDelta(t, defaultMaxFactor, e.Factor(OpSearch), 1e-12)
 		}
 	})
+}
+
+func TestNewCalibratorMovesInitialFactorIntoRange(t *testing.T) {
+	tests := []struct {
+		name    string
+		initial float64
+		want    float64
+	}{
+		{name: "inside the range", initial: 0.01, want: 0.01},
+		{name: "on the bounds", initial: 0.1, want: 0.1},
+		{name: "below the range", initial: 0.0001, want: 0.001},
+		{name: "above the range", initial: 5, want: 0.1},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.InDelta(t, tc.want, newCalibrator(tc.initial, 0.001, 0.1, true).factor(), 1e-12)
+		})
+	}
 }

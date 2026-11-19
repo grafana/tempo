@@ -7,10 +7,6 @@ import (
 )
 
 const (
-	// maxDeviation limits how far calibration moves the factor of trace by id jobs away from its initial value,
-	// in both directions.
-	maxDeviation = 10.0
-
 	// minSamples is the number of jobs a factor must have seen before it is calibrated.
 	minSamples = 100
 
@@ -34,13 +30,15 @@ type calibrator struct {
 	samples   uint64
 }
 
+// newCalibrator returns a calibrator that limits the factor to [factorMin, factorMax]. The initial factor
+// is moved into this range if it lies outside.
 func newCalibrator(initial, factorMin, factorMax float64, enabled bool) *calibrator {
 	c := &calibrator{
 		enabled:   enabled,
 		factorMin: factorMin,
 		factorMax: factorMax,
 	}
-	c.factorBits.Store(math.Float64bits(initial))
+	c.factorBits.Store(math.Float64bits(min(max(initial, factorMin), factorMax)))
 	return c
 }
 

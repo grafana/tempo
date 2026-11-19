@@ -7,6 +7,10 @@ const (
 	// metadata and metrics jobs, a tenth and ten times their initial factor.
 	defaultMinFactor = 0.001
 	defaultMaxFactor = 0.1
+
+	// traceByIDMaxDeviation limits how far calibration moves the factor of trace by id jobs away from its
+	// initial value, in both directions. Its factor is the bytes read per block and not a share of bytes.
+	traceByIDMaxDeviation = 10.0
 )
 
 // Initial factors of block jobs, used on startup, until enough jobs finished and as the fallback when
@@ -83,13 +87,11 @@ func NewEstimator(cfg Config) *Estimator {
 	minFactor, maxFactor := cfg.Calibration.bounds()
 
 	for op := range numOps {
-		initial := initialFactors[op]
-		lo, hi := initial/maxDeviation, initial*maxDeviation
-		if op != OpTraceByID {
-			lo, hi = minFactor, maxFactor
-			initial = min(max(initial, lo), hi)
+		lo, hi := minFactor, maxFactor
+		if op == OpTraceByID {
+			lo, hi = initialFactors[op]/traceByIDMaxDeviation, initialFactors[op]*traceByIDMaxDeviation
 		}
-		e.block[op] = newCalibrator(initial, lo, hi, cfg.Calibration.Enabled)
+		e.block[op] = newCalibrator(initialFactors[op], lo, hi, cfg.Calibration.Enabled)
 	}
 	return e
 }
