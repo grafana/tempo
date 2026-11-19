@@ -15,8 +15,8 @@ const (
 
 // Initial factors of block jobs, used on startup, until enough jobs finished and as the fallback when
 // calibration is disabled. The factor of trace-by-ID is the bytes read per block, the others are the share
-// of the bytes of the block range that is read and are moved into the configured limits. They are first
-// guesses from fleet wide averages.
+// of the bytes of the block range that is read and are moved into the configured limits if calibration is
+// enabled. They are first guesses from fleet wide averages.
 var initialFactors = [numOps]float64{
 	OpTraceByID: 128 * 1024,
 	OpSearch:    0.01,
@@ -46,8 +46,8 @@ type CalibrationConfig struct {
 	Enabled bool `yaml:"enabled"`
 
 	// MinFactor and MaxFactor limit the calibrated factors of search, metadata and metrics jobs, which are the
-	// share of the bytes of a block range that a job reads, so 0 < MinFactor <= MaxFactor <= 1. A factor never
-	// leaves this range.
+	// share of the bytes of a block range that a job reads, so 0 < MinFactor <= MaxFactor <= 1. A calibrated factor
+	// never leaves this range, which includes the initial factor if calibration is enabled.
 	MinFactor float64 `yaml:"min_factor"`
 	MaxFactor float64 `yaml:"max_factor"`
 }

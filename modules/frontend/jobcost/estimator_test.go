@@ -319,6 +319,25 @@ func TestEstimatorCalibrationBounds(t *testing.T) {
 		}
 	})
 
+	t.Run("disabled calibration keeps the initial factor", func(t *testing.T) {
+		for _, bounds := range [][2]float64{{0.02, 0.9}, {0.0001, 0.005}} {
+			c := cfg
+			c.Calibration.Enabled = false
+			c.Calibration.MinFactor, c.Calibration.MaxFactor = bounds[0], bounds[1]
+
+			e := NewEstimator(c)
+			for range 3 * minSamples {
+				for _, op := range []Op{OpSearch, OpMetadata, OpMetrics} {
+					e.Observe(op, Cost{Kind: KindBlock, Base: 1_000_000}, 800_000)
+				}
+			}
+
+			for _, op := range []Op{OpSearch, OpMetadata, OpMetrics} {
+				require.InDelta(t, 0.01, e.Factor(op), 1e-12, "%s with bounds %v", op, bounds)
+			}
+		}
+	})
+
 	t.Run("trace by id keeps its own limits", func(t *testing.T) {
 		e := NewEstimator(cfg)
 		require.Equal(t, initialFactors[OpTraceByID], e.Factor(OpTraceByID))
@@ -346,21 +365,25 @@ func TestEstimatorCalibrationBounds(t *testing.T) {
 	})
 }
 
-func TestNewCalibratorMovesInitialFactorIntoRange(t *testing.T) {
+func TestNewCalibratorInitialFactor(t *testing.T) {
 	tests := []struct {
 		name    string
 		initial float64
+		enabled bool
 		want    float64
 	}{
-		{name: "inside the range", initial: 0.01, want: 0.01},
-		{name: "on the bounds", initial: 0.1, want: 0.1},
-		{name: "below the range", initial: 0.0001, want: 0.001},
-		{name: "above the range", initial: 5, want: 0.1},
+		{name: "inside the range", initial: 0.01, enabled: true, want: 0.01},
+		{name: "on the bounds", initial: 0.1, enabled: true, want: 0.1},
+		{name: "below the range", initial: 0.0001, enabled: true, want: 0.001},
+		{name: "above the range", initial: 5, enabled: true, want: 0.1},
+		{name: "disabled, inside the range", initial: 0.01, want: 0.01},
+		{name: "disabled, below the range is kept", initial: 0.0001, want: 0.0001},
+		{name: "disabled, above the range is kept", initial: 5, want: 5},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.InDelta(t, tc.want, newCalibrator(tc.initial, 0.001, 0.1, true).factor(), 1e-12)
+			require.InDelta(t, tc.want, newCalibrator(tc.initial, 0.001, 0.1, tc.enabled).factor(), 1e-12)
 		})
 	}
 }

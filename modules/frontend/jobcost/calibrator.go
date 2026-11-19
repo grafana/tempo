@@ -30,15 +30,18 @@ type calibrator struct {
 	samples   uint64
 }
 
-// newCalibrator returns a calibrator that limits the factor to [factorMin, factorMax]. The initial factor
-// is moved into this range if it lies outside.
+// newCalibrator returns a calibrator that limits the calibrated factor to [factorMin, factorMax]. If enabled,
+// the initial factor is moved into this range if it lies outside. A disabled calibrator keeps the initial factor.
 func newCalibrator(initial, factorMin, factorMax float64, enabled bool) *calibrator {
 	c := &calibrator{
 		enabled:   enabled,
 		factorMin: factorMin,
 		factorMax: factorMax,
 	}
-	c.factorBits.Store(math.Float64bits(min(max(initial, factorMin), factorMax)))
+	if enabled {
+		initial = min(max(initial, factorMin), factorMax)
+	}
+	c.factorBits.Store(math.Float64bits(initial))
 	return c
 }
 
