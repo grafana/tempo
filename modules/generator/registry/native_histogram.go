@@ -11,10 +11,13 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/exemplar"
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/storage"
+	"go.uber.org/multierr"
 
 	tempo_util "github.com/grafana/tempo/v3/pkg/util"
 )
@@ -198,17 +201,17 @@ func (h *nativeHistogram) newSeries(lbls labels.Labels, hash uint64, value float
 
 	lb := newSeriesLabelsBuilder(lbls, h.externalLabels)
 
-	lb.Set(labels.MetricName, h.metricName)
+	lb.Set(model.MetricNameLabel, h.metricName)
 
 	newSeries.labels = lb.Labels()
 	newSeries.lb = lb
 
 	// _count
-	lb.Set(labels.MetricName, h.nameCount)
+	lb.Set(model.MetricNameLabel, h.nameCount)
 	newSeries.countLabels = lb.Labels()
 
 	// _sum
-	lb.Set(labels.MetricName, h.nameSum)
+	lb.Set(model.MetricNameLabel, h.nameSum)
 	newSeries.sumLabels = lb.Labels()
 
 	// Keep the reusable bucket-label builder based on owned labels. The input
@@ -306,12 +309,13 @@ func (h *nativeHistogram) countSeriesDemand() int {
 	return int(est) * int(h.activeSeriesPerHistogramSerie())
 }
 
-func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
+func (h *nativeHistogram) removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) error {
 	overridesHash, _, _, _ := h.hashOverrides()
 
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
+	errs := []error{}
 	for hash, s := range h.series {
 		if s.overridesHash != overridesHash {
 			// The overrides have changed, so we need to recreate the series.
@@ -321,11 +325,65 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 		}
 
 		if s.lastUpdated < staleTimeMs {
+			if appender != nil {
+				appendStale := func(lbls labels.Labels) {
+					staleValue := math.Float64frombits(value.StaleNaN)
+					_, err := appender.Append(0, lbls, timeMs, staleValue)
+					if err != nil {
+						errs = append(errs, err)
+					}
+				}
+
+				if hasClassicHistograms(h.histogramOverride) {
+					// Read the buckets even if this series has never been collected.
+					encodedMetric := &dto.Metric{}
+					if err := s.promHistogram.Write(encodedMetric); err != nil {
+						errs = append(errs, err)
+						continue
+					}
+
+					appendStale(s.countLabels)
+					appendStale(s.sumLabels)
+
+					// Build bucket labels from the native series' base labels,
+					// preserving dimensions and external labels.
+					lb := labels.NewBuilder(s.labels)
+					lb.Set(model.MetricNameLabel, h.nameBucket)
+
+					infBucketWasAdded := false
+					for _, bucket := range encodedMetric.GetHistogram().GetBucket() {
+						upperBound := bucket.GetUpperBound()
+						lb.Set(labels.BucketLabel, formatFloat(upperBound))
+						appendStale(lb.Labels())
+
+						if math.IsInf(upperBound, 1) {
+							infBucketWasAdded = true
+						}
+					}
+
+					// Match classicHistograms: +Inf is emitted even when the
+					// Prometheus histogram snapshot does not contain it.
+					if !infBucketWasAdded {
+						lb.Set(labels.BucketLabel, "+Inf")
+						appendStale(lb.Labels())
+					}
+				}
+
+				if hasNativeHistograms(h.histogramOverride) {
+					appendStale(s.labels)
+				}
+			}
+
 			delete(h.series, hash)
 			h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 		}
 	}
 	h.seriesDemand.Advance()
+
+	if len(errs) > 0 {
+		return multierr.Combine(errs...)
+	}
+	return nil
 }
 
 func (h *nativeHistogram) hashOverrides() (uint64, float64, uint32, time.Duration) {
@@ -487,7 +545,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	}
 
 	// bucket
-	s.lb.Set(labels.MetricName, h.metricName+"_bucket")
+	s.lb.Set(model.MetricNameLabel, h.metricName+"_bucket")
 
 	// the Prometheus histogram will sometimes add the +Inf bucket, it depends on whether there is an exemplar
 	// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
