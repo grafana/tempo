@@ -195,13 +195,10 @@ func accessStringSpanID[K Context]() ottl.StandardGetSetter[K] {
 	}
 }
 
-func accessFilteredAttributes[K Context]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
+func accessFilteredAttributes[K Context]() ctxutil.MapGetSetter[K] {
+	return ctxutil.MapGetSetter[K]{
+		Getter: func(_ context.Context, tCtx K) (pcommon.Map, error) {
 			return tCtx.GetExemplar().FilteredAttributes(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			return ctxutil.SetMap(tCtx.GetExemplar().FilteredAttributes(), val)
 		},
 	}
 }

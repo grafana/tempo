@@ -58,6 +58,19 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 		return err
 	}
 
+	// max_buffered_batches is deprecated; copy it into max_prefetch.batches.
+	pp, err := conf.Sub("partition_processing")
+	if err != nil {
+		return err
+	}
+	if pp.IsSet("max_buffered_batches") {
+		if pp.IsSet("max_prefetch::batches") {
+			return errors.New("partition_processing.max_buffered_batches and partition_processing.max_prefetch.batches are mutually exclusive")
+		}
+		c.PartitionProcessing.maxBufferedBatchesSet = true
+		c.PartitionProcessing.MaxPrefetch.Batches = c.PartitionProcessing.MaxBufferedBatches
+	}
+
 	// Check if deprecated fields have been explicitly set
 	// give them  precedence
 	var zeroConfig Config
@@ -97,11 +110,33 @@ func (c *Config) Validate() error {
 	if err := validateExcludeTopic("profiles", c.Profiles.Topics, c.Profiles.ExcludeTopics); err != nil {
 		return err
 	}
-	if c.PartitionProcessing.Independent && c.PartitionProcessing.MaxBufferedBatches <= 0 {
-		return errors.New("partition_processing.max_buffered_batches must be greater than zero")
-	}
-	if c.PartitionProcessing.Independent && !c.ConsumerConfig.AutoCommit.Enable {
-		return errors.New("partition_processing.independent requires autocommit.enable")
+	if c.PartitionProcessing.Independent {
+		if c.PartitionProcessing.MaxPrefetch.Batches <= 0 {
+			return errors.New("partition_processing.max_prefetch.batches must be greater than zero")
+		}
+		if c.PartitionProcessing.MaxPrefetch.Bytes < 0 {
+			return errors.New("partition_processing.max_prefetch.bytes must not be negative")
+		}
+		if c.PartitionProcessing.MaxInFlight.Records <= 0 {
+			return errors.New("partition_processing.max_in_flight.records must be greater than zero")
+		}
+		if c.PartitionProcessing.MaxInFlight.Bytes < 0 {
+			return errors.New("partition_processing.max_in_flight.bytes must not be negative")
+		}
+		switch c.PartitionProcessing.MaxInFlight.Window {
+		case InFlightWindowPerFetch:
+		case InFlightWindowCrossFetch:
+			// cross_fetch frees a records slot when Consume returns, so without a
+			// byte cap finished records behind a slow one pile up across fetches.
+			if c.PartitionProcessing.MaxInFlight.Records <= 1 || c.PartitionProcessing.MaxInFlight.Bytes <= 0 {
+				return errors.New("partition_processing.max_in_flight.window cross_fetch requires records above 1 and bytes above 0")
+			}
+		default:
+			return fmt.Errorf("partition_processing.max_in_flight.window must be %q or %q", InFlightWindowPerFetch, InFlightWindowCrossFetch)
+		}
+		if !c.ConsumerConfig.AutoCommit.Enable {
+			return errors.New("partition_processing.independent requires autocommit.enable")
+		}
 	}
 	return nil
 }
@@ -187,16 +222,77 @@ type MessageMarking struct {
 	OnPermanentError bool `mapstructure:"on_permanent_error"`
 }
 
-// PartitionProcessing controls optional ordered, independent processing of
-// assigned Kafka partitions.
+// PartitionProcessing controls optional independent processing of assigned
+// Kafka partitions.
 type PartitionProcessing struct {
-	// Independent enables ordered processing by independent partition workers.
+	// Independent enables independent partition workers. Records stay ordered
+	// within a partition unless MaxInFlight.Records is above 1.
 	Independent bool `mapstructure:"independent"`
 
 	// MaxBufferedBatches bounds the number of fetched batches waiting for each
 	// partition worker.
+	//
+	// Deprecated [v0.164.0]: use partition_processing.max_prefetch.batches instead. Will be removed in v0.166.0.
 	MaxBufferedBatches int `mapstructure:"max_buffered_batches"`
+
+	// maxBufferedBatchesSet records whether max_buffered_batches appeared in the
+	// config, so the deprecation warning fires even when its value is 0.
+	maxBufferedBatchesSet bool
+
+	// MaxPrefetch limits the fetched batches waiting for each independent
+	// partition worker.
+	MaxPrefetch MaxPrefetchConfig `mapstructure:"max_prefetch"`
+
+	// MaxInFlight limits concurrent unmarshal-plus-Consume calls for each
+	// independent partition worker.
+	MaxInFlight MaxInFlightConfig `mapstructure:"max_in_flight"`
 }
+
+// MaxPrefetchConfig limits the fetched batches waiting for one partition worker.
+type MaxPrefetchConfig struct {
+	// Batches is how many fetched batches may wait for each partition worker.
+	// Default 1. Must be greater than zero when independent processing is enabled.
+	Batches int `mapstructure:"batches"`
+
+	// Bytes caps the bytes of the waiting batches, counted the way
+	// max_in_flight.bytes counts records. Fetching pauses once the waiting batches
+	// reach the cap, so a batch that crosses it is still admitted and the overshoot
+	// is at most one batch. 0 means no cap. It has no effect when Batches is 1.
+	Bytes int `mapstructure:"bytes"`
+
+	_ struct{} // avoids unkeyed_literal_initialization.
+}
+
+// MaxInFlightConfig limits concurrent unmarshal-plus-Consume calls for one
+// partition worker.
+type MaxInFlightConfig struct {
+	// Records is how many calls may run at once. Default 1.
+	Records int `mapstructure:"records"`
+
+	// Bytes caps the bytes of the records in flight, from the start of their call
+	// until the mark passes them. A record counts its key, value, and headers
+	// after decompression, plus a fixed overhead of about 250 bytes per record
+	// and 40 per header, so empty records count too. 0 means no cap. A record above the cap still runs,
+	// alone. It has no effect when Records is 1.
+	Bytes int `mapstructure:"bytes"`
+
+	// Window is per_fetch (default) or cross_fetch. per_fetch waits for every
+	// call of a fetched batch before it starts the next batch. cross_fetch keeps
+	// starting records from later batches while both limits have room. Use it
+	// when the next consumer holds Consume open until it has a full batch, such
+	// as an exporter with wait_for_result and batch.min_size, so it sees more
+	// than one fetch at a time. More records sit unmarked behind a slow one, so
+	// more can replay after a crash or rebalance. cross_fetch requires Records
+	// above 1 and Bytes above 0.
+	Window string `mapstructure:"window"`
+
+	_ struct{} // avoids unkeyed_literal_initialization.
+}
+
+const (
+	InFlightWindowPerFetch   = "per_fetch"
+	InFlightWindowCrossFetch = "cross_fetch"
+)
 
 type HeaderExtraction struct {
 	ExtractHeaders bool     `mapstructure:"extract_headers"`
