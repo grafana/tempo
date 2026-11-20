@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -2382,6 +2383,55 @@ func TestMetricsFilter(t *testing.T) {
 			require.Equal(t, tc.expected, actual)
 			q := actual.String()
 			require.Equal(t, tc.expectedStr, q, "stringified query should match expected string")
+		})
+	}
+}
+
+func TestRecoverParseError(t *testing.T) {
+	existingParseErr := newParseError("existing", 1, 2)
+
+	tests := []struct {
+		name        string
+		panicValue  any
+		expectedErr string
+		sameErr     error
+	}{
+		{
+			name:        "string panic",
+			panicValue:  "i am not an error",
+			expectedErr: "parse error : internal parser panic: i am not an error",
+		},
+		{
+			name:        "int panic",
+			panicValue:  42,
+			expectedErr: "parse error : internal parser panic: 42",
+		},
+		{
+			name:        "plain error panic",
+			panicValue:  errors.New("boom"),
+			expectedErr: "parse error : boom",
+		},
+		{
+			name:        "parse error panic is returned as is",
+			panicValue:  existingParseErr,
+			expectedErr: "parse error at line 1, col 2: existing",
+			sameErr:     existingParseErr,
+		},
+		{
+			name:        "wrapped parse error panic is returned as is",
+			panicValue:  fmt.Errorf("wrapped: %w", existingParseErr),
+			expectedErr: "wrapped: parse error at line 1, col 2: existing",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := recoverParseError(tt.panicValue)
+			require.Error(t, err)
+			require.EqualError(t, err, tt.expectedErr)
+			if tt.sameErr != nil {
+				require.Same(t, tt.sameErr, err)
+			}
 		})
 	}
 }
