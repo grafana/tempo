@@ -128,7 +128,8 @@ func (e *Estimator) Observe(op Op, cost Cost, actual uint64) {
 }
 
 // Factor returns the factor in use for the block jobs of op.
-// It is the bytes a job is expected to read per unit of Base (Estimate = Base * Factor).
+// It is the bytes a job is expected to read per unit of Base (Estimate = Base * Factor): the bytes per block
+// for OpTraceByID and the share of the bytes of the block range a job covers for the other ops.
 // It is 0 for an unknown op or a nil Estimator.
 func (e *Estimator) Factor(op Op) float64 {
 	c := e.calibrator(op)

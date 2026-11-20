@@ -190,6 +190,47 @@ func TestJobReporterCalibratesTheEstimator(t *testing.T) {
 	require.InDelta(t, 0.01, gaugeValue(t, reg, "tempo_query_frontend_job_cost_factor", "metrics"), 1e-12)
 }
 
+func TestJobCostFactorMetrics(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	estimator := jobcost.NewEstimator(jobcost.DefaultConfig())
+	metrics := newTestJobCostMetrics(estimator, reg)
+
+	opsOf := func(name string) []string {
+		families, err := reg.Gather()
+		require.NoError(t, err)
+
+		var ops []string
+		for _, f := range families {
+			if f.GetName() != name {
+				continue
+			}
+			for _, m := range f.GetMetric() {
+				for _, l := range m.GetLabel() {
+					if l.GetName() == "op" {
+						ops = append(ops, l.GetValue())
+					}
+				}
+			}
+		}
+		return ops
+	}
+
+	// the factors of the ops that read a share of the bytes of the blocks and the bytes per block of trace by id
+	// have different units and are separate metrics
+	require.ElementsMatch(t, []string{"search", "metadata", "metrics"}, opsOf("tempo_query_frontend_job_cost_factor"))
+	require.Equal(t, []string{"traces"}, opsOf("tempo_query_frontend_job_cost_bytes_per_block"))
+
+	require.InDelta(t, 128*1024, gaugeValue(t, reg, "tempo_query_frontend_job_cost_bytes_per_block", "traces"), 1e-9)
+
+	// the bytes per block follow the calibration
+	reporter := newJobReporter(jobcost.OpTraceByID, estimator, metrics)
+	for range 2 * 100 {
+		reporter.observeJob(3*100*1024, estimator.Block(jobcost.OpTraceByID, 3))
+	}
+	require.InDelta(t, 100*1024, gaugeValue(t, reg, "tempo_query_frontend_job_cost_bytes_per_block", "traces"), 1e-6)
+	require.InDelta(t, 0.01, gaugeValue(t, reg, "tempo_query_frontend_job_cost_factor", "search"), 1e-12)
+}
+
 // newTestJobCostMetrics returns metrics that do not share the inspected bytes with the metrics of the frontend.
 func newTestJobCostMetrics(estimator *jobcost.Estimator, reg prometheus.Registerer) *jobCostMetrics {
 	metrics := newJobCostMetrics(estimator, reg)

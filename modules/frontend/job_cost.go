@@ -89,14 +89,22 @@ func (r *jobReporter) observeJob(inspectedBytes uint64, cost jobcost.Cost) {
 func newJobCostMetrics(estimator *jobcost.Estimator, registerer prometheus.Registerer) *jobCostMetrics {
 	factory := promauto.With(registerer)
 
-	for _, op := range []jobcost.Op{jobcost.OpTraceByID, jobcost.OpSearch, jobcost.OpMetadata, jobcost.OpMetrics} {
+	// the factors of ops have different units, so they are separate metrics
+	for _, op := range []jobcost.Op{jobcost.OpSearch, jobcost.OpMetadata, jobcost.OpMetrics} {
 		factory.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace:   metricNamespace,
 			Name:        "query_frontend_job_cost_factor",
-			Help:        "Bytes a block job is estimated to read per unit of its base. The base is the bytes of the block a job covers, or the number of blocks for trace by id jobs.",
+			Help:        "Share of the bytes of the block range a job covers that the job is estimated to read.",
 			ConstLabels: prometheus.Labels{metricLabelOp: op.String()},
 		}, func() float64 { return estimator.Factor(op) })
 	}
+
+	factory.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace:   metricNamespace,
+		Name:        "query_frontend_job_cost_bytes_per_block",
+		Help:        "Bytes a trace by id job is estimated to read per block it looks into.",
+		ConstLabels: prometheus.Labels{metricLabelOp: jobcost.OpTraceByID.String()},
+	}, func() float64 { return estimator.Factor(jobcost.OpTraceByID) })
 
 	return &jobCostMetrics{
 		inspected:    queryInspectedBytes,
