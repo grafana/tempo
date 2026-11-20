@@ -139,13 +139,7 @@ func TestJobReporterKinds(t *testing.T) {
 	metrics := newTestJobCostMetrics(estimator, reg)
 	reporter := newJobReporter(jobcost.OpMetadata, estimator, metrics)
 
-	// every kind but none has a ratio histogram
-	require.Nil(t, reporter.ratios[jobcost.KindNone])
-	for kind := jobcost.KindBlock; int(kind) < len(reporter.ratios); kind++ {
-		require.NotNil(t, reporter.ratios[kind], kind.String())
-	}
-
-	// the series of every kind exist before the first job is reported
+	// the series of every kind with an estimate exist before the first job is reported
 	for _, kind := range []string{"block", "live_store"} {
 		labels := map[string]string{"op": "metadata", "kind": kind}
 		require.Zero(t, metricValue(t, reg, "tempo_query_frontend_job_actual_to_estimated_bytes_ratio", labels).GetHistogram().GetSampleCount())

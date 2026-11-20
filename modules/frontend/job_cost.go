@@ -14,10 +14,6 @@ import (
 	"github.com/grafana/tempo/v3/tempodb/blocksharding"
 )
 
-// ratiosByKind are the ratio histograms of the kinds of cost that are reported, indexed by jobcost.Kind.
-// jobcost.KindNone has none. A new kind has to be the last one and extends the array.
-type ratiosByKind [jobcost.NumKinds]prometheus.Observer
-
 // jobCostMetrics are the metrics the reporters of all ops write to.
 type jobCostMetrics struct {
 	// inspected has the labels tenant and op, jobInspected has the label op.
@@ -36,23 +32,22 @@ type jobReporter struct {
 
 	inspected    *prometheus.CounterVec
 	jobInspected prometheus.Observer
-	ratios       ratiosByKind
+
+	// the ratio histograms of the kinds of cost that have an estimate
+	blockRatio     prometheus.Observer
+	liveStoreRatio prometheus.Observer
 }
 
 // newJobReporter returns a reporter for op.
 func newJobReporter(op jobcost.Op, estimator *jobcost.Estimator, metrics *jobCostMetrics) *jobReporter {
-	r := &jobReporter{
-		op:           op,
-		estimator:    estimator,
-		inspected:    metrics.inspected.MustCurryWith(prometheus.Labels{metricLabelOp: op.String()}),
-		jobInspected: metrics.jobInspected.WithLabelValues(op.String()),
+	return &jobReporter{
+		op:             op,
+		estimator:      estimator,
+		inspected:      metrics.inspected.MustCurryWith(prometheus.Labels{metricLabelOp: op.String()}),
+		jobInspected:   metrics.jobInspected.WithLabelValues(op.String()),
+		blockRatio:     metrics.ratio.WithLabelValues(op.String(), jobcost.KindBlock.String()),
+		liveStoreRatio: metrics.ratio.WithLabelValues(op.String(), jobcost.KindLiveStore.String()),
 	}
-
-	for kind := jobcost.KindBlock; int(kind) < len(r.ratios); kind++ {
-		r.ratios[kind] = metrics.ratio.WithLabelValues(op.String(), kind.String())
-	}
-
-	return r
 }
 
 // option returns a combiner option that reports the jobs of a query of tenant as they complete. The
@@ -74,12 +69,18 @@ func (r *jobReporter) option(ctx context.Context, tenant string) combiner.Option
 func (r *jobReporter) observeJob(inspectedBytes uint64, cost jobcost.Cost) {
 	r.jobInspected.Observe(float64(inspectedBytes))
 
-	if cost.Kind == jobcost.KindNone || int(cost.Kind) >= len(r.ratios) {
+	var ratio prometheus.Observer
+	switch cost.Kind {
+	case jobcost.KindBlock:
+		ratio = r.blockRatio
+	case jobcost.KindLiveStore:
+		ratio = r.liveStoreRatio
+	default:
 		return
 	}
 
 	if cost.Estimate > 0 {
-		r.ratios[cost.Kind].Observe(float64(inspectedBytes) / float64(cost.Estimate))
+		ratio.Observe(float64(inspectedBytes) / float64(cost.Estimate))
 	}
 
 	r.estimator.Observe(r.op, cost, inspectedBytes)
