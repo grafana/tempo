@@ -162,8 +162,11 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	var (
 		w                   = &backendWriter{ctx, to, DataFileName, uuid.UUID(meta.BlockID), meta.TenantID, nil}
 		bw                  = createBufferedWriter(w)
-		_, writerOptions, _ = SchemaWithDynamicChanges(meta.DedicatedColumns)
-		pw                  = parquet.NewGenericWriter[*Trace](bw, writerOptions...)
+		_, writerOptions, _ = SchemaWithDynamicChanges(TraceSchemaConfig{
+			DedicatedColumns: meta.DedicatedColumns,
+			Options:          meta.Options,
+		})
+		pw = parquet.NewGenericWriter[*Trace](bw, writerOptions...)
 	)
 
 	return &streamingBlock{

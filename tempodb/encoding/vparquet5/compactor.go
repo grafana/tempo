@@ -42,6 +42,14 @@ type Compactor struct {
 var pool = newRowPool(1_000_000)
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
+	// Raw rows can only be combined and written when their schema options match.
+	// Validate all inputs before opening any iterators.
+	for _, blockMeta := range inputs {
+		if blockMeta.OptionsString() != inputs[0].OptionsString() {
+			return nil, fmt.Errorf("cannot compact blocks with different options: block %s has options %q, expected %q", blockMeta.BlockID.String(), blockMeta.OptionsString(), inputs[0].OptionsString())
+		}
+	}
+
 	var (
 		compactionLevel uint32
 		totalRecords    int64
@@ -79,7 +87,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	var (
 		replicationFactor   = inputs[0].ReplicationFactor
 		nextCompactionLevel = compactionLevel + 1
-		sch, _, _           = SchemaWithDynamicChanges(inputs[0].DedicatedColumns)
+		sch, _, _           = SchemaWithDynamicChanges(TraceSchemaConfig{
+			DedicatedColumns: inputs[0].DedicatedColumns,
+			Options:          inputs[0].Options,
+		})
 	)
 
 	// Dedupe rows and also call the metrics callback.

@@ -296,6 +296,7 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 		StartTime:        walMeta.StartTime,
 		EndTime:          walMeta.EndTime,
 		DedicatedColumns: walMeta.DedicatedColumns,
+		Options:          walMeta.Options,
 	}
 
 	newMeta, err := vers.CreateBlock(ctx, rw.cfg.Block, inMeta, iter, r, w)
