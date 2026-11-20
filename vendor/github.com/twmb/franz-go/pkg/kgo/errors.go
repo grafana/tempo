@@ -244,6 +244,10 @@ var (
 	// broker misbehavior surfaces in polls; the load is still retried.
 	errNegativeListedOffset = errors.New("broker replied to a ListOffsets request with an invalid negative offset")
 
+	// errResetAfterUndefinedEpoch is our own signal to reset a cursor by
+	// time after an epoch validation could not answer.
+	errResetAfterUndefinedEpoch = errors.New("resetting by time after an undefined epoch offset")
+
 	errFetchNoProgress = errors.New("fetch response contained record batches but none contained or exceeded the requested offset")
 
 	// Injected as a fake errored fetch when an OffsetFetch response
@@ -426,6 +430,9 @@ func (e *errDecompress) Error() string {
 func (e *errDecompress) Unwrap() error { return e.err }
 
 func isDecompressErr(err error) bool {
+	if err == nil {
+		return false
+	}
 	var ed *errDecompress
 	return errors.As(err, &ed)
 }
@@ -460,10 +467,6 @@ var errShareConsumerLeft = errors.New("share consumer has left the group; ack wi
 // errShareConsumerLeft, there is no importable sentinel for users to
 // errors.Is against. The condition is non-actionable per-record;
 // the right user response is to log and treat the ack as failed.
-//
-// We previously surfaced this as kerr.UnknownServerError, which was
-// misleading because no error code was returned by the broker. The
-// dedicated sentinel makes the actual situation explicit.
 var errBrokerOmittedAckPartition = errors.New("broker omitted partition from share fetch response that we sent acks for")
 
 func (e *errApiVersionsReset) Error() string { return e.err.Error() }

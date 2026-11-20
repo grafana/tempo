@@ -1,0 +1,8 @@
+change_type: bug_fix
+component: deps
+note: Update franz-go to v1.21.7 so the Kafka producer backs off instead of retrying immediately on a KIP-951 leader hint whose epoch is not newer (twmb/franz-go#1413).
+issues: []
+subtext: |
+  Against a zone-routed broker that is shutting down, v1.21.6 retried the same broker thousands of times a second
+  for the whole shutdown window; v1.21.7 refuses equal-or-older-epoch hints and falls back to the normal retry backoff.
+user: sangeetprasad

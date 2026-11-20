@@ -61,8 +61,11 @@ type PoolDecompressBytes interface {
 	// just have extra data slices put back into your pool that you never
 	// created.
 	GetDecompressBytes(compressed []byte, codec CompressionCodecType) []byte
-	// PutDecompressBytes puts a slice of that was used for decompression
-	// back into the pool. The slice is zeroed before it is put back.
+	// PutDecompressBytes puts a slice that was used for decompression
+	// back into the pool. The decompressed bytes (the slice's length) are
+	// zeroed before it is put back. If decompression fails, the default
+	// decompressor puts the slice back immediately with its entire
+	// capacity zeroed.
 	PutDecompressBytes([]byte)
 }
 

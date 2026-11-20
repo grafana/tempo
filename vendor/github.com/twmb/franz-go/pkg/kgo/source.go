@@ -204,6 +204,16 @@ type cursorOffset struct {
 	hwm int64
 }
 
+// lastConsumedMilli returns the millisecond of the last record we consumed,
+// or zero if we have consumed nothing. Resetting after an out of range fetch
+// resumes by this millisecond.
+func (o *cursorOffset) lastConsumedMilli() int64 {
+	if o.lastConsumedTime.IsZero() {
+		return 0
+	}
+	return o.lastConsumedTime.UnixMilli()
+}
+
 // use, for fetch requests, freezes a view of the cursorOffset.
 func (c *cursor) use() *cursorOffsetNext {
 	// A source using a cursor has exclusive access to the use field by
@@ -311,7 +321,7 @@ func (p *cursorOffsetPreferred) move() {
 		// metadata - e.g. a freshly added replica that the broker we
 		// fetched from already knows about, before our periodic refresh
 		// caught up. We force a metadata update so the source comes to
-		// exist for a future move, but we must ALSO re-enable the cursor
+		// exist for a future move, but we must also re-enable the cursor
 		// on its current (leader) source. The caller (source.fetch) deletes
 		// this cursor from the request's used offsets right after we return,
 		// so neither the fetch's used-offset finishing nor a later buffered
@@ -460,19 +470,18 @@ func (s *source) hookBuffered(f *Fetch) {
 // because its dispatch must NOT run at the call sites: every take/discard
 // path holds c.sourcesReadyMu, and the poll path additionally holds c.mu
 // (the invalidation path holds c.mu and sessionChangeMu too). User hook
-// code invoked there can re-enter the client -- the hook docs bless
-// interceptor usage and warn only about slowness -- and a re-entrant call
-// that needs c.mu (polling, AddConsumeTopics, ...) would park forever with
-// c.mu held, wedging every future poll, every rebalance's assign, and
-// Close. So this captures what dispatch needs NOW and queues the user-code
-// dispatch on the consumer, to run once the locks release.
+// code invoked there can re-enter the client (the hook docs bless
+// interceptor usage), and a re-entrant call that needs c.mu would park
+// forever with c.mu held, wedging every future poll, every rebalance's
+// assign, and Close. So this captures what dispatch needs now and queues
+// the user-code dispatch on the consumer, to run once the locks release.
 //
 // The capture must be eager for a second reason: callers compact the
 // fetch's Topics/Partitions slices in place after this returns (pause
 // stripping reuses the same backing arrays), so a closure over f would
 // observe a corrupted view. Records themselves are never mutated; we
 // flatten the record pointers. Gauge accounting is atomic and happens
-// immediately -- only user code is deferred, and only when an unbuffered
+// immediately; only user code is deferred, and only when an unbuffered
 // hook is actually registered.
 //
 // Must be called with c.sourcesReadyMu held.
@@ -1291,17 +1300,17 @@ func (s *source) handleReqResp(br *broker, req *fetchRequest, resp *kmsg.FetchRe
 			// A response can carry batch data for a partition yet
 			// advance nothing: every batch's last offset below our
 			// requested offset (a broker violating "return the batch
-			// containing the fetch offset"). Nothing buffers, no error
-			// is set, and the cursor re-enables at the same offset --
-			// without intervention the next fetch re-requests
-			// immediately and the loop runs hot at round-trip pace,
-			// silently, forever. Strip the partition: if the WHOLE
-			// response is such non-progress, the allErrsStripped
-			// backoff below paces us like any other all-stripped
-			// response. Legitimate empties are excluded: a caught-up
-			// partition has no batch bytes, control/aborted records
-			// advance the offset even when not kept, and a compacted
-			// empty batch advances via its preserved last offset.
+			// containing the fetch offset"). Nothing buffers, no
+			// error is set, and the cursor re-enables at the same
+			// offset, so the next fetch re-requests immediately and
+			// the loop runs hot at round-trip pace. Strip the
+			// partition: if the whole response is such non-progress,
+			// the allErrsStripped backoff below paces us like any
+			// other all-stripped response. Legitimate empties are
+			// excluded: a caught-up partition has no batch bytes,
+			// control/aborted records advance the offset even when
+			// not kept, and a compacted empty batch advances via its
+			// preserved last offset.
 			if fp.Err == nil && len(fp.Records) == 0 && partOffset.offset == priorOffset && len(rp.RecordBatches) > 0 {
 				strip(topic, partition, errFetchNoProgress)
 				continue
@@ -1386,9 +1395,13 @@ func (s *source) handleReqResp(br *broker, req *fetchRequest, resp *kmsg.FetchRe
 					if s.cl.cfg.resetOffset.noReset {
 						keep = true
 					} else if !c.lastConsumedTime.IsZero() {
+						// We were consuming and the log changed under us, so rather than follow the reset policy
+						// we resume by the last consumed timestamp, bounded within the log and never ahead of
+						// where we were; see listOffsetsForBrokerLoad.
 						reloadOffsets.addLoad(topic, partition, loadTypeList, offsetLoad{
-							replica: replica,
-							Offset:  NewOffset().AfterMilli(c.lastConsumedTime.UnixMilli()),
+							replica:   replica,
+							ooorMilli: c.lastConsumedTime.UnixMilli(),
+							Offset:    NewOffset().At(partOffset.offset),
 						})
 						if log {
 							s.cl.cfg.logger.Log(LogLevelWarn, "received OFFSET_OUT_OF_RANGE, resetting to the nearest offset; either you were consuming too slowly and the broker has deleted the segment you were in the middle of consuming, or the broker has lost data and has not yet transferred leadership",
@@ -1440,6 +1453,9 @@ func (s *source) handleReqResp(br *broker, req *fetchRequest, resp *kmsg.FetchRe
 					if kip320 {
 						reloadOffsets.addLoad(topic, partition, loadTypeEpoch, offsetLoad{
 							replica: -1,
+							// If the validation answers UNDEFINED_EPOCH_OFFSET, the reset it issues is by the last
+							// consumed timestamp; see loadEpochsForBrokerLoad.
+							ooorMilli: c.lastConsumedMilli(),
 							Offset: Offset{
 								at:    partOffset.offset,
 								epoch: partOffset.lastConsumedEpoch,
@@ -1466,6 +1482,9 @@ func (s *source) handleReqResp(br *broker, req *fetchRequest, resp *kmsg.FetchRe
 				if partOffset.lastConsumedEpoch >= 0 {
 					reloadOffsets.addLoad(topic, partition, loadTypeEpoch, offsetLoad{
 						replica: -1,
+						// If the validation answers UNDEFINED_EPOCH_OFFSET, the reset it issues is by the last
+						// consumed timestamp; see loadEpochsForBrokerLoad.
+						ooorMilli: c.lastConsumedMilli(),
 						Offset: Offset{
 							at:    partOffset.offset,
 							epoch: partOffset.lastConsumedEpoch,
@@ -2124,7 +2143,7 @@ out:
 	// message's original offset, so a compacted compressed message set
 	// legally contains offset gaps. For a v1 wrapper, inner offsets are
 	// stored relative to the set's first offset and the wrapper carries
-	// the absolute offset of the LAST inner message, so absolute =
+	// the absolute offset of the last inner message, so absolute =
 	// (wrapper - lastInner) + inner. We previously relabeled inner
 	// messages contiguously counting back from the wrapper offset, which
 	// mislabels every record before a gap; a commit taken mid-set then
@@ -2952,7 +2971,7 @@ type fetchSessionOffsetEpoch struct {
 type fetchSessionTopic map[int32]fetchSessionOffsetEpoch
 
 // hasPartitionAt is a pure query: does s already track partition at the
-// given offset/epoch? It MUST NOT mutate s. Session-used writes happen
+// given offset/epoch? It must NOT mutate s. Session-used writes happen
 // only after a successful response, via fetchSession.commitFromReq.
 func (s fetchSessionTopic) hasPartitionAt(partition int32, offset int64, epoch int32) bool {
 	if s == nil { // if we are nil, the session was killed
@@ -3045,12 +3064,12 @@ func (s *source) addShareCursor(add *shareCursor) {
 	// new entry, then (b) releases c.ackMu, then (c) atomically
 	// loads c.source and signals it. The interleavings:
 	//
-	//   - addShareCursor reads pending under c.ackMu BEFORE
+	//   - addShareCursor reads pending under c.ackMu before
 	//     appendAck appends: hasPending may be false here, but
 	//     appendAck's later c.source.Load() returns this new
 	//     source (applyMoves stored it before calling
 	//     addShareCursor) and signals us directly.
-	//   - addShareCursor reads pending AFTER appendAck appends:
+	//   - addShareCursor reads pending after appendAck appends:
 	//     hasPending is true and we signal here. appendAck's
 	//     concurrent c.source-read+signal is a harmless duplicate.
 	//

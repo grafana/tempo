@@ -597,6 +597,7 @@ func NewClient(opts ...Opt) (*Client, error) {
 		b := cl.newBroker(unknownSeedID(i), seed.host, seed.port, nil)
 		seedBrokers = append(seedBrokers, b)
 	}
+	cl.anySeedIdx = cl.randomSeedIdx(len(seedBrokers))
 	cl.seeds.Store(seedBrokers)
 	go cl.updateMetadataLoop()
 	go cl.reapConnectionsLoop()
@@ -623,6 +624,17 @@ func (cl *Client) Context() context.Context {
 
 func (cl *Client) loadSeeds() []*broker {
 	return cl.seeds.Load().([]*broker)
+}
+
+func (cl *Client) randomSeedIdx(n int) int32 {
+	if n <= 1 {
+		return 0
+	}
+	var idx int32
+	cl.rng(func(r *rand.Rand) {
+		idx = int32(r.Intn(n))
+	})
+	return idx
 }
 
 // Ping returns whether any broker is reachable and that the client can
@@ -1055,7 +1067,7 @@ func (cl *Client) fetchBrokerMetadata(ctx context.Context) error {
 			}()
 			req := kmsg.NewPtrMetadataRequest()
 			req.Topics = []kmsg.MetadataRequestTopic{}
-			_, _, wait.err = cl.fetchMetadata(cl.ctx, req, true, nil)
+			_, _, wait.err = cl.fetchMetadata(cl.ctx, req, true, false, nil) // prune: no; brokers only, no opinion on topics
 		}()
 	}
 	cl.fetchingBrokersMu.Unlock()
@@ -1068,7 +1080,7 @@ func (cl *Client) fetchBrokerMetadata(ctx context.Context) error {
 	}
 }
 
-func (cl *Client) fetchMetadataByName(ctx context.Context, all bool, topics []string, results map[string]cachedMetaTopic) (*broker, *kmsg.MetadataResponse, error) {
+func (cl *Client) fetchMetadataByName(ctx context.Context, all bool, topics []string, prune bool, results map[string]cachedMetaTopic) (*broker, *kmsg.MetadataResponse, error) {
 	req := kmsg.NewPtrMetadataRequest()
 	req.AllowAutoTopicCreation = cl.cfg.allowAutoTopicCreation
 	if all {
@@ -1082,7 +1094,7 @@ func (cl *Client) fetchMetadataByName(ctx context.Context, all bool, topics []st
 			req.Topics = append(req.Topics, reqTopic)
 		}
 	}
-	return cl.fetchMetadata(ctx, req, true, results)
+	return cl.fetchMetadata(ctx, req, true, prune, results)
 }
 
 // resolveTopicMetaByID fetches metadata by TopicID and caches the results.
@@ -1109,11 +1121,11 @@ func (cl *Client) resolveTopicMetaByID(ctx context.Context, ids [][16]byte) (map
 		req.Topics = append(req.Topics, reqTopic)
 	}
 	results := make(map[string]cachedMetaTopic)
-	_, _, err := cl.fetchMetadata(ctx, req, true, results)
+	_, _, err := cl.fetchMetadata(ctx, req, true, false, results) // prune: no; only the ids we could not resolve
 	return results, err
 }
 
-func (cl *Client) fetchMetadata(ctx context.Context, req *kmsg.MetadataRequest, limitRetries bool, results map[string]cachedMetaTopic) (*broker, *kmsg.MetadataResponse, error) {
+func (cl *Client) fetchMetadata(ctx context.Context, req *kmsg.MetadataRequest, limitRetries, prune bool, results map[string]cachedMetaTopic) (*broker, *kmsg.MetadataResponse, error) {
 	r := cl.retryable()
 
 	var rebootstrapped bool
@@ -1148,7 +1160,7 @@ start:
 		cl.updateMetadataBrokers(meta)
 
 		// Cache the metadata, and potentially store each topic in the results.
-		cl.storeCachedMeta(meta, req.Topics == nil, results)
+		cl.storeCachedMeta(req, meta, prune, results)
 	}
 	return r.last, meta, err
 }
@@ -1188,20 +1200,19 @@ func (cl *Client) updateBrokers(brokers []kmsg.MetadataResponseBroker) {
 	sort.Slice(brokers, func(i, j int) bool { return brokers[i].NodeID < brokers[j].NodeID })
 	newBrokers := make([]*broker, 0, len(brokers))
 
-	// Removed or replaced brokers are stopped AFTER brokersMu is released:
-	// stopForever dies each connection, which synchronously fires the
-	// user's OnBrokerDisconnect hook, and a hook that re-enters the client
-	// (issuing a request, DiscoveredBrokers, anything needing brokersMu)
-	// would deadlock this goroutine -- the metadata loop -- under the
-	// write lock, wedging every request path client-wide. Walkthrough: a
-	// rolling restart removes node 5 from metadata; we take brokersMu and
-	// stopForever(node 5) inline; the hook calls cl.Broker(5).Request;
-	// brokerOrErr blocks on brokersMu.RLock behind our write lock forever.
-	// Same hazard reapMu had (see stopForever), one lock up. Stopping
-	// late is safe: requests racing a removed broker already contend with
-	// stopForever via b.dead / errChosenBrokerDead, and the broker is out
-	// of cl.brokers the moment we unlock (UpdateSeedBrokers already stops
-	// its old seeds this way).
+	// Removed or replaced brokers are stopped after brokersMu is
+	// released: stopForever dies each connection, which synchronously
+	// fires the user's OnBrokerDisconnect hook, and a hook that re-enters
+	// the client (issuing a request, DiscoveredBrokers, anything needing
+	// brokersMu) would deadlock the metadata loop under the write lock,
+	// wedging every request path client-wide: a rolling restart removes
+	// node 5, we stopForever(node 5) inline, the hook calls
+	// cl.Broker(5).Request, and brokerOrErr blocks on brokersMu.RLock
+	// behind our write lock forever (the same hazard reapMu had; see
+	// stopForever). Stopping late is safe: requests racing a removed
+	// broker already contend with stopForever via b.dead /
+	// errChosenBrokerDead, and the broker is out of cl.brokers the moment
+	// we unlock (UpdateSeedBrokers already stops its old seeds this way).
 	var stopped []*broker
 	defer func() {
 		for _, b := range stopped {
@@ -1552,7 +1563,7 @@ func (cl *Client) RequestCachedMetadata(ctx context.Context, req *kmsg.MetadataR
 			rt.TopicID = id
 			idReq.Topics = append(idReq.Topics, rt)
 		}
-		_, meta, err := cl.fetchMetadata(ctx, idReq, true, nil)
+		_, meta, err := cl.fetchMetadata(ctx, idReq, true, false, nil) // prune: no; only the ids we could not resolve
 		if err != nil {
 			return nil, err
 		}
@@ -1870,7 +1881,7 @@ func (cl *Client) shardedRequest(ctx context.Context, req kmsg.Request) ([]Respo
 	case *kmsg.MetadataRequest:
 		// We hijack any metadata request so as to populate our
 		// own brokers and controller ID.
-		br, resp, err := cl.fetchMetadata(ctx, t, false, nil)
+		br, resp, err := cl.fetchMetadata(ctx, t, false, true, nil) // prune: yes; the user says what they want cached
 		return shards(shard(br, req, resp, err)), nil
 
 	case kmsg.AdminRequest:
@@ -2598,10 +2609,10 @@ func (cl *Client) UpdateSeedBrokers(addrs ...string) error {
 		seedBrokers = append(seedBrokers, b)
 	}
 
-	// We lock to guard against concurrently updating seeds; we do not need
-	// the lock for what this usually guards.
+	// We lock to guard against concurrently updating seeds.
 	cl.brokersMu.Lock()
 	old := cl.loadSeeds()
+	cl.anySeedIdx = cl.randomSeedIdx(len(seedBrokers))
 	cl.seeds.Store(seedBrokers)
 	cl.brokersMu.Unlock()
 
@@ -3147,19 +3158,35 @@ func (cl *Client) resolveTopicMeta(ctx context.Context, topics []string, useCach
 	if results == nil {
 		results = make(map[string]cachedMetaTopic)
 	}
-	_, _, err := cl.fetchMetadataByName(ctx, all, needed, results)
+	_, _, err := cl.fetchMetadataByName(ctx, all, needed, true, results) // prune: yes; our caller wants only these cached
 	return results, err
 }
 
 // storeCachedMeta caches the fetched metadata in the Client, and
-// optionally stores each topic in results. If all is true, this was an
-// all-topics fetch and stale entries not in the response are evicted.
+// optionally stores each topic in results. If the request was for all
+// topics, stale entries not in the response are evicted.
+//
+// If prune is true, we also evict entries older than MetadataMinAge that the
+// response does not contain. Only requests that say something about what we
+// want cached prune: the metadata loop, a user's own metadata request, and
+// RequestCachedMetadata. Internal targeted fetches say nothing about the
+// topics they did not ask for, so loading brokers, resolving topic IDs,
+// creating unknown produce topics, and loading the group's topics to balance
+// all leave the rest of the cache alone.
+//
+// A request for no topics is a broker only request: the response cannot
+// contain topics and says nothing about the ones we have, so we neither
+// store nor evict.
 //
 // Topics with a nil name are skipped. Per the Kafka protocol, the broker
 // always populates the topic name for successfully resolved topics, even
 // for TopicID-only requests. A nil name only occurs for error responses
 // (e.g. UnknownTopicID), which cannot be meaningfully cached by name.
-func (cl *Client) storeCachedMeta(meta *kmsg.MetadataResponse, all bool, results map[string]cachedMetaTopic) {
+func (cl *Client) storeCachedMeta(req *kmsg.MetadataRequest, meta *kmsg.MetadataResponse, prune bool, results map[string]cachedMetaTopic) {
+	if req.Topics != nil && len(req.Topics) == 0 {
+		return
+	}
+	all := req.Topics == nil
 	cl.metaCache.mu.Lock()
 	defer cl.metaCache.mu.Unlock()
 	if cl.metaCache.topics == nil {
@@ -3231,7 +3258,7 @@ func (cl *Client) storeCachedMeta(meta *kmsg.MetadataResponse, all bool, results
 	// Prune entries older than metadataMinAge. If the number of
 	// topics we just stored equals the map size, every entry is
 	// fresh and there is nothing to prune.
-	if stored < len(cl.metaCache.topics) {
+	if prune && stored < len(cl.metaCache.topics) {
 		for topic, ct := range cl.metaCache.topics {
 			if ct.when.Equal(when) {
 				continue
@@ -3593,7 +3620,7 @@ func (cl *offsetFetchSharder) shard(ctx context.Context, kreq kmsg.Request, last
 		// nil when everything was already cached), while cl.id2t only
 		// ever holds topics this client produces or consumes -- an
 		// admin-style client fetching offsets by TopicID has the mapping
-		// ONLY in the cache. This mirrors the response-side resolution
+		// only in the cache. This mirrors the response-side resolution
 		// in the onResp below, which reads the cache for the same
 		// reason. id2t and the resolveTopicMeta return value remain as
 		// fallbacks. Names matter most below v10, where TopicID is
@@ -3716,9 +3743,8 @@ func (cl *offsetFetchSharder) onResp(kreq kmsg.Request, kresp kmsg.Response) err
 	req := kreq.(*kmsg.OffsetFetchRequest)
 	resp := kresp.(*kmsg.OffsetFetchResponse)
 
-	// All-topics fetches could leave topics nil, in which case we DONT
-	// bi-directionally resolve the name in shard. Thus, we have to handle
-	// here.
+	// All-topics fetches could leave topics nil, in which case we do not
+	// bi-directionally resolve the name in shard, so we handle it here.
 	//
 	// We always run the resolution from cache (it lets clients use the
 	// "by ID" APIs against v9 brokers via name -> ID fallback). What we
