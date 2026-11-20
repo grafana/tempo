@@ -260,6 +260,7 @@ distributor:
         auto_create_topic_default_partitions: 0
         producer_max_record_size_bytes: 0
         producer_max_buffered_bytes: 0
+        producer_linger: 0s
         producer_compression: ""
         target_consumer_lag_at_startup: 0s
         max_consumer_lag_at_startup: 0s
@@ -580,6 +581,7 @@ ingest:
         auto_create_topic_default_partitions: 1000
         producer_max_record_size_bytes: 15983616
         producer_max_buffered_bytes: 1073741824
+        producer_linger: 50ms
         producer_compression: ""
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
