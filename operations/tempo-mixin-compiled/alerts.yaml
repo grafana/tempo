@@ -38,6 +38,15 @@
     "for": "1h"
     "labels":
       "severity": "critical"
+  - "alert": "TempoRetentionFailing"
+    "annotations":
+      "message": "Greater than 0 retentions have failed in the past 2 hours."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRetentionFailing"
+    "expr": |
+      sum by (cluster, namespace) (increase(tempodb_retention_errors_total{}[2h])) > 0
+    "for": "1h"
+    "labels":
+      "severity": "critical"
   - "alert": "TempoPollsFailing"
     "annotations":
       "message": "Greater than 2 polls have failed in the past hour."
