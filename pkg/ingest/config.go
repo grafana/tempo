@@ -126,8 +126,8 @@ type KafkaConfig struct {
 	AutoCreateTopicEnabled           bool `yaml:"auto_create_topic_enabled"`
 	AutoCreateTopicDefaultPartitions int  `yaml:"auto_create_topic_default_partitions"`
 
-	ProducerMaxRecordSizeBytes int   `yaml:"producer_max_record_size_bytes"`
-	ProducerMaxBufferedBytes   int64 `yaml:"producer_max_buffered_bytes"`
+	ProducerMaxRecordSizeBytes int           `yaml:"producer_max_record_size_bytes"`
+	ProducerMaxBufferedBytes   int64         `yaml:"producer_max_buffered_bytes"`
 	ProducerLinger             time.Duration `yaml:"producer_linger"`
 
 	ProducerCompression string `yaml:"producer_compression"`

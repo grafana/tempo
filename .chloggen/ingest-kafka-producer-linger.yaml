@@ -1,5 +1,5 @@
 change_type: enhancement
-component: ingest
+component: distributor
 note: Make Kafka producer linger configurable
 issues: [8165]
 subtext: Avoid capping Kafka-receiver throughput on sequential per-partition consumption by making producer linger configurable.
