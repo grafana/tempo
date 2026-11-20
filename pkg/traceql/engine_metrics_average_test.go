@@ -47,8 +47,7 @@ func TestAvgOverTime(t *testing.T) {
 		Query: "{ } | avg_over_time(duration) by (span.service)",
 	}
 
-	// Test data designed to verify multiplication accuracy in weighted mean calculation
-	// The addWeigthedMean function uses: meanDelta := ((mean - currentMean.mean) * weight) / sumWeights
+	// Test data designed to verify accuracy of the weighted mean calculation
 	in := []Span{
 		// Time interval 1: service=a has 2 spans with durations 100, 200 (mean=150, count=2)
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("service", "a").WithDuration(uint64(100 * time.Second)),
@@ -122,8 +121,7 @@ func TestAvgOverTime(t *testing.T) {
 }
 
 func TestAvgOverTimeScalesResults(t *testing.T) {
-	// Test data designed to verify multiplication accuracy in weighted mean calculation
-	// The addWeigthedMean function uses: meanDelta := ((mean - currentMean.mean) * weight) / sumWeights
+	// Test data designed to verify accuracy of the weighted mean calculation
 	in := []Span{
 		// Time interval 1: service=a has 2 spans with durations 100, 200 (mean=150, count=2)
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("service", "a").WithDuration(uint64(100 * time.Second)),
