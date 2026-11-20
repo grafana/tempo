@@ -258,6 +258,7 @@ distributor:
         tls_cipher_suites: ""
         tls_min_version: ""
         consumer_group: ""
+        consumer_group_prefix: ""
         consumer_group_offset_commit_interval: 0s
         last_produced_offset_retry_timeout: 0s
         auto_create_topic_enabled: false
@@ -572,6 +573,7 @@ ingest:
         tls_cipher_suites: ""
         tls_min_version: ""
         consumer_group: ""
+        consumer_group_prefix: ""
         consumer_group_offset_commit_interval: 1s
         last_produced_offset_retry_timeout: 10s
         auto_create_topic_enabled: true
