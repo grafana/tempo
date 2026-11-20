@@ -33,10 +33,18 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	ctx := context.TODO()
 	_, err := dst.CopierFrom(src).Run(ctx)
 	if err != nil {
+		if errors.Is(err, storage.ErrObjectNotExist) {
+			// Another compaction or retention pass already retired this block.
+			return backend.ErrDoesNotExist
+		}
 		return err
 	}
 
-	return src.Delete(ctx)
+	err = src.Delete(ctx)
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return backend.ErrDoesNotExist
+	}
+	return err
 }
 
 func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
@@ -70,7 +78,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 		)
 
 		err = o.Delete(ctx)
-		if err != nil {
+		if err != nil && !errors.Is(err, storage.ErrObjectNotExist) {
 			return err
 		}
 	}

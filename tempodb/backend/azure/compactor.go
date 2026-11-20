@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,7 +37,8 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 
 	src, _, err := rw.readAll(ctx, metaFilename)
 	if err != nil {
-		return err
+		// Another compaction or retention pass already retired this block.
+		return readError(err)
 	}
 
 	err = rw.writeAll(ctx, compactedMetaFilename, src)
@@ -44,8 +46,8 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 		return err
 	}
 
-	// delete the old file
-	return rw.Delete(ctx, metaFilename, []string{}, nil)
+	// metaFilename is already prefixed so use deleteRaw - rw.Delete would re-apply it.
+	return rw.deleteRaw(ctx, metaFilename)
 }
 
 func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
@@ -78,10 +80,11 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 				return fmt.Errorf("unexpected empty blob name when listing %s: %w", prefix, err)
 			}
 
-			err = rw.Delete(ctx, *b.Name, []string{}, nil)
-			if err != nil {
+			// b.Name from the listing is already prefixed so use deleteRaw - rw.Delete would re-apply it.
+			err = rw.deleteRaw(ctx, *b.Name)
+			// A missing blob is already cleared; preserve any other deletion error.
+			if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 				warning = err
-				continue
 			}
 		}
 	}
