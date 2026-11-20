@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kit/log" //nolint:all //deprecated
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/querier"
 	"github.com/grafana/tempo/v3/pkg/api"
@@ -34,9 +35,10 @@ type asyncTraceSharder struct {
 	blockBoundaries       [][]byte
 	jobsPerQuery          *prometheus.HistogramVec
 	maxDynamicBlockShards int // 0 means uncapped
+	estimator             *jobcost.Estimator
 }
 
-func newAsyncTraceIDSharder(cfg *TraceByIDConfig, maxOutstandingPerTenant int, reader tempodb.Reader, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncTraceIDSharder(cfg *TraceByIDConfig, maxOutstandingPerTenant int, reader tempodb.Reader, jobsPerQuery *prometheus.HistogramVec, estimator *jobcost.Estimator, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		// Fixed jobs that are always emitted: 1 ingester (+ 1 external when enabled).
 		fixedJobs := 1
@@ -63,6 +65,7 @@ func newAsyncTraceIDSharder(cfg *TraceByIDConfig, maxOutstandingPerTenant int, r
 			blockBoundaries:       blockBoundaries,
 			jobsPerQuery:          jobsPerQuery,
 			maxDynamicBlockShards: maxDynamicBlockShards,
+			estimator:             estimator,
 		}
 	})
 }
@@ -161,6 +164,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 	if err != nil {
 		return nil, err
 	}
+	req.SetCost(s.estimator.LiveStore())
 	reqs = append(reqs, req)
 
 	// Job 1: external job (if enabled)
@@ -199,6 +203,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request, traceB
 		if err != nil {
 			return nil, err
 		}
+		req.SetCost(s.estimator.Block(jobcost.OpTraceByID, uint64(len(shardBlocks.Blocks))))
 		reqs = append(reqs, req)
 	}
 

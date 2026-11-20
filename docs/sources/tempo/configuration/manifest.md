@@ -232,6 +232,7 @@ distributor:
         client_rack: ""
         dial_timeout: 0s
         write_timeout: 0s
+        api_versions_max_version: 0
         sasl_mechanism: ""
         sasl_username: ""
         sasl_password: ""
@@ -401,6 +402,12 @@ query_frontend:
         enabled: false
         max_queries_per_tenant: 100
         max_query_text_bytes: 4096
+    job_cost:
+        calibration:
+            enabled: true
+            min_factor: 0.001
+            max_factor: 0.1
+        live_store_cost: 262144
     max_grpc_streaming_packet_size: 1048576
     max_query_expression_size_bytes: 131072
     query_end_cutoff: 30s
@@ -545,6 +552,7 @@ ingest:
         client_rack: ""
         dial_timeout: 2s
         write_timeout: 10s
+        api_versions_max_version: 4
         sasl_mechanism: PLAIN
         sasl_username: ""
         sasl_password: ""
@@ -679,6 +687,7 @@ storage:
         blocklist_poll_fallback: true
         blocklist_poll_tenant_index_builders: 2
         blocklist_poll_stale_tenant_index: 0s
+        blocklist_poll_tenant_index_v2: false
         blocklist_poll_jitter_ms: 0
         blocklist_poll_tolerate_consecutive_errors: 1
         blocklist_poll_tolerate_tenant_failures: 1
@@ -732,6 +741,44 @@ storage:
             metadata: {}
             native_aws_auth_enabled: false
             list_blocks_concurrency: 3
+            sse:
+                type: ""
+                kms_key_id: ""
+                kms_encryption_context: ""
+                encryption_key: ""
+        s3express:
+            tls_cert_path: ""
+            tls_key_path: ""
+            tls_ca_path: ""
+            tls_server_name: ""
+            tls_insecure_skip_verify: false
+            tls_cipher_suites: ""
+            tls_min_version: VersionTLS12
+            bucket: ""
+            prefix: ""
+            endpoint: ""
+            region: ""
+            access_key: ""
+            secret_key: ""
+            session_token: ""
+            insecure: false
+            part_size: 0
+            hedge_requests_at: 0s
+            hedge_requests_up_to: 2
+            retry_max_attempts: 10
+            retry_backoff_initial: 200ms
+            retry_backoff_max: 1s
+            max_idle_connections: 100
+            max_idle_connections_per_host: 100
+            signature_v2: false
+            forcepathstyle: false
+            enable_dual_stack: false
+            bucket_lookup_type: 0
+            tags: {}
+            storage_class: ""
+            metadata: {}
+            native_aws_auth_enabled: false
+            list_blocks_concurrency: 1
             sse:
                 type: ""
                 kms_key_id: ""
@@ -833,6 +880,44 @@ overrides:
                 metadata: {}
                 native_aws_auth_enabled: false
                 list_blocks_concurrency: 3
+                sse:
+                    type: ""
+                    kms_key_id: ""
+                    kms_encryption_context: ""
+                    encryption_key: ""
+            s3express:
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: VersionTLS12
+                bucket: ""
+                prefix: ""
+                endpoint: ""
+                region: ""
+                access_key: ""
+                secret_key: ""
+                session_token: ""
+                insecure: false
+                part_size: 0
+                hedge_requests_at: 0s
+                hedge_requests_up_to: 2
+                retry_max_attempts: 10
+                retry_backoff_initial: 200ms
+                retry_backoff_max: 1s
+                max_idle_connections: 100
+                max_idle_connections_per_host: 100
+                signature_v2: false
+                forcepathstyle: false
+                enable_dual_stack: false
+                bucket_lookup_type: 0
+                tags: {}
+                storage_class: ""
+                metadata: {}
+                native_aws_auth_enabled: false
+                list_blocks_concurrency: 1
                 sse:
                     type: ""
                     kms_key_id: ""

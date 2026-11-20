@@ -241,6 +241,12 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 	defer registryLabelValues.Release()
 
+	// A zero multiplier means the span has an adjusted count of zero (see
+	// processor_util.GetSpanMultiplier), so it contributes to no series.
+	if spanMultiplier == 0 {
+		return true
+	}
+
 	if p.Cfg.Subprocessors[Count] {
 		p.spanMetricsCallsTotal.IncBorrowed(registryLabelValues, 1*spanMultiplier, updateTimeMs)
 	}

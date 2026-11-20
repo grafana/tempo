@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	overridesapi "github.com/grafana/tempo/v3/modules/overrides/userconfigurable/api"
@@ -99,8 +100,10 @@ func newPresentationAPI(t *testing.T) *presentationAPI {
 		return pipeline.NewHTTPToAsyncResponse(&http.Response{StatusCode: http.StatusOK, Header: http.Header{api.HeaderContentType: []string{api.HeaderAcceptProtobuf}}, Body: io.NopCloser(bytes.NewReader(payload))}), nil
 	})
 	cfg := Config{ResponseConsumers: 1, MaxQueryExpressionSizeBytes: 128 * 1024}
-	v1 := newTraceIDHandler(cfg, next, manager, combiner.NewTypedTraceByID, log.NewNopLogger(), nil)
-	v2 := newTraceIDV2Handler(cfg, next, manager, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil)
+	estimator := newTestEstimator()
+	reporter := newJobReporter(jobcost.OpTraceByID, estimator, newTestJobCostMetrics(estimator, prometheus.NewRegistry()))
+	v1 := newTraceIDHandler(cfg, next, manager, combiner.NewTypedTraceByID, reporter, log.NewNopLogger(), nil)
+	v2 := newTraceIDV2Handler(cfg, next, manager, combiner.NewTypedTraceByIDV2, reporter, log.NewNopLogger(), nil)
 	handler := func(rt http.RoundTripper) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			response, err := rt.RoundTrip(r)

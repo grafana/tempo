@@ -2,6 +2,7 @@ package text
 
 import (
 	"strings"
+	"unicode/utf8"
 )
 
 // WrapHard wraps a string to the given length using a newline. Handles strings
@@ -12,6 +13,9 @@ import (
 func WrapHard(str string, wrapLen int) string {
 	if wrapLen <= 0 {
 		return ""
+	}
+	if strings.Contains(str, escapeStartConcealOSI) {
+		return wrapHyperlinks(str, wrapLen, false, false)
 	}
 	str = strings.ReplaceAll(str, "\t", "    ")
 	sLen := StringWidthWithoutEscSequences(str)
@@ -41,6 +45,9 @@ func WrapSoft(str string, wrapLen int) string {
 	if wrapLen <= 0 {
 		return ""
 	}
+	if strings.Contains(str, escapeStartConcealOSI) {
+		return wrapHyperlinks(str, wrapLen, true, false)
+	}
 	str = strings.ReplaceAll(str, "\t", "    ")
 	sLen := StringWidthWithoutEscSequences(str)
 	if sLen <= wrapLen {
@@ -68,6 +75,9 @@ func WrapText(str string, wrapLen int) string {
 	if wrapLen <= 0 {
 		return ""
 	}
+	if strings.Contains(str, escapeStartConcealOSI) {
+		return wrapHyperlinks(str, wrapLen, false, true)
+	}
 	str = strings.ReplaceAll(str, "\t", "    ")
 	sLen := StringWidthWithoutEscSequences(str)
 	if sLen <= wrapLen {
@@ -86,10 +96,13 @@ func WrapText(str string, wrapLen int) string {
 	return out.String()
 }
 
-func appendChar(char rune, wrapLen int, lineLen *int, inEscSeq bool, lastSeenEscSeq string, out *strings.Builder) {
-	// handle reaching the end of the line as dictated by wrapLen or by finding
-	// a newline character
-	if (*lineLen >= wrapLen && !inEscSeq && char != '\n') || (char == '\n') {
+// appendCluster writes a grapheme cluster out, on a new line if it does not fit
+// in what is left of the current one.
+func appendCluster(cluster string, clusterWidth int, wrapLen int, lineLen *int, lastSeenEscSeq string, out *strings.Builder) {
+	// a cluster that would overflow the line is moved to the next line, unless
+	// the line is empty (it can never fit, so it is placed on a line of its
+	// own)
+	if *lineLen > 0 && *lineLen+clusterWidth > wrapLen {
 		if lastSeenEscSeq != "" {
 			// terminate escape sequence and the line; and restart the escape
 			// sequence in the next line
@@ -104,37 +117,67 @@ func appendChar(char rune, wrapLen int, lineLen *int, inEscSeq bool, lastSeenEsc
 		*lineLen = 0
 	}
 
-	// if the rune is not a new line, output it
-	if char != '\n' {
+	for _, char := range cluster {
 		out.WriteRune(char)
-
-		// increment the line index if not in the middle of an escape sequence
-		if !inEscSeq {
-			*lineLen += RuneWidth(char)
-		}
 	}
+	*lineLen += clusterWidth
 }
 
 func appendWord(word string, lineIdx *int, lastSeenEscSeq string, wrapLen int, out *strings.Builder) {
-	inEscSeq := false
-	for _, char := range word {
-		if char == EscapeStartRune {
-			inEscSeq = true
-			lastSeenEscSeq = ""
-		}
-		if inEscSeq && len(lastSeenEscSeq) < escSeqMaxLength {
-			lastSeenEscSeq += string(char)
+	esp, escSeq := EscSeqParser{skipParse: true}, ""
+	for idx := 0; idx < len(word); {
+		// escape sequences are written out as they are, a rune at a time
+		if esp.InSequence() || word[idx] == byte(EscapeStartRune) {
+			char, size := utf8.DecodeRuneInString(word[idx:])
+			idx += size
+			if !esp.InSequence() {
+				escSeq = ""
+			}
+			esp.Consume(char)
+			if len(escSeq) < escSeqMaxLength {
+				escSeq += string(char)
+			}
+			out.WriteRune(char)
+
+			// A sequence that sets colors or attributes remains in force for
+			// the text after it, and has to be restarted on every new line.
+			// Any other sequence (moving the cursor, erasing the line, ...) is
+			// done once it has been written out.
+			if !esp.InSequence() && strings.HasPrefix(escSeq, EscapeStartCSI) && strings.HasSuffix(escSeq, EscapeStopCSI) {
+				lastSeenEscSeq = escSeq
+				if lastSeenEscSeq == EscapeReset {
+					lastSeenEscSeq = ""
+				}
+			}
+			continue
 		}
 
-		appendChar(char, wrapLen, lineIdx, inEscSeq, lastSeenEscSeq, out)
-
-		if inEscSeq && char == EscapeStopRune {
-			inEscSeq = false
+		// text is written out a grapheme cluster at a time, so that a cluster
+		// (like an emoji with a skin tone) is not split between two lines
+		size, clusterWidth := 1, 0
+		if idx+1 < len(word) && word[idx] < utf8.RuneSelf && word[idx+1] < utf8.RuneSelf {
+			// hot path: an ASCII character followed by another one is always
+			// a cluster of its own; see isStandaloneRune
+			clusterWidth = RuneWidth(rune(word[idx]))
+		} else {
+			size, clusterWidth = wrapCluster(word[idx:], wrapLen)
 		}
-		if lastSeenEscSeq == EscapeReset {
-			lastSeenEscSeq = ""
-		}
+		appendCluster(word[idx:idx+size], clusterWidth, wrapLen, lineIdx, lastSeenEscSeq, out)
+		idx += size
 	}
+}
+
+// wrapCluster returns the size in bytes and the display width of the grapheme
+// cluster at the beginning of str, which must not be empty. A cluster that is
+// wider than a whole line has to be split to keep to wrapLen; all that is
+// returned of such a cluster is its first rune.
+func wrapCluster(str string, wrapLen int) (int, int) {
+	size, clusterWidth := trimCluster(str)
+	if clusterWidth > wrapLen {
+		char, charSize := utf8.DecodeRuneInString(str)
+		return charSize, RuneWidth(char)
+	}
+	return size, clusterWidth
 }
 
 func terminateLine(wrapLen int, lineLen *int, lastSeenEscSeq string, out *strings.Builder) {
@@ -178,7 +221,7 @@ func wrapHard(paragraph string, wrapLen int, out *strings.Builder) {
 		}
 
 		// end of line; but more words incoming
-		if lineLen == wrapLen && wordIdx < len(words)-1 {
+		if lineLen >= wrapLen && wordIdx < len(words)-1 {
 			terminateLine(wrapLen, &lineLen, lastSeenEscSeq, out)
 		}
 	}
@@ -205,7 +248,7 @@ func wrapSoft(paragraph string, wrapLen int, out *strings.Builder) {
 		}
 
 		// end of line; but more words incoming
-		if lineLen == wrapLen && wordIdx < len(words)-1 {
+		if lineLen >= wrapLen && wordIdx < len(words)-1 {
 			terminateLine(wrapLen, &lineLen, lastSeenEscSeq, out)
 		}
 	}

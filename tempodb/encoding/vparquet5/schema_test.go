@@ -1,6 +1,7 @@
 package vparquet5
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -1231,4 +1232,148 @@ func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
 			assert.Equal(t, tt.expectedRootName, parquetTrace.RootSpanName)
 		})
 	}
+}
+
+func writeSimilarityTestFile(t *testing.T, version string, traces []*Trace) []byte {
+	t.Helper()
+
+	_, writerOptions, _ := SchemaWithDynamicChanges(TraceSchemaConfig{Options: map[string]string{TraceSignatureVersionOption: version}})
+
+	var buf bytes.Buffer
+	w := parquet.NewGenericWriter[*Trace](&buf, writerOptions...)
+	_, err := w.Write(traces)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+
+	return buf.Bytes()
+}
+
+func readSimilarityTestFile(t *testing.T, version string, data []byte, rowCount int) []*Trace {
+	t.Helper()
+
+	schema, _, readerOptions := SchemaWithDynamicChanges(TraceSchemaConfig{Options: map[string]string{TraceSignatureVersionOption: version}})
+	pf, err := parquet.OpenFile(bytes.NewReader(data), int64(len(data)), parquet.FileSchema(schema))
+	require.NoError(t, err)
+
+	r := parquet.NewGenericReader[*Trace](pf, readerOptions...)
+	defer r.Close()
+
+	out := make([]*Trace, 0, rowCount)
+	for range rowCount {
+		tr := new(Trace)
+		n, err := r.Read([]*Trace{tr})
+		require.Equal(t, 1, n)
+		if err != nil && !errors.Is(err, io.EOF) {
+			require.NoError(t, err)
+		}
+		out = append(out, tr)
+	}
+
+	return out
+}
+
+func TestTraceSimilaritySchemaVersions(t *testing.T) {
+	tests := []struct {
+		name    string
+		options map[string]string
+		want    bool
+	}{
+		{name: "legacy without options", want: false},
+		{name: "empty options", options: map[string]string{}, want: false},
+		{name: "unrelated option", options: map[string]string{"feature": "on"}, want: false},
+		{name: "empty version", options: map[string]string{TraceSignatureVersionOption: TraceSignatureVersionNone}, want: false},
+		{name: "v1", options: map[string]string{"minhash": "v1"}, want: true},
+		{name: "unsupported", options: map[string]string{TraceSignatureVersionOption: "99"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schema, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{Options: tt.options})
+
+			signature, found := schema.Lookup("Similarity", "Signature")
+			require.Equal(t, tt.want, found)
+
+			shingleCount, found := schema.Lookup("Similarity", "ShingleCount")
+			require.Equal(t, tt.want, found)
+			if tt.want {
+				require.Zero(t, signature.MaxDefinitionLevel, "signature must not be nullable")
+				require.Zero(t, shingleCount.MaxDefinitionLevel, "shingle count must not be nullable")
+			}
+		})
+	}
+}
+
+func TestTraceSimilarityRoundTrip(t *testing.T) {
+	similarity := TraceSimilarity{ShingleCount: 7}
+	for i := range similarity.Signature {
+		similarity.Signature[i] = byte(i + 1)
+	}
+
+	input := []*Trace{
+		{TraceID: []byte{1}, RootServiceName: "frontend", Similarity: TraceSimilarity{Signature: [64]byte{42}, ShingleCount: 3}},
+		{TraceID: []byte{2}, RootServiceName: "backend", Similarity: similarity},
+		{TraceID: []byte{3}, RootServiceName: "empty", Similarity: TraceSimilarity{}},
+	}
+
+	data := writeSimilarityTestFile(t, TraceSignatureVersionV1, input)
+	pf, err := parquet.OpenFile(bytes.NewReader(data), int64(len(data)))
+	require.NoError(t, err)
+	for _, column := range []string{"Signature", "ShingleCount"} {
+		leaf, found := pf.Schema().Lookup("Similarity", column)
+		require.True(t, found)
+		require.Zero(t, leaf.MaxDefinitionLevel, "%s must be required in the written file", column)
+	}
+
+	got := readSimilarityTestFile(t, TraceSignatureVersionV1, data, len(input))
+	require.Len(t, got, len(input))
+	for i := range input {
+		require.Equal(t, input[i].TraceID, got[i].TraceID)
+		require.Equal(t, input[i].RootServiceName, got[i].RootServiceName)
+		require.Equal(t, input[i].Similarity, got[i].Similarity)
+	}
+}
+
+func TestTraceSimilarityLegacyBlockRoundTrip(t *testing.T) {
+	input := []*Trace{
+		{TraceID: []byte{1}, RootServiceName: "frontend"},
+		{TraceID: []byte{2}, RootServiceName: "backend"},
+	}
+
+	data := writeSimilarityTestFile(t, TraceSignatureVersionNone, input)
+	got := readSimilarityTestFile(t, TraceSignatureVersionNone, data, len(input))
+
+	require.Len(t, got, len(input))
+	for i := range input {
+		require.Equal(t, input[i].TraceID, got[i].TraceID)
+		require.Equal(t, input[i].RootServiceName, got[i].RootServiceName)
+		require.Equal(t, TraceSimilarity{}, got[i].Similarity)
+	}
+}
+
+func TestTraceSimilarityOldReaderIgnoresSignedColumns(t *testing.T) {
+	similarity := TraceSimilarity{ShingleCount: 7}
+	similarity.Signature[0] = 42
+	input := []*Trace{{TraceID: []byte{2}, RootServiceName: "backend", Similarity: similarity}}
+
+	data := writeSimilarityTestFile(t, TraceSignatureVersionV1, input)
+	got := readSimilarityTestFile(t, TraceSignatureVersionNone, data, len(input))
+
+	require.Len(t, got, 1)
+	require.Equal(t, input[0].TraceID, got[0].TraceID)
+	require.Equal(t, input[0].RootServiceName, got[0].RootServiceName)
+	require.Equal(t, TraceSimilarity{}, got[0].Similarity)
+}
+
+func TestTraceSimilarityUnsupportedVersionIgnoresColumns(t *testing.T) {
+	similarity := TraceSimilarity{ShingleCount: 7}
+	similarity.Signature[0] = 42
+	input := []*Trace{{TraceID: []byte{2}, RootServiceName: "backend", Similarity: similarity}}
+
+	data := writeSimilarityTestFile(t, TraceSignatureVersionV1, input)
+	got := readSimilarityTestFile(t, "99", data, len(input))
+
+	require.Len(t, got, 1)
+	require.Equal(t, input[0].TraceID, got[0].TraceID)
+	require.Equal(t, input[0].RootServiceName, got[0].RootServiceName)
+	require.Equal(t, TraceSimilarity{}, got[0].Similarity)
 }

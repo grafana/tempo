@@ -447,9 +447,10 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 			globalLimit = limit * d.DistributorRing.InstancesCount()
 		}
 
-		// batch size is too big if it's more than the limit and burst both
-		if tracesSize > limit && tracesSize > burst {
-			return status.Errorf(codes.ResourceExhausted,
+		// A batch larger than the bucket capacity can never fit, even after refill.
+		// Reject it permanently so OTLP clients do not retry it.
+		if tracesSize > burst {
+			return status.Errorf(codes.InvalidArgument,
 				"%s: batch size (%d bytes) exceeds ingestion limit (local: %d bytes/s, global: %d bytes/s, burst: %d bytes) while adding %d bytes for user %s. consider reducing batch size or increasing rate limit.",
 				overrides.ErrorPrefixRateLimited, tracesSize, limit, globalLimit, burst, tracesSize, userID)
 		}

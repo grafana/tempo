@@ -472,6 +472,13 @@ ingest:
         # How long to wait for an incoming write request to be successfully committed to the Kafka backend.
         [write_timeout: <duration> | default = 10s]
 
+        # The highest ApiVersions request version the Kafka client sends, up to the
+        # highest version the client supports (4 with the current Kafka client).
+        # The default of 4 keeps the client compatible with backends that close the
+        # connection on ApiVersions v5, such as WarpStream. 0 removes the cap, so the
+        # client sends the highest version it supports.
+        [api_versions_max_version: <int> | default = 4]
+
         # The SASL mechanism used to authenticate to Kafka. Supported values:
         # PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, OAUTHBEARER, AWS_MSK_IAM.
         # For backwards-compatibility, PLAIN with no username nor password disables SASL.
@@ -919,6 +926,9 @@ metrics_generator:
         [stale_duration: <duration> | default = 15m]
 
         # A list of labels that will be added to all generated metrics.
+        # Set a label that is unique for each metrics-generator StatefulSet or cluster when
+        # multiple StatefulSets write to the same remote write backend. Otherwise, generators with
+        # the same pod name write to the same series.
         [external_labels: <map>]
 
         # If set, the tenant ID will added as label with the given label name to all generated metrics.
@@ -1074,7 +1084,10 @@ query_frontend:
     [multi_tenant_queries_enabled: <bool>]
 
     # Comma-separated list of request header names to include in query logs. Applies
-    # to both query stats and slow queries logs.
+    # to both the query stats log line and the per-query response log lines for
+    # search, metrics, trace by ID and tag queries. Each header value is truncated to
+    # 1 KiB. Do not include headers that carry credentials or session material, such
+    # as Authorization or Cookie, because their values are written to the logs.
     [log_query_request_headers: <string> | default = ""]
 
     # Set a maximum timeout for all api queries at which point the frontend will cancel queued jobs
@@ -1285,6 +1298,23 @@ query_frontend:
         [enabled: <bool> | default = false]
         [max_queries_per_tenant: <int> | default = 100]
         [max_query_text_bytes: <int> | default = 4096]
+
+    # Estimates how many bytes each querier job reads when the job is created. The estimates are only reported
+    # in metrics, they don't limit or change how queries run.
+    job_cost:
+        # Calibrate the estimates for jobs that read blocks with the bytes the jobs actually read.
+        calibration:
+            # If disabled, the estimates use predefined constant values.
+            [enabled: <bool> | default = true]
+
+            # Limits of the share of the bytes of a block that search, metadata and metrics jobs are estimated
+            # to read. Must satisfy 0 < min_factor <= max_factor <= 1. Raise max_factor for small blocks.
+            [min_factor: <float> | default = 0.001]
+            [max_factor: <float> | default = 0.1]
+
+        # Fixed estimate in bytes for jobs that read recent data from the live stores.
+        # Set to 0 to not estimate these jobs.
+        [live_store_cost: <int> | default = 262144]
 
 ```
 
@@ -1605,7 +1635,7 @@ storage:
     trace:
 
         # The storage backend to use
-        # Should be one of "gcs", "s3", "azure" or "local" (only supported in the monolithic mode)
+        # Should be one of "gcs", "s3", "s3express", "azure" or "local" (only supported in the monolithic mode)
         # CLI flag -storage.trace.backend
         [backend: <string>]
 
@@ -1857,6 +1887,22 @@ storage:
               # It expects a 32 byte long string.
               encryption_key:
 
+        # S3 directory bucket configuration. Will be used only if value of backend is "s3express".
+        # Takes the options of s3, except insecure, which isn't supported, and list_blocks_concurrency, which is ignored.
+        # Check the S3 doc within this folder for information on directory bucket specific permissions.
+        s3express:
+
+            # Name of the directory bucket, which ends in --x-s3.
+            # Example: "bucket: tempo--euc1-ist1-az1--x-s3"
+            [bucket: <string>]
+
+            # The Region of the bucket's Availability Zone or Local Zone. Required.
+            # Example: "region: eu-central-1"
+            [region: <string>]
+
+            # Optional. Defaults to the bucket's Zonal endpoint, s3express-<zone-id>.<region>.amazonaws.com.
+            [endpoint: <string>]
+
         # Azure configuration. Will be used only if value of backend is "azure".
         azure:
 
@@ -1949,6 +1995,13 @@ storage:
         # the bucket contents.
         # Default 0 (disabled).
         [blocklist_poll_stale_tenant_index: <duration>]
+
+        # Read the tenant index in the V2 format,
+        # which is smaller and cheaper to decode.
+        # Tempo always writes it, so enable this only after
+        # every component runs a version that supports it.
+        # Default false.
+        [blocklist_poll_tenant_index_v2: <bool>]
 
         # Delays each unknown block metadata read by a random amount, up to the provided value in milliseconds.
         # Does not delay tenant-index reads or enforce a cluster-wide request rate limit.
@@ -2845,7 +2898,7 @@ overrides:
 
     client:
       # The storage backend to use
-      # Should be one of "gcs", "s3", "azure" or "local"
+      # Should be one of "gcs", "s3", "s3express", "azure" or "local"
       [backend: <string>]
 
       # Backend-specific configuration, support the same configuration options as the
@@ -2853,6 +2906,7 @@ overrides:
       local:
       gcs:
       s3:
+      s3express:
       azure:
 
       # Check whether the backend supports versioning at startup. If enabled Tempo will not start if

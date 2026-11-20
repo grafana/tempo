@@ -21,22 +21,36 @@ import (
 //
 // Falls back to the raw float multiplier when the tracestate has a
 // threshold but no R-value (for example, the SDK relies on the trace
-// ID's random flag per W3C trace context v2). Returns 0 when the
-// tracestate has no usable probability-sampling data — callers should
-// treat 0 as "unknown" and fall back to 1.0 (or to a configured ratio
-// attribute) themselves.
+// ID's random flag per W3C trace context v2).
+//
+// EXPERIMENTAL: returns 0 when the `ot` entry contains the `zc:1` sub-key,
+// meaning the span has an adjusted count of zero and must not be counted. `zc`
+// takes precedence over `th`. It is a proposal in
+// https://github.com/open-telemetry/opentelemetry-specification/issues/5407
+// and may be changed or removed.
+//
+// Returns a negative value (-1) when the tracestate has no usable
+// probability-sampling data — callers should treat any negative result as
+// unknown and fall back to 1.0 (or to a configured ratio attribute) themselves.
 func MultiplierFromTraceState(traceState string) float64 {
 	ot := extractOpenTelemetryTraceState(traceState)
 	if ot == "" {
+		return -1
+	}
+	if hasZeroCount(ot) {
 		return 0
 	}
 	otts, err := sampling.NewOpenTelemetryTraceState(ot)
 	if err != nil {
-		return 0
+		return -1
 	}
 	m := otts.AdjustedCount()
+	if m <= 0 {
+		// AdjustedCount is 0 when there is no threshold.
+		return -1
+	}
 	rnd, hasRV := otts.RValueRandomness()
-	if m <= 0 || !hasRV {
+	if !hasRV {
 		return m
 	}
 	i := math.Floor(m)
@@ -50,6 +64,22 @@ func MultiplierFromTraceState(traceState string) float64 {
 		return i + 1
 	}
 	return i
+}
+
+// hasZeroCount reports whether the sub-keys of an `ot` value include `zc:1`.
+func hasZeroCount(ot string) bool {
+	// Fast reject: nearly all spans lack zc, and Contains is vectorized.
+	if !strings.Contains(ot, "zc:1") {
+		return false
+	}
+	for ot != "" {
+		field, rest, _ := strings.Cut(ot, ";")
+		if field == "zc:1" {
+			return true
+		}
+		ot = rest
+	}
+	return false
 }
 
 // extractOpenTelemetryTraceState parses the tracestate for the ot vendor key

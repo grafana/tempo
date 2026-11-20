@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/validation"
+	"github.com/grafana/tempo/v3/tempodb/blocksharding"
 )
 
 // blockJobAttributes describe the work of a job that searches a range of a block. Despite their names,
@@ -26,14 +27,7 @@ func blockJobAttributes(blockSize uint64, startPage, pagesToSearch, totalRecords
 		return attrs
 	}
 
-	rowGroups := uint64(0)
-	if startPage < totalRecords {
-		rowGroups = uint64(min(pagesToSearch, totalRecords-startPage))
-	}
-
-	// split to not overflow for big blocks
-	total := uint64(totalRecords)
-	blockBytes := blockSize/total*rowGroups + blockSize%total*rowGroups/total
+	blockBytes := blocksharding.JobBytes(blockSize, startPage, pagesToSearch, totalRecords)
 
 	return append(attrs, attribute.Int64("blockBytes", int64(blockBytes))) //nolint:gosec // G115
 }

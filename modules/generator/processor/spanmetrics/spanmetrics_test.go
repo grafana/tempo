@@ -1876,6 +1876,49 @@ func TestSpanMetricsTraceStateMultiplier(t *testing.T) {
 	assert.Equal(t, 2.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
 }
 
+func TestSpanMetricsTraceStateZeroCount(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered", "span-metrics-zero-count")
+	invalidUTF8SpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid_utf8", "span-metrics-zero-count")
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.HistogramBuckets = []float64{0.5, 1}
+	cfg.EnableTraceStateSpanMultiplier = true
+	cfg.Subprocessors[Size] = true
+
+	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidUTF8SpanLabelsCounter)
+	require.NoError(t, err)
+	defer p.Shutdown(context.Background())
+
+	// zc takes precedence over th, so neither span contributes to any series.
+	for _, traceState := range []string{"ot=zc:1", "ot=th:8;zc:1"} {
+		batch := test.MakeBatch(1, nil)
+		for _, ils := range batch.ScopeSpans {
+			for _, span := range ils.Spans {
+				span.TraceState = traceState
+			}
+		}
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+	}
+
+	lbls := labels.FromMap(map[string]string{
+		"service":     "test-service",
+		"span_name":   "test",
+		"span_kind":   "SPAN_KIND_CLIENT",
+		"status_code": "STATUS_CODE_OK",
+	})
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_size_total", lbls))
+	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+
+	// A span without zc is still counted.
+	batch := test.MakeBatch(1, nil)
+	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+	assert.Equal(t, 1.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+	assert.Greater(t, testRegistry.Query("traces_spanmetrics_size_total", lbls), 0.0)
+}
+
 // recordingRegistry wraps a TestRegistry and records the order of every metric
 // series update. The production registry limiter grants active-series and
 // entity capacity in call order, so tests use this to pin the relative

@@ -6,7 +6,6 @@ import (
 
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/grpcutil"
-	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
@@ -70,11 +69,6 @@ var (
 		Help:      "Bytes read from storage using queries per tenant",
 	}, []string{metricLabelTenant, metricLabelOp})
 
-	traceByIDInspectedBytes = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
-	searchInspectedBytes    = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": searchOp})
-	metadataInspectedBytes  = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": metadataOp})
-	metricsInspectedBytes   = queryInspectedBytes.MustCurryWith(prometheus.Labels{"op": metricsOp})
-
 	// the bytes inspected by a single querier job, which shows how much work a job of each op is
 	queryJobInspectedBytes = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace:                       metricNamespace,
@@ -85,29 +79,11 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{metricLabelOp})
-
-	traceByIDJobInspectedBytes = queryJobInspectedBytes.WithLabelValues(traceByIDOp)
-	searchJobInspectedBytes    = queryJobInspectedBytes.WithLabelValues(searchOp)
-	metadataJobInspectedBytes  = queryJobInspectedBytes.WithLabelValues(metadataOp)
-	metricsJobInspectedBytes   = queryJobInspectedBytes.WithLabelValues(metricsOp)
 )
 
 type (
 	handlerPostHook func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error)
 )
-
-// inspectedBytesReporter returns a combiner option that adds to the inspected bytes counter as query jobs complete,
-// and observes the bytes inspected by every job.
-func inspectedBytesReporter(vec *prometheus.CounterVec, jobBytes prometheus.Observer, tenant string) combiner.Option {
-	return combiner.WithOptions(
-		combiner.WithInspectedBytesReporter(func(b uint64) {
-			vec.WithLabelValues(tenant).Add(float64(b))
-		}),
-		combiner.WithJobInspectedBytesObserver(func(b uint64) {
-			jobBytes.Observe(float64(b))
-		}),
-	)
-}
 
 // todo: remove post hooks and implement as a handler
 func traceByIDSLOPostHook(cfg SLOConfig) handlerPostHook {

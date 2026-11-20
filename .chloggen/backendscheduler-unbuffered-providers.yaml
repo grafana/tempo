@@ -1,0 +1,7 @@
+change_type: enhancement
+component: backend-scheduler
+note: Stop buffering jobs between the backend-scheduler providers and workers, so each provider holds at most one generated job until a worker takes it.
+issues: []
+subtext: |
+  Previously several generated jobs could sit in channel buffers and go stale before a worker took them.
+user: zalegrala

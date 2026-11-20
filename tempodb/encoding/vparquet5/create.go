@@ -154,6 +154,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	newMeta.EndTime = meta.EndTime
 	newMeta.ReplicationFactor = meta.ReplicationFactor
 	newMeta.DedicatedColumns = filterDedicatedColumns(meta.DedicatedColumns)
+	newMeta.Options = meta.Options
 
 	// TotalObjects is used here an an estimated count for the bloom filter.
 	// The real number of objects is tracked below.
@@ -162,8 +163,11 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	var (
 		w                   = &backendWriter{ctx, to, DataFileName, uuid.UUID(meta.BlockID), meta.TenantID, nil}
 		bw                  = createBufferedWriter(w)
-		_, writerOptions, _ = SchemaWithDynamicChanges(meta.DedicatedColumns)
-		pw                  = parquet.NewGenericWriter[*Trace](bw, writerOptions...)
+		_, writerOptions, _ = SchemaWithDynamicChanges(TraceSchemaConfig{
+			DedicatedColumns: meta.DedicatedColumns,
+			Options:          meta.Options,
+		})
+		pw = parquet.NewGenericWriter[*Trace](bw, writerOptions...)
 	)
 
 	return &streamingBlock{
@@ -205,7 +209,7 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
 	if b.persistServiceGraphEdges {
 		tr := &Trace{}
-		schema, _, _ := SchemaWithDynamicChanges(b.meta.DedicatedColumns)
+		schema, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{DedicatedColumns: b.meta.DedicatedColumns, Options: b.meta.Options})
 		if err := schema.Reconstruct(tr, row); err != nil {
 			return fmt.Errorf("decode trace for service graph edge storage: %w", err)
 		}

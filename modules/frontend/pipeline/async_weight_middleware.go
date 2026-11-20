@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/pkg/traceql"
@@ -37,41 +38,69 @@ type QueryShape struct {
 
 type queryShapeCtxKey struct{}
 
-// queryShapeCell is the mutable cell the middleware writes into so the handler's
-// outer context can read the shape after RoundTrip returns. Single writer
-// (middleware), single reader (handler), serialized by the pipeline; no mutex.
+// queryShapeCell is the mutable per-query cell on the handler's outer context. The middleware writes
+// the shape into it so the handler can read it after RoundTrip returns. The shape has a single
+// writer (middleware) and a single reader (handler), serialized by the pipeline; no mutex.
+// The estimated bytes of the jobs are added by the combiners and have their own atomic.
 type queryShapeCell struct {
 	qs *QueryShape
+
+	// estimatedBytes is the sum of the estimated bytes of the jobs of the query. The combiners add to it as
+	// job responses arrive, which can be concurrent.
+	estimatedBytes atomic.Uint64
 }
 
 // WithQueryShapeCell installs an empty cell on ctx that the weight middleware
-// populates during RoundTrip.
+// populates during RoundTrip. The cell also sums up the estimated bytes of the jobs of the query.
 func WithQueryShapeCell(ctx context.Context) context.Context {
 	return context.WithValue(ctx, queryShapeCtxKey{}, &queryShapeCell{})
 }
 
 // QueryShapeFromContext returns the shape stamped on ctx, or ok=false when none.
 func QueryShapeFromContext(ctx context.Context) (QueryShape, bool) {
-	if ctx == nil {
-		return QueryShape{}, false
-	}
-	cell, ok := ctx.Value(queryShapeCtxKey{}).(*queryShapeCell)
-	if !ok || cell.qs == nil {
+	cell := queryShapeCellFromContext(ctx)
+	if cell == nil || cell.qs == nil {
 		return QueryShape{}, false
 	}
 	return *cell.qs, true
 }
 
-func setQueryShapeOnContext(ctx context.Context, qs QueryShape) {
-	if ctx == nil {
-		return
+// EstimatedBytesAdder returns a function that adds to the estimated bytes of the jobs of the query whose cell
+// is installed on ctx. Without a cell the function does nothing. It is meant to be called once per query.
+func EstimatedBytesAdder(ctx context.Context) func(bytes uint64) {
+	cell := queryShapeCellFromContext(ctx)
+	if cell == nil {
+		return func(uint64) {}
 	}
-	cell, ok := ctx.Value(queryShapeCtxKey{}).(*queryShapeCell)
-	if !ok {
+	return func(bytes uint64) { cell.estimatedBytes.Add(bytes) }
+}
+
+// EstimatedBytesFromContext returns the sum of the estimated bytes of the jobs of the query added so far,
+// or ok=false when ctx has no cell.
+func EstimatedBytesFromContext(ctx context.Context) (bytes uint64, ok bool) {
+	cell := queryShapeCellFromContext(ctx)
+	if cell == nil {
+		return 0, false
+	}
+	return cell.estimatedBytes.Load(), true
+}
+
+func setQueryShapeOnContext(ctx context.Context, qs QueryShape) {
+	cell := queryShapeCellFromContext(ctx)
+	if cell == nil {
 		return
 	}
 	snapshot := qs
 	cell.qs = &snapshot
+}
+
+// queryShapeCellFromContext returns the cell installed on ctx, or nil if there is none.
+func queryShapeCellFromContext(ctx context.Context) *queryShapeCell {
+	if ctx == nil {
+		return nil
+	}
+	cell, _ := ctx.Value(queryShapeCtxKey{}).(*queryShapeCell)
+	return cell
 }
 
 func (rt RequestType) queryTypeLabel() string {

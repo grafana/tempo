@@ -198,11 +198,12 @@ func (o *userConfigurableOverridesManager) getTenantLimits(userID string) *userc
 	return o.tenantLimits[userID]
 }
 
+// getAllTenantLimits returns a snapshot
 func (o *userConfigurableOverridesManager) getAllTenantLimits() tenantLimits {
 	o.mtx.RLock()
 	defer o.mtx.RUnlock()
 
-	return o.tenantLimits
+	return maps.Clone(o.tenantLimits)
 }
 
 func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits *userconfigurableoverrides.Limits) {
@@ -217,8 +218,10 @@ func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits 
 }
 
 func (o *userConfigurableOverridesManager) GetTenantIDs() []string {
-	limits := o.getAllTenantLimits()
-	return slices.AppendSeq(make([]string, 0, len(limits)), maps.Keys(limits))
+	o.mtx.RLock()
+	defer o.mtx.RUnlock()
+
+	return slices.AppendSeq(make([]string, 0, len(o.tenantLimits)), maps.Keys(o.tenantLimits))
 }
 
 func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {

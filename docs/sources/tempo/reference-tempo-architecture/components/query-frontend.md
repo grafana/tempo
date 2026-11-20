@@ -128,6 +128,9 @@ Refer to [Tune search performance](https://grafana.com/docs/tempo/<TEMPO_VERSION
 | `tempo_query_frontend_queue_length` | Current queue depth per tenant |
 | `tempo_query_frontend_executing_jobs` | Jobs currently executing on queriers, per tenant and operation |
 | `tempo_query_frontend_job_inspected_bytes` | Histogram of the bytes inspected by each querier job that responded with metrics, per operation, excluding cached job responses |
+| `tempo_query_frontend_job_actual_to_estimated_bytes_ratio` | Histogram of the bytes a job inspected divided by the bytes it was estimated to read, per operation and `kind`, for jobs with an estimate greater than zero |
+| `tempo_query_frontend_job_cost_factor` | Share of the bytes of the block range a job covers that it is estimated to read, per operation. Not reported for trace by ID |
+| `tempo_query_frontend_job_cost_bytes_per_block` | Bytes a trace by ID job is estimated to read per block it looks into, always with `op="traces"` |
 
 ## Related resources
 

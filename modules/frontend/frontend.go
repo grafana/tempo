@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/api"
@@ -97,6 +98,10 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("frontend search concurrent requests should be greater than 0")
 	}
 
+	if err := cfg.JobCost.Validate(); err != nil {
+		return nil, fmt.Errorf("frontend job cost: %w", err)
+	}
+
 	if cfg.Search.Sharder.TargetBytesPerRequest <= 0 {
 		return nil, fmt.Errorf("frontend search target bytes per request should be greater than 0")
 	}
@@ -154,6 +159,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"op"})
 
+	estimator := jobcost.NewEstimator(cfg.JobCost)
+
 	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, false)
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer, logger)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
@@ -171,7 +178,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTraceIDSharder(&cfg.TraceByID, cfg.Config.MaxOutstandingPerTenant, reader, jobsPerQuery, logger),
+			newAsyncTraceIDSharder(&cfg.TraceByID, cfg.Config.MaxOutstandingPerTenant, reader, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare},
 		next,
@@ -186,7 +193,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLSearch, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, cfg.SkipASTTransformations, jobsPerQuery, logger),
+			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, cfg.SkipASTTransformations, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -200,7 +207,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, jobsPerQuery, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -214,7 +221,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, jobsPerQuery, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -228,7 +235,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, jobsPerQuery, logger),
+			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -243,7 +250,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, false, jobsPerQuery, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, false, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
@@ -257,23 +264,29 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			tenantValidatorWare,
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, true, jobsPerQuery, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, true, jobsPerQuery, estimator, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next,
 	)
 
+	costMetrics := newJobCostMetrics(estimator, registerer)
+	traceByIDReporter := newJobReporter(jobcost.OpTraceByID, estimator, costMetrics)
+	searchReporter := newJobReporter(jobcost.OpSearch, estimator, costMetrics)
+	metadataReporter := newJobReporter(jobcost.OpMetadata, estimator, costMetrics)
+	metricsReporter := newJobReporter(jobcost.OpMetrics, estimator, costMetrics)
+
 	metricsQueryRangeLimiter := newMetricsRangeLimiter(cfg, o, reader)
-	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger, dataAccessController)
-	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger, dataAccessController)
+	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, traceByIDReporter, logger, dataAccessController)
+	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, traceByIDReporter, logger, dataAccessController)
 	traceDiff := newTraceDiffHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, cacheProvider, logger, dataAccessController)
-	search := newSearchHTTPHandler(cfg, searchPipeline, o, logger, dataAccessController)
-	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
-	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger, dataAccessController)
-	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger, dataAccessController)
-	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, logger, dataAccessController)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, metricsQueryRangeLimiter, logger, dataAccessController) // Reuses the same pipeline
-	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, logger, dataAccessController)
+	search := newSearchHTTPHandler(cfg, searchPipeline, o, searchReporter, logger, dataAccessController)
+	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, metadataReporter, logger, dataAccessController)
+	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, metadataReporter, logger, dataAccessController)
+	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, metadataReporter, logger, dataAccessController)
+	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesV2Pipeline, o, metadataReporter, logger, dataAccessController)
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, metricsQueryRangeLimiter, metricsReporter, logger, dataAccessController) // Reuses the same pipeline
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, metricsReporter, logger, dataAccessController)
 
 	queryTrackerInstance := newQueryTracker(cfg.QueryTracker, logger, registerer)
 	f := &QueryFrontend{
@@ -290,13 +303,13 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger, queryTrackerInstance),
 
 		// grpc/streaming
-		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, o, logger, dataAccessController),
-		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
-		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger, dataAccessController),
-		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger, dataAccessController),
-		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, logger, dataAccessController),
-		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, apiPrefix, logger, dataAccessController),
-		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, apiPrefix, logger, dataAccessController), // Reuses the same pipeline
+		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, o, searchReporter, logger, dataAccessController),
+		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, metadataReporter, logger, dataAccessController),
+		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, metadataReporter, logger, dataAccessController),
+		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, metadataReporter, logger, dataAccessController),
+		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesV2Pipeline, apiPrefix, o, metadataReporter, logger, dataAccessController),
+		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, apiPrefix, metricsReporter, logger, dataAccessController),
+		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, metricsQueryRangeLimiter, apiPrefix, metricsReporter, logger, dataAccessController), // Reuses the same pipeline
 
 		queryTracker:  queryTrackerInstance,
 		cacheProvider: cacheProvider,

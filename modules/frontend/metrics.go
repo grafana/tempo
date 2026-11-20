@@ -11,6 +11,7 @@ const (
 	metricNamespace   = "tempo"
 	metricLabelTenant = "tenant"
 	metricLabelOp     = "op"
+	metricLabelKind   = "kind"
 	metricLabelResult = "result"
 )
 

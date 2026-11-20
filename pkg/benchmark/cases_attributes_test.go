@@ -63,6 +63,32 @@ func TestAttributeCasesMetricsAndTagValues(t *testing.T) {
 	require.Empty(t, tags.query)
 }
 
+func TestExistenceCases(t *testing.T) {
+	prof := &profile.BlockProfile{Attributes: &attributes.Profiles{Spans: 10, Ranked: []attributes.Profile{
+		profileAttr(attributes.ScopeSpan, "http.status_code", attributes.TypeInt, true, "200", "500"),
+		// " = " in the name must survive the filtered case's != operator.
+		profileAttr(attributes.ScopeResource, "a = b", attributes.TypeString, false, "x", "y"),
+		profileAttr(attributes.ScopeIntrinsic, "status", attributes.TypeStatus, true, "unset"),
+	}}}
+
+	queries := map[string]string{}
+	for _, c := range existenceCases(prof) {
+		queries[c.id] = c.query
+	}
+	require.Equal(t, map[string]string{
+		"search/ranked_dedicated/exists/span.http.status_code":            "{ span.http.status_code != nil }",
+		"search/ranked_dedicated/select/span.http.status_code":            "{ } | select(span.http.status_code)",
+		"metrics/ranked_dedicated/rate-by/span.http.status_code":          "{ } | rate() by (span.http.status_code)",
+		"metrics/ranked_dedicated/filtered-rate-by/span.http.status_code": "{ span.http.status_code != 200 } | rate() by (span.http.status_code)",
+		"search/ranked_generic/exists/resource.a = b":                     `{ resource."a = b" != nil }`,
+		"search/ranked_generic/select/resource.a = b":                     `{ } | select(resource."a = b")`,
+		"metrics/ranked_generic/rate-by/resource.a = b":                   `{ } | rate() by (resource."a = b")`,
+		"metrics/ranked_generic/filtered-rate-by/resource.a = b":          `{ resource."a = b" != "x" } | rate() by (resource."a = b")`,
+	}, queries)
+
+	require.Empty(t, existenceCases(&profile.BlockProfile{}))
+}
+
 func TestAttributeCasesWithoutAttributes(t *testing.T) {
 	require.Empty(t, attributeCases(&profile.BlockProfile{}))
 }

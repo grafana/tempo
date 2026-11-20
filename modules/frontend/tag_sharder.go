@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/api"
@@ -35,7 +36,10 @@ func (r *tagsSearchRequest) end() uint32 {
 }
 
 func (r *tagsSearchRequest) hash() uint64 {
-	return fnv1a.HashString64(r.request.Scope)
+	hash := fnv1a.HashString64(r.request.Scope)
+	hash = fnv1a.AddString64(hash, traceql.NormalizeQuery(r.request.Query))
+
+	return hash
 }
 
 func (r *tagsSearchRequest) keyPrefix() string {
@@ -182,10 +186,11 @@ type searchTagSharder struct {
 	logger       log.Logger
 	parseRequest parseRequestFunction
 	jobsPerQuery *prometheus.HistogramVec
+	estimator    *jobcost.Estimator
 }
 
 // newAsyncTagSharder creates a sharding middleware for tags and tag values
-func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, parseRequest parseRequestFunction, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, parseRequest parseRequestFunction, jobsPerQuery *prometheus.HistogramVec, estimator *jobcost.Estimator, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return searchTagSharder{
 			next:         next,
@@ -195,6 +200,7 @@ func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg Search
 			logger:       logger,
 			parseRequest: parseRequest,
 			jobsPerQuery: jobsPerQuery,
+			estimator:    estimator,
 		}
 	})
 }
@@ -318,6 +324,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 
 		key := cacheKey(keyPrefix, tenantID, hash, startTime, endTime, m, startPage, pages)
 		pipelineR.SetCacheKey(key)
+		pipelineR.SetCost(blockJobCost(s.estimator, jobcost.OpMetadata, m, startPage, pages))
 
 		select {
 		case reqCh <- pipelineR:
@@ -370,6 +377,7 @@ func (s searchTagSharder) buildIngesterRequest(tenantID string, parent pipeline.
 	if err != nil {
 		return nil, err
 	}
+	subR.SetCost(s.estimator.LiveStore())
 	return subR, nil
 }
 

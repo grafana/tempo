@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	tempo_io "github.com/grafana/tempo/v3/pkg/io"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	commonv1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
 	resourcev1 "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
@@ -164,7 +165,7 @@ func TestServiceGraphEdgesDoNotBackfillWhenDisabled(t *testing.T) {
 func TestServiceGraphEdgesReadOldSchema(t *testing.T) {
 	// Existing vParquet5 files have no edge group. New readers must treat it as
 	// absent rather than requiring a rewritten historical block.
-	schema, _, _ := SchemaWithDynamicChanges(nil)
+	schema, writerOptions, readerOptions := SchemaWithDynamicChanges(TraceSchemaConfig{})
 	fields := parquet.Group{}
 	for _, field := range schema.Fields() {
 		if field.Name() != "ServiceGraphEdges" {
@@ -173,11 +174,11 @@ func TestServiceGraphEdgesReadOldSchema(t *testing.T) {
 	}
 	oldSchema := parquet.NewSchema("Trace", fields)
 	var data bytes.Buffer
-	writer := parquet.NewGenericWriter[*Trace](&data, oldSchema)
+	writer := parquet.NewGenericWriter[*Trace](&data, append(writerOptions, oldSchema)...)
 	_, err := writer.Write([]*Trace{{TraceID: []byte{1}, RootServiceName: "A"}})
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
-	reader := parquet.NewGenericReader[*Trace](bytes.NewReader(data.Bytes()))
+	reader := parquet.NewGenericReader[*Trace](bytes.NewReader(data.Bytes()), readerOptions...)
 	defer reader.Close()
 	tr := &Trace{}
 	n, err := reader.Read([]*Trace{tr})
@@ -208,4 +209,35 @@ func BenchmarkServiceGraphEdgeStorage(b *testing.B) {
 			}
 		})
 	}
+}
+
+// Edge generation from raw rows must use the block's optional-column schema,
+// preserving upstream similarity data while adding the complete edge records.
+func TestServiceGraphEdgesWithTraceSimilarity(t *testing.T) {
+	ctx := context.Background()
+	rawR, rawW, _, err := local.New(&local.Config{Path: t.TempDir()})
+	require.NoError(t, err)
+	r, w := backend.NewReader(rawR), backend.NewWriter(rawW)
+	meta := backend.NewBlockMeta("tenant", uuid.New(), VersionString)
+	meta.TotalObjects = 1
+	meta.Options = map[string]string{TraceSignatureVersionOption: TraceSignatureVersionV1}
+	cfg := &common.BlockConfig{BloomFP: .01, BloomShardSizeBytes: 100 * 1024, RowGroupSizeBytes: 1 << 20, PersistServiceGraphEdges: true}
+	sb, stored := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
+	id := make([]byte, 16)
+	id[15] = 1
+	similarity := TraceSimilarity{Signature: [64]byte{42}, ShingleCount: 7}
+	tr := &Trace{TraceID: id, Similarity: similarity, ResourceSpans: []ResourceSpans{
+		{Resource: Resource{ServiceName: "A"}, ScopeSpans: []ScopeSpans{{Spans: []Span{{SpanID: []byte{1}}}}}},
+		{Resource: Resource{ServiceName: "B"}, ScopeSpans: []ScopeSpans{{Spans: []Span{{SpanID: []byte{2}, ParentSpanID: []byte{1}}}}}},
+	}}
+	schema, _, _ := SchemaWithDynamicChanges(TraceSchemaConfig{Options: meta.Options})
+	require.NoError(t, sb.AddRaw(id, schema.Deconstruct(nil, tr), 1, 2))
+	_, err = sb.Complete()
+	require.NoError(t, err)
+	require.Equal(t, similarity, readSimilarityLifecycleTraces(ctx, t, stored, r)[string(id)])
+	found, err := newBackendBlock(stored, r).FindTraceByID(ctx, id, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	require.Len(t, found.Trace.ServiceGraphEdges, 1)
+	require.Equal(t, "A", found.Trace.ServiceGraphEdges[0].ParentService)
+	require.Equal(t, "B", found.Trace.ServiceGraphEdges[0].ChildService)
 }

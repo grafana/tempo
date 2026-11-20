@@ -1,0 +1,1584 @@
+{
+ "annotations": {
+  "list": [
+
+  ]
+ },
+ "editable": true,
+ "gnetId": null,
+ "graphTooltip": 0,
+ "hideControls": false,
+ "links": [
+  {
+   "asDropdown": true,
+   "icon": "external link",
+   "includeVars": true,
+   "keepTime": true,
+   "tags": [
+    "tempo"
+   ],
+   "targetBlank": false,
+   "title": "Tempo Dashboards",
+   "type": "dashboards"
+  }
+ ],
+ "refresh": "",
+ "rows": [
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Response time\nTime the query-frontend took to answer the query, from request to response.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 1,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap duration_seconds | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p99",
+       "legendLink": null
+      },
+      {
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap duration_seconds | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p50",
+       "legendLink": null
+      }
+     ],
+     "title": "Response time",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Inspected spans\nNumber of spans the queriers evaluated to answer the query. A search with no span conditions reports zero. Only query types: search, query range, and instant query report this value.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 2,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap inspected_spans | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p99",
+       "legendLink": null
+      },
+      {
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap inspected_spans | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p50",
+       "legendLink": null
+      }
+     ],
+     "title": "Inspected spans",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Inspected bytes\nBytes the queriers read from blocks and live-stores to answer the query, including bytes served from the cache.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "bytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 3,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap inspected_bytes | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p99",
+       "legendLink": null
+      },
+      {
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap inspected_bytes | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p50",
+       "legendLink": null
+      }
+     ],
+     "title": "Inspected bytes",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Response size\nSize of the response returned to the client. Only the Min duration filter applies.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "bytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 4,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |= \"query stats\" | logfmt | url!~\".*/traces/diff.*\" | regexp `url=\"?[^?\\s\"]*/api/(v2/)?(?P<api_path>traces|search/tags?|search|metrics/query_range|metrics/query)` | label_format query_kind=`{{ if eq .api_path \"traces\" }}id_lookup{{ else if hasPrefix \"search/tag\" .api_path }}metadata{{ else if eq .api_path \"search\" }}search{{ else if eq .api_path \"metrics/query_range\" }}query_range{{ else if eq .api_path \"metrics/query\" }}instant_query{{ end }}` | query_kind!=\"\" | tenant=~\"${tenant_id}\" | query_kind=~\"${query_type}\" | duration > ${min_duration} | response_size > 0 | unwrap response_size | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p99",
+       "legendLink": null
+      },
+      {
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |= \"query stats\" | logfmt | url!~\".*/traces/diff.*\" | regexp `url=\"?[^?\\s\"]*/api/(v2/)?(?P<api_path>traces|search/tags?|search|metrics/query_range|metrics/query)` | label_format query_kind=`{{ if eq .api_path \"traces\" }}id_lookup{{ else if hasPrefix \"search/tag\" .api_path }}metadata{{ else if eq .api_path \"search\" }}search{{ else if eq .api_path \"metrics/query_range\" }}query_range{{ else if eq .api_path \"metrics/query\" }}instant_query{{ end }}` | query_kind!=\"\" | tenant=~\"${tenant_id}\" | query_kind=~\"${query_type}\" | duration > ${min_duration} | response_size > 0 | unwrap response_size | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p50",
+       "legendLink": null
+      }
+     ],
+     "title": "Response size",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Time span\nTime range that the query covers, from its start time to its end time.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 5,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | unwrap time_span_seconds | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p99",
+       "legendLink": null
+      },
+      {
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | unwrap time_span_seconds | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p50",
+       "legendLink": null
+      }
+     ],
+     "title": "Time span",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Jobs per query\nNumber of jobs the query-frontend split the query into. Each job runs on a querier, so more jobs means the query uses more of the read path. Only query types: search, query range, and instant query report this value.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 6,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap total_requests | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p99",
+       "legendLink": null
+      },
+      {
+       "expr": "quantile_over_time(0.5, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap total_requests | __error__=\"\" [$__auto]) by ()",
+       "format": "time_series",
+       "legendFormat": "p50",
+       "legendLink": null
+      }
+     ],
+     "title": "Jobs per query",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Across tenants",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": true,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Response time\nTime the query-frontend took to answer the query, from request to response.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 7,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap duration_seconds | __error__=\"\" [$__auto]) by (tenant))",
+       "format": "time_series",
+       "legendFormat": "{{tenant}}",
+       "legendLink": null
+      }
+     ],
+     "title": "P99 response time",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Inspected spans\nNumber of spans the queriers evaluated to answer the query. A search with no span conditions reports zero. Only query types: search, query range, and instant query report this value.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 8,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap inspected_spans | __error__=\"\" [$__auto]) by (tenant))",
+       "format": "time_series",
+       "legendFormat": "{{tenant}}",
+       "legendLink": null
+      }
+     ],
+     "title": "P99 inspected spans",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Inspected bytes\nBytes the queriers read from blocks and live-stores to answer the query, including bytes served from the cache.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "bytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 9,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap inspected_bytes | __error__=\"\" [$__auto]) by (tenant))",
+       "format": "time_series",
+       "legendFormat": "{{tenant}}",
+       "legendLink": null
+      }
+     ],
+     "title": "P99 inspected bytes",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Response size\nSize of the response returned to the client. Only the Min duration filter applies.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "bytes"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 10,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |= \"query stats\" | logfmt | url!~\".*/traces/diff.*\" | regexp `url=\"?[^?\\s\"]*/api/(v2/)?(?P<api_path>traces|search/tags?|search|metrics/query_range|metrics/query)` | label_format query_kind=`{{ if eq .api_path \"traces\" }}id_lookup{{ else if hasPrefix \"search/tag\" .api_path }}metadata{{ else if eq .api_path \"search\" }}search{{ else if eq .api_path \"metrics/query_range\" }}query_range{{ else if eq .api_path \"metrics/query\" }}instant_query{{ end }}` | query_kind!=\"\" | tenant=~\"${tenant_id}\" | query_kind=~\"${query_type}\" | duration > ${min_duration} | response_size > 0 | unwrap response_size | __error__=\"\" [$__auto]) by (tenant))",
+       "format": "time_series",
+       "legendFormat": "{{tenant}}",
+       "legendLink": null
+      }
+     ],
+     "title": "P99 response size",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Time span\nTime range that the query covers, from its start time to its end time.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 11,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | unwrap time_span_seconds | __error__=\"\" [$__auto]) by (tenant))",
+       "format": "time_series",
+       "legendFormat": "{{tenant}}",
+       "legendLink": null
+      }
+     ],
+     "title": "P99 time span",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Jobs per query\nNumber of jobs the query-frontend split the query into. Each job runs on a querier, so more jobs means the query uses more of the read path. Only query types: search, query range, and instant query report this value.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "line",
+        "fillOpacity": 1,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        }
+       },
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "id": 12,
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "single",
+       "sort": "none"
+      }
+     },
+     "span": 2,
+     "targets": [
+      {
+       "expr": "topk(10, quantile_over_time(0.99, {cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | unwrap total_requests | __error__=\"\" [$__auto]) by (tenant))",
+       "format": "time_series",
+       "legendFormat": "{{tenant}}",
+       "legendLink": null
+      }
+     ],
+     "title": "P99 jobs per query",
+     "type": "timeseries"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Top 10 tenants",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": false,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Slow queries over time\nNumber of slow queries in each interval, by query type. The table below lists them.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "bars",
+        "fillOpacity": 80,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "normal"
+        }
+       },
+       "decimals": 0,
+       "min": 0,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "height": "250px",
+     "id": 13,
+     "interval": "1m",
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "span": 12,
+     "targets": [
+      {
+       "expr": "sum by (query_kind) (count_over_time({cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | __error__=\"\" [$__auto]))",
+       "format": "time_series",
+       "legendFormat": "{{query_kind}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Slow queries over time",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "fieldConfig": {
+      "overrides": [
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "time"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 160
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "cluster"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 100
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "tenant id"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 90
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "type"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 100
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "duration"
+        },
+        "properties": [
+         {
+          "id": "unit",
+          "value": "s"
+         },
+         {
+          "id": "custom.width",
+          "value": 80
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "inspected"
+        },
+        "properties": [
+         {
+          "id": "unit",
+          "value": "bytes"
+         },
+         {
+          "id": "custom.width",
+          "value": 100
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "throughput"
+        },
+        "properties": [
+         {
+          "id": "unit",
+          "value": "Bps"
+         },
+         {
+          "id": "custom.width",
+          "value": 100
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "range"
+        },
+        "properties": [
+         {
+          "id": "unit",
+          "value": "s"
+         },
+         {
+          "id": "custom.width",
+          "value": 90
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "query"
+        },
+        "properties": [
+         {
+          "id": "custom.inspect",
+          "value": true
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "trace id"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 250
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "error"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 120
+         },
+         {
+          "id": "custom.inspect",
+          "value": true
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "tag"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 100
+         }
+        ]
+       }
+      ]
+     },
+     "height": "500px",
+     "id": 14,
+     "span": 12,
+     "targets": [
+      {
+       "expr": "{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | __error__=\"\" | label_format query=`{{ or .query .path }}` | keep ts, cluster, tenant, query_kind, duration_seconds, inspected_bytes, request_throughput, time_span_seconds, query, traceID, error, tag | drop ts=\"\", cluster=\"\", tenant=\"\", query_kind=\"\", duration_seconds=\"\", inspected_bytes=\"\", request_throughput=\"\", time_span_seconds=\"\", query=\"\", traceID=\"\", error=\"\", tag=\"\"",
+       "instant": false,
+       "legendFormat": "",
+       "range": true,
+       "refId": "A"
+      }
+     ],
+     "title": "Slow queries",
+     "transformations": [
+      {
+       "id": "extractFields",
+       "options": {
+        "replace": true,
+        "source": "labels"
+       }
+      },
+      {
+       "id": "organize",
+       "options": {
+        "indexByName": {
+         "cluster": 1,
+         "duration_seconds": 4,
+         "error": 10,
+         "inspected_bytes": 5,
+         "query": 8,
+         "query_kind": 3,
+         "request_throughput": 6,
+         "tag": 11,
+         "tenant": 2,
+         "time_span_seconds": 7,
+         "traceID": 9,
+         "ts": 0
+        },
+        "renameByName": {
+         "cluster": "cluster",
+         "duration_seconds": "duration",
+         "error": "error",
+         "inspected_bytes": "inspected",
+         "query": "query",
+         "query_kind": "type",
+         "request_throughput": "throughput",
+         "tag": "tag",
+         "tenant": "tenant id",
+         "time_span_seconds": "range",
+         "traceID": "trace id",
+         "ts": "time"
+        }
+       }
+      },
+      {
+       "id": "convertFieldType",
+       "options": {
+        "conversions": [
+         {
+          "destinationType": "time",
+          "targetField": "time"
+         },
+         {
+          "destinationType": "number",
+          "targetField": "duration"
+         },
+         {
+          "destinationType": "number",
+          "targetField": "inspected"
+         },
+         {
+          "destinationType": "number",
+          "targetField": "throughput"
+         },
+         {
+          "destinationType": "number",
+          "targetField": "range"
+         }
+        ]
+       }
+      }
+     ],
+     "type": "table"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Slow queries",
+   "titleSize": "h6"
+  },
+  {
+   "collapse": true,
+   "height": "250px",
+   "panels": [
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Series-limited queries over time\nNumber of series-limited queries in each interval, by query type. The table below lists them.\n",
+     "fieldConfig": {
+      "defaults": {
+       "custom": {
+        "drawStyle": "bars",
+        "fillOpacity": 80,
+        "lineWidth": 1,
+        "pointSize": 5,
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "normal"
+        }
+       },
+       "decimals": 0,
+       "min": 0,
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+
+        ]
+       },
+       "unit": "short"
+      },
+      "overrides": [
+
+      ]
+     },
+     "height": "250px",
+     "id": 15,
+     "interval": "1m",
+     "links": [
+
+     ],
+     "options": {
+      "legend": {
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "span": 12,
+     "targets": [
+      {
+       "expr": "sum by (query_kind) (count_over_time({cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | partial_status=\"PARTIAL\" or num_response_series >= 10000 | __error__=\"\" [$__auto]))",
+       "format": "time_series",
+       "legendFormat": "{{query_kind}}",
+       "legendLink": null
+      }
+     ],
+     "title": "Series-limited queries over time",
+     "type": "timeseries"
+    },
+    {
+     "datasource": "${loki_datasource}",
+     "description": "### Series-limited queries\nSlow TraceQL metrics queries, range and instant, that hit the max series limit. With partial status PARTIAL, the query-frontend stopped at the limit and returned a partial response, so the results are incomplete. With COMPLETE, the query finished but returned at least 10000 series, the default limit. A tenant with a higher limit can return more series without a partial response.\n",
+     "fieldConfig": {
+      "overrides": [
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "time"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 160
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "cluster"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 100
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "tenant id"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 90
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "type"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 100
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "series"
+        },
+        "properties": [
+         {
+          "id": "unit",
+          "value": "none"
+         },
+         {
+          "id": "custom.width",
+          "value": 80
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "partial status"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 110
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "duration"
+        },
+        "properties": [
+         {
+          "id": "unit",
+          "value": "s"
+         },
+         {
+          "id": "custom.width",
+          "value": 80
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "range"
+        },
+        "properties": [
+         {
+          "id": "unit",
+          "value": "s"
+         },
+         {
+          "id": "custom.width",
+          "value": 90
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "query"
+        },
+        "properties": [
+         {
+          "id": "custom.inspect",
+          "value": true
+         }
+        ]
+       },
+       {
+        "matcher": {
+         "id": "byName",
+         "options": "trace id"
+        },
+        "properties": [
+         {
+          "id": "custom.width",
+          "value": 250
+         }
+        ]
+       }
+      ]
+     },
+     "height": "500px",
+     "id": 16,
+     "span": 12,
+     "targets": [
+      {
+       "expr": "{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"query-frontend\"} |~ `msg=\"(trace id response|search tag response|search tag values response|search response|query range response|query instant results)( - no (resp|metrics))?\"` | logfmt | tenant=~\"${tenant_id}\" | label_format query_kind=`{{ if hasPrefix \"trace id\" .msg }}id_lookup{{ else if hasPrefix \"search tag\" .msg }}metadata{{ else if hasPrefix \"search\" .msg }}search{{ else if hasPrefix \"query range\" .msg }}query_range{{ else }}instant_query{{ end }}`, request_throughput=`{{ or .request_throughput \"0\" }}`, error=`{{ if ne .error \"null\" }}{{ .error }}{{ end }}{{ if ne .err \"null\" }}{{ .err }}{{ end }}`, query_duration=`{{ .duration_seconds }}s` | query_kind=~\"${query_type}\" | query_duration > ${min_duration} | query_kind=\"id_lookup\" or request_throughput < ${throughput} | label_format time_span_seconds=`{{ if .range_nanos }}{{ div .range_nanos 1000000000 }}{{ else }}{{ .range_seconds }}{{ end }}` | partial_status=\"PARTIAL\" or num_response_series >= 10000 | __error__=\"\" | label_format query=`{{ or .query .path }}` | keep ts, cluster, tenant, query_kind, num_response_series, partial_status, duration_seconds, time_span_seconds, query, traceID | drop ts=\"\", cluster=\"\", tenant=\"\", query_kind=\"\", num_response_series=\"\", partial_status=\"\", duration_seconds=\"\", time_span_seconds=\"\", query=\"\", traceID=\"\"",
+       "instant": false,
+       "legendFormat": "",
+       "range": true,
+       "refId": "A"
+      }
+     ],
+     "title": "Series-limited queries",
+     "transformations": [
+      {
+       "id": "extractFields",
+       "options": {
+        "replace": true,
+        "source": "labels"
+       }
+      },
+      {
+       "id": "organize",
+       "options": {
+        "indexByName": {
+         "cluster": 1,
+         "duration_seconds": 6,
+         "num_response_series": 4,
+         "partial_status": 5,
+         "query": 8,
+         "query_kind": 3,
+         "tenant": 2,
+         "time_span_seconds": 7,
+         "traceID": 9,
+         "ts": 0
+        },
+        "renameByName": {
+         "cluster": "cluster",
+         "duration_seconds": "duration",
+         "num_response_series": "series",
+         "partial_status": "partial status",
+         "query": "query",
+         "query_kind": "type",
+         "tenant": "tenant id",
+         "time_span_seconds": "range",
+         "traceID": "trace id",
+         "ts": "time"
+        }
+       }
+      },
+      {
+       "id": "convertFieldType",
+       "options": {
+        "conversions": [
+         {
+          "destinationType": "time",
+          "targetField": "time"
+         },
+         {
+          "destinationType": "number",
+          "targetField": "series"
+         },
+         {
+          "destinationType": "number",
+          "targetField": "duration"
+         },
+         {
+          "destinationType": "number",
+          "targetField": "range"
+         }
+        ]
+       }
+      }
+     ],
+     "type": "table"
+    }
+   ],
+   "repeat": null,
+   "repeatIteration": null,
+   "repeatRowId": null,
+   "showTitle": true,
+   "title": "Series-limited queries",
+   "titleSize": "h6"
+  }
+ ],
+ "schemaVersion": 14,
+ "style": "dark",
+ "tags": [
+  "tempo"
+ ],
+ "templating": {
+  "list": [
+   {
+    "current": {
+     "text": "default",
+     "value": "default"
+    },
+    "hide": 0,
+    "label": "Data source",
+    "name": "datasource",
+    "options": [
+
+    ],
+    "query": "prometheus",
+    "refresh": 1,
+    "regex": "",
+    "type": "datasource"
+   },
+   {
+    "allValue": null,
+    "current": {
+     "selected": true,
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": "$datasource",
+    "hide": 0,
+    "includeAll": true,
+    "label": "cluster",
+    "multi": true,
+    "name": "cluster",
+    "options": [
+
+    ],
+    "query": "label_values(tempo_build_info, cluster)",
+    "refresh": 1,
+    "regex": "",
+    "sort": 2,
+    "tagValuesQuery": "",
+    "tags": [
+
+    ],
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+   },
+   {
+    "allValue": null,
+    "current": {
+     "selected": true,
+     "text": "All",
+     "value": "$__all"
+    },
+    "datasource": "$datasource",
+    "hide": 0,
+    "includeAll": false,
+    "label": "namespace",
+    "multi": true,
+    "name": "namespace",
+    "options": [
+
+    ],
+    "query": "label_values(tempo_build_info{cluster=~'$cluster'}, namespace)",
+    "refresh": 1,
+    "regex": "",
+    "sort": 2,
+    "tagValuesQuery": "",
+    "tags": [
+
+    ],
+    "tagsQuery": "",
+    "type": "query",
+    "useTags": false
+   },
+   {
+    "hide": 0,
+    "includeAll": false,
+    "label": "Loki data source",
+    "multi": false,
+    "name": "loki_datasource",
+    "query": "loki",
+    "type": "datasource"
+   },
+   {
+    "current": {
+     "selected": true,
+     "text": "5s",
+     "value": "5s"
+    },
+    "hide": 0,
+    "label": "Min duration",
+    "name": "min_duration",
+    "options": [
+     {
+      "selected": true,
+      "text": "5s",
+      "value": "5s"
+     }
+    ],
+    "query": "5s",
+    "type": "textbox"
+   },
+   {
+    "current": {
+     "selected": true,
+     "text": "1 GB/s",
+     "value": "1e+09"
+    },
+    "hide": 0,
+    "includeAll": false,
+    "label": "Throughput",
+    "multi": false,
+    "name": "throughput",
+    "options": [
+     {
+      "selected": true,
+      "text": "1 GB/s",
+      "value": "1e+09"
+     },
+     {
+      "selected": false,
+      "text": "500 MB/s",
+      "value": "5e+08"
+     },
+     {
+      "selected": false,
+      "text": "off",
+      "value": "1e+18"
+     }
+    ],
+    "query": "1 GB/s : 1e+09, 500 MB/s : 5e+08, off : 1e+18",
+    "type": "custom"
+   },
+   {
+    "current": {
+     "selected": true,
+     "text": ".*",
+     "value": ".*"
+    },
+    "hide": 0,
+    "label": "Tenant ID",
+    "name": "tenant_id",
+    "options": [
+     {
+      "selected": true,
+      "text": ".*",
+      "value": ".*"
+     }
+    ],
+    "query": ".*",
+    "type": "textbox"
+   },
+   {
+    "allValue": ".*",
+    "current": {
+     "selected": true,
+     "text": "All",
+     "value": "$__all"
+    },
+    "hide": 0,
+    "includeAll": true,
+    "label": "Query type",
+    "multi": false,
+    "name": "query_type",
+    "options": [
+     {
+      "selected": true,
+      "text": "All",
+      "value": "$__all"
+     },
+     {
+      "selected": false,
+      "text": "ID lookups",
+      "value": "id_lookup"
+     },
+     {
+      "selected": false,
+      "text": "search",
+      "value": "search"
+     },
+     {
+      "selected": false,
+      "text": "metadata",
+      "value": "metadata"
+     },
+     {
+      "selected": false,
+      "text": "query range",
+      "value": "query_range"
+     },
+     {
+      "selected": false,
+      "text": "instant query",
+      "value": "instant_query"
+     }
+    ],
+    "query": "ID lookups : id_lookup, search : search, metadata : metadata, query range : query_range, instant query : instant_query",
+    "type": "custom"
+   }
+  ]
+ },
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "timepicker": {
+  "refresh_intervals": [
+   "5s",
+   "10s",
+   "30s",
+   "1m",
+   "5m",
+   "15m",
+   "30m",
+   "1h",
+   "2h",
+   "1d"
+  ],
+  "time_options": [
+   "5m",
+   "15m",
+   "1h",
+   "6h",
+   "12h",
+   "24h",
+   "2d",
+   "7d",
+   "30d"
+  ]
+ },
+ "timezone": "utc",
+ "title": "Tempo / Slow queries",
+ "uid": "77983290ca4f07ded03bda8305b67013",
+ "version": 0
+}

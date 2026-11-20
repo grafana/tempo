@@ -7,6 +7,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	v1 "github.com/grafana/tempo/v3/modules/frontend/v1"
 	"github.com/grafana/tempo/v3/pkg/usagestats"
@@ -26,6 +27,7 @@ type Config struct {
 	Weights                   pipeline.WeightsConfig `yaml:"weights"`
 	MCPServer                 MCPServerConfig        `yaml:"mcp_server"`
 	QueryTracker              QueryTrackerConfig     `yaml:"query_tracker"`
+	JobCost                   jobcost.Config         `yaml:"job_cost"`
 
 	// the maximum time limit that tempo will work on an api request. this includes both
 	// grpc and http requests and applies to all "api" frontend query endpoints such as
@@ -145,6 +147,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		},
 		SLO: slo,
 	}
+	cfg.JobCost = jobcost.DefaultConfig()
 	cfg.Weights = pipeline.WeightsConfig{
 		RequestWithWeights:   true,
 		RetryWithWeights:     true,
