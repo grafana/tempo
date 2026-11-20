@@ -400,6 +400,7 @@ Some of the spans in that trace had attributes whose values were very large in s
 
 To avoid these out-of-memory crashes, use `max_attribute_bytes` to limit the maximum allowable size of any individual attribute.
 Any key or values that exceed the configured limit are truncated before storing.
+Truncation never splits a multi-byte UTF-8 character, so a truncated key or value can be up to 3 bytes shorter than the limit.
 The default value is `2048`.
 
 Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.

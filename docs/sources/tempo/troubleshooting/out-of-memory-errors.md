@@ -16,6 +16,7 @@ This issue has been observed when trying to fetch a single trace using the [`tra
 
 To avoid these out-of-memory crashes, use `max_attribute_bytes` to limit the maximum allowable size of any individual attribute.
 Any key or values that exceed the configured limit are truncated before storing.
+Truncation never splits a multi-byte UTF-8 character, so a truncated key or value can be up to 3 bytes shorter than the limit.
 
 Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
 This metric includes `tenant` and `scope` labels, where `scope` is one of `resource`, `scope`, `span`, `event`, or `link`.
