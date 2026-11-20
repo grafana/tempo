@@ -1,0 +1,59 @@
+name: Assign a code owner to pull requests
+
+on:
+  # A daily sweep over unassigned PRs, rather than an event handler on PR
+  # creation. Scheduled runs execute from the default branch with the
+  # repository's own token, so they can assign on PRs opened from forks. A
+  # `pull_request` trigger cannot do that: fork PRs receive a read-only token
+  # and no secrets, so assignment would fail for outside contributors.
+  #
+  # Trade-off: assignment happens within a day of a PR opening, not within
+  # seconds. PRs above the per-run cap wait for a subsequent run.
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: assign-codeowner
+  cancel-in-progress: false
+
+jobs:
+  assign:
+    name: Balance assignments across code owners
+    if: github.repository == 'grafana/tempo'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Reads repository contents and assigns a single owner to issues (PRs).
+    # The sweep only adds an assignee — it writes no labels and removes
+    # nothing, so issue-write is needed solely for AddAssignees.
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # A manual dispatch can name another ref. Always execute the trusted
+          # default-branch script, never code from a PR branch.
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: tools/go.mod
+          cache: false
+
+      - name: Assign available code owners
+        # Only the token varies per run. The pool and all sweep settings are
+        # hardcoded in tools/assign-codeowner (consts.go), which this job
+        # compiles fresh via "go run ./assign-codeowner" on the gated repo.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # The sweep lives in the tools module, so its CI dependencies never
+        # enter the product go.mod.
+        working-directory: tools
+        run: go run ./assign-codeowner
