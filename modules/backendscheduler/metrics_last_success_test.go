@@ -17,8 +17,9 @@ import (
 )
 
 // TestLastSuccessfulJobTimestamp verifies that the per-job-type timestamp of the last successful job
-// is set only when a job succeeds. Dashboards derive "time since last successful run" from it, so a
-// failed job must not refresh it, or a scheduler whose jobs all fail would look healthy.
+// is exported as 0 from startup and set only when a job succeeds. Dashboards show 0 as "Never", and
+// derive "time since last successful run" from any other value, so a failed job must not refresh it,
+// or a scheduler whose jobs all fail would look healthy.
 func TestLastSuccessfulJobTimestamp(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
@@ -41,8 +42,8 @@ func TestLastSuccessfulJobTimestamp(t *testing.T) {
 		status    tempopb.JobStatus
 		wantIsSet bool
 	}{
-		{"failed job does not set the timestamp", tempopb.JobStatus_JOB_STATUS_FAILED, false},
-		{"running update does not set the timestamp", tempopb.JobStatus_JOB_STATUS_RUNNING, false},
+		{"failed job leaves the timestamp at 0", tempopb.JobStatus_JOB_STATUS_FAILED, false},
+		{"running update leaves the timestamp at 0", tempopb.JobStatus_JOB_STATUS_RUNNING, false},
 		{"succeeded job sets the timestamp", tempopb.JobStatus_JOB_STATUS_SUCCEEDED, true},
 	}
 	for _, tt := range tests {
@@ -51,6 +52,9 @@ func TestLastSuccessfulJobTimestamp(t *testing.T) {
 
 			s, err := New(cfg, store, limits, rr, ww)
 			require.NoError(t, err)
+
+			// Every job type is exported at 0 before any job has run.
+			require.Equal(t, len(tempopb.JobType_name)-1, testutil.CollectAndCount(metricLastSuccessfulJobTimestamp))
 
 			j := &work.Job{
 				ID:        uuid.New().String(),
@@ -65,13 +69,12 @@ func TestLastSuccessfulJobTimestamp(t *testing.T) {
 			_, err = s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{JobId: j.ID, Status: tt.status})
 			require.NoError(t, err)
 
+			got := testutil.ToFloat64(metricLastSuccessfulJobTimestamp.WithLabelValues(j.Type.String()))
 			if !tt.wantIsSet {
-				require.Equal(t, 0, testutil.CollectAndCount(metricLastSuccessfulJobTimestamp))
+				require.Zero(t, got)
 				return
 			}
 
-			require.Equal(t, 1, testutil.CollectAndCount(metricLastSuccessfulJobTimestamp))
-			got := testutil.ToFloat64(metricLastSuccessfulJobTimestamp.WithLabelValues(j.Type.String()))
 			require.GreaterOrEqual(t, got, float64(before.Unix()))
 			require.LessOrEqual(t, got, float64(time.Now().Unix()+1))
 		})

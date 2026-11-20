@@ -312,9 +312,10 @@ func TestProcessRedactionJobMissingBlockObservable(t *testing.T) {
 	require.Equal(t, before+1, after, "a missing redaction block must be counted, not silently dropped")
 }
 
-// TestLastSuccessfulJobTimestamp verifies that the worker records when it last finished a job of each
-// type successfully. A job that fails must not refresh the timestamp, so a worker whose jobs all fail
-// shows as stale on dashboards instead of healthy.
+// TestLastSuccessfulJobTimestamp verifies that the worker exports the timestamp of its last successful
+// job of each type as 0 from startup, and sets it only when a job succeeds. Dashboards show 0 as
+// "Never". A job that fails must not refresh the timestamp, so a worker whose jobs all fail shows as
+// stale on dashboards instead of healthy.
 func TestLastSuccessfulJobTimestamp(t *testing.T) {
 	limitCfg := overrides.Config{}
 	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
@@ -322,9 +323,6 @@ func TestLastSuccessfulJobTimestamp(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	workerCfg, schedulerClientCfg, overridesSvc, _, store := setupDependencies(ctx, t, limitCfg)
-
-	w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
-	require.NoError(t, err)
 
 	nextJob := func(resp *tempopb.NextJobResponse) func(context.Context, *tempopb.NextJobRequest, ...grpc.CallOption) (*tempopb.NextJobResponse, error) {
 		return func(_ context.Context, _ *tempopb.NextJobRequest, _ ...grpc.CallOption) (*tempopb.NextJobResponse, error) {
@@ -339,7 +337,7 @@ func TestLastSuccessfulJobTimestamp(t *testing.T) {
 		wantIsSet bool
 	}{
 		{
-			name: "failed job does not set the timestamp",
+			name: "failed job leaves the timestamp at 0",
 			job: &tempopb.NextJobResponse{
 				JobId: uuid.New().String(),
 				Type:  tempopb.JobType_JOB_TYPE_COMPACTION,
@@ -359,23 +357,28 @@ func TestLastSuccessfulJobTimestamp(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			metricWorkerLastSuccessfulJobTimestamp.Reset() // isolate from other tests in this package
+
+			w, err := New(workerCfg, schedulerClientCfg, store, overridesSvc, prometheus.NewRegistry())
+			require.NoError(t, err)
 			w.backendScheduler = &mockScheduler{next: nextJob(tt.job), updateJob: updateJobNoop}
 
+			// Every job type is exported at 0 before any job has run.
+			require.Equal(t, len(tempopb.JobType_name)-1, testutil.CollectAndCount(metricWorkerLastSuccessfulJobTimestamp))
+
 			before := time.Now()
-			err := w.processJobs(ctx)
+			err = w.processJobs(ctx)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
 
+			got := testutil.ToFloat64(metricWorkerLastSuccessfulJobTimestamp.WithLabelValues(tt.job.Type.String()))
 			if !tt.wantIsSet {
-				require.Equal(t, 0, testutil.CollectAndCount(metricWorkerLastSuccessfulJobTimestamp))
+				require.Zero(t, got)
 				return
 			}
 
-			require.Equal(t, 1, testutil.CollectAndCount(metricWorkerLastSuccessfulJobTimestamp))
-			got := testutil.ToFloat64(metricWorkerLastSuccessfulJobTimestamp.WithLabelValues(tt.job.Type.String()))
 			require.GreaterOrEqual(t, got, float64(before.Unix()))
 			require.LessOrEqual(t, got, float64(time.Now().Unix()+1))
 		})
