@@ -413,9 +413,7 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_RUNNING:
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
-		// Record the compaction output before marking the job complete: a concurrent redaction
-		// rescan treats a SUCCEEDED job's output as final, so it must never see the job complete
-		// without its output.
+		// Record the compaction output before marking the job complete to avoid races
 		if j.GetType() == tempopb.JobType_JOB_TYPE_COMPACTION && req.Compaction != nil && req.Compaction.Output != nil {
 			s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
 		}
@@ -875,7 +873,6 @@ func (s *BackendScheduler) performRescan(ctx context.Context, batch *tempopb.Red
 				continue
 			}
 			delete(skippedSet, j.ID)
-			// Read the status once so the job cannot change state between checks.
 			switch j.GetStatus() {
 			case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
 				output := j.GetCompactionOutput()
