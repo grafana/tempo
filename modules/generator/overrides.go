@@ -21,6 +21,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessors(userID string) map[string]struct{}
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string
+	MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(userID string) (bool, bool)
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsFilterPolicies(userID string) []filterconfig.FilterPolicy
 	MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID string) []float64

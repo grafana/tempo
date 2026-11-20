@@ -45,6 +45,10 @@ type UserConfigurableOverridesConfig struct {
 }
 
 type UserConfigurableOverridesAPIConfig struct {
+	// EnableServiceGraphBypass allows API changes to edge storage and
+	// service graph presentation settings. Disabled by default; runtime overrides are unaffected.
+	EnableServiceGraphBypass bool `yaml:"enable_service_graph_bypass"`
+
 	// CheckForConflictingRuntimeOverrides will refuse requests that create new user-configurable
 	// overrides for a tenant that has conflicting runtime overrides. If the user already has
 	// user-configurable overrides requests will still be allowed.
@@ -488,4 +492,25 @@ func (o *userConfigurableOverridesManager) Collect(ch chan<- prometheus.Metric) 
 	// TODO for now just pass along to the underlying overrides, in the future we should export
 	//  the user-config overrides as well
 	o.Interface.Collect(ch)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(userID string) (bool, bool) {
+	if value, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetEnableServiceGraphEdgeStorage(); ok {
+		return value, true
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServices(userID string) []string {
+	if value, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetBypassServices(); ok {
+		return value
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsBypassServices(userID)
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(userID string) []string {
+	if value, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetBypassServiceRegex(); ok {
+		return value
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(userID)
 }

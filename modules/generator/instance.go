@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -280,6 +281,15 @@ func (i *instance) updateProcessors() error {
 	}
 	if len(toAdd) == 0 && len(toRemove) == 0 && len(toReplace) == 0 {
 		return nil
+	}
+
+	// Validate only changed service graph configurations, before removing the
+	// running processor. Invalid tenant updates leave it intact, and unchanged
+	// configurations do not recompile regular expressions on each poll.
+	if slices.Contains(toAdd, processor.ServiceGraphsName) || slices.Contains(toReplace, processor.ServiceGraphsName) {
+		if err := desiredCfg.ServiceGraphs.Validate(); err != nil {
+			return err
+		}
 	}
 
 	i.processorsMtx.Lock()

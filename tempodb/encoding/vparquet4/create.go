@@ -133,7 +133,8 @@ type streamingBlock struct {
 	to    backend.Writer
 	index *index
 
-	withNoCompactFlag bool
+	withNoCompactFlag        bool
+	persistServiceGraphEdges bool
 
 	currentBufferedTraces int
 	currentBufferedBytes  int
@@ -166,11 +167,18 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		to:    to,
 		index: &index{},
 
-		withNoCompactFlag: cfg.CreateWithNoCompactFlag,
+		withNoCompactFlag:        cfg.CreateWithNoCompactFlag,
+		persistServiceGraphEdges: cfg.PersistServiceGraphEdges,
 	}, newMeta
 }
 
 func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
+	if b.persistServiceGraphEdges {
+		tr.ServiceGraphEdges = buildServiceGraphEdges(tr)
+	} else if len(tr.ServiceGraphEdges) > 0 {
+		reconcileStoredServiceGraphEdges(tr)
+	}
+
 	_, err := b.pw.Write([]*Trace{tr})
 	if err != nil {
 		return err
@@ -187,6 +195,14 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 }
 
 func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) error {
+	if b.persistServiceGraphEdges {
+		tr := &Trace{}
+		if err := parquet.SchemaOf(new(Trace)).Reconstruct(tr, row); err != nil {
+			return fmt.Errorf("decode trace for service graph edge storage: %w", err)
+		}
+		return b.Add(tr, start, end)
+	}
+
 	_, err := b.pw.WriteRows([]parquet.Row{row})
 	if err != nil {
 		return err

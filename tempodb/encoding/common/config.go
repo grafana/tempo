@@ -19,6 +19,9 @@ const DeprecatedError = "%s is no longer supported, please use %s or later"
 
 // BlockConfig holds configuration options for newly created blocks
 type BlockConfig struct {
+	// PersistServiceGraphEdges is injected from enable_service_graph_edge_storage.
+	PersistServiceGraphEdges bool `yaml:"-"`
+
 	BloomFP             float64 `yaml:"bloom_filter_false_positive"`
 	BloomShardSizeBytes int     `yaml:"bloom_filter_shard_size_bytes"`
 	Version             string  `yaml:"version"`

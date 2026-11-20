@@ -840,3 +840,27 @@ func (o *runtimeConfigOverridesManager) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 }
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(userID string) (bool, bool) {
+	value := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.EnableServiceGraphEdgeStorage
+	if value != nil {
+		return *value, true
+	}
+	return false, false
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServices(userID string) []string {
+	value := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.BypassServices
+	if value == nil {
+		return o.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.BypassServices
+	}
+	return value
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(userID string) []string {
+	value := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.BypassServiceRegex
+	if value == nil {
+		return o.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.BypassServiceRegex
+	}
+	return value
+}

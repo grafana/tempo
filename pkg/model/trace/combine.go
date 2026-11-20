@@ -24,6 +24,7 @@ var ErrTraceTooLarge = fmt.Errorf("trace exceeds max size")
 // * Don't scan/hash the spans for the last input (final=true).
 type Combiner struct {
 	mtx                 sync.Mutex
+	edgeKeys            map[serviceGraphEdgeKey]*tempopb.ServiceGraphEdge
 	result              *tempopb.Trace
 	spans               map[token]struct{}
 	combined            bool
@@ -89,6 +90,8 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 		}
 		return spanCount, maxSizeErr
 	}
+
+	c.consumeServiceGraphEdges(tr)
 
 	// loop through every span and copy spans in B that don't exist to A
 	for _, b := range tr.ResourceSpans {
@@ -157,6 +160,7 @@ func (c *Combiner) Result() (*tempopb.Trace, int) {
 		spanCount = len(c.spans)
 	}
 
+	ReconcileServiceGraphEdges(c.result)
 	return c.result, spanCount
 }
 
