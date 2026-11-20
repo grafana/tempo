@@ -169,6 +169,13 @@ The trace backend must use `vParquet4` or `vParquet5` when enabling edge storage
 `bypass_services` contains exact service names,
 and `bypass_service_regex` contains Go regular expressions.
 These are presentation settings for a graph consumer.
+Lists configured under `metrics_generator.processor.service_graphs` provide fallback defaults
+when `overrides.defaults.metrics_generator.processor.service_graphs` leaves a list unset.
+Tenant and request overrides replace each list independently;
+an explicit empty list clears it.
+Saved configuration and query parameters share validation limits:
+128 total rules and 65,536 total UTF-8 bytes across both lists,
+with nonempty strings and valid Go regular expressions.
 They never drop spans, collapse persisted relationships,
 or change the full edge set emitted as metrics.
 Regex matching searches within a name;

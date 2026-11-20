@@ -3,11 +3,10 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"regexp"
 	"slices"
 	"strconv"
-	"unicode/utf8"
 
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 )
 
@@ -48,43 +47,16 @@ func ParseServiceGraphPresentationRequest(r *http.Request, services, patterns []
 	if hasRegex {
 		patterns = regexes
 	}
-	normalize := func(values []string) ([]string, error) {
+	normalize := func(values []string) []string {
 		if len(values) == 1 && values[0] == "" {
-			return []string{}, nil
+			return []string{}
 		}
-		for _, value := range values {
-			if value == "" || !utf8.ValidString(value) {
-				return nil, fmt.Errorf("presentation rules must contain nonempty UTF-8 strings")
-			}
-		}
-		return append([]string{}, values...), nil
+		return append([]string{}, values...)
 	}
-	var err error
-	services, err = normalize(services)
-	if err != nil {
+	services = normalize(services)
+	patterns = normalize(patterns)
+	if err := sharedconfig.ValidateServiceGraphPresentation(services, patterns); err != nil {
 		return nil, err
-	}
-	patterns, err = normalize(patterns)
-	if err != nil {
-		return nil, err
-	}
-	if len(services)+len(patterns) > 128 {
-		return nil, fmt.Errorf("presentation rules exceed limit of 128")
-	}
-	size := 0
-	for _, value := range services {
-		size += len(value)
-	}
-	for _, value := range patterns {
-		size += len(value)
-	}
-	if size > 64*1024 {
-		return nil, fmt.Errorf("presentation rules exceed limit of 65536 bytes")
-	}
-	for _, pattern := range patterns {
-		if _, err := regexp.Compile(pattern); err != nil {
-			return nil, fmt.Errorf("invalid bypass_service_regex: %w", err)
-		}
 	}
 	return &tempopb.ServiceGraphPresentation{BypassServices: services, BypassServiceRegex: patterns}, nil
 }

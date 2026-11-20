@@ -850,9 +850,17 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServices(userID string) []string {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.BypassServices
+	value := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.BypassServices
+	if value == nil {
+		return o.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.BypassServices
+	}
+	return value
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(userID string) []string {
-	return o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.BypassServiceRegex
+	value := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.BypassServiceRegex
+	if value == nil {
+		return o.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.BypassServiceRegex
+	}
+	return value
 }

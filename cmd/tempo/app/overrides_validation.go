@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
 )
 
 type runtimeConfigValidator struct {
@@ -67,7 +68,8 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 	if err := validateServiceGraphEdgeStorageVersion(serviceGraphs.EnableServiceGraphEdgeStorage, r.cfg); err != nil {
 		return warnings, err
 	}
-	if err := validation.ValidateServiceGraphBypassPatterns(serviceGraphs.BypassServiceRegex); err != nil {
+	services, patterns := serviceGraphPresentationDefaults(r.cfg, serviceGraphs.BypassServices, serviceGraphs.BypassServiceRegex)
+	if err := sharedconfig.ValidateServiceGraphPresentation(services, patterns); err != nil {
 		return warnings, err
 	}
 
@@ -93,7 +95,8 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 }
 
 type overridesValidator struct {
-	cfg *Config
+	runtimeOverrides overrides.Interface
+	cfg              *Config
 
 	validForwarders map[string]struct{}
 }
@@ -101,7 +104,7 @@ type overridesValidator struct {
 var _ api.Validator = (*overridesValidator)(nil)
 
 // newOverridesValidator validates user-configurable overrides
-func newOverridesValidator(cfg *Config) api.Validator {
+func newOverridesValidator(cfg *Config) *overridesValidator {
 	validForwarders := map[string]struct{}{}
 	for _, f := range cfg.Distributor.Forwarders {
 		validForwarders[f.Name] = struct{}{}
@@ -223,7 +226,8 @@ func (v *overridesValidator) Validate(limits *client.Limits) error {
 		}
 	}
 	patterns, _ := serviceGraphs.GetBypassServiceRegex()
-	if err := validation.ValidateServiceGraphBypassPatterns(patterns); err != nil {
+	services, _ := serviceGraphs.GetBypassServices()
+	if err := sharedconfig.ValidateServiceGraphPresentation(services, patterns); err != nil {
 		return err
 	}
 
@@ -255,4 +259,48 @@ func validateServiceGraphEdgeStorageVersion(enabled *bool, cfg *Config) error {
 		return fmt.Errorf("enable_service_graph_edge_storage requires vParquet4 or vParquet5, configured %q", version)
 	}
 	return nil
+}
+
+// serviceGraphPresentationDefaults resolves each list separately. Nil inherits;
+// an explicitly empty slice disables that list instead of restoring defaults.
+func serviceGraphPresentationDefaults(cfg *Config, services, patterns []string) ([]string, []string) {
+	if cfg == nil {
+		return services, patterns
+	}
+	defaults := cfg.Overrides.Defaults.MetricsGenerator.Processor.ServiceGraphs
+	if services == nil {
+		services = defaults.BypassServices
+		if services == nil {
+			services = cfg.Generator.Processor.ServiceGraphs.BypassServices
+		}
+	}
+	if patterns == nil {
+		patterns = defaults.BypassServiceRegex
+		if patterns == nil {
+			patterns = cfg.Generator.Processor.ServiceGraphs.BypassServiceRegex
+		}
+	}
+	return services, patterns
+}
+
+// ValidateForTenant checks the effective lists before storing a replacement or
+// patch. Inherited rules come from runtime settings, never previous API values.
+func (v *overridesValidator) ValidateForTenant(tenant string, limits *client.Limits) error {
+	if err := v.Validate(limits); err != nil {
+		return err
+	}
+	var services, patterns []string
+	if v.runtimeOverrides != nil {
+		runtime := v.runtimeOverrides.GetRuntimeOverridesFor(tenant).MetricsGenerator.Processor.ServiceGraphs
+		services, patterns = runtime.BypassServices, runtime.BypassServiceRegex
+	}
+	services, patterns = serviceGraphPresentationDefaults(v.cfg, services, patterns)
+	sg := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs()
+	if values, set := sg.GetBypassServices(); set {
+		services = values
+	}
+	if values, set := sg.GetBypassServiceRegex(); set {
+		patterns = values
+	}
+	return sharedconfig.ValidateServiceGraphPresentation(services, patterns)
 }

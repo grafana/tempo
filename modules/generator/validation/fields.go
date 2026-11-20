@@ -3,7 +3,6 @@ package validation
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/grafana/tempo/v3/modules/distributor/usage"
@@ -230,15 +229,5 @@ func ValidateFilterPolicies(policies []filterconfig.FilterPolicy) error {
 }
 
 func ValidateServiceGraphsDimensions(dimensions []string) error {
-	return nil
-}
-
-// ValidateServiceGraphBypassPatterns checks the presentation regex syntax.
-func ValidateServiceGraphBypassPatterns(patterns []string) error {
-	for i, pattern := range patterns {
-		if _, err := regexp.Compile(pattern); err != nil {
-			return fmt.Errorf("bypass_service_regex[%d]: %w", i, err)
-		}
-	}
 	return nil
 }

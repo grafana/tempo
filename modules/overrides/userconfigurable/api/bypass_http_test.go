@@ -16,9 +16,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/v3/modules/generator/validation"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"github.com/grafana/tempo/v3/tempodb/backend/local"
 )
@@ -115,5 +115,6 @@ type bypassHTTPValidator struct{}
 func (bypassHTTPValidator) Validate(limits *client.Limits) error {
 	sg := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs()
 	patterns, _ := sg.GetBypassServiceRegex()
-	return validation.ValidateServiceGraphBypassPatterns(patterns)
+	names, _ := sg.GetBypassServices()
+	return sharedconfig.ValidateServiceGraphPresentation(names, patterns)
 }

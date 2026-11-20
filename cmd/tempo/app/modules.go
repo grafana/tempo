@@ -199,6 +199,10 @@ func (t *App) initPartitionRing() (services.Service, error) {
 }
 
 func (t *App) initOverrides() (services.Service, error) {
+	// Presentation defaults must reach query frontends as well as generators.
+	sg := &t.cfg.Overrides.Defaults.MetricsGenerator.Processor.ServiceGraphs
+	sg.BypassServices, sg.BypassServiceRegex = serviceGraphPresentationDefaults(&t.cfg, sg.BypassServices, sg.BypassServiceRegex)
+
 	o, err := overrides.NewOverrides(t.cfg.Overrides, newRuntimeConfigValidator(&t.cfg), prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create overrides: %w", err)
@@ -224,7 +228,9 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 		return services.NewIdleService(nil, nil), nil
 	}
 
-	userConfigOverridesAPI, err := userconfigurableoverridesapi.New(&cfg.API, &cfg.Client, t.Overrides, newOverridesValidator(&t.cfg))
+	validator := newOverridesValidator(&t.cfg)
+	validator.runtimeOverrides = t.Overrides
+	userConfigOverridesAPI, err := userconfigurableoverridesapi.New(&cfg.API, &cfg.Client, t.Overrides, validator)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user-configurable overrides API: %w", err)
 	}

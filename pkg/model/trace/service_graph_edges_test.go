@@ -36,6 +36,7 @@ func TestServiceGraphEdgesCombineFragments(t *testing.T) {
 	require.Empty(t, result.ServiceGraphEdges[0].ParentService, "query combination must not expand optional labels beyond the size budget")
 	require.Equal(t, "gateway", result.ServiceGraphEdges[0].ChildService)
 	require.False(t, result.ServiceGraphEdges[0].ParentMissing)
+	require.Equal(t, int32(tracev1.Span_SPAN_KIND_INTERNAL), result.ServiceGraphEdges[0].ParentKind)
 }
 
 func TestServiceGraphEdgesRespectVisibleSpans(t *testing.T) {
@@ -68,6 +69,26 @@ func TestServiceGraphEdgesRespectVisibleSpans(t *testing.T) {
 				require.Empty(t, edge.ParentService)
 				require.Zero(t, edge.ParentKind)
 			}
+		})
+	}
+}
+
+// Kind zero is a real span kind, not a missing-value sentinel. Every visible
+// parent must supply its current kind, while a hidden parent must be scrubbed.
+func TestServiceGraphEdgesResolveParentKind(t *testing.T) {
+	for _, kind := range []tracev1.Span_SpanKind{tracev1.Span_SPAN_KIND_UNSPECIFIED, tracev1.Span_SPAN_KIND_INTERNAL, tracev1.Span_SPAN_KIND_SERVER} {
+		t.Run(kind.String(), func(t *testing.T) {
+			parent := edgeTestSpan("A", 1)
+			parent.ScopeSpans[0].Spans[0].Kind = kind
+			tr := &tempopb.Trace{ResourceSpans: []*tracev1.ResourceSpans{parent, edgeTestSpan("B", 2)}, ServiceGraphEdges: []*tempopb.ServiceGraphEdge{{ParentSpanId: []byte{1}, ChildSpanId: []byte{2}, ChildKind: 1, ParentMissing: true}}}
+			ReconcileServiceGraphEdges(tr)
+			require.False(t, tr.ServiceGraphEdges[0].ParentMissing)
+			require.Equal(t, int32(kind), tr.ServiceGraphEdges[0].ParentKind)
+			require.Empty(t, tr.ServiceGraphEdges[0].ParentService, "do not inflate optional labels during query combination")
+			tr.ResourceSpans = tr.ResourceSpans[1:]
+			ReconcileServiceGraphEdges(tr)
+			require.True(t, tr.ServiceGraphEdges[0].ParentMissing)
+			require.Zero(t, tr.ServiceGraphEdges[0].ParentKind)
 		})
 	}
 }

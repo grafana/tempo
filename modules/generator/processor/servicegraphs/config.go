@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/tempo/v3/modules/generator/registry"
 	"github.com/grafana/tempo/v3/modules/generator/validation"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
@@ -84,7 +85,7 @@ type Config struct {
 
 // Validate checks the config of an enabled service-graphs processor.
 func (cfg *Config) Validate() error {
-	if err := validation.ValidateServiceGraphBypassPatterns(cfg.BypassServiceRegex); err != nil {
+	if err := sharedconfig.ValidateServiceGraphPresentation(cfg.BypassServices, cfg.BypassServiceRegex); err != nil {
 		return err
 	}
 	return validation.ValidateServiceGraphsMaxItems(cfg.MaxItems)

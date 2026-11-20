@@ -79,9 +79,9 @@ func ReconcileServiceGraphEdges(trace *tempopb.Trace) {
 		if !exists || edge.ParentService != "" {
 			edge.ParentService = parent.service
 		}
-		if !exists || edge.ParentKind != 0 {
-			edge.ParentKind = parent.kind
-		}
+		// Span kind is a bounded enum, so resolving it cannot inflate a label.
+		// Zero is SPAN_KIND_UNSPECIFIED and must not stand in for missing data.
+		edge.ParentKind = parent.kind
 		edge.ParentMissing = !exists
 		output = append(output, edge)
 	}

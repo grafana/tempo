@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -31,6 +30,7 @@ import (
 	overridesapi "github.com/grafana/tempo/v3/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/v3/pkg/api"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	commonv1 "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
 	resourcev1 "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
@@ -274,13 +274,10 @@ func TestTraceAPIDefaultBlacklistUpdates(t *testing.T) {
 type presentationSettingsValidator struct{}
 
 func (presentationSettingsValidator) Validate(limits *client.Limits) error {
-	patterns, _ := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetBypassServiceRegex()
-	for _, pattern := range patterns {
-		if _, err := regexp.Compile(pattern); err != nil {
-			return err
-		}
-	}
-	return nil
+	sg := limits.GetMetricsGenerator().GetProcessor().GetServiceGraphs()
+	patterns, _ := sg.GetBypassServiceRegex()
+	names, _ := sg.GetBypassServices()
+	return sharedconfig.ValidateServiceGraphPresentation(names, patterns)
 }
 
 // TestTraceAPIPresentationPreservesNotFound ensures requesting presentation hints
@@ -295,5 +292,22 @@ func TestTraceAPIPresentationPreservesNotFound(t *testing.T) {
 				require.Equal(t, http.StatusNotFound, status)
 			})
 		}
+	}
+}
+
+// Oversized or malformed saved blacklists must fail at write time; rejecting
+// them must preserve the last usable defaults returned by trace queries.
+func TestTraceAPIRejectsInvalidSavedBlacklist(t *testing.T) {
+	p := newPresentationAPI(t)
+	for _, sg := range []map[string][]string{
+		{"bypass_services": strings.Fields(strings.Repeat("gateway ", 129))},
+		{"bypass_services": []string{strings.Repeat("x", 65537)}},
+		{"bypass_service_regex": []string{"["}},
+	} {
+		body, err := json.Marshal(map[string]interface{}{"metrics_generator": map[string]interface{}{"processor": map[string]interface{}{"service_graphs": sg}}})
+		require.NoError(t, err)
+		status, _ := p.request(t, http.MethodPatch, "/api/overrides", "presentation-a", api.HeaderAcceptJSON, string(body))
+		require.Equal(t, http.StatusBadRequest, status)
+		p.checkTrace(t, "/api/v2/traces/00000000000000000000000000000001?include_service_graph_presentation=true", "presentation-a", api.HeaderAcceptJSON, true, []string{"gateway"}, []string{`^proxy-.*$`})
 	}
 }

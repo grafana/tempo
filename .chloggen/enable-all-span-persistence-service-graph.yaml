@@ -9,6 +9,7 @@ subtext: >-
   bypass_service, and bypass_service_regex parameters in JSON and protobuf responses.
   Request overrides affect presentation hints only and are not saved;
   requests without these parameters retain their existing response shape.
+  Generator-level blacklists provide fallback defaults, and saved and request rules share validation limits.
   Saved tenant configuration updates through the overrides API require
   overrides.user_configurable_overrides.api.enable_service_graph_bypass;
   read-only trace presentation requests do not require this write opt-in.

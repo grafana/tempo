@@ -31,6 +31,11 @@ type Validator interface {
 	Validate(limits *client.Limits) error
 }
 
+// tenantValidator additionally checks rules against inherited tenant configuration.
+type tenantValidator interface {
+	ValidateForTenant(string, *client.Limits) error
+}
+
 // UserConfigOverridesAPI manages the API to retrieve, update and delete user-configurable overrides
 // from the backend.
 type UserConfigOverridesAPI struct {
@@ -92,7 +97,12 @@ func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits 
 	defer span.End()
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
-	err := a.validator.Validate(limits)
+	var err error
+	if validator, ok := a.validator.(tenantValidator); ok {
+		err = validator.ValidateForTenant(userID, limits)
+	} else {
+		err = a.validator.Validate(limits)
+	}
 	if err != nil {
 		return "", newValidationError(err)
 	}
