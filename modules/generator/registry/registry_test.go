@@ -205,6 +205,36 @@ func TestManagedRegistry_removeStaleSeries(t *testing.T) {
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
 
+func TestManagedRegistry_removeStaleSeries_nativeHistogram(t *testing.T) {
+	appender := &capturingAppender{}
+
+	cfg := &Config{
+		StaleDuration: 75 * time.Millisecond,
+	}
+	registry := New(cfg, &mockOverrides{}, "test", appender, log.NewNopLogger(), noopLimiter)
+	defer registry.Close()
+
+	histogram := registry.NewHistogram("histogram_1", []float64{1.0, 2.0}, HistogramModeNative)
+
+	histogram.ObserveWithExemplar(labels.New(), 1.5, "", 1.0)
+
+	registry.removeStaleSeries(context.Background())
+
+	// nothing stale yet; native mode emits no float samples
+	collectRegistryMetricsAndAssert(t, registry, appender, []sample{})
+
+	appender.samples = nil
+
+	time.Sleep(100 * time.Millisecond)
+
+	registry.removeStaleSeries(context.Background())
+
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "histogram_1", "__metrics_gen_instance": mustGetHostname()}, 0, math.Float64frombits(value.StaleNaN)),
+	}
+	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
+}
+
 func TestManagedRegistry_externalLabels(t *testing.T) {
 	appender := &capturingAppender{}
 

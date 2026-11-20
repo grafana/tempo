@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"testing"
 	"time"
@@ -1021,6 +1022,273 @@ func TestNativeHistogram_EmptyTraceIDEmitsNoExemplar(t *testing.T) {
 			require.NoError(t, h.collectMetrics(appender, time.Now().UnixMilli()))
 			require.NotEmpty(t, appender.histograms, "observations must still be collected")
 			require.Empty(t, appender.exemplars, "empty trace IDs must not produce exemplars")
+		})
+	}
+}
+
+func Test_nativeHistogram_removeStaleSeries(t *testing.T) {
+	// Classic mode: count, sum and one marker per bucket (incl. +Inf).
+	t.Run("classic_mode", func(t *testing.T) {
+		var removedSeries int
+		lifecycler := &mockLimiter{
+			onDeleteFunc: func(_ uint64, count uint32) {
+				// CLASSIC mode with 2 buckets: sum, count, bucket1, bucket2, +Inf = 5
+				assert.Equal(t, uint32(5), count)
+				removedSeries++
+			},
+		}
+
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeClassic, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		staleTimeMs := time.Now().UnixMilli()
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
+
+		appender := &capturingAppender{}
+
+		// nothing is stale yet: no markers, no delete, no OnDelete
+		err := h.removeStaleSeries(appender, 0, staleTimeMs)
+		require.NoError(t, err)
+		assert.Equal(t, 0, removedSeries)
+		assert.Empty(t, appender.samples)
+
+		time.Sleep(10 * time.Millisecond)
+		staleTimeMs = time.Now().UnixMilli()
+
+		// keep value-2 fresh
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
+
+		err = h.removeStaleSeries(appender, 0, staleTimeMs)
+		require.NoError(t, err)
+		assert.Equal(t, 1, removedSeries)
+
+		// The series was never collected: bucket markers are still emitted.
+		// The prom histogram snapshot contains the +Inf bucket, so exactly one
+		// le="+Inf" marker is expected (no synthetic duplicate).
+		assertStaleMarkers(t, appender, []map[string]string{
+			{"__name__": "my_histogram_count", "label": "value-1"},
+			{"__name__": "my_histogram_sum", "label": "value-1"},
+			{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"},
+			{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"},
+			{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"},
+		})
+	})
+
+	// Native mode: a single marker on the base series labels.
+	t.Run("native_mode", func(t *testing.T) {
+		var removedSeries int
+		lifecycler := &mockLimiter{
+			onDeleteFunc: func(_ uint64, count uint32) {
+				// NATIVE mode: only 1 native histogram series
+				assert.Equal(t, uint32(1), count)
+				removedSeries++
+			},
+		}
+
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		staleTimeMs := time.Now().UnixMilli()
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
+
+		appender := &capturingAppender{}
+
+		// nothing is stale yet
+		err := h.removeStaleSeries(appender, 0, staleTimeMs)
+		require.NoError(t, err)
+		assert.Equal(t, 0, removedSeries)
+		assert.Empty(t, appender.samples)
+
+		time.Sleep(10 * time.Millisecond)
+		staleTimeMs = time.Now().UnixMilli()
+
+		// keep value-2 fresh
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
+
+		err = h.removeStaleSeries(appender, 0, staleTimeMs)
+		require.NoError(t, err)
+		assert.Equal(t, 1, removedSeries)
+
+		assertStaleMarkers(t, appender, []map[string]string{
+			{"__name__": "my_histogram", "label": "value-1"},
+		})
+	})
+
+	// Both mode: classic markers plus the native marker.
+	t.Run("both_mode", func(t *testing.T) {
+		var removedSeries int
+		lifecycler := &mockLimiter{
+			onDeleteFunc: func(_ uint64, count uint32) {
+				// BOTH mode with 2 buckets: sum, count, bucket1, bucket2, +Inf, native = 6
+				assert.Equal(t, uint32(6), count)
+				removedSeries++
+			},
+		}
+
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeBoth, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		staleTimeMs := time.Now().UnixMilli()
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
+
+		appender := &capturingAppender{}
+
+		// nothing is stale yet
+		err := h.removeStaleSeries(appender, 0, staleTimeMs)
+		require.NoError(t, err)
+		assert.Equal(t, 0, removedSeries)
+		assert.Empty(t, appender.samples)
+
+		time.Sleep(10 * time.Millisecond)
+		staleTimeMs = time.Now().UnixMilli()
+
+		// keep value-2 fresh
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
+
+		err = h.removeStaleSeries(appender, 0, staleTimeMs)
+		require.NoError(t, err)
+		assert.Equal(t, 1, removedSeries)
+
+		assertStaleMarkers(t, appender, []map[string]string{
+			{"__name__": "my_histogram_count", "label": "value-1"},
+			{"__name__": "my_histogram_sum", "label": "value-1"},
+			{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"},
+			{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"},
+			{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"},
+			{"__name__": "my_histogram", "label": "value-1"},
+		})
+	})
+
+	// External labels must be preserved on all bucket markers.
+	t.Run("external_labels", func(t *testing.T) {
+		var removedSeries int
+		lifecycler := &mockLimiter{
+			onDeleteFunc: func(_ uint64, count uint32) {
+				assert.Equal(t, uint32(5), count)
+				removedSeries++
+			},
+		}
+
+		extLabels := map[string]string{"external_label": "external_value"}
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeClassic, extLabels, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+
+		appender := &capturingAppender{}
+		staleTimeMs := time.Now().Add(1 * time.Hour).UnixMilli()
+		err := h.removeStaleSeries(appender, 0, staleTimeMs)
+		require.NoError(t, err)
+		assert.Equal(t, 1, removedSeries)
+
+		assertStaleMarkers(t, appender, []map[string]string{
+			{"__name__": "my_histogram_count", "label": "value-1", "external_label": "external_value"},
+			{"__name__": "my_histogram_sum", "label": "value-1", "external_label": "external_value"},
+			{"__name__": "my_histogram_bucket", "label": "value-1", "external_label": "external_value", "le": "1"},
+			{"__name__": "my_histogram_bucket", "label": "value-1", "external_label": "external_value", "le": "2"},
+			{"__name__": "my_histogram_bucket", "label": "value-1", "external_label": "external_value", "le": "+Inf"},
+		})
+	})
+
+	// When the overrides change, the series is recreated: it is deleted and
+	// OnDelete is called, but no stale markers are emitted.
+	t.Run("overrides_changed", func(t *testing.T) {
+		var removedSeries int
+		lifecycler := &mockLimiter{
+			onDeleteFunc: func(_ uint64, count uint32) {
+				assert.Equal(t, uint32(1), count)
+				removedSeries++
+			},
+		}
+
+		overrides := &mockOverrides{}
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeNative, nil, testTenant, overrides, 15*time.Minute)
+
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+
+		// change the overrides so the series' overridesHash no longer matches
+		overrides.nativeHistogramBucketFactor = 1.5
+
+		appender := &capturingAppender{}
+		err := h.removeStaleSeries(appender, 0, time.Now().UnixMilli())
+		require.NoError(t, err)
+
+		assert.Equal(t, 1, removedSeries)
+		assert.Empty(t, appender.samples)
+		assert.Equal(t, 0, h.countActiveSeries())
+	})
+
+	// Nil appender: the registry drain path calls removeStaleSeries(nil, 0,
+	// math.MaxInt64). Series are removed without emitting markers.
+	t.Run("nil_appender", func(t *testing.T) {
+		var removedSeries int
+		lifecycler := &mockLimiter{
+			onDeleteFunc: func(_ uint64, count uint32) {
+				assert.Equal(t, uint32(1), count)
+				removedSeries++
+			},
+		}
+
+		h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", HistogramModeNative, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+		h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+
+		err := h.removeStaleSeries(nil, 0, math.MaxInt64)
+		require.NoError(t, err)
+		assert.Equal(t, 1, removedSeries)
+		assert.Equal(t, 0, h.countActiveSeries())
+	})
+}
+
+// assertStaleMarkers asserts that the appender received exactly the expected
+// stale markers: one StaleNaN sample per expected label set.
+func assertStaleMarkers(t *testing.T, appender *capturingAppender, expected []map[string]string) {
+	t.Helper()
+
+	require.Len(t, appender.samples, len(expected))
+
+	actual := make([]map[string]string, 0, len(appender.samples))
+	for _, s := range appender.samples {
+		assert.True(t, math.IsNaN(s.v), "expected stale NaN marker, got %v for %s", s.v, s.l)
+		actual = append(actual, s.l.Map())
+	}
+	assert.ElementsMatch(t, expected, actual)
+}
+
+func Test_nativeHistogram_removeStaleSeries_appenderError(t *testing.T) {
+	testCases := []struct {
+		name          string
+		mode          HistogramMode
+		expectedCount uint32
+	}{
+		{"classic_mode", HistogramModeClassic, 5}, // sum + count + 2 buckets + +Inf
+		{"native_mode", HistogramModeNative, 1},
+		{"both_mode", HistogramModeBoth, 6},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var removedSeries int
+			lifecycler := &mockLimiter{
+				onDeleteFunc: func(_ uint64, count uint32) {
+					assert.Equal(t, tc.expectedCount, count)
+					removedSeries++
+				},
+			}
+
+			h := newNativeHistogram("my_histogram", []float64{1.0, 2.0}, lifecycler, "", tc.mode, nil, testTenant, &mockOverrides{}, 15*time.Minute)
+
+			h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
+			h.ObserveWithExemplar(buildTestLabels([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
+
+			appender := errorAppender{}
+			staleTimeMs := time.Now().Add(1 * time.Hour).UnixMilli()
+			err := h.removeStaleSeries(appender, 0, staleTimeMs)
+
+			// the appender errors are returned as a multierr, but the series
+			// are still deleted
+			assert.Error(t, err)
+			assert.Equal(t, 2, removedSeries)
+			assert.Equal(t, 0, h.countActiveSeries())
 		})
 	}
 }
