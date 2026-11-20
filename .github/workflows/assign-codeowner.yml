@@ -25,13 +25,14 @@ jobs:
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # Reads repository contents and assigns a single owner to issues (PRs).
-    # The sweep only adds an assignee — it writes no labels and removes
-    # nothing, so issue-write is needed solely for AddAssignees.
+    # Reads repository contents and assigns a single owner to pull requests.
+    # Adding an assignee to a PR needs pull-requests: write (the assignees
+    # endpoint is shared with issues, hence issues: write too); the sweep only
+    # adds an assignee — no labels, no removal.
     permissions:
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     steps:
       - name: Check out the default branch
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
