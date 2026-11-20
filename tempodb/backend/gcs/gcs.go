@@ -331,7 +331,7 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 }
 
 // Find implements backend.Reader
-func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (err error) {
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	prefix := path.Join(keypath...)
 	if len(prefix) > 0 {
@@ -345,11 +345,11 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 	})
 
 	for {
-		attrs, iterErr := iter.Next()
-		if errors.Is(iterErr, iterator.Done) {
+		attrs, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
 			break
 		}
-		if iterErr != nil {
+		if err != nil {
 			return fmt.Errorf("iterating objects: %w", err)
 		}
 
@@ -360,7 +360,7 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 		f(opts)
 	}
 
-	return
+	return nil
 }
 
 // Read implements backend.Reader
