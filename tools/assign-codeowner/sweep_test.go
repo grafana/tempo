@@ -59,6 +59,15 @@ func TestLoadFutureCreatedAtCountsAsOpen(t *testing.T) {
 	require.Empty(t, stale)
 }
 
+func TestLoadWeightsOpenAndClosed(t *testing.T) {
+	open := assignedTo(testPull(1), "Alice")
+	open.Weight = 4
+	closed := assignedTo(testPull(2), "Alice")
+	closed.Weight = 3
+	load, _ := calculateLoad([]pullRequest{open}, []pullRequest{closed}, []string{"alice"}, testNow, 90)
+	require.Equal(t, ownerLoad{open: 4, closed: 3}, load["alice"])
+}
+
 func TestCandidatesFilterAndOrderByPRNumber(t *testing.T) {
 	bot := testPull(6)
 	bot.User = &user{Login: "dependabot[bot]", Type: "Bot"}

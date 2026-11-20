@@ -93,7 +93,7 @@ func calculateLoad(openPRs, closedPRs []pullRequest, eligible []string, now time
 				if state.kind == openLoad {
 					counts.open += weightOrDefault(pr.Weight)
 				} else {
-					counts.closed++
+					counts.closed += weightOrDefault(pr.Weight)
 				}
 				load[owner] = counts
 			}
@@ -138,8 +138,9 @@ func findCandidates(pulls []pullRequest, eligible []string) []candidate {
 
 // compareLoad orders owners by open load (the size-weighted sum of assigned
 // open PRs is the primary signal of how busy an owner is), breaking ties by
-// recently-closed count so an owner who just shed a batch stays at the back of
-// the queue. The recently-closed count must never outweigh the open load.
+// size-weighted recently-closed load so an owner who just shed a batch stays at
+// the back of the queue. The recently-closed load must never outweigh the open
+// load.
 func compareLoad(a, b ownerLoad) int {
 	return cmp.Or(
 		cmp.Compare(a.open, b.open),
@@ -353,7 +354,14 @@ func recentlyClosedPRs(ctx context.Context, client *github.Client, now time.Time
 	}
 	closed := make([]pullRequest, 0, len(issues))
 	for _, issue := range issues {
-		closed = append(closed, convertIssue(issue))
+		converted := convertIssue(issue)
+		weight, weightErr := pullWeight(ctx, client, converted.Number)
+		if weightErr != nil {
+			fmt.Printf("::warning::Could not compute the size weight for closed PR #%d (assuming 1): %v.\n", converted.Number, weightErr)
+			weight = 1
+		}
+		converted.Weight = weight
+		closed = append(closed, converted)
 	}
 	return closed, nil
 }
