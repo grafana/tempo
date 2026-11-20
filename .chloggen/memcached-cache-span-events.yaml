@@ -1,0 +1,11 @@
+change_type: enhancement
+
+component: cache
+
+note: Emit `cache.key.found` and `cache.key.missed` OpenTelemetry span events on memcached cache reads, matching the redis provider, so cache hit/miss behavior is visible in query traces.
+
+issues: []
+
+subtext: The redis provider already emits these events on `Get`; memcached only emitted an event on `Remove`. `Fetch` (GetMulti) now emits one event per key found or missed, and `FetchKey` emits an event on hit and miss.
+
+user: mattdurham

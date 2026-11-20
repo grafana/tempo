@@ -10,6 +10,8 @@ import (
 	"github.com/grafana/gomemcache/memcache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/v3/pkg/cache"
@@ -23,6 +25,39 @@ func TestMemcached(t *testing.T) {
 
 		testMemcache(t, memcache)
 	})
+}
+
+func TestMemcachedSpanEvents(t *testing.T) {
+	client := newMockMemcache()
+	memcache := cache.NewMemcached(cache.MemcachedConfig{}, client,
+		"test", 0, nil, log.NewNopLogger())
+
+	memcache.Store(context.Background(), []string{"hit"}, [][]byte{[]byte("value")})
+
+	rec := tracetest.NewSpanRecorder()
+	tp := trace.NewTracerProvider(trace.WithSpanProcessor(rec))
+	ctx, span := tp.Tracer("test").Start(context.Background(), "test")
+
+	// FetchKey: one hit and one miss
+	_, ok := memcache.FetchKey(ctx, "hit")
+	require.True(t, ok)
+	_, ok = memcache.FetchKey(ctx, "miss")
+	require.False(t, ok)
+
+	// Fetch (GetMulti): one hit and one miss
+	found, _, missed := memcache.Fetch(ctx, []string{"hit", "miss"})
+	require.Equal(t, []string{"hit"}, found)
+	require.Equal(t, []string{"miss"}, missed)
+
+	span.End()
+	spans := rec.Ended()
+	require.Len(t, spans, 1)
+	events := map[string]int{}
+	for _, e := range spans[0].Events() {
+		events[e.Name]++
+	}
+	assert.Equal(t, 2, events["cache.key.found"], "FetchKey hit + Fetch hit")
+	assert.Equal(t, 2, events["cache.key.missed"], "FetchKey miss + Fetch miss")
 }
 
 func testMemcache(t *testing.T, memcache *cache.Memcached) {
