@@ -70,7 +70,7 @@ func TestCandidatesFilterAndOrderByPRNumber(t *testing.T) {
 	ownerAuthored.User.Login = "Alice"
 	assigned := assignedTo(testPull(5), "Bob")
 	candidates := findCandidates([]pullRequest{ownerAuthored, assigned, testPull(1), bot, deletedAuthor, draft}, []string{"alice", "bob"})
-	require.Equal(t, []int{1}, candidates)
+	require.Equal(t, []candidate{{number: 1, weight: 1}}, candidates)
 }
 
 func TestAssigneeTieBreakPrefersLessOpenLoadThenUsesExactTies(t *testing.T) {
@@ -109,14 +109,20 @@ func TestDecideAssignmentsSpreadsAcrossLeastLoadedOwners(t *testing.T) {
 		"alice": {open: 1},
 		"bob":   {},
 	}
-	candidates := []int{10, 20, 30}
+	candidates := []candidate{{number: 10, weight: 1}, {number: 20, weight: 1}, {number: 30, weight: 1}}
 	assignments := decideAssignments(load, candidates, 2, firstChoice)
 	require.Equal(t, []assignment{{number: 10, owner: "bob"}, {number: 20, owner: "alice"}}, assignments)
 }
 
 func TestDecideAssignmentsTiesUseChooserAndHonorCap(t *testing.T) {
 	load := map[string]ownerLoad{"alice": {}, "bob": {}}
-	candidates := []int{10, 20, 30, 40, 50}
+	candidates := []candidate{
+		{number: 10, weight: 1},
+		{number: 20, weight: 1},
+		{number: 30, weight: 1},
+		{number: 40, weight: 1},
+		{number: 50, weight: 1},
+	}
 	assignments := decideAssignments(load, candidates, 4, firstChoice)
 	require.Equal(t, []assignment{
 		{number: 10, owner: "alice"},
@@ -124,6 +130,55 @@ func TestDecideAssignmentsTiesUseChooserAndHonorCap(t *testing.T) {
 		{number: 30, owner: "alice"},
 		{number: 40, owner: "bob"},
 	}, assignments)
+}
+
+func TestSizeWeightBuckets(t *testing.T) {
+	for _, test := range []struct {
+		lines int
+		want  int
+	}{
+		{lines: 0, want: 1},
+		{lines: 99, want: 1},
+		{lines: 100, want: 2},
+		{lines: 249, want: 2},
+		{lines: 250, want: 3},
+		{lines: 499, want: 3},
+		{lines: 500, want: 4},
+		{lines: 1999, want: 4},
+		{lines: 2000, want: 5},
+		{lines: 25389, want: 5},
+	} {
+		require.Equal(t, test.want, sizeWeight(test.lines), "lines=%d", test.lines)
+	}
+}
+
+func TestIsIgnoredWeightPath(t *testing.T) {
+	for _, path := range []string{
+		"vendor/github.com/x/y.go",
+		"opentelemetry-proto/x.proto",
+		"operations/jsonnet-compiled/gen/a.yaml",
+		"pkg/tempopb/tempo.pb.go",
+		"x.y.go",
+		"x.gen.go",
+	} {
+		require.True(t, isIgnoredWeightPath(path), "expected ignored: %s", path)
+	}
+	for _, path := range []string{"cmd/tempo/main.go", "modules/frontend/x_test.go", "docs/x.md", "pkg/x.go"} {
+		require.False(t, isIgnoredWeightPath(path), "expected counted: %s", path)
+	}
+}
+
+// TestDecideAssignmentsChargesWeight pins that a heavy candidate raises its
+// owner's load by its weight, steering the next decision away from that owner.
+func TestDecideAssignmentsChargesWeight(t *testing.T) {
+	load := map[string]ownerLoad{"alice": {}, "bob": {}}
+	candidates := []candidate{{number: 10, weight: 5}, {number: 20, weight: 1}}
+	assignments := decideAssignments(load, candidates, 2, firstChoice)
+	// First (heaviest) PR goes to the alphabetically-first idle owner; the
+	// weight-5 charge then makes the other owner clearly lighter.
+	require.Equal(t, []assignment{{number: 10, owner: "alice"}, {number: 20, owner: "bob"}}, assignments)
+	require.Equal(t, 5, load["alice"].open)
+	require.Equal(t, 1, load["bob"].open)
 }
 
 // TestApplyAssignmentsStopsWhenContextCanceled pins that a canceled context
