@@ -29,7 +29,6 @@ ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
-								-not -path './.github/scripts/*' \
                                 -type f | sort)
 
 # ALL_SRC but without pkg, tempodb, generator, livestore, and blockbuilder packages
@@ -37,7 +36,6 @@ OTHERS_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
-								-not -path './.github/scripts/*' \
 								-not -path './pkg*/*' \
 								-not -path './tempodb*/*' \
 								-not -path './modules/generator*/*' \

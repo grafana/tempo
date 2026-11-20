@@ -23,13 +23,13 @@ func unsetEnvironment(t *testing.T, name string) {
 }
 
 func TestSettingsAndWorkflowContract(t *testing.T) {
-	data, err := os.ReadFile("../workflows/assign-codeowner.yml")
+	data, err := os.ReadFile("../../.github/workflows/assign-codeowner.yml")
 	require.NoError(t, err)
 	workflow := string(data)
 	for _, expected := range []string{
 		"GH_TOKEN: ${{ github.token }}",
-		"working-directory: .github/scripts",
-		"run: go run .",
+		"working-directory: tools",
+		"run: go run ./assign-codeowner",
 		"cron: '0 7 * * *'",
 		"permissions: {}",
 	} {

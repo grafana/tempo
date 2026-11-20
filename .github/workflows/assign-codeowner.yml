@@ -44,16 +44,16 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version-file: .github/scripts/go.mod
+          go-version-file: tools/go.mod
           cache: false
 
       - name: Assign available code owners
         # Only the token varies per run. The pool and all sweep settings are
-        # hardcoded in .github/scripts (consts.go), which this job compiles
-        # fresh via "go run ." on the gated repo.
+        # hardcoded in tools/assign-codeowner (consts.go), which this job
+        # compiles fresh via "go run ./assign-codeowner" on the gated repo.
         env:
           GH_TOKEN: ${{ github.token }}
-        # .github/scripts is its own module (matching tools/), so GitHub CI
-        # dependencies never enter the product go.mod.
-        working-directory: .github/scripts
-        run: go run .
+        # The sweep lives in the tools module, so its CI dependencies never
+        # enter the product go.mod.
+        working-directory: tools
+        run: go run ./assign-codeowner

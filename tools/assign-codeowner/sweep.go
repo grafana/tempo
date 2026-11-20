@@ -265,7 +265,7 @@ func convertIssue(issue *github.Issue) pullRequest {
 // small, individually reviewable function.
 func runSweep(ctx context.Context, client *github.Client, now time.Time, choose func([]string) string) error {
 	if len(defaultAssigneePool) == 0 {
-		fmt.Println("::notice::The code owner pool is empty; add members in .github/scripts/consts.go.")
+		fmt.Println("::notice::The code owner pool is empty; add members in tools/assign-codeowner/consts.go.")
 		return errors.New("code owner pool is empty")
 	}
 

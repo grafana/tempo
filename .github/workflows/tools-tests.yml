@@ -1,8 +1,9 @@
-# Runs the unit tests for the separate Go modules that the main CI unit-tests
-# job does not cover: `tools` (tools/go.mod) and the code-owner sweep module
-# (.github/scripts). Runs on every PR (no path filter) so they can be required
-# status checks without blocking PRs that don't touch them.
-name: Tools and GitHub Scripts Unit Tests
+# Runs the unit tests for the separate `tools` Go module (tools/go.mod), which
+# the main CI unit-tests job does not cover. The code-owner sweep now lives in
+# that module (tools/assign-codeowner), so its tests run here too. Runs on every
+# PR (no path filter) so it can be a required status check without blocking PRs
+# that don't touch the module.
+name: Tools Unit Tests
 
 on:
   pull_request:
@@ -31,25 +32,3 @@ jobs:
 
       - name: Run version-tag tests
         run: ./tools/version-tag_test.sh
-
-  github-scripts-test:
-    name: Run .github/scripts tests
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Check out code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version-file: '.github/scripts/go.mod'
-
-      - name: Vet the module
-        working-directory: .github/scripts
-        run: go vet ./...
-
-      - name: Run the sweep unit tests
-        working-directory: .github/scripts
-        run: go test -race ./...
