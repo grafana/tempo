@@ -84,6 +84,43 @@ func TestReadWrite(t *testing.T) {
 	assert.Equal(t, []uuid.UUID{blockID}, nc)
 }
 
+func TestListBlocksWithConcurrentClearBlock(t *testing.T) {
+	r, w, c, err := New(&Config{
+		Path: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	tenant := "fake"
+	blockID := uuid.New()
+	meta := []byte("meta")
+
+	err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(blockID, tenant), bytes.NewReader(meta), int64(len(meta)), nil)
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			_ = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(blockID, tenant), bytes.NewReader(meta), int64(len(meta)), nil)
+			_ = c.ClearBlock(blockID, tenant)
+		}
+	}()
+	defer func() { close(done); wg.Wait() }()
+
+	for i := 0; i < 1000; i++ {
+		_, _, _, err := r.ListBlocks(ctx, tenant)
+		require.NoError(t, err)
+	}
+}
+
 func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
 	r, w, _, err := New(&Config{
 		Path: t.TempDir(),
