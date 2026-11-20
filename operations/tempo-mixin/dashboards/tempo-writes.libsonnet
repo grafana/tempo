@@ -137,9 +137,9 @@ dashboard_utils {
           $.panel('Trace size') +
           $.queryPanel(
             [
-              ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
-              ncOrFallback(utils.ncHistogramQuantile('0.50', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
-              ncOrFallback(utils.ncHistogramAverageRate('tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor))),
+              ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.live_store_zones))),
+              ncOrFallback(utils.ncHistogramQuantile('0.50', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.live_store_zones))),
+              ncOrFallback(utils.ncHistogramAverageRate('tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.live_store_zones))),
             ],
             ['99th Percentile', '50th Percentile', 'Average']
           ) + {
@@ -176,7 +176,7 @@ dashboard_utils {
         .addPanel(
           $.panel('Trace size by tenant (top 10, p99)') +
           $.queryPanel(
-            'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
+            'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.live_store_zones), sum_by=['tenant'])),
             '{{tenant}}'
           ) + {
             yaxes: $.yaxes('bytes'),

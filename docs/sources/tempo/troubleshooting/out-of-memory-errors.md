@@ -22,7 +22,7 @@ This metric includes `tenant` and `scope` labels, where `scope` is one of `resou
 Use the `scope` label to identify which part of your trace data produces the most oversized attributes.
 
 Use the `tempo_distributor_attribute_size_bytes` histogram to observe the size distribution of attributes as they are received.
-It records the combined size of each attribute's key and string value, labeled by `tenant` and `scope`. Every attribute is measured, whether or not it is truncated.
+It records the combined size of each attribute's key and value, labeled by `tenant` and `scope`. Every attribute is measured, whatever its value type, whether or not it is truncated, and even when truncation is disabled.
 
 When truncation occurs, the distributor also emits a rate-limited log line (at most one per second) with an example of the truncated attribute, including its scope, name, whether the key or value was truncated, and the original size in bytes.
 
