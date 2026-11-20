@@ -50,7 +50,7 @@ func parseInternal(s string, skipTransformations []string, allowUnsafeHints bool
 	l := lexer{
 		parser: yyNewParser().(*yyParserImpl),
 	}
-	l.Init(strings.NewReader(s))
+	l.init(s)
 	l.Scanner.Error = func(_ *scanner.Scanner, msg string) {
 		l.Error(msg)
 	}
