@@ -1,4 +1,4 @@
-// Command scripts assigns unassigned pull requests using assigned-PR load.
+// Command scripts assigns unassigned pull requests using size-weighted assigned-PR load.
 package main
 
 import (

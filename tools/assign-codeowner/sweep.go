@@ -28,6 +28,9 @@ type pullRequest struct {
 	User      *user
 	Assignees []user
 	Draft     bool
+	// Weight is the PR's load contribution (1..5) from its non-vendored diff
+	// size; see weight.go. Zero is treated as 1.
+	Weight int
 }
 
 type ownerLoad struct {
@@ -88,9 +91,9 @@ func calculateLoad(openPRs, closedPRs []pullRequest, eligible []string, now time
 					continue
 				}
 				if state.kind == openLoad {
-					counts.open++
+					counts.open += weightOrDefault(pr.Weight)
 				} else {
-					counts.closed++
+					counts.closed += weightOrDefault(pr.Weight)
 				}
 				load[owner] = counts
 			}
@@ -111,25 +114,33 @@ func candidateEligible(pr pullRequest, owners map[string]struct{}) bool {
 	return !isOwner
 }
 
-func findCandidates(pulls []pullRequest, eligible []string) []int {
+// candidate is an eligible unassigned PR plus the load weight it will add to
+// whichever owner receives it.
+type candidate struct {
+	number int
+	weight int
+}
+
+func findCandidates(pulls []pullRequest, eligible []string) []candidate {
 	owners := make(map[string]struct{}, len(eligible))
 	for _, owner := range eligible {
 		owners[owner] = struct{}{}
 	}
-	result := make([]int, 0, len(pulls))
+	result := make([]candidate, 0, len(pulls))
 	for _, pr := range pulls {
 		if candidateEligible(pr, owners) {
-			result = append(result, pr.Number)
+			result = append(result, candidate{number: pr.Number, weight: weightOrDefault(pr.Weight)})
 		}
 	}
-	slices.Sort(result)
+	slices.SortFunc(result, func(a, b candidate) int { return cmp.Compare(a.number, b.number) })
 	return result
 }
 
-// compareLoad orders owners by open load (a PR count is the primary signal of
-// how busy an owner is), breaking ties by recently-closed load so an owner who
-// just shed a batch stays at the back of the queue. The recently-closed count
-// must never outweigh the open count.
+// compareLoad orders owners by open load (the size-weighted sum of assigned
+// open PRs is the primary signal of how busy an owner is), breaking ties by
+// size-weighted recently-closed load so an owner who just shed a batch stays at
+// the back of the queue. The recently-closed load must never outweigh the open
+// load.
 func compareLoad(a, b ownerLoad) int {
 	return cmp.Or(
 		cmp.Compare(a.open, b.open),
@@ -169,9 +180,9 @@ type assignment struct {
 // for each PR (exact ties go through the random chooser), updates load as it
 // goes so a batch spreads across owners, and honors the per-run cap. It
 // performs no I/O; runSweep fetches the inputs and applies the output.
-func decideAssignments(load map[string]ownerLoad, candidates []int, maxAssignments int, choose func([]string) string) []assignment {
+func decideAssignments(load map[string]ownerLoad, candidates []candidate, maxAssignments int, choose func([]string) string) []assignment {
 	assignments := make([]assignment, 0, maxAssignments)
-	for _, number := range candidates {
+	for _, c := range candidates {
 		if len(assignments) >= maxAssignments {
 			break
 		}
@@ -179,9 +190,11 @@ func decideAssignments(load map[string]ownerLoad, candidates []int, maxAssignmen
 		if !ok {
 			continue
 		}
-		assignments = append(assignments, assignment{number: number, owner: owner})
+		assignments = append(assignments, assignment{number: c.number, owner: owner})
+		// Charge the receiving owner the PR's weight so a heavy PR pushes the
+		// next decision toward a less-loaded owner.
 		counts := load[owner]
-		counts.open++
+		counts.open += c.weight
 		load[owner] = counts
 	}
 	return assignments
@@ -208,7 +221,10 @@ func sweep(ctx context.Context, client *github.Client) error {
 	})
 }
 
-// listOpenPRs fetches every open pull request, converting to the internal shape.
+// listOpenPRs fetches every open pull request, converting to the internal shape
+// and computing each PR's size weight. The weight costs one extra paginated
+// request per PR; a failed size lookup degrades to weight 1 rather than
+// aborting the sweep.
 func listOpenPRs(ctx context.Context, client *github.Client) ([]pullRequest, error) {
 	pulls, err := eachPage(ctx, func(opts *github.ListOptions) ([]*github.PullRequest, *github.Response, error) {
 		return client.PullRequests.List(ctx, repoOwner, repoName, &github.PullRequestListOptions{State: "open", ListOptions: *opts})
@@ -218,7 +234,14 @@ func listOpenPRs(ctx context.Context, client *github.Client) ([]pullRequest, err
 	}
 	result := make([]pullRequest, 0, len(pulls))
 	for _, pr := range pulls {
-		result = append(result, convertPullRequest(pr))
+		converted := convertPullRequest(pr)
+		weight, weightErr := pullWeight(ctx, client, converted.Number)
+		if weightErr != nil {
+			fmt.Printf("::warning::Could not compute the size weight for PR #%d (assuming 1): %v.\n", converted.Number, weightErr)
+			weight = 1
+		}
+		converted.Weight = weight
+		result = append(result, converted)
 	}
 	return result, nil
 }
@@ -331,7 +354,14 @@ func recentlyClosedPRs(ctx context.Context, client *github.Client, now time.Time
 	}
 	closed := make([]pullRequest, 0, len(issues))
 	for _, issue := range issues {
-		closed = append(closed, convertIssue(issue))
+		converted := convertIssue(issue)
+		weight, weightErr := pullWeight(ctx, client, converted.Number)
+		if weightErr != nil {
+			fmt.Printf("::warning::Could not compute the size weight for closed PR #%d (assuming 1): %v.\n", converted.Number, weightErr)
+			weight = 1
+		}
+		converted.Weight = weight
+		closed = append(closed, converted)
 	}
 	return closed, nil
 }
