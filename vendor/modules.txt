@@ -173,7 +173,7 @@ github.com/alicebob/miniredis/v2/metro
 github.com/alicebob/miniredis/v2/proto
 github.com/alicebob/miniredis/v2/server
 github.com/alicebob/miniredis/v2/size
-# github.com/andybalholm/brotli v1.2.7
+# github.com/andybalholm/brotli v1.3.0
 ## explicit; go 1.22
 github.com/andybalholm/brotli
 github.com/andybalholm/brotli/matchfinder
@@ -1354,8 +1354,8 @@ github.com/parquet-go/bitpack/unsafecast
 # github.com/parquet-go/jsonlite v1.5.5
 ## explicit; go 1.24.0
 github.com/parquet-go/jsonlite
-# github.com/parquet-go/parquet-go v0.32.0
-## explicit; go 1.24.9
+# github.com/parquet-go/parquet-go v0.32.1
+## explicit; go 1.26.0
 github.com/parquet-go/parquet-go
 github.com/parquet-go/parquet-go/bloom
 github.com/parquet-go/parquet-go/bloom/xxhash

@@ -1,0 +1,6 @@
+change_type: enhancement
+component: deps
+note: Update `parquet-go` to v0.32.1, which cuts block-scan CPU on the vParquet5 read path.
+issues: []
+subtext:
+user: zhxiaogg
