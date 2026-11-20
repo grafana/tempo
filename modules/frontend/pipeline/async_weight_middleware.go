@@ -58,11 +58,8 @@ func WithQueryShapeCell(ctx context.Context) context.Context {
 
 // QueryShapeFromContext returns the shape stamped on ctx, or ok=false when none.
 func QueryShapeFromContext(ctx context.Context) (QueryShape, bool) {
-	if ctx == nil {
-		return QueryShape{}, false
-	}
-	cell, ok := ctx.Value(queryShapeCtxKey{}).(*queryShapeCell)
-	if !ok || cell.qs == nil {
+	cell := queryShapeCellFromContext(ctx)
+	if cell == nil || cell.qs == nil {
 		return QueryShape{}, false
 	}
 	return *cell.qs, true
@@ -71,37 +68,39 @@ func QueryShapeFromContext(ctx context.Context) (QueryShape, bool) {
 // EstimatedBytesAdder returns a function that adds to the estimated bytes of the jobs of the query whose cell
 // is installed on ctx. Without a cell the function does nothing. It is meant to be called once per query.
 func EstimatedBytesAdder(ctx context.Context) func(bytes uint64) {
-	if ctx != nil {
-		if cell, ok := ctx.Value(queryShapeCtxKey{}).(*queryShapeCell); ok {
-			return func(bytes uint64) { cell.estimatedBytes.Add(bytes) }
-		}
+	cell := queryShapeCellFromContext(ctx)
+	if cell == nil {
+		return func(uint64) {}
 	}
-	return func(uint64) {}
+	return func(bytes uint64) { cell.estimatedBytes.Add(bytes) }
 }
 
 // EstimatedBytesFromContext returns the sum of the estimated bytes of the jobs of the query added so far,
 // or ok=false when ctx has no cell.
 func EstimatedBytesFromContext(ctx context.Context) (bytes uint64, ok bool) {
-	if ctx == nil {
-		return 0, false
-	}
-	cell, ok := ctx.Value(queryShapeCtxKey{}).(*queryShapeCell)
-	if !ok {
+	cell := queryShapeCellFromContext(ctx)
+	if cell == nil {
 		return 0, false
 	}
 	return cell.estimatedBytes.Load(), true
 }
 
 func setQueryShapeOnContext(ctx context.Context, qs QueryShape) {
-	if ctx == nil {
-		return
-	}
-	cell, ok := ctx.Value(queryShapeCtxKey{}).(*queryShapeCell)
-	if !ok {
+	cell := queryShapeCellFromContext(ctx)
+	if cell == nil {
 		return
 	}
 	snapshot := qs
 	cell.qs = &snapshot
+}
+
+// queryShapeCellFromContext returns the cell installed on ctx, or nil if there is none.
+func queryShapeCellFromContext(ctx context.Context) *queryShapeCell {
+	if ctx == nil {
+		return nil
+	}
+	cell, _ := ctx.Value(queryShapeCtxKey{}).(*queryShapeCell)
+	return cell
 }
 
 func (rt RequestType) queryTypeLabel() string {

@@ -309,6 +309,30 @@ func TestWeightMiddlewareStampsQueryShape(t *testing.T) {
 	})
 }
 
+func TestQueryShapeCellWithoutCell(t *testing.T) {
+	typedNil := context.WithValue(context.Background(), queryShapeCtxKey{}, (*queryShapeCell)(nil))
+
+	for name, ctx := range map[string]context.Context{
+		"nil context":     nil,
+		"no cell":         context.Background(),
+		"typed nil cell":  typedNil,
+		"other value set": context.WithValue(context.Background(), queryShapeCtxKey{}, "not a cell"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NotPanics(t, func() {
+				_, ok := QueryShapeFromContext(ctx)
+				require.False(t, ok)
+
+				_, ok = EstimatedBytesFromContext(ctx)
+				require.False(t, ok)
+
+				EstimatedBytesAdder(ctx)(10)
+				setQueryShapeOnContext(ctx, QueryShape{Type: QueryTypeSearch})
+			})
+		})
+	}
+}
+
 func TestEstimatedBytesCell(t *testing.T) {
 	t.Run("without a cell", func(t *testing.T) {
 		for _, ctx := range []context.Context{nil, context.Background()} {
