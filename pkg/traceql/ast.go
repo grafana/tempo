@@ -659,6 +659,11 @@ type BinaryOperation struct {
 	compiledExpressions []*regexp.Regexp
 
 	b branchOptimizer
+
+	// boolean fast path, set on first execution. See ast_execute_fast.go.
+	fastPath      fastPath
+	compareAttr   Attribute
+	compareStatic Static
 }
 
 func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
