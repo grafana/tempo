@@ -1,0 +1,6 @@
+change_type: bug_fix
+component: distributor
+note: Reject spans and trace lookups with an all-zero trace ID, which were previously accepted.
+issues: []
+subtext: Rejected spans are counted as discarded with reason `invalid_trace_id`. The querier also rejects all-zero trace IDs in trace by ID lookups.
+user: eric-mj

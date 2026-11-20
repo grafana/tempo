@@ -2,9 +2,9 @@ package validation
 
 import "bytes"
 
-// ValidTraceID confirms that trace ids are 128 bits
+// ValidTraceID confirms that trace ids are 128 bits and non-zero
 func ValidTraceID(id []byte) bool {
-	return len(id) == 16
+	return len(id) == 16 && !bytes.Equal(id, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
 }
 
 func ValidSpanID(id []byte) bool {
