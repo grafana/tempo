@@ -813,6 +813,94 @@ func TestRescanByCompactionJobStatus(t *testing.T) {
 	}
 }
 
+// rescanOnComplete wraps the work index and runs a callback right after a job is marked complete.
+type rescanOnComplete struct {
+	work.Interface
+	onComplete func(id string)
+}
+
+func (w *rescanOnComplete) CompleteJob(id string) {
+	w.Interface.CompleteJob(id)
+	if w.onComplete != nil {
+		w.onComplete(id)
+	}
+}
+
+// TestRescanSeesOutputOfJobCompletedByUpdateJob runs a rescan at the moment UpdateJob marks a
+// skipped compaction job complete. This test covers a possible race condition:
+// the rescan must already see the job's output, or it treats the
+// job as having produced nothing and the output block is never redacted.
+func TestRescanSeesOutputOfJobCompletedByUpdateJob(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.ProviderConfig.Redaction.RescanDelay = 0
+	tmpDir := t.TempDir()
+	cfg.LocalWorkPath = tmpDir
+
+	ctx, cancel := context.WithCancel(context.Background())
+	store, rr, ww := newStore(ctx, t, tmpDir)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	tenant := "tenant-rescan-update-job"
+	blockIDs := writeTenantBlocks(ctx, t, backend.NewWriter(ww), tenant, 3)
+	require.Eventually(t, func() bool { return len(store.BlockMetas(tenant)) == 3 },
+		5*time.Second, 50*time.Millisecond, "all blocks must be polled before submitting")
+
+	s, err := New(cfg, store, limits, rr, ww)
+	require.NoError(t, err)
+
+	compJob := &work.Job{
+		ID:   uuid.New().String(),
+		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+		JobDetail: tempopb.JobDetail{
+			Tenant:     tenant,
+			Compaction: &tempopb.CompactionDetail{Input: []string{blockIDs[0].String(), blockIDs[1].String()}},
+		},
+	}
+	s.work.RegisterJob(compJob)
+	require.NoError(t, s.work.AddJob(compJob))
+	s.work.StartJob(compJob.ID)
+
+	_, err = s.SubmitRedaction(user.InjectOrgID(ctx, tenant), &tempopb.SubmitRedactionRequest{
+		TraceIds: [][]byte{[]byte(uuid.New().String())},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{compJob.ID}, s.work.GetBatch(tenant).SkippedCompactionJobIds)
+
+	rescans := 0
+	s.work = &rescanOnComplete{Interface: s.work, onComplete: func(id string) {
+		if id != compJob.ID {
+			return
+		}
+		rescans++
+		time.Sleep(time.Millisecond)
+		s.checkPendingRescans(ctx)
+	}}
+
+	outputBlock := uuid.New().String()
+	_, err = s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+		JobId:      compJob.ID,
+		Status:     tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		Compaction: &tempopb.CompactionDetail{Output: []string{outputBlock}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, rescans, "the rescan must run inside CompleteJob")
+
+	pending := make(map[string]bool)
+	for _, j := range s.work.ListAllPendingJobs() {
+		if j.GetType() == tempopb.JobType_JOB_TYPE_REDACTION {
+			pending[j.GetRedactionBlockID()] = true
+		}
+	}
+	require.True(t, pending[outputBlock], "the output block of the completed job must get a redaction job")
+}
+
 func TestProviderBasedScheduling(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
