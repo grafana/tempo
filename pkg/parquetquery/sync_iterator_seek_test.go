@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/parquet-go/parquet-go"
-	"github.com/parquet-go/parquet-go/encoding"
 	"github.com/stretchr/testify/require"
 )
 
@@ -400,10 +399,10 @@ func runOracle(slots []oracleSlot, steps []seekStep, filter Predicate, sampler S
 	return results
 }
 
-// TestPageReaderMatchesValueReader: reading and seeking through pageReader returns
+// TestSyncIteratorMatchesValueReader: reading and seeking through pageReader returns
 // exactly the values the pages' own value readers read, for every column kind, with
 // and without a filter or sampler, across page boundaries and past the end.
-func TestPageReaderMatchesValueReader(t *testing.T) {
+func TestSyncIteratorMatchesValueReader(t *testing.T) {
 	columns := []string{
 		"ID", "Flag", "I32", "I64", "U32", "U64", "Float", "Double", "Bool", "Str", "DictStr", "DictI64",
 		"Fixed", "Fixed16", "Ints", "Attrs.Key", "Attrs.Str", "Attrs.Int", "Attrs.Double", "Attrs.Bool",
@@ -460,9 +459,9 @@ func TestPageReaderMatchesValueReader(t *testing.T) {
 	}
 }
 
-// TestPageReaderMatchesScan: seeking returns the first value at or after the target
+// TestSyncIteratorMatchesScan: seeking returns the first value at or after the target
 // that a scan by Next returns.
-func TestPageReaderMatchesScan(t *testing.T) {
+func TestSyncIteratorMatchesScan(t *testing.T) {
 	rgs := seekTestSources(t)["large-pages-v2"]
 	schema := parquet.SchemaOf(seekRow{})
 	for _, path := range []string{"I64", "Bool", "Str", "DictStr", "Attrs.Key", "Attrs.Int", "Spans.Attrs.Str"} {
@@ -537,113 +536,6 @@ func TestNilSyncIteratorSeekTo(t *testing.T) {
 	res, err := it.Next()
 	require.NoError(t, err)
 	require.Nil(t, res)
-}
-
-// TestPageReaderLoad: load reads a page only with the column's max definition level.
-func TestPageReaderLoad(t *testing.T) {
-	rgs := seekTestSources(t)["large-pages-v2"]
-	leaf, ok := parquet.SchemaOf(seekRow{}).Lookup("ID")
-	require.True(t, ok)
-	pages := rgs[0].ColumnChunks()[leaf.ColumnIndex].Pages()
-	defer pages.Close()
-	pg, err := pages.ReadPage()
-	require.NoError(t, err)
-	defer parquet.Release(pg)
-
-	var r pageReader
-	r.slots.maxDef = 1
-	require.ErrorContains(t, r.load(pg), "max definition level is 1")
-	require.NoError(t, r.SetChunk(rgs[0].ColumnChunks()[leaf.ColumnIndex]))
-	require.NoError(t, r.load(pg))
-	require.Equal(t, int(pg.NumValues()), r.slots.numSlots)
-}
-
-// TestSkipToRow compares skipToRow with a slot by slot walk.
-func TestSkipToRow(t *testing.T) {
-	rnd := rand.New(rand.NewPCG(3, 4))
-	for _, repeated := range []bool{false, true} {
-		for range 200 {
-			numSlots := rnd.IntN(2_000)
-			var defLevels, repLevels []byte
-			const maxDef = 2
-			for i := range numSlots {
-				defLevels = append(defLevels, byte(rnd.IntN(maxDef+1)))
-				if repeated {
-					rep := byte(0)
-					if i > 0 && rnd.IntN(5) != 0 {
-						rep = byte(1 + rnd.IntN(2))
-					}
-					repLevels = append(repLevels, rep)
-				}
-			}
-			slot := rnd.IntN(numSlots + 1)
-			cur := int32(-1) // the row before the page
-			index := 0
-			for s := range slot {
-				if !repeated || repLevels[s] == 0 {
-					cur++
-				}
-				if defLevels[s] == maxDef {
-					index++
-				}
-			}
-			to := cur + int32(rnd.IntN(300))
-
-			// Walk slot by slot to the first slot of row to.
-			wantSlot, wantIndex, row := -1, index, cur
-			for s := slot; s < numSlots; s++ {
-				if !repeated || repLevels[s] == 0 {
-					if row++; row == to {
-						wantSlot = s
-						break
-					}
-				}
-				if defLevels[s] == maxDef {
-					wantIndex++
-				}
-			}
-
-			r := slotReader{maxDef: maxDef, defLevels: defLevels, repLevels: repLevels, numSlots: numSlots, slot: slot, index: index}
-			moved := r.skipToRow(cur, to)
-			if wantSlot < 0 || to <= cur+1 { // not on the page, or the next row: left to next
-				require.False(t, moved)
-				require.Equal(t, slot, r.slot)
-				require.Equal(t, index, r.index)
-				continue
-			}
-			require.True(t, moved, "slot %d cur %d to %d", slot, cur, to)
-			require.Equal(t, wantSlot, r.slot)
-			require.Equal(t, wantIndex, r.index)
-		}
-	}
-}
-
-// TestCheckValueCount: a page must hold one value (or dictionary index) per present slot.
-func TestCheckValueCount(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		data encoding.Values
-		want int
-		ok   bool
-	}{
-		{"int64", encoding.Int64Values([]int64{1, 2, 3}), 3, true},
-		{"int64 short", encoding.Int64Values([]int64{1, 2}), 3, false},
-		{"int32 indexes long", encoding.Int32Values([]int32{0, 1, 0, 1}), 3, false},
-		{"bytes", encoding.ByteArrayValues([]byte("abc"), []uint32{0, 1, 3}), 2, true},
-		{"bytes short", encoding.ByteArrayValues([]byte("abc"), []uint32{0, 3}), 2, false},
-		{"fixed", encoding.FixedLenByteArrayValues([]byte("abcd"), 2), 2, true},
-		{"fixed ragged", encoding.FixedLenByteArrayValues([]byte("abcde"), 2), 2, false},
-		{"bool last byte", encoding.BooleanValues([]byte{0xff, 0x01}), 9, true},
-		{"bool extra byte", encoding.BooleanValues([]byte{0xff, 0x01, 0x00}), 9, false},
-		{"bool short", encoding.BooleanValues([]byte{0xff}), 9, false},
-	} {
-		err := checkValueCount(tc.data, tc.want)
-		if tc.ok {
-			require.NoError(t, err, tc.name)
-		} else {
-			require.Error(t, err, tc.name)
-		}
-	}
 }
 
 // dictionaryEncoded reports whether every page of column is dictionary-encoded; it fails

@@ -33,8 +33,8 @@ func NewNilSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts
 
 func (c *NilSyncIterator) String() string {
 	filter := "nil"
-	if c.filter != nil {
-		filter = c.filter.String()
+	if c.state.Filter != nil {
+		filter = c.state.Filter.String()
 	}
 	return fmt.Sprintf("NilSyncIterator: %s : %s", c.columnName, filter)
 }
@@ -108,7 +108,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 		if valueFound || !scopeHasValues || !scopeRow.Valid() {
 			return RowNumber{}, false
 		}
-		if EqualRowNumber(c.maxDefinitionLevel, c.lastRowNumberReturned, c.curr) {
+		if EqualRowNumber(c.state.MaxDef, c.lastRowNumberReturned, c.state.Row) {
 			return RowNumber{}, false
 		}
 		c.lastRowNumberReturned = scopeRow
@@ -116,13 +116,13 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 	}
 
 	advanceValue := func(v *pq.Value) {
-		c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
+		c.state.Row.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.state.MaxDef)
 		c.pageReader.NextSlot()
 
 		if !v.IsNull() {
 			scopeHasValues = true
 		}
-		if c.filter != nil && c.filter.KeepValue(*v) {
+		if c.state.Filter != nil && c.state.Filter.KeepValue(*v) {
 			valueFound = true
 		}
 	}
@@ -175,7 +175,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 			var (
 				r    = v.RepetitionLevel()
 				d    = v.DefinitionLevel()
-				maxD = c.maxDefinitionLevel
+				maxD = c.state.MaxDef
 			)
 
 			if r < maxD {
@@ -189,7 +189,7 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 				valueFound = false
 				scopeHasValues = false
 				advanceValue(v)
-				scopeRow = c.curr
+				scopeRow = c.state.Row
 
 				if r <= d && d == maxD-1 && v.IsNull() {
 					// Empty repeated values for this level, which means the value doesn't exist.
@@ -197,8 +197,8 @@ func (c *NilSyncIterator) next() (RowNumber, *pq.Value, error) {
 					// we are also ensuring there is an owning row defined at this level.
 					// In this case we emit a nil immediately upon entering the scope
 					// because this is the only row for it.
-					c.lastRowNumberReturned = c.curr
-					return c.curr, &emptyNilValue, nil
+					c.lastRowNumberReturned = c.state.Row
+					return c.state.Row, &emptyNilValue, nil
 				}
 
 				// Neither of the above cases matched,

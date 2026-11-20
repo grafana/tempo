@@ -13,7 +13,7 @@ var metricPredicateDecisions = promauto.NewCounterVec(prometheus.CounterOpts{
 }, []string{"tenant", "level", "decision"})
 
 // flushMetrics adds s to tenant's predicate decision counters and resets it.
-func (s *PredicateStats) flushMetrics(tenant string) {
+func flushMetrics(s *PredicateStats, tenant string) {
 	addDecisions(tenant, "column_chunk", s.KeptColumnChunks, s.InspectedColumnChunks)
 	addDecisions(tenant, "page", s.KeptPages, s.InspectedPages)
 	addDecisions(tenant, "value", s.KeptValues, s.InspectedValues)
