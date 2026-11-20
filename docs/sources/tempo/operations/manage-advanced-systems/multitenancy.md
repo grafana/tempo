@@ -90,6 +90,12 @@ otelcol.exporter.otlphttp "tempo" {
 
    This option forces all Tempo components to require the `X-Scope-OrgID` header.
 
+{{< admonition type="note" >}}
+The `X-Scope-OrgID` header scopes tenant data.
+It is not an administrative authorization mechanism for internal operational endpoints.
+For guidance on restricting component HTTP and gRPC routes, refer to [Manage authentication](/docs/tempo/<TEMPO_VERSION>/operations/authentication/).
+{{< /admonition >}}
+
 ## Configure per-tenant settings
 
 After you enable multi-tenancy, you can customize settings on a per-tenant basis using runtime overrides.
