@@ -563,7 +563,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	}
 
 	if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
-		_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
+		_ = level.Warn(d.logger).Log("msg", "failed to forward batches", "tenant", userID, "err", err)
 	}
 
 	if d.pushSpansToKafka {
