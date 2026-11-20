@@ -26,7 +26,7 @@ import (
 )
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) streamingSearchHandler {
+func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) streamingSearchHandler {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
@@ -59,7 +59,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		tenant, _ := user.ExtractOrgID(ctx)
 		start := time.Now()
 
-		comb, err := newCombiner(req, cfg.Search.Sharder, api.MarshallingFormatProtobuf, o.LeftPadTraceIDs(tenant), inspectedBytesReporter(searchInspectedBytes, searchJobInspectedBytes, tenant))
+		comb, err := newCombiner(req, cfg.Search.Sharder, api.MarshallingFormatProtobuf, o.LeftPadTraceIDs(tenant), reporter.option(ctx, tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "search streaming: could not create combiner", "err", err)
 			return status.Error(codes.InvalidArgument, err.Error())
@@ -88,7 +88,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 }
 
 // newSearchHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -117,7 +117,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		// check marshalling format
 		marshallingFormat := api.MarshalingFormatFromAcceptHeader(req.Header)
 
-		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat, o.LeftPadTraceIDs(tenant), inspectedBytesReporter(searchInspectedBytes, searchJobInspectedBytes, tenant))
+		comb, err := newCombiner(searchReq, cfg.Search.Sharder, marshallingFormat, o.LeftPadTraceIDs(tenant), reporter.option(req.Context(), tenant))
 		if err != nil {
 			level.Error(logger).Log("msg", "search: could not create combiner", "err", err)
 			return httpInvalidRequest(err), nil

@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/v3/modules/overrides"
@@ -62,10 +63,11 @@ type asyncSearchSharder struct {
 	skipASTTransformations []string
 	logger                 log.Logger
 	jobsPerQuery           *prometheus.HistogramVec
+	estimator              *jobcost.Estimator
 }
 
 // newAsyncSearchSharder creates a sharding middleware for search
-func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, skipASTTransformations []string, jobsPerQuery *prometheus.HistogramVec, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg SearchSharderConfig, skipASTTransformations []string, jobsPerQuery *prometheus.HistogramVec, estimator *jobcost.Estimator, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	limiter := newSearchRangeLimiter(cfg, o, reader)
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return asyncSearchSharder{
@@ -77,6 +79,7 @@ func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg Sea
 			skipASTTransformations: skipASTTransformations,
 			logger:                 logger,
 			jobsPerQuery:           jobsPerQuery,
+			estimator:              estimator,
 		}
 	})
 }
@@ -218,7 +221,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 	}, nil)
 
 	go func() {
-		buildBackendRequests(ctx, tenantID, parent, searchReq, firstShardIdx, blockIter, reqCh, errFn)
+		buildBackendRequests(ctx, tenantID, parent, searchReq, firstShardIdx, blockIter, s.estimator, reqCh, errFn)
 	}()
 }
 
@@ -239,7 +242,7 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 			CompletedThroughSeconds: 1,
 		})
 
-		return resp, buildIngesterRequest(tenantID, parent, &searchReq, reqCh)
+		return resp, buildIngesterRequest(tenantID, parent, &searchReq, s.estimator, reqCh)
 	}
 
 	ingesterUntil := uint32(time.Now().Add(-s.cfg.QueryBackendAfter).Unix())
@@ -294,7 +297,7 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 		subReq.Start = shardStart
 		subReq.End = shardEnd
 
-		err := buildIngesterRequest(tenantID, parent, &subReq, reqCh)
+		err := buildIngesterRequest(tenantID, parent, &subReq, s.estimator, reqCh)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +369,7 @@ func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, u
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, firstShardIdx int, blockIter func(shardIterFn, jobIterFn), reqCh chan<- pipeline.Request, errFn func(error)) {
+func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, firstShardIdx int, blockIter func(shardIterFn, jobIterFn), estimator *jobcost.Estimator, reqCh chan<- pipeline.Request, errFn func(error)) {
 	defer close(reqCh)
 
 	queryHash := hashForSearchRequest(searchReq)
@@ -407,6 +410,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 		key := searchJobCacheKey(tenantID, queryHash, startTime, endTime, m, startPage, pages)
 		pipelineR.SetCacheKey(key)
 		pipelineR.SetResponseData(firstShardIdx + shard)
+		pipelineR.SetCost(blockJobCost(estimator, jobcost.OpSearch, m, startPage, pages))
 
 		select {
 		case reqCh <- pipelineR:
@@ -443,7 +447,7 @@ func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
 	return hash
 }
 
-func buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
+func buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, estimator *jobcost.Estimator, reqCh chan pipeline.Request) error {
 	subR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 		return api.BuildSearchRequest(r, searchReq)
 	})
@@ -452,6 +456,7 @@ func buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq *t
 	}
 
 	subR.SetResponseData(0) // ingester requests are always shard 0
+	subR.SetCost(estimator.LiveStore())
 	reqCh <- subR
 
 	return nil

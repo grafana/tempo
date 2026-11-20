@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/pkg/api"
 	"github.com/grafana/tempo/v3/pkg/blockboundary"
@@ -495,4 +496,81 @@ func TestBlocksPerShardCountsRecentlyCompactedBlocks(t *testing.T) {
 	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
 	require.NoError(t, err)
 	require.Len(t, shardedReqs, 4) // 1 ingester + 3 block shards
+}
+
+func TestBuildShardedRequestsCost(t *testing.T) {
+	var (
+		lowBlock  = &backend.BlockMeta{BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")}
+		highBlock = &backend.BlockMeta{BlockID: backend.MustParse("ffffffff-ffff-ffff-ffff-fffffffffffe")}
+		ingester  = jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 1000}
+	)
+
+	// trace by id jobs are estimated at 128 KiB per block
+	const bytesPerBlock = 128 * 1024
+
+	tcs := []struct {
+		name     string
+		external bool
+		blocks   []*backend.BlockMeta
+		expected []jobcost.Cost
+	}{
+		{
+			name:   "blocks in both block jobs",
+			blocks: []*backend.BlockMeta{lowBlock, highBlock, highBlock},
+			expected: []jobcost.Cost{
+				ingester,
+				{Kind: jobcost.KindBlock, Base: 1, Estimate: bytesPerBlock},
+				{Kind: jobcost.KindBlock, Base: 2, Estimate: 2 * bytesPerBlock},
+			},
+		},
+		{
+			name:   "block job without blocks",
+			blocks: []*backend.BlockMeta{lowBlock},
+			expected: []jobcost.Cost{
+				ingester,
+				{Kind: jobcost.KindBlock, Base: 1, Estimate: bytesPerBlock},
+				{Kind: jobcost.KindBlock},
+			},
+		},
+		{
+			name:     "the external job has no cost",
+			external: true,
+			blocks:   []*backend.BlockMeta{lowBlock, highBlock},
+			expected: []jobcost.Cost{
+				ingester,
+				{},
+				{Kind: jobcost.KindBlock, Base: 1, Estimate: bytesPerBlock},
+				{Kind: jobcost.KindBlock, Base: 1, Estimate: bytesPerBlock},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			// ingester job, optional external job and 2 block jobs
+			queryShards := 3
+			if tc.external {
+				queryShards = 4
+			}
+
+			sharder := &asyncTraceSharder{
+				cfg:             &TraceByIDConfig{QueryShards: queryShards, ExternalEnabled: tc.external},
+				reader:          &mockReader{metas: tc.blocks},
+				blockBoundaries: blockboundary.CreateBlockBoundaries(2),
+				estimator:       newTestEstimator(),
+			}
+
+			ctx := user.InjectOrgID(context.Background(), "blerg")
+			req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
+
+			reqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req), &tempopb.TraceByIDRequest{})
+			require.NoError(t, err)
+
+			actual := make([]jobcost.Cost, 0, len(reqs))
+			for _, r := range reqs {
+				actual = append(actual, r.Cost())
+			}
+			require.Equal(t, tc.expected, actual)
+		})
+	}
 }

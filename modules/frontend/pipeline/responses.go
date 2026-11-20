@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"go.uber.org/atomic"
 )
 
@@ -20,6 +21,7 @@ var _ Responses[combiner.PipelineResponse] = syncResponse{}
 type pipelineResponse struct {
 	r           *http.Response
 	requestData any
+	cost        jobcost.Cost
 }
 
 func (p pipelineResponse) HTTPResponse() *http.Response {
@@ -28,6 +30,11 @@ func (p pipelineResponse) HTTPResponse() *http.Response {
 
 func (p pipelineResponse) RequestData() any {
 	return p.requestData
+}
+
+// Cost returns the estimated cost of the job that produced the response.
+func (p pipelineResponse) Cost() jobcost.Cost {
+	return p.cost
 }
 
 func (p pipelineResponse) IsMetadata() bool {
@@ -52,15 +59,6 @@ func NewHTTPToAsyncResponse(r *http.Response) Responses[combiner.PipelineRespons
 		r: pipelineResponse{
 			r:           r,
 			requestData: nil,
-		},
-	}
-}
-
-func NewHTTPToAsyncResponseWithRequestData(r *http.Response, requestData any) Responses[combiner.PipelineResponse] {
-	return syncResponse{
-		r: pipelineResponse{
-			r:           r,
-			requestData: requestData,
 		},
 	}
 }

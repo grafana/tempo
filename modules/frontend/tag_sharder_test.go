@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/pkg/api"
@@ -434,7 +435,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
-	}, parseTagsRequest, nil, log.NewNopLogger())
+	}, parseTagsRequest, nil, nil, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
 	// no org id
@@ -469,7 +470,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
-	}, parseTagsRequest, nil, log.NewNopLogger())
+	}, parseTagsRequest, nil, nil, log.NewNopLogger())
 	testRT = sharder.Wrap(next)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -552,4 +553,39 @@ func TestTagsBackendRequestsForwardDedicatedColumns(t *testing.T) {
 			require.Positive(t, n)
 		})
 	}
+}
+
+func TestTagsRequestsCost(t *testing.T) {
+	s := &searchTagSharder{
+		cfg:       SearchSharderConfig{QueryBackendAfter: time.Minute},
+		estimator: newTestEstimator(),
+	}
+
+	t.Run("backend", func(t *testing.T) {
+		metas := []*backend.BlockMeta{
+			{Size_: 1000, TotalRecords: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000")},
+		}
+
+		reqCh := make(chan pipeline.Request, 10)
+		r := httptest.NewRequest("GET", "/", nil)
+		s.buildBackendRequests(t.Context(), "test", pipeline.NewHTTPRequest(r), metas, 900, reqCh, func(error) {}, &fakeReq{})
+
+		var actual []jobcost.Cost
+		for req := range reqCh {
+			actual = append(actual, req.Cost())
+		}
+
+		require.Equal(t, []jobcost.Cost{
+			{Kind: jobcost.KindBlock, Base: 900, Estimate: 9},
+			{Kind: jobcost.KindBlock, Base: 100, Estimate: 1},
+		}, actual)
+	})
+
+	t.Run("ingester", func(t *testing.T) {
+		r := httptest.NewRequest("GET", "/", nil)
+		req, err := s.ingesterRequest("test", pipeline.NewHTTPRequest(r), &fakeReq{})
+		require.NoError(t, err)
+
+		require.Equal(t, jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 1000}, req.Cost())
+	})
 }

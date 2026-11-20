@@ -34,3 +34,27 @@ func TestPagesPerRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestJobBytes(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		blockSize    uint64
+		startPage    uint32
+		pages        uint32
+		totalRecords uint32
+		want         uint64
+	}{
+		{"part of the block", 1000, 2, 2, 10, 200},
+		{"whole block", 1000, 0, 10, 10, 1000},
+		{"last job covers less than requested", 1000, 8, 4, 10, 200},
+		{"job past the end of the block", 1000, 12, 2, 10, 0},
+		{"bytes are not rounded down per row group", 1000, 0, 3, 7, 428},
+		// not a realistic block, it guards that blockSize*rowGroups is not computed in one step, which overflows a uint64
+		{"big block does not overflow", 100 << 40, 0, 400_000, 1_000_000, 40 << 40},
+		{"no total records", 1000, 0, 2, 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, JobBytes(tc.blockSize, tc.startPage, tc.pages, tc.totalRecords))
+		})
+	}
+}

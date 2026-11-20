@@ -1290,6 +1290,23 @@ query_frontend:
         [max_queries_per_tenant: <int> | default = 100]
         [max_query_text_bytes: <int> | default = 4096]
 
+    # Estimates how many bytes each querier job reads when the job is created. The estimates are only reported
+    # in metrics, they don't limit or change how queries run.
+    job_cost:
+        # Calibrate the estimates for jobs that read blocks with the bytes the jobs actually read.
+        calibration:
+            # If disabled, the estimates use predefined constant values.
+            [enabled: <bool> | default = true]
+
+            # Limits of the share of the bytes of a block that search, metadata and metrics jobs are estimated
+            # to read. Must satisfy 0 < min_factor <= max_factor <= 1. Raise max_factor for small blocks.
+            [min_factor: <float> | default = 0.001]
+            [max_factor: <float> | default = 0.1]
+
+        # Fixed estimate in bytes for jobs that read recent data from the live stores.
+        # Set to 0 to not estimate these jobs.
+        [live_store_cost: <int> | default = 262144]
+
 ```
 
 ### Limit query size to improve performance and stability

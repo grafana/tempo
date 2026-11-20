@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"testing"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
@@ -305,5 +306,76 @@ func TestWeightMiddlewareStampsQueryShape(t *testing.T) {
 		require.True(t, ok, "cell should be populated on outer context")
 		assert.Equal(t, QueryTypeTraces, qs.Type)
 		assert.Equal(t, TraceByIDWeight, qs.Weight)
+	})
+}
+
+func TestQueryShapeCellWithoutCell(t *testing.T) {
+	typedNil := context.WithValue(context.Background(), queryShapeCtxKey{}, (*queryShapeCell)(nil))
+
+	for name, ctx := range map[string]context.Context{
+		"nil context":     nil,
+		"no cell":         context.Background(),
+		"typed nil cell":  typedNil,
+		"other value set": context.WithValue(context.Background(), queryShapeCtxKey{}, "not a cell"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NotPanics(t, func() {
+				_, ok := QueryShapeFromContext(ctx)
+				require.False(t, ok)
+
+				_, ok = EstimatedBytesFromContext(ctx)
+				require.False(t, ok)
+
+				EstimatedBytesAdder(ctx)(10)
+				setQueryShapeOnContext(ctx, QueryShape{Type: QueryTypeSearch})
+			})
+		})
+	}
+}
+
+func TestEstimatedBytesCell(t *testing.T) {
+	t.Run("without a cell", func(t *testing.T) {
+		for _, ctx := range []context.Context{nil, context.Background()} {
+			_, ok := EstimatedBytesFromContext(ctx)
+			require.False(t, ok)
+			require.NotPanics(t, func() { EstimatedBytesAdder(ctx)(10) })
+		}
+	})
+
+	t.Run("sums up the estimates of concurrent jobs", func(t *testing.T) {
+		ctx := WithQueryShapeCell(context.Background())
+
+		bytes, ok := EstimatedBytesFromContext(ctx)
+		require.True(t, ok)
+		require.Zero(t, bytes)
+
+		add := EstimatedBytesAdder(ctx)
+		var wg sync.WaitGroup
+		for range 50 {
+			wg.Go(func() {
+				for range 100 {
+					add(3)
+				}
+			})
+		}
+		wg.Wait()
+
+		bytes, _ = EstimatedBytesFromContext(ctx)
+		require.Equal(t, uint64(50*100*3), bytes)
+
+		// the shape is independent of the estimates
+		_, ok = QueryShapeFromContext(ctx)
+		require.False(t, ok)
+	})
+
+	t.Run("cells of different queries are independent", func(t *testing.T) {
+		a := WithQueryShapeCell(context.Background())
+		b := WithQueryShapeCell(context.Background())
+		EstimatedBytesAdder(a)(7)
+
+		bytesA, _ := EstimatedBytesFromContext(a)
+		bytesB, _ := EstimatedBytesFromContext(b)
+		require.Equal(t, uint64(7), bytesA)
+		require.Zero(t, bytesB)
 	})
 }

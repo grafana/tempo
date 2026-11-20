@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
 	"github.com/grafana/tempo/v3/modules/frontend/shardtracker"
 	"github.com/grafana/tempo/v3/modules/overrides"
@@ -264,7 +265,7 @@ func TestBuildBackendRequests(t *testing.T) {
 		iterFn := backendJobsFunc(tc.metas, tc.targetBytesPerRequest, defaultMostRecentShards, math.MaxUint32)
 
 		go func() {
-			buildBackendRequests(ctx, "test", pipeline.NewHTTPRequest(req), searchReq, 0, iterFn, reqCh, cancelCause)
+			buildBackendRequests(ctx, "test", pipeline.NewHTTPRequest(req), searchReq, 0, iterFn, nil, reqCh, cancelCause)
 		}()
 
 		actualURIs := []string{}
@@ -386,7 +387,7 @@ func TestBuildBackendRequestsShardNumbers(t *testing.T) {
 			iterFn := backendJobsFunc(tc.metas, tc.targetBytesPerRequest, defaultMostRecentShards, math.MaxUint32)
 
 			go func() {
-				buildBackendRequests(ctx, "test", pipeline.NewHTTPRequest(req), searchReq, tc.firstShard, iterFn, reqCh, cancelCause)
+				buildBackendRequests(ctx, "test", pipeline.NewHTTPRequest(req), searchReq, tc.firstShard, iterFn, nil, reqCh, cancelCause)
 			}()
 
 			actualShardNumbers := []int{}
@@ -861,7 +862,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		IngesterShards:        1,
-	}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
+	}, nil, newJobsPerQueryHistogram(), nil, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
 	// query range straddles the QueryBackendAfter boundary so both backend and ingester are queried
@@ -908,7 +909,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
 		MaxSpansPerSpanSet:    100,
-	}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
+	}, nil, newJobsPerQueryHistogram(), nil, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
 	// no org id
@@ -948,7 +949,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
-	}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
+	}, nil, newJobsPerQueryHistogram(), nil, log.NewNopLogger())
 	testRT = sharder.Wrap(next)
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
@@ -1225,7 +1226,7 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 				MostRecentShards:      mostRecentShards,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				ConcurrentRequests:    5,
-			}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
+			}, nil, newJobsPerQueryHistogram(), nil, log.NewNopLogger())
 
 			// Create request with the test scenario time range
 			path := fmt.Sprintf("/?tags=service%%3Dapi&limit=100&start=%d&end=%d",
@@ -1244,11 +1245,13 @@ func TestSearchSharderReturnsConsistentShards(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				shardIdx := r.ResponseData()
-				return pipeline.NewHTTPToAsyncResponseWithRequestData(&http.Response{
-					Body:       io.NopCloser(strings.NewReader(resString)),
-					StatusCode: 200,
-				}, shardIdx), nil
+				return pipeline.NewAsyncResponse(shardResponse{
+					resp: &http.Response{
+						Body:       io.NopCloser(strings.NewReader(resString)),
+						StatusCode: 200,
+					},
+					shard: r.ResponseData(),
+				}), nil
 			})
 
 			testRT := sharder.Wrap(next)
@@ -1370,7 +1373,7 @@ func TestDefaultSpansPerSpanSet(t *testing.T) {
 				TargetBytesPerRequest:  defaultTargetBytesPerRequest,
 				DefaultSpansPerSpanSet: tc.configDefault,
 				MaxSpansPerSpanSet:     tc.maxSpansPerSpanSet,
-			}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
+			}, nil, newJobsPerQueryHistogram(), nil, log.NewNopLogger())
 			testRT := sharder.Wrap(next)
 
 			// Build request URL
@@ -1458,7 +1461,7 @@ func TestSkipASTTransformationsMerge(t *testing.T) {
 			sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			}, tc.globalSkip, newJobsPerQueryHistogram(), log.NewNopLogger())
+			}, tc.globalSkip, newJobsPerQueryHistogram(), nil, log.NewNopLogger())
 			testRT := sharder.Wrap(next)
 
 			urlPath := "/"
@@ -1642,7 +1645,7 @@ func TestSearchSharderScannedBytesLimit(t *testing.T) {
 				MaxDuration:           tc.maxDuration,
 				MinDuration:           tc.minDuration,
 				MaxScannedBytes:       tc.maxScannedBytes,
-			}, nil, newJobsPerQueryHistogram(), log.NewLogfmtLogger(&buf))
+			}, nil, newJobsPerQueryHistogram(), nil, log.NewLogfmtLogger(&buf))
 
 			req := httptest.NewRequest("GET", tc.query, nil)
 			// Unblocks the sharder's sender goroutine, since passing cases never read resp.
@@ -1676,7 +1679,7 @@ func TestSearchSharderCheckRangeSpan(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		MaxScannedBytes:       150,
-	}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
+	}, nil, newJobsPerQueryHistogram(), nil, log.NewNopLogger())
 	ctx, spans := recordCheckRangeSpans()
 	req := httptest.NewRequest("GET", "/?start=1&end=8200", nil).WithContext(user.InjectOrgID(ctx, "blerg"))
 
@@ -1714,10 +1717,63 @@ func TestSearchSharderScannedBytesLimitCutoff(t *testing.T) {
 			MaxDuration:           168 * time.Hour,
 			MaxScannedBytes:       500,
 			QueryBackendAfter:     30 * time.Minute,
-		}, nil, newJobsPerQueryHistogram(), log.NewNopLogger())
+		}, nil, newJobsPerQueryHistogram(), nil, log.NewNopLogger())
 		req := httptest.NewRequest("GET", fmt.Sprintf("/?start=%d&end=%d", now.Add(-time.Hour).Unix(), now.Add(-2*time.Minute).Unix()), nil)
 		req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 		resp, err := sharder.Wrap(nopNext).RoundTrip(pipeline.NewHTTPRequest(req))
 		testBadRequestFromResponses(t, resp, err, "search query time range of 58m0s reads too much data, the allowed range for tenant blerg is 28m0s")
 	})
 }
+
+func TestBuildBackendRequestsCost(t *testing.T) {
+	// the last job of each block covers the rest of the block. the bytes per page differ between the blocks
+	metas := []*backend.BlockMeta{
+		{Size_: 1000, TotalRecords: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000")},
+		{Size_: 2000, TotalRecords: 100, BlockID: backend.MustParse("00000000-0000-0000-0000-000000000001")},
+	}
+
+	req := httptest.NewRequest("GET", "/?k=test&v=test&start=10&end=20", nil)
+	searchReq, err := api.ParseSearchRequest(req)
+	require.NoError(t, err)
+
+	reqCh := make(chan pipeline.Request)
+	iterFn := backendJobsFunc(metas, 900, defaultMostRecentShards, math.MaxUint32)
+
+	go func() {
+		buildBackendRequests(t.Context(), "test", pipeline.NewHTTPRequest(req), searchReq, 0, iterFn, newTestEstimator(), reqCh, func(error) {})
+	}()
+
+	var actual []jobcost.Cost
+	for r := range reqCh {
+		actual = append(actual, r.Cost())
+	}
+
+	require.ElementsMatch(t, []jobcost.Cost{
+		{Kind: jobcost.KindBlock, Base: 900, Estimate: 9},
+		{Kind: jobcost.KindBlock, Base: 100, Estimate: 1},
+		{Kind: jobcost.KindBlock, Base: 900, Estimate: 9},
+		{Kind: jobcost.KindBlock, Base: 900, Estimate: 9},
+		{Kind: jobcost.KindBlock, Base: 200, Estimate: 2},
+	}, actual)
+}
+
+func TestBuildIngesterRequestCost(t *testing.T) {
+	req := httptest.NewRequest("GET", "/?q={}", nil)
+	searchReq, err := api.ParseSearchRequest(req)
+	require.NoError(t, err)
+
+	reqCh := make(chan pipeline.Request, 1)
+	require.NoError(t, buildIngesterRequest("test", pipeline.NewHTTPRequest(req), searchReq, newTestEstimator(), reqCh))
+
+	require.Equal(t, jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 1000}, (<-reqCh).Cost())
+}
+
+// shardResponse is the response of a job that echoes the data of its request.
+type shardResponse struct {
+	resp  *http.Response
+	shard any
+}
+
+func (r shardResponse) HTTPResponse() *http.Response { return r.resp }
+func (r shardResponse) RequestData() any             { return r.shard }
+func (r shardResponse) IsMetadata() bool             { return false }

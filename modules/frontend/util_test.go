@@ -196,51 +196,68 @@ func TestSetSpanAttrsWithShape(t *testing.T) {
 	})
 }
 
-func TestRecordResult_AdditionalMetrics(t *testing.T) {
-	t.Parallel()
+func TestRecordResult_EstimatedBytes(t *testing.T) {
+	spanAttrs := func(rec *tracetest.SpanRecorder) map[attribute.Key]attribute.Value {
+		ended := rec.Ended()
+		require.Len(t, ended, 1)
+		out := map[attribute.Key]attribute.Value{}
+		for _, kv := range ended[0].Attributes() {
+			out[kv.Key] = kv.Value
+		}
+		return out
+	}
 
-	logger := &recordingLogger{}
-	recordResult(
-		level.Info(logger), context.Background(),
-		map[string]int64{
-			"zMetric": 3,
-			"aMetric": 1,
-		},
-		"msg", "test",
-	)
+	record := func(ctx context.Context) (string, map[attribute.Key]attribute.Value) {
+		rec := tracetest.NewSpanRecorder()
+		tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+		ctx, span := tp.Tracer("test").Start(ctx, "test")
 
-	got := logger.String()
-	require.Contains(t, got, "msg test")
-	require.Contains(t, got, "aMetric 1")
-	require.Contains(t, got, "zMetric 3")
-}
-
-func TestRecordResult_NilAdditionalMetrics(t *testing.T) {
-	t.Parallel()
-
-	logger := &recordingLogger{}
-	recordResult(level.Info(logger), context.Background(), nil, "msg", "test")
-	require.Contains(t, logger.String(), "msg test")
-}
-
-func TestLogWithShape_RequestHeaderFields(t *testing.T) {
-	t.Parallel()
-
-	t.Run("appends header fields from the context", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := withRequestHeaderFields(context.Background(), []any{"header_user_agent", "Grafana/12.0.0"})
 		logger := &recordingLogger{}
-		logWithShape(level.Info(logger), ctx, "msg", "search response")
-		require.Equal(t, "level info msg search response header_user_agent Grafana/12.0.0\n", logger.String())
+		recordResult(level.Info(logger), ctx, nil, "msg", "search response", "inspected_bytes", uint64(1024))
+		span.End()
+
+		return logger.String(), spanAttrs(rec)
+	}
+
+	t.Run("adds the estimated bytes of the jobs to the log and the span", func(t *testing.T) {
+		ctx := pipeline.WithQueryShapeCell(context.Background())
+		add := pipeline.EstimatedBytesAdder(ctx)
+		add(1500)
+		add(500)
+
+		line, attrs := record(ctx)
+		require.Equal(t, "level info msg search response inspected_bytes 1024 estimated_bytes 2000\n", line)
+		assert.Equal(t, int64(2000), attrs["estimated_bytes"].AsInt64())
 	})
 
-	t.Run("logs only the given fields without header fields", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := withRequestHeaderFields(context.Background(), nil)
-		logger := &recordingLogger{}
-		logWithShape(level.Info(logger), ctx, "msg", "search response")
-		require.Equal(t, "level info msg search response\n", logger.String())
+	t.Run("logs zero for a query without a job estimate", func(t *testing.T) {
+		line, attrs := record(pipeline.WithQueryShapeCell(context.Background()))
+		require.Equal(t, "level info msg search response inspected_bytes 1024 estimated_bytes 0\n", line)
+		assert.Equal(t, int64(0), attrs["estimated_bytes"].AsInt64())
 	})
+
+	t.Run("does not add the estimated bytes without a cell", func(t *testing.T) {
+		line, attrs := record(context.Background())
+		require.Equal(t, "level info msg search response inspected_bytes 1024\n", line)
+		assert.NotContains(t, attrs, attribute.Key("estimated_bytes"))
+	})
+}
+
+// the lines and spans written before any job exists, like the check of the scanned bytes limit, do not carry
+// the estimated bytes even though their context has the cell
+func TestLogWithShapeAndSpanAttrsDoNotAddEstimatedBytes(t *testing.T) {
+	rec := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+	ctx, span := tp.Tracer("test").Start(context.Background(), "test")
+	ctx = pipeline.WithQueryShapeCell(ctx)
+
+	logger := &recordingLogger{}
+	logWithShape(level.Info(logger), ctx, "msg", "scanned bytes limit")
+	setSpanAttrsWithShape(ctx, "estimated_scanned_bytes", int64(10))
+	span.End()
+
+	require.Equal(t, "level info msg scanned bytes limit\n", logger.String())
+	for _, kv := range rec.Ended()[0].Attributes() {
+		assert.NotEqual(t, attribute.Key("estimated_bytes"), kv.Key)
+	}
 }

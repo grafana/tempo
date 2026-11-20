@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 )
 
@@ -234,6 +235,28 @@ func TestFrontendBadConfigFails(t *testing.T) {
 		},
 	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "most recent shards must be greater than 0")
+	assert.Nil(t, f)
+}
+
+func TestFrontendInvalidJobCostConfigFails(t *testing.T) {
+	f, err := New(Config{
+		TraceByID: TraceByIDConfig{
+			QueryShards: maxQueryShards,
+			SLO:         testSLOcfg,
+		},
+		Search: SearchConfig{
+			Sharder: SearchSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
+			},
+			SLO: testSLOcfg,
+		},
+		JobCost: jobcost.Config{
+			Calibration: jobcost.CalibrationConfig{Enabled: true, MinFactor: 0.5, MaxFactor: 0.1},
+		},
+	}, nil, nil, nil, nil, "", fakeHTTPAuthMiddleware, nil, log.NewNopLogger(), nil)
+	assert.ErrorContains(t, err, "frontend job cost: query_frontend.job_cost.calibration: min_factor (0.5) and max_factor (0.1)")
 	assert.Nil(t, f)
 }
 
