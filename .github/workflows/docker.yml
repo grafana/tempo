@@ -24,7 +24,7 @@ jobs:
 
   get-tag:
     if: github.repository == 'grafana/tempo'  # skip in forks
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     outputs:
@@ -121,7 +121,7 @@ jobs:
     strategy:
       matrix:
         component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       TAG: ${{ needs.get-tag.outputs.tag }}
       IMAGE_NAME: us-docker.pkg.dev/grafanalabs-global/dockerhub-tempo-prod-mirror/${{ matrix.component }}
@@ -152,7 +152,7 @@ jobs:
   resolve-digests:
     if: github.repository == 'grafana/tempo'
     needs: ['get-tag', 'manifest']
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -210,7 +210,7 @@ jobs:
   cd-to-dev-env:
     # This job deploys the latest main commit to the dev environment
     if: github.repository == 'grafana/tempo' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: ['manifest', 'get-tag']
     permissions:
       id-token: write
