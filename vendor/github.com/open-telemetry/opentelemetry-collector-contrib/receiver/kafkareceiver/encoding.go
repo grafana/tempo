@@ -26,7 +26,7 @@ var (
 	errInvalidComponentType     = errors.New("invalid component type")
 )
 
-func newTracesUnmarshaler(encoding string, _ receiver.Settings, host component.Host) (ptrace.Unmarshaler, error) {
+func newTracesUnmarshaler(encoding string, set receiver.Settings, host component.Host) (ptrace.Unmarshaler, error) {
 	// Extensions take precedence.
 	if unmarshaler, err := loadEncodingExtension[ptrace.Unmarshaler](host, encoding, "traces"); err != nil {
 		if !errors.Is(err, errInvalidComponentType) && !errors.Is(err, errUnknownEncodingExtension) {
@@ -41,8 +41,10 @@ func newTracesUnmarshaler(encoding string, _ receiver.Settings, host component.H
 	case "otlp_json":
 		return &ptrace.JSONUnmarshaler{}, nil
 	case "jaeger_proto":
+		set.Logger.Warn("The jaeger_proto encoding is deprecated. Please migrate to jaegerencodingextension with protocol: protobuf.")
 		return unmarshaler.JaegerProtoSpanUnmarshaler{}, nil
 	case "jaeger_json":
+		set.Logger.Warn("The jaeger_json encoding is deprecated. Please migrate to jaegerencodingextension with protocol: json.")
 		return unmarshaler.JaegerJSONSpanUnmarshaler{}, nil
 	case "zipkin_proto":
 		return zipkinv2.NewProtobufTracesUnmarshaler(false, false), nil
@@ -71,6 +73,7 @@ func newLogsUnmarshaler(encoding string, set receiver.Settings, host component.H
 	case "raw":
 		return unmarshaler.RawLogsUnmarshaler{}, nil
 	case "json":
+		set.Logger.Warn("The json encoding is deprecated. Please migrate to jsonlogencodingextension with array_mode: false.")
 		return unmarshaler.JSONLogsUnmarshaler{}, nil
 	case "azure_resource_logs":
 		set.Logger.Warn("The azure_resource_logs encoding is deprecated. Please migrate to azureencodingextension.")

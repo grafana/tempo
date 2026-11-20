@@ -8,7 +8,7 @@ status:
 
 feature_gates:
   - id: pkg.translator.jaeger.DontEmitV0HttpConventions
-    stage: alpha
+    stage: beta
     description: >-
       When enabled, the Jaeger translator no longer emits the deprecated
       http.status_code attribute (semconv v1.25.0).
@@ -16,7 +16,7 @@ feature_gates:
     from_version: v0.158.0
     reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45036
   - id: pkg.translator.jaeger.EmitV1HttpConventions
-    stage: alpha
+    stage: beta
     description: >-
       When enabled, the Jaeger translator emits http.response.status_code
       (semconv v1.40.0) instead of the deprecated http.status_code

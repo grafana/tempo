@@ -18,7 +18,11 @@ type partitionMailbox struct {
 
 	mu sync.Mutex
 	// batches is the bounded FIFO queue of batches waiting for the worker.
-	batches []kgo.FetchTopicPartition
+	batches []queuedBatch
+	// maxBytes caps queuedBytes. 0 means no byte cap.
+	maxBytes int
+	// queuedBytes is the sum of the sizes of the waiting batches.
+	queuedBytes int
 	// notify wakes the worker when work or a rewind is available. Its single
 	// buffered signal represents the state change, not each individual batch.
 	notify chan struct{}
@@ -26,12 +30,21 @@ type partitionMailbox struct {
 	pendingRewind *kgo.EpochOffset
 }
 
-// newPartitionMailbox creates a mailbox with capacity waiting batch slots.
-func newPartitionMailbox(ctx context.Context, capacity int) *partitionMailbox {
+// queuedBatch is a batch waiting for the worker and the bytes it counts against
+// maxBytes. dequeue subtracts the stored size, so the total can't drift.
+type queuedBatch struct {
+	batch kgo.FetchTopicPartition
+	size  int
+}
+
+// newPartitionMailbox creates a mailbox with capacity waiting batch slots and
+// a cap of maxBytes on the waiting batches. 0 means no byte cap.
+func newPartitionMailbox(ctx context.Context, capacity, maxBytes int) *partitionMailbox {
 	return &partitionMailbox{
-		ctx:     ctx,
-		batches: make([]kgo.FetchTopicPartition, 0, capacity),
-		notify:  make(chan struct{}, 1),
+		ctx:      ctx,
+		batches:  make([]queuedBatch, 0, capacity),
+		maxBytes: maxBytes,
+		notify:   make(chan struct{}, 1),
 	}
 }
 
@@ -42,22 +55,29 @@ func (m *partitionMailbox) enqueue(batch kgo.FetchTopicPartition, pause func(par
 		return false
 	}
 
+	// Size the batch before taking the lock, and only when a byte cap applies.
+	size := 0
+	if m.maxBytes > 0 {
+		size = batchSize(batch)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	// PollRecords may return work while a rewind is pending or after the mailbox
 	// reaches capacity. Remember the earliest rejected record so it is fetched again.
-	if m.pendingRewind != nil || len(m.batches) == cap(m.batches) {
+	if m.pendingRewind != nil || m.full() {
 		m.requestRewindLocked(batch.Records[0], false)
 		pause(partitionPauseRewind)
 		return false
 	}
 
-	m.batches = append(m.batches, batch)
+	m.batches = append(m.batches, queuedBatch{batch: batch, size: size})
+	m.queuedBytes += size
 	m.notifyLocked()
-	// Pause when the final slot is filled so franz-go discards any additional
-	// records it buffered for this partition before another poll returns them.
-	if len(m.batches) == cap(m.batches) {
+	// Pause when the mailbox fills so franz-go discards any additional records it
+	// buffered for this partition before another poll returns them.
+	if m.full() {
 		pause(partitionPauseBackpressure)
 	}
 	return true
@@ -72,15 +92,16 @@ func (m *partitionMailbox) dequeue(resume func()) (kgo.FetchTopicPartition, bool
 		return kgo.FetchTopicPartition{}, false
 	}
 
-	batch := m.batches[0]
+	queued := m.batches[0]
 	m.batches = slices.Delete(m.batches, 0, 1)
+	m.queuedBytes -= queued.size
 	// A pending rewind must move the fetch position before fetching resumes.
 	// Calling resume under the lock also prevents it from overtaking an older
 	// pause operation.
-	if m.pendingRewind == nil {
+	if m.pendingRewind == nil && !m.full() {
 		resume()
 	}
-	return batch, true
+	return queued.batch, true
 }
 
 // requestRewind records the earliest offset that must be fetched again,
@@ -96,8 +117,7 @@ func (m *partitionMailbox) requestRewind(record *kgo.Record, clearQueue bool, pa
 // requestRewindLocked updates rewind state while the caller holds m.mu.
 func (m *partitionMailbox) requestRewindLocked(record *kgo.Record, clearQueue bool) {
 	if clearQueue {
-		clear(m.batches)
-		m.batches = m.batches[:0]
+		m.clearLocked()
 	}
 	// Multiple rejected fetches may arrive before the poll loop applies the
 	// rewind. Keep the earliest offset so no rejected record is skipped.
@@ -108,6 +128,13 @@ func (m *partitionMailbox) requestRewindLocked(record *kgo.Record, clearQueue bo
 		}
 	}
 	m.notifyLocked()
+}
+
+// full reports whether the mailbox has no room for another batch. The byte cap
+// applies only when set. The caller holds m.mu.
+func (m *partitionMailbox) full() bool {
+	return len(m.batches) == cap(m.batches) ||
+		(m.maxBytes > 0 && m.queuedBytes >= m.maxBytes)
 }
 
 // hasPendingOffsetChange reports whether the fetch position must change.
@@ -142,9 +169,15 @@ func (m *partitionMailbox) discard() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	m.clearLocked()
+	m.pendingRewind = nil
+}
+
+// clearLocked drops every waiting batch while the caller holds m.mu.
+func (m *partitionMailbox) clearLocked() {
 	clear(m.batches)
 	m.batches = m.batches[:0]
-	m.pendingRewind = nil
+	m.queuedBytes = 0
 }
 
 // notifyLocked wakes the worker without blocking while the caller holds m.mu.
@@ -153,4 +186,14 @@ func (m *partitionMailbox) notifyLocked() {
 	case m.notify <- struct{}{}:
 	default:
 	}
+}
+
+// batchSize returns the bytes batch counts against max_prefetch.bytes: the
+// inflightSize of each of its records.
+func batchSize(batch kgo.FetchTopicPartition) int {
+	size := 0
+	for _, rec := range batch.Records {
+		size += inflightSize(rec)
+	}
+	return size
 }

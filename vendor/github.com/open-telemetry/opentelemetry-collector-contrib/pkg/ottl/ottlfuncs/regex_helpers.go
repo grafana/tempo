@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
@@ -17,6 +18,7 @@ type dynamicRegex[K any] struct {
 	funcName string
 	getter   ottl.StringGetter[K]
 	value    *regexp.Regexp
+	literal  string
 }
 
 // newDynamicRegex creates a new dynamicRegex instance that handles both literal and dynamic regex patterns.
@@ -28,13 +30,26 @@ func newDynamicRegex[K any](funcName string, getter ottl.StringGetter[K]) (*dyna
 		if err != nil {
 			return nil, fmt.Errorf(invalidRegexErrMsg, funcName, pattern, err)
 		}
+		var literal string
+		// LiteralPrefix may report complete for anchored expressions.
+		if prefix, complete := r.LiteralPrefix(); complete && pattern == regexp.QuoteMeta(prefix) {
+			literal = prefix
+		}
 		return &dynamicRegex[K]{
 			funcName: funcName,
 			getter:   getter,
 			value:    r,
+			literal:  literal,
 		}, nil
 	}
 	return &dynamicRegex[K]{funcName: funcName, getter: getter}, nil
+}
+
+func (l *dynamicRegex[K]) matchString(compiled *regexp.Regexp, value string) bool {
+	if l.literal != "" {
+		return strings.Contains(value, l.literal)
+	}
+	return compiled.MatchString(value)
 }
 
 // compile returns a compiled regex pattern. If the pattern was pre-compiled (literal), it returns the cached version.

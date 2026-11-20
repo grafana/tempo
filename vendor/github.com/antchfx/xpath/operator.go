@@ -7,10 +7,10 @@ import "math"
 type logical func(iterator, string, interface{}, interface{}) bool
 
 var logicalFuncs = [][]logical{
-	{cmpBooleanBoolean, nil, nil, nil},
-	{nil, cmpNumericNumeric, cmpNumericString, cmpNumericNodeSet},
-	{nil, cmpStringNumeric, cmpStringString, cmpStringNodeSet},
-	{nil, cmpNodeSetNumeric, cmpNodeSetString, cmpNodeSetNodeSet},
+	{cmpBooleanBoolean, cmpBooleanNumeric, cmpBooleanString, cmpBooleanNodeSet},
+	{cmpNumberBoolean, cmpNumericNumeric, cmpNumericString, cmpNumericNodeSet},
+	{cmpStringBoolean, cmpStringNumeric, cmpStringString, cmpStringNodeSet},
+	{cmpNodeSetBoolean, cmpNodeSetNumeric, cmpNodeSetString, cmpNodeSetNodeSet},
 }
 
 // number vs number
@@ -47,12 +47,25 @@ func cmpStringStringF(op string, a, b string) bool {
 
 func cmpBooleanBooleanF(op string, a, b bool) bool {
 	switch op {
+	case "=":
+		return a == b
+	case "!=":
+		return a != b
 	case "or":
 		return a || b
 	case "and":
 		return a && b
 	}
 	return false
+}
+
+func cmpNumberBoolean(t iterator, op string, m, n interface{}) bool {
+	a := m.(float64)
+	b := 0.0
+	if n.(bool) {
+		b = 1.0
+	}
+	return cmpNumericNumeric(t, op, a, b)
 }
 
 func cmpNumericNumeric(t iterator, op string, m, n interface{}) bool {
@@ -71,16 +84,28 @@ func cmpNumericNodeSet(t iterator, op string, m, n interface{}) bool {
 	a := m.(float64)
 	b := n.(query)
 
-	for {
-		node := b.Select(t)
-		if node == nil {
-			break
-		}
-		if cmpNumberNumberF(op, a, stringToNumber(node.Value())) {
-			return true
-		}
+	node := b.Select(t)
+	if node == nil {
+		right := math.NaN()
+		return cmpNumberNumberF(op, a, right)
 	}
-	return false
+
+	right := stringToNumber(node.Value())
+	return cmpNumberNumberF(op, a, right)
+}
+
+func cmpNodeSetBoolean(t iterator, op string, m, n interface{}) bool {
+	q := m.(query)
+	b := 0.0
+	if n.(bool) {
+		b = 1.0
+	}
+	node := q.Select(t)
+	if node == nil {
+		return cmpNumericNumeric(t, op, math.NaN(), b)
+	}
+	a := stringToNumber(node.Value())
+	return cmpNumericNumeric(t, op, a, b)
 }
 
 func cmpNodeSetNumeric(t iterator, op string, m, n interface{}) bool {
@@ -140,6 +165,15 @@ func cmpNodeSetNodeSet(t iterator, op string, m, n interface{}) bool {
 	}
 }
 
+func cmpStringBoolean(t iterator, op string, m, n interface{}) bool {
+	a := stringToNumber(m.(string))
+	b := 0.0
+	if n.(bool) {
+		b = 1.0
+	}
+	return cmpNumericNumeric(t, op, a, b)
+}
+
 func cmpStringNumeric(t iterator, op string, m, n interface{}) bool {
 	a := m.(string)
 	b := n.(float64)
@@ -155,22 +189,52 @@ func cmpStringString(t iterator, op string, m, n interface{}) bool {
 func cmpStringNodeSet(t iterator, op string, m, n interface{}) bool {
 	a := m.(string)
 	b := n.(query)
-	for {
-		node := b.Select(t)
-		if node == nil {
-			break
-		}
-		if cmpStringStringF(op, a, node.Value()) {
-			return true
-		}
+
+	left := stringToNumber(a)
+
+	node := b.Select(t)
+	if node == nil {
+		return cmpNumberNumberF(op, left, math.NaN())
 	}
-	return false
+
+	right := stringToNumber(node.Value())
+	return cmpNumberNumberF(op, left, right)
 }
 
 func cmpBooleanBoolean(t iterator, op string, m, n interface{}) bool {
 	a := m.(bool)
 	b := n.(bool)
 	return cmpBooleanBooleanF(op, a, b)
+}
+
+func cmpBooleanNumeric(t iterator, op string, m, n interface{}) bool {
+	a := n.(float64)
+	b := 0.0
+	if m.(bool) {
+		b = 1.0
+	}
+	return cmpNumberNumberF(op, a, b)
+}
+
+func cmpBooleanString(t iterator, op string, m, n interface{}) bool {
+	a := 0.0
+	if m.(bool) {
+		a = 1.0
+	}
+	b := stringToNumber(n.(string))
+	return cmpNumberNumberF(op, a, b)
+}
+
+func cmpBooleanNodeSet(t iterator, op string, m, n interface{}) bool {
+	a := m.(bool)
+	q := n.(query)
+
+	node := q.Select(t)
+	if node == nil {
+		return cmpBooleanNumeric(t, op, a, math.NaN())
+	}
+	num := stringToNumber(node.Value())
+	return cmpBooleanNumeric(t, op, a, num)
 }
 
 // eqFunc is an `=` operator.
