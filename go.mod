@@ -52,7 +52,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.161.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.164.1
-	github.com/parquet-go/parquet-go v0.32.0
+	github.com/parquet-go/parquet-go v0.32.1
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/prometheus/common v0.74.0
@@ -131,7 +131,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
-	github.com/andybalholm/brotli v1.2.7 // indirect
+	github.com/andybalholm/brotli v1.3.0 // indirect
 	github.com/antchfx/xmlquery v1.5.1 // indirect
 	github.com/antchfx/xpath v1.3.8 // indirect
 	github.com/apache/arrow-go/v18 v18.7.0 // indirect
