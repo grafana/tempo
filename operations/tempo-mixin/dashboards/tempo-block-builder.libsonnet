@@ -1,10 +1,11 @@
 local dashboard_utils = import 'dashboard-utils.libsonnet';
 local g = import 'grafana-builder/grafana.libsonnet';
+local filename = 'tempo-block-builder.json';
 
 dashboard_utils {
   grafanaDashboards+: {
-    'tempo-block-builder.json':
-      $.dashboard('Tempo / Block builder')
+    [filename]:
+      ($.dashboard('Tempo / Block builder') + { uid: std.md5(filename) })
       .addClusterSelectorTemplates()
       .addRow(
         $.row('Fetched records')

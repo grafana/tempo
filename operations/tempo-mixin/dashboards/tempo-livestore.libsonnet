@@ -1,12 +1,13 @@
 local dashboard_utils = import 'dashboard-utils.libsonnet';
 local g = import 'grafana-builder/grafana.libsonnet';
+local filename = 'tempo-livestore.json';
 
 // Livestore is mostly diagnosed by zone. The live dashboard uses Grafana's v2
 // RowsLayout/GridLayout model; the mixin still emits the classic row model, so
 // this keeps the panels and queries equivalent while using the existing helpers.
 dashboard_utils {
   grafanaDashboards+: {
-    'tempo-livestore.json':
+    [filename]:
       local liveStoreContainer = $._config.jobs.live_store;
       local liveStorePodRegex = liveStoreContainer + '-zone-.*';
       // Match the source dashboard label order to keep generated query diffs small.
@@ -170,7 +171,7 @@ dashboard_utils {
         type: 'query',
       };
 
-      $.dashboard('Tempo / Livestore')
+      ($.dashboard('Tempo / Livestore') + { uid: std.md5(filename) })
       .addClusterSelectorTemplates() {
         description: 'Tempo LiveStore dashboard',
         refresh: '',
