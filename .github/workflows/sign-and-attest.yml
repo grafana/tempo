@@ -36,7 +36,7 @@ jobs:
   sign-and-attest:
     name: Sign and attest image
     if: github.repository == 'grafana/tempo'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write     # keyless cosign OIDC, provenance signing, and WIF auth to GAR

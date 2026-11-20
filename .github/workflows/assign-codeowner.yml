@@ -23,7 +23,7 @@ jobs:
   assign:
     name: Balance assignments across code owners
     if: github.repository == 'grafana/tempo'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     # Reads repository contents and assigns a single owner to pull requests.
     # Adding an assignee to a PR needs pull-requests: write (the assignees
