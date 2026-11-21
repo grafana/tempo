@@ -53,7 +53,7 @@ This is different to the default TraceQL maximum time range of 168 hours (7 days
 
 Use `query_frontend.metrics.max_scanned_bytes` to limit a query by the bytes of the backend blocks it scans. It allows tenants to query time ranges between `min_duration` and `max_duration` that scan up to `max_scanned_bytes`.
 
-A query of `min_duration` or less is always allowed, and a longer query over the allowed range is rejected with a 400 error. `min_duration` must not be above `max_duration`.
+A query of `min_duration` or less is always allowed, and a longer query over the allowed range is rejected with a 400 error. `min_duration` must not be above `max_duration`. The step is checked before the range limits, so a query with a too small step is rejected with a step error before `max_duration` or `max_scanned_bytes` is checked.
 Only backend blocks count toward `max_scanned_bytes`, so data newer than `query_backend_after` isn't counted.
 The limit counts the requested range, so step alignment can add up to 4 steps of data on top of `max_scanned_bytes`.
 The default of `0` disables the limit.

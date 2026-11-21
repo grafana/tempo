@@ -823,6 +823,7 @@ metrics_generator:
             # using the OpenTelemetry probability sampling threshold (ot=th:<hex>).
             # When enabled, the tracestate threshold takes priority over span_multiplier_key.
             # Refer to https://opentelemetry.io/docs/specs/otel/trace/tracestate-probability-sampling/
+            # This setting also enables experimental support for the `zc:1` (zero count) sub-key.
             [enable_tracestate_span_multiplier: <bool> | default = false]
 
             # Enables additional labels for services and virtual nodes.
@@ -887,6 +888,7 @@ metrics_generator:
             # using the OpenTelemetry probability sampling threshold (ot=th:<hex>).
             # When enabled, the tracestate threshold takes priority over span_multiplier_key.
             # Refer to https://opentelemetry.io/docs/specs/otel/trace/tracestate-probability-sampling/
+            # This setting also enables experimental support for the `zc:1` (zero count) sub-key.
             [enable_tracestate_span_multiplier: <bool> | default = false]
 
             # List of policies that will be applied to spans for inclusion or exclusion.

@@ -161,7 +161,7 @@ The processor computes the inverse of this value to scale the metrics accordingl
 For example, if a span has attribute `X-SampleRatio=0.1` (10% sampling), setting `span_multiplier_key: "X-SampleRatio"` causes each sampled span to count as 10 requests.
 
 The `enable_tracestate_span_multiplier` option provides an alternative approach that extracts the multiplier from the W3C tracestate header using the [OpenTelemetry probability sampling threshold](https://opentelemetry.io/docs/specs/otel/trace/tracestate-probability-sampling/) (`ot=th:<hex>`).
-When enabled, the tracestate threshold takes priority over `span_multiplier_key`.
+When enabled, the tracestate threshold takes priority over `span_multiplier_key`. It also provides experimental support for the proposed `zc:1` (zero count) sub-key. When an edge contains spans with the zero count sub-key, the edge is weighted by zero and does not increment request counts or latency histograms.
 
 ### Client and server dimension prefixes
 

@@ -45,6 +45,7 @@ as well as bloom filters and indexes for efficient querying.
 During block creation, the block-builder deduplicates spans within each trace.
 Because the block-builder rewinds to the last committed Kafka offset on each cycle, replicated or re-consumed records can produce duplicate spans.
 The block-builder identifies duplicates using a combination of span ID and span kind, and removes them before writing the block.
+If deduplication leaves an instrumentation scope or resource with no spans, the block-builder drops the empty scope or resource entirely, preventing placeholder spans from appearing in TraceQL results.
 
 Use the `tempo_block_builder_spans_deduped_total` metric (labeled by `tenant`) to track how many duplicate spans are removed.
 

@@ -348,6 +348,8 @@ metrics_generator:
       enable_tracestate_span_multiplier: true
 ```
 
+When enabled, Tempo also provides experimental support for the proposed `zc` (zero count) sub-key. A span with `ot=...zc:1...` in its tracestate is assigned an adjusted count of zero and contributes to no span metrics series. The `zc` sub-key takes precedence over the `th` sub-key.
+
 If the tracestate is absent or invalid, the attribute-based approach is used as a fallback.
 
 ### Filtering

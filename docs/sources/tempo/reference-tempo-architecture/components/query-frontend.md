@@ -48,7 +48,7 @@ In shared clusters, keeping this value lower ensures fair scheduling across tena
 The allowed range is the longest window ending at the query end whose backend blocks fit in `max_scanned_bytes`.
 It's then raised to `min_duration` and capped at `max_duration`.
 Longer queries are rejected with a 400 error that reports the allowed range.
-A query of `min_duration` or less is always allowed. A query longer than `max_duration` is always rejected with the `max_duration` error, before `max_scanned_bytes` is checked.
+A query of `min_duration` or less is always allowed. A query longer than `max_duration` is always rejected with the `max_duration` error, before `max_scanned_bytes` is checked. For metrics queries, the step is checked before the range limits, so a query with a too small step is rejected with a step error before `max_duration` or `max_scanned_bytes` is checked.
 Tempo fails to start if `min_duration` is above `max_duration`. A per-tenant overrides reload fails if a tenant sets `min_search_duration` above `max_search_duration`, or `min_metrics_duration` above `max_metrics_duration`, and Tempo keeps the last valid overrides. If the overrides are invalid at startup, Tempo fails to start. If a tenant override and the `query_frontend` value give a `min_duration` above `max_duration`, `max_duration` wins.
 Data newer than `query_backend_after` isn't counted.
 Metrics queries are counted over the requested range. Step alignment can widen the scanned range by up to 4 steps, so a query with a large step can scan more than `max_scanned_bytes`, the same as with `max_duration`.
