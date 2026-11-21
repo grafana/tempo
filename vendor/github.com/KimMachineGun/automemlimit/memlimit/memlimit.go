@@ -98,7 +98,7 @@ func WithRefreshInterval(ctx context.Context, refresh time.Duration) Option {
 // AUTOMEMLIMIT overrides the configured ratio with a value in (0.0, 1.0].
 // Setting it to "off" disables Set.
 //
-// If the GOMEMLIMIT environment variable is present or AUTOMEMLIMIT is set to "off",
+// If GOMEMLIMIT is set to a non-empty value or AUTOMEMLIMIT is set to "off",
 // Set returns the current GOMEMLIMIT without calling the provider or starting a refresh goroutine.
 //
 // Set returns the resulting GOMEMLIMIT on success.
@@ -122,7 +122,7 @@ func Set(opts ...Option) (_limit int64, _err error) {
 
 	snapshot := debug.SetMemoryLimit(-1)
 
-	if val, ok := os.LookupEnv(envGOMEMLIMIT); ok {
+	if val := os.Getenv(envGOMEMLIMIT); val != "" {
 		cfg.logger.Info("GOMEMLIMIT is already set, skipping", slog.String(envGOMEMLIMIT, val))
 		return snapshot, nil
 	}
