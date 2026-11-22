@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -76,6 +77,9 @@ var (
 
 // asType attempts to cast the given interface to the given type
 func asType[T any](content any) (*T, bool) {
+	if ptr, ok := content.(*T); ok {
+		return ptr, ptr != nil
+	}
 	tc, ok := content.(T)
 	if !ok {
 		return nil, false
@@ -711,7 +715,11 @@ func ParseContent(contentMap map[string]any) (Content, error) {
 		}
 		isError, _ := contentMap["isError"].(bool)
 		var contentItems []Content
-		if rawContent, ok := contentMap["content"].([]any); ok {
+		if value := contentMap["content"]; value != nil {
+			rawContent, ok := value.([]any)
+			if !ok {
+				return nil, fmt.Errorf("tool_result content: expected array, got %T", value)
+			}
 			for i, item := range rawContent {
 				itemMap, ok := item.(map[string]any)
 				if !ok {
@@ -864,15 +872,18 @@ func ParseCallToolResult(rawMessage *json.RawMessage) (*CallToolResult, error) {
 	}
 
 	var probe struct {
-		Content    json.RawMessage `json:"content"`
-		ResultType ResultType      `json:"resultType"`
+		Content           json.RawMessage `json:"content"`
+		StructuredContent json.RawMessage `json:"structuredContent"`
+		ResultType        ResultType      `json:"resultType"`
 	}
 	if err := json.Unmarshal(*rawMessage, &probe); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	// A result asking for more input (SEP-2322) carries only the input
-	// requests and the request state, so it legitimately has no content.
-	if probe.Content == nil && probe.ResultType != ResultTypeInputRequired {
+	// A structured-only result, and a result asking for more input (SEP-2322)
+	// that carries only the input requests and the request state, legitimately
+	// have no content. A null structuredContent counts as missing.
+	hasStructured := len(probe.StructuredContent) > 0 && !bytes.Equal(bytes.TrimSpace(probe.StructuredContent), []byte("null"))
+	if probe.Content == nil && !hasStructured && probe.ResultType != ResultTypeInputRequired {
 		return nil, fmt.Errorf("content is missing")
 	}
 
@@ -1307,6 +1318,11 @@ func ToInt64Ptr(i int64) *int64 {
 func GetTextFromContent(content any) string {
 	switch c := content.(type) {
 	case TextContent:
+		return c.Text
+	case *TextContent:
+		if c == nil {
+			return fmt.Sprint(c)
+		}
 		return c.Text
 	case map[string]any:
 		// Handle JSON unmarshaled content
