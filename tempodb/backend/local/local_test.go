@@ -274,3 +274,34 @@ func TestWriteAtomicRespectsCancelledContext(t *testing.T) {
 	entries, _ := os.ReadDir(b.rootPath(keypath))
 	require.Empty(t, entries)
 }
+
+func TestListBlocks(t *testing.T) {
+	b, err := NewBackend(&Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	tenant := "tenant"
+
+	write := func(name string, keypath backend.KeyPath) {
+		err := b.Write(ctx, name, keypath, bytes.NewReader([]byte("x")), 1, nil)
+		require.NoError(t, err)
+	}
+
+	liveID := uuid.New()
+	compactedID := uuid.New()
+	noCompactID := uuid.New()
+
+	write(backend.MetaName, backend.KeyPathForBlock(liveID, tenant))
+	write(backend.CompactedMetaName, backend.KeyPathForBlock(compactedID, tenant))
+	write(backend.NoCompactFileName, backend.KeyPathForBlock(noCompactID, tenant))
+
+	// stray files and non-block directories are ignored
+	require.NoError(t, os.MkdirAll(b.rootPath(backend.KeyPath{tenant, "not-a-uuid"}), 0o700))
+	write("random.file", backend.KeyPath{tenant})
+
+	metas, compactedMetas, noCompact, err := b.ListBlocks(ctx, tenant)
+	require.NoError(t, err)
+	assert.Equal(t, []uuid.UUID{liveID}, metas)
+	assert.Equal(t, []uuid.UUID{compactedID}, compactedMetas)
+	assert.Equal(t, []uuid.UUID{noCompactID}, noCompact)
+}

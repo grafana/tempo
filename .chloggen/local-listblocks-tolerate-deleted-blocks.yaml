@@ -1,0 +1,8 @@
+change_type: bug_fix
+component: storage
+note: "Fix intermittent \"failed listing tenant blocks: no such file or directory\" errors on the local backend when the compactor deletes a block while the blocklist poller is walking the storage directory."
+subtext: |
+  A block deleted mid-walk no longer fails the entire ListBlocks call; the
+  poller skips the vanished block and keeps listing the remaining ones
+  instead of discarding the whole polling cycle.
+user: esbobkov

@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -199,6 +200,12 @@ func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UU
 	fff := os.DirFS(rootPath)
 	err = fs.WalkDir(fff, ".", func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
+			// The compactor may delete a block while we are walking the tree.
+			// A block that vanished mid-walk is not an error: skip it and
+			// keep listing the remaining blocks.
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			return err
 		}
 
