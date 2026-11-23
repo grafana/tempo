@@ -2,6 +2,7 @@ package generator
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -322,4 +323,33 @@ func TestPartitionHandoff_LeaveGroupTriggersImmediateReassignment(t *testing.T) 
 			// correct: partition did not transfer before session timeout
 		}
 	})
+}
+
+// TestEnqueueFetches_KeepsRecordsOnPartitionError checks that a fetch error on
+// one partition doesn't drop the records fetched from the others. Auto-commit
+// marks every polled record as read, so a dropped record would be lost.
+func TestEnqueueFetches_KeepsRecordsOnPartitionError(t *testing.T) {
+	g := minimalGeneratorForKafkaTest()
+	g.kafkaCh = make(chan *kgo.Record, 10)
+
+	fetches := kgo.Fetches{{Topics: []kgo.FetchTopic{{
+		Topic: "test-topic",
+		Partitions: []kgo.FetchPartition{
+			{Partition: 0, Err: errors.New("fetch failed")},
+			{Partition: 1, Records: []*kgo.Record{
+				{Topic: "test-topic", Partition: 1, Offset: 10, Timestamp: time.Now()},
+				{Topic: "test-topic", Partition: 1, Offset: 11, Timestamp: time.Now()},
+			}},
+		},
+	}}}}
+	require.Error(t, fetches.Err())
+
+	require.NoError(t, g.enqueueFetches(t.Context(), fetches))
+
+	close(g.kafkaCh)
+	var offsets []int64
+	for r := range g.kafkaCh {
+		offsets = append(offsets, r.Offset)
+	}
+	assert.Equal(t, []int64{10, 11}, offsets)
 }

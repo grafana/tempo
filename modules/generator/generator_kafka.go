@@ -98,14 +98,22 @@ func (g *Generator) listenKafka(ctx context.Context) {
 
 func (g *Generator) readKafka(ctx context.Context) error {
 	fetches := g.kafkaClient.PollFetches(ctx)
-	fetches.EachError(func(_ string, _ int32, err error) {
+	if fetches.IsClientClosed() {
+		return kgo.ErrClientClosed
+	}
+	return g.enqueueFetches(ctx, fetches)
+}
+
+// enqueueFetches logs fetch errors and sends all fetched records to kafkaCh.
+// A fetch error only affects its own partition, so records from the other
+// partitions are still processed: auto-commit marks every polled record as
+// read, so dropping them would lose them.
+func (g *Generator) enqueueFetches(ctx context.Context, fetches kgo.Fetches) error {
+	fetches.EachError(func(topic string, partition int32, err error) {
 		if !errors.Is(err, context.Canceled) {
-			level.Error(g.logger).Log("msg", "failed to fetch records", "err", err)
+			level.Error(g.logger).Log("msg", "failed to fetch records", "topic", topic, "partition", partition, "err", err)
 		}
 	})
-	if err := fetches.Err(); err != nil && !errors.Is(err, context.Canceled) {
-		return err
-	}
 
 	// Metric lag based on first message in each partition.
 	// This balances overhead with granularity.
