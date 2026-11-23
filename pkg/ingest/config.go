@@ -91,6 +91,7 @@ var (
 	ErrInvalidSASLMechanism              = fmt.Errorf("the configured SASL mechanism is invalid, must be one of: %s", strings.Join(saslMechanismOptions, ", "))
 	ErrSASLMSKIAMBadConfig               = errors.New("exactly one of static credentials, file path, or HTTP socket path must be configured to enable SASL AWS_MSK_IAM authentication")
 	ErrInvalidAPIVersionsMaxVersion      = fmt.Errorf("the configured ApiVersions max version must be between 0 and %d (0 removes the cap)", supportedAPIVersionsMaxVersion())
+	ErrInvalidMaxDecompressBatchBytes    = fmt.Errorf("the configured max decompress batch bytes must be between 0 and %d (0 uses the Kafka client default of 1 GiB)", DefaultMaxDecompressBatchBytes)
 	ErrSASLOauthbearerBadConfig          = errors.New("exactly one of OAuth token, file path, or HTTP socket path must be configured to enable SASL OAUTHBEARER authentication")
 )
 
@@ -116,6 +117,8 @@ type KafkaConfig struct {
 	WriteTimeout time.Duration          `yaml:"write_timeout"`
 
 	APIVersionsMaxVersion int `yaml:"api_versions_max_version"`
+
+	MaxDecompressBatchBytes int `yaml:"max_decompress_batch_bytes"`
 
 	SASL       KafkaAuthConfig `yaml:",inline"`
 	TLSEnabled bool            `yaml:"tls_enabled"`
@@ -183,6 +186,7 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 	f.DurationVar(&cfg.DialTimeout, prefix+".dial-timeout", 2*time.Second, "The maximum time allowed to open a connection to a Kafka broker.")
 	f.DurationVar(&cfg.WriteTimeout, prefix+".write-timeout", 10*time.Second, "How long to wait for an incoming write request to be successfully committed to the Kafka backend.")
 	f.IntVar(&cfg.APIVersionsMaxVersion, prefix+".api-versions-max-version", DefaultAPIVersionsMaxVersion, apiVersionsMaxVersionUsage)
+	f.IntVar(&cfg.MaxDecompressBatchBytes, prefix+".max-decompress-batch-bytes", DefaultMaxDecompressBatchBytes, maxDecompressBatchBytesUsage)
 
 	cfg.SASL.RegisterFlagsWithPrefix(prefix+".sasl-", f)
 	f.BoolVar(&cfg.TLSEnabled, prefix+".tls-enabled", false, "Enable TLS for the Kafka client connection.")
@@ -228,6 +232,9 @@ func (cfg *KafkaConfig) Validate() error {
 	}
 	if cfg.APIVersionsMaxVersion < 0 || cfg.APIVersionsMaxVersion > supportedAPIVersionsMaxVersion() {
 		return ErrInvalidAPIVersionsMaxVersion
+	}
+	if cfg.MaxDecompressBatchBytes < 0 || cfg.MaxDecompressBatchBytes > DefaultMaxDecompressBatchBytes {
+		return ErrInvalidMaxDecompressBatchBytes
 	}
 
 	if err := cfg.SASL.Validate(); err != nil {

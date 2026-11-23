@@ -473,11 +473,17 @@ ingest:
         [write_timeout: <duration> | default = 10s]
 
         # The highest ApiVersions request version the Kafka client sends, up to the
-        # highest version the client supports (4 with the current Kafka client).
+        # highest version the client supports (5 with the current Kafka client).
         # The default of 4 keeps the client compatible with backends that close the
         # connection on ApiVersions v5, such as WarpStream. 0 removes the cap, so the
         # client sends the highest version it supports.
         [api_versions_max_version: <int> | default = 4]
+
+        # The largest size, in bytes, that one fetched Kafka batch may decompress to.
+        # A bigger batch stops the client from reading its partition. The default of
+        # 2147483647 (2 GiB minus 1 byte) is the highest value allowed. 0 uses the Kafka
+        # client default of 1073741824 (1 GiB).
+        [max_decompress_batch_bytes: <int> | default = 2147483647]
 
         # The SASL mechanism used to authenticate to Kafka. Supported values:
         # PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, OAUTHBEARER, AWS_MSK_IAM.

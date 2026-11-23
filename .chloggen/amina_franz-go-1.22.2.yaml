@@ -1,0 +1,21 @@
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: change
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: deps
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Upgrade franz-go to v1.22.2 and keep the pre-1.22 Kafka consumer behavior, with a new `max_decompress_batch_bytes` Kafka config option.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: []
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: |
+  franz-go 1.22 lowers the largest batch a consumer may decompress to 1 GiB. `max_decompress_batch_bytes` keeps the previous limit of 2147483647 bytes by default; 0 uses the new franz-go default.
+  After data loss, consumers resume where they were instead of rewinding one minute (the new franz-go default). The metrics-generator no longer re-reads its partitions from the start after data loss.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: avolode
