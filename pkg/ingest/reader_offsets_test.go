@@ -53,14 +53,15 @@ func TestReaderClientResetOffset(t *testing.T) {
 	}
 }
 
-// TestGroupReaderClientOffsets checks that the metrics-generator's group client
-// starts new partitions at the beginning, but after data loss resumes where it
-// was instead of re-reading the whole partition.
-func TestGroupReaderClientOffsets(t *testing.T) {
+// TestGroupReaderClientOptions checks that the metrics-generator's group client
+// starts new partitions at the beginning, after data loss resumes where it was
+// instead of re-reading the whole partition, and gets the decompress limit.
+func TestGroupReaderClientOptions(t *testing.T) {
 	client, err := ingest.NewGroupReaderClient(offsetsTestConfig(), mustRebalanceRing(t, 1), nil, log.NewNopLogger())
 	require.NoError(t, err)
 	t.Cleanup(client.Close)
 
 	require.Equal(t, kgo.RewindOffset(0), client.OptValue(kgo.ConsumeResetOffset))
 	require.Equal(t, kgo.NewOffset().AtStart(), client.OptValue(kgo.ConsumeStartOffset))
+	require.Equal(t, ingest.DefaultMaxDecompressBatchBytes, client.OptValue(kgo.MaxDecompressBatchBytes))
 }
