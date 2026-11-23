@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 	"github.com/twmb/franz-go/plugin/kprom"
+	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -196,4 +198,79 @@ func TestProducerBufferedProduceBytesValues(t *testing.T) {
 
 	// The peak is retained over the 60s window even after the buffer drains.
 	require.GreaterOrEqual(t, peak(), float64(valueSize))
+}
+
+// TestProducer_ProduceSync_FirstReadEOF checks how an established writer handles a broker that drops its produce
+// connection and then accepts new connections only to close them before answering the first request, as happens
+// when a broker (or a TCP proxy in front of it) is restarting.
+func TestProducer_ProduceSync_FirstReadEOF(t *testing.T) {
+	const topic = "test"
+
+	// newProducer returns a producer that has already produced one record. After restart is called, the broker
+	// closes the connection on the next Produce request and then closes the next closeNew connections during API
+	// versions negotiation, which is the first request on every new connection. A negative closeNew closes all.
+	newProducer := func(t *testing.T, closeNew int64, writeTimeout time.Duration) (producer *Producer, restart func(), closed *atomic.Int64) {
+		t.Helper()
+
+		cluster, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.SeedTopics(1, topic))
+		require.NoError(t, err)
+		t.Cleanup(cluster.Close)
+
+		restarting := atomic.NewBool(false)
+		dropProduce := atomic.NewBool(false)
+		closed = atomic.NewInt64(0)
+
+		cluster.ControlKey(kmsg.Produce.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
+			cluster.KeepControl()
+			if dropProduce.CompareAndSwap(true, false) {
+				return nil, io.EOF, true
+			}
+			return nil, nil, false
+		})
+		cluster.ControlKey(kmsg.ApiVersions.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
+			cluster.KeepControl()
+			if restarting.Load() && (closeNew < 0 || closed.Load() < closeNew) {
+				closed.Inc()
+				return nil, io.EOF, true
+			}
+			return nil, nil, false
+		})
+
+		cfg := KafkaConfig{
+			Address:      flagext.StringSliceCSV{cluster.ListenAddrs()[0]},
+			Topic:        topic,
+			WriteTimeout: writeTimeout,
+			// The client metrics loop opens its own connections; keep the produce connection the only new one.
+			DisableKafkaTelemetry: true,
+		}
+		reg := prometheus.NewPedanticRegistry()
+		client, err := NewWriterClient(cfg, 10, test.NewTestingLogger(t), reg)
+		require.NoError(t, err)
+
+		producer = NewProducer(client, 1024, reg)
+		t.Cleanup(producer.Close)
+
+		res := producer.ProduceSync(t.Context(), []*kgo.Record{{Partition: 0, Value: []byte("before")}})
+		require.NoError(t, res.FirstErr())
+
+		return producer, func() { dropProduce.Store(true); restarting.Store(true) }, closed
+	}
+
+	// The write timeout is half the ordinary metadata refresh interval.
+	t.Run("record is delivered when one new connection is closed", func(t *testing.T) {
+		producer, restart, closed := newProducer(t, 1, 5*time.Second)
+		restart()
+
+		res := producer.ProduceSync(t.Context(), []*kgo.Record{{Partition: 0, Value: []byte("during")}})
+		require.NoError(t, res.FirstErr())
+		require.EqualValues(t, 1, closed.Load())
+	})
+
+	t.Run("record times out when every new connection is closed", func(t *testing.T) {
+		producer, restart, _ := newProducer(t, -1, 2*time.Second)
+		restart()
+
+		res := producer.ProduceSync(t.Context(), []*kgo.Record{{Partition: 0, Value: []byte("during")}})
+		require.ErrorIs(t, res.FirstErr(), kgo.ErrRecordTimeout)
+	})
 }
