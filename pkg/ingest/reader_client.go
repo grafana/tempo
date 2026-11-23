@@ -78,7 +78,8 @@ func NewGroupReaderClient(kafkaCfg KafkaConfig, partitionRing ring.PartitionRing
 		kgo.Balancers(NewCooperativeActiveStickyBalancer(partitionRing)),
 		// Start from the beginning of a partition that has no committed offset,
 		// and after data loss resume where it was instead of from the start.
-		// franz-go >= 1.22 no longer sets the start offset from the reset offset.
+		// With RewindOffset, ConsumeResetOffset no longer sets the start offset,
+		// so set it explicitly.
 		kgo.ConsumeStartOffset(kgo.NewOffset().AtStart()),
 		kgo.ConsumeResetOffset(kgo.RewindOffset(0)),
 	)
