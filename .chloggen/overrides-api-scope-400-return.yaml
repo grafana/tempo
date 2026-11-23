@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: overrides
+
+note: Fix the user-configurable overrides API GET endpoint continuing to process the request after rejecting an unknown `scope` with a 400 response.
+
+issues: []
+
+subtext:
+
+user: eric-mj
