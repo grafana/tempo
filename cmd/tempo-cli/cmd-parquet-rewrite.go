@@ -6,10 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/parquet-go/parquet-go"
 
@@ -40,11 +45,17 @@ type parquetRewrite struct {
 	RowGroupSizeBytes   int     `help:"Target row group size in bytes. Unset uses the 100MB Tempo default." optional:""`
 	BloomFP             float64 `help:"Bloom filter false positive rate. Unset inherits the input block's rate." optional:""`
 	BloomShardSizeBytes int     `help:"Bloom filter shard size in bytes. Unset inherits the input block's shard size." optional:""`
+
+	Fingerprint       string `help:"Trace fingerprints to write: v1 computes them from the traces, none writes none. Required when the input block has fingerprints, which are never copied. A block written with fingerprints is flagged nocompact, because compaction does not recompute them when it merges traces." optional:""`
+	FingerprintReport string `help:"After rewriting, read the vParquet5 output block back and write a JSON report of fingerprint measurements to this new file. Works with or without fingerprints, so two rewrites can be compared." optional:""`
 }
 
 // defaultRowGroupSizeBytes is the row group size used when --row-group-size-bytes is not
 // passed. It matches the ~100MB default used across Tempo (common.BlockConfig).
 const defaultRowGroupSizeBytes = 100 * 1024 * 1024
+
+// fingerprintNone is the --fingerprint value that writes no fingerprints.
+const fingerprintNone = "none"
 
 func (cmd *parquetRewrite) Run() error {
 	cmd.In = getPathToBlockDir(cmd.In)
@@ -53,8 +64,12 @@ func (cmd *parquetRewrite) Run() error {
 	if err != nil {
 		return err
 	}
-	if version := meta.Options[vparquet5.TraceSignatureVersionOption]; version != vparquet5.TraceSignatureVersionNone {
-		return fmt.Errorf("parquet rewrite does not support trace signature version %s", version)
+	options, err := cmd.outputOptions(meta)
+	if err != nil {
+		return err
+	}
+	if err := cmd.checkReport(meta); err != nil {
+		return err
 	}
 
 	enc, err := encoding.FromVersionForWrites(meta.Version)
@@ -69,6 +84,13 @@ func (cmd *parquetRewrite) Run() error {
 	defer in.Close()
 	defer iter.Close()
 
+	return cmd.writeBlock(enc, meta, options, pf.NumRows(), iter)
+}
+
+// writeBlock writes the rewritten block from iter, which reads the inputRows
+// rows of the input block, and then the fingerprint report if one is asked
+// for. If the rewrite fails, the report records how far it got.
+func (cmd *parquetRewrite) writeBlock(enc encoding.VersionedEncoding, meta *backend.BlockMeta, options map[string]string, inputRows int64, iter common.Iterator) error {
 	outR, outW, _, err := local.New(&local.Config{
 		Path: cmd.Out,
 	})
@@ -85,21 +107,194 @@ func (cmd *parquetRewrite) Run() error {
 	if err != nil {
 		return err
 	}
+	blockCfg.ComputeTraceFingerprints = options[vparquet5.TraceSignatureVersionOption] == vparquet5.TraceSignatureVersionV1
+	if blockCfg.ComputeTraceFingerprints {
+		fmt.Println("Flagging the block nocompact: compaction does not recompute trace fingerprints")
+	}
 
 	newMeta := *meta
 	newMeta.Version = enc.Version()
 	newMeta.DedicatedColumns = dedicatedCols
+	newMeta.Options = options
+
+	blockDir := filepath.Join(cmd.Out, meta.TenantID, newMeta.BlockID.String())
+	if err := reserveBlockDir(blockDir); err != nil {
+		return err
+	}
+	var reportFile *os.File
+	if cmd.FingerprintReport != "" {
+		reportFile, err = reserveReport(cmd.FingerprintReport, cmd.In, blockDir)
+		if err != nil {
+			_ = os.Remove(blockDir)
+			return err
+		}
+		defer reportFile.Close()
+	}
 
 	fmt.Printf("Detected encoding %s from block meta\n", meta.Version)
-	fmt.Printf("Rewriting %s block in %s\n", enc.Version(), filepath.Join(cmd.Out, meta.TenantID, newMeta.BlockID.String()))
-	fmt.Printf("Converting rows 0 to %d\n", pf.NumRows())
-	outMeta, err := enc.CreateBlock(context.Background(), blockCfg, &newMeta, iter, backend.NewReader(outR), backend.NewWriter(outW))
+	fmt.Printf("Rewriting %s block in %s\n", enc.Version(), blockDir)
+	fmt.Printf("Converting rows 0 to %d\n", inputRows)
+	counted := &countingIterator{Iterator: iter, expected: inputRows}
+	var before runtime.MemStats
+	if reportFile != nil {
+		runtime.ReadMemStats(&before)
+	}
+	start := time.Now()
+	outMeta, err := enc.CreateBlock(context.Background(), blockCfg, &newMeta, counted, backend.NewReader(outR), backend.NewWriter(outW))
+	rewrite := rewriteStats{duration: time.Since(start), inputRows: inputRows, inputRowsRead: counted.read, inputRowFailed: counted.failed}
+	if reportFile != nil {
+		rewrite.measureMemory(&before)
+	}
 	if err != nil {
+		// reserveBlockDir created blockDir, so it holds only this run's partial output.
+		if rmErr := os.RemoveAll(blockDir); rmErr != nil {
+			err = errors.Join(err, fmt.Errorf("removing the partial output block: %w", rmErr))
+		}
+		if reportFile == nil {
+			return err
+		}
+		report := newFingerprintReport(newMeta.BlockID.String(), rewrite)
+		report.fail(phaseRewrite, err)
+		if writeErr := report.write(reportFile); writeErr != nil {
+			return errors.Join(err, fmt.Errorf("writing fingerprint report: %w", writeErr))
+		}
 		return err
 	}
 
-	fmt.Printf("Successfully created block with size=%d and footerSize=%d\n", outMeta.Size_, outMeta.FooterSize)
+	fmt.Printf("Successfully created block with size=%d and footerSize=%d in %s\n", outMeta.Size_, outMeta.FooterSize, rewrite.duration)
+
+	if reportFile == nil {
+		return nil
+	}
+	report := newFingerprintReport(outMeta.BlockID.String(), rewrite)
+	measureErr := report.measure(blockDir, outMeta)
+	if err := report.write(reportFile); err != nil {
+		return errors.Join(measureErr, fmt.Errorf("writing fingerprint report: %w", err))
+	}
+	if measureErr != nil {
+		return fmt.Errorf("measuring fingerprints: %w", measureErr)
+	}
 	return nil
+}
+
+// reserveBlockDir creates the output block directory, which must not exist.
+// Writing over a block, possibly the input itself, would truncate its files
+// while they are still needed.
+func reserveBlockDir(dir string) error {
+	if err := os.MkdirAll(filepath.Dir(dir), 0o700); err != nil {
+		return err
+	}
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("output block %s already exists: remove it or choose another output folder", dir)
+		}
+		return err
+	}
+	return nil
+}
+
+// reserveReport creates the report file before the rewrite, so a report that
+// cannot be written fails early. It must be a new file outside blockDirs,
+// where the rewrite could replace it or it could replace a block file.
+func reserveReport(path string, blockDirs ...string) (*os.File, error) {
+	parent, err := os.Stat(filepath.Dir(path))
+	if err != nil {
+		return nil, fmt.Errorf("--fingerprint-report: %w", err)
+	}
+	for _, dir := range blockDirs {
+		info, err := os.Stat(dir)
+		if err != nil {
+			return nil, err
+		}
+		if os.SameFile(parent, info) {
+			return nil, fmt.Errorf("--fingerprint-report %s is in block directory %s", path, dir)
+		}
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("--fingerprint-report: %w", err)
+	}
+	return f, nil
+}
+
+// countingIterator passes on the traces of an input with expected rows and
+// counts them. It fails if the input ends early or has more rows, so a short
+// read is never written as a complete block.
+type countingIterator struct {
+	common.Iterator
+	expected int64
+	read     int64
+	failed   bool
+}
+
+func (c *countingIterator) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
+	id, tr, err := c.Iterator.Next(ctx)
+	switch {
+	case errors.Is(err, io.EOF) || (err == nil && tr == nil):
+		if c.read != c.expected {
+			return nil, nil, fmt.Errorf("the input ended after %d of %d rows", c.read, c.expected)
+		}
+	case err != nil:
+		c.failed = true
+	case c.read == c.expected:
+		return nil, nil, fmt.Errorf("the input has more than %d rows", c.expected)
+	default:
+		c.read++
+	}
+	return id, tr, err
+}
+
+// reservedFileNames are files whose presence alone changes how Tempo treats a
+// block. For example, meta.deleted.json marks it for deletion.
+var reservedFileNames = []string{backend.MetaName, backend.CompactedMetaName, backend.DeletedMetaName, backend.NoCompactFileName}
+
+// checkReport fails before the rewrite if --fingerprint-report cannot be
+// used: the report reads the output with the vParquet5 schema, and its file
+// must not be named like a file that changes how Tempo treats a block.
+func (cmd *parquetRewrite) checkReport(meta *backend.BlockMeta) error {
+	if cmd.FingerprintReport == "" {
+		return nil
+	}
+	if meta.Version != vparquet5.VersionString {
+		return fmt.Errorf("--fingerprint-report needs a %s block, got %s", vparquet5.VersionString, meta.Version)
+	}
+	name := filepath.Base(cmd.FingerprintReport)
+	if slices.ContainsFunc(reservedFileNames, func(reserved string) bool { return strings.EqualFold(reserved, name) }) {
+		return fmt.Errorf("--fingerprint-report cannot be named %s, a block file that Tempo acts on", name)
+	}
+	return nil
+}
+
+// outputOptions returns the block options of the rewritten block. Its
+// fingerprint version comes only from --fingerprint, so a rewrite never
+// carries over or relabels the input block's fingerprints. An input with
+// fingerprints needs an explicit --fingerprint, so they are never dropped
+// by accident, and without one the options of an unsigned input are kept
+// as they are.
+func (cmd *parquetRewrite) outputOptions(meta *backend.BlockMeta) (map[string]string, error) {
+	inputVersion := meta.Options[vparquet5.TraceSignatureVersionOption]
+	options := maps.Clone(meta.Options)
+
+	switch cmd.Fingerprint {
+	case "":
+		if inputVersion != vparquet5.TraceSignatureVersionNone {
+			return nil, fmt.Errorf("the input block has trace fingerprints (version %s): pass --fingerprint=%s to recompute them or --fingerprint=%s to drop them",
+				inputVersion, vparquet5.TraceSignatureVersionV1, fingerprintNone)
+		}
+	case fingerprintNone:
+		delete(options, vparquet5.TraceSignatureVersionOption)
+	case vparquet5.TraceSignatureVersionV1:
+		if meta.Version != vparquet5.VersionString {
+			return nil, fmt.Errorf("trace fingerprints need a %s block, got %s", vparquet5.VersionString, meta.Version)
+		}
+		if options == nil {
+			options = map[string]string{}
+		}
+		options[vparquet5.TraceSignatureVersionOption] = vparquet5.TraceSignatureVersionV1
+	default:
+		return nil, fmt.Errorf("unsupported --fingerprint %q, supported: %s, %s", cmd.Fingerprint, vparquet5.TraceSignatureVersionV1, fingerprintNone)
+	}
+	return options, nil
 }
 
 // blockConfig assembles the common.BlockConfig used to create the new block.
@@ -253,16 +448,24 @@ func openParquetForRewrite(blockPath string, meta *backend.BlockMeta) (*os.File,
 	}
 
 	var (
-		fileOptions   []parquet.FileOption
-		readerOptions []parquet.ReaderOption
+		schema         *parquet.Schema
+		fileOptions    []parquet.FileOption
+		readerOptions  []parquet.ReaderOption
+		unknownVersion bool
 	)
 
 	switch meta.Version {
 	case vparquet4.VersionString:
 	case vparquet5.VersionString:
-		schema, _, ro := vparquet5.SchemaWithDynamicChanges(vparquet5.TraceSchemaConfig{DedicatedColumns: meta.DedicatedColumns, Options: meta.Options})
-		readerOptions = ro
-		fileOptions = []parquet.FileOption{parquet.FileSchema(schema)}
+		schema, _, readerOptions = vparquet5.SchemaWithDynamicChanges(vparquet5.TraceSchemaConfig{DedicatedColumns: meta.DedicatedColumns, Options: meta.Options})
+		version := meta.Options[vparquet5.TraceSignatureVersionOption]
+		unknownVersion = version != vparquet5.TraceSignatureVersionNone && version != vparquet5.TraceSignatureVersionV1
+		// With its own schema, the file reads only the columns of schema.
+		// parquet.FileSchema would make it read and then discard the
+		// Similarity columns of an unknown version, which may not decode.
+		if !unknownVersion {
+			fileOptions = []parquet.FileOption{parquet.FileSchema(schema)}
+		}
 	default:
 		_ = in.Close()
 		return nil, nil, nil, fmt.Errorf("unsupported block version %q", meta.Version)
@@ -272,6 +475,12 @@ func openParquetForRewrite(blockPath string, meta *backend.BlockMeta) (*os.File,
 	if err != nil {
 		_ = in.Close()
 		return nil, nil, nil, err
+	}
+	if schema != nil {
+		if err := checkColumns(pf, schema, unknownVersion); err != nil {
+			_ = in.Close()
+			return nil, nil, nil, fmt.Errorf("input block %s: %w", blockPath, err)
+		}
 	}
 
 	var iter common.Iterator
@@ -289,6 +498,37 @@ func openParquetForRewrite(blockPath string, meta *backend.BlockMeta) (*os.File,
 	}
 
 	return in, pf, iter, nil
+}
+
+// checkColumns returns an error unless every row group of pf has the leaf
+// columns of schema, in order. With ignoreSimilarity, Similarity columns
+// after them are also allowed, as an input labeled with a fingerprint version
+// this code does not know has them; the caller must then read pf without
+// them. parquet.FileSchema checks none of this, and reading a file with a
+// schema it was not written with can panic.
+func checkColumns(pf *parquet.File, schema *parquet.Schema, ignoreSimilarity bool) error {
+	want := schema.Columns()
+	ignore := ignoreSimilarity && !slices.ContainsFunc(want, isSimilarityColumn)
+	for i, rg := range pf.Metadata().RowGroups {
+		cols := rg.Columns
+		for ignore && len(cols) > len(want) && isSimilarityColumn(cols[len(cols)-1].MetaData.PathInSchema) {
+			cols = cols[:len(cols)-1]
+		}
+		if len(cols) != len(want) {
+			return fmt.Errorf("row group %d has %d columns, but the block meta describes %d", i, len(cols), len(want))
+		}
+		for j, col := range cols {
+			if !slices.Equal(col.MetaData.PathInSchema, want[j]) {
+				return fmt.Errorf("row group %d column %d is %s, but the block meta describes %s",
+					i, j, strings.Join(col.MetaData.PathInSchema, "."), strings.Join(want[j], "."))
+			}
+		}
+	}
+	return nil
+}
+
+func isSimilarityColumn(path []string) bool {
+	return len(path) > 0 && path[0] == "Similarity"
 }
 
 type parquetIterator5 struct {

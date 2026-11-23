@@ -41,6 +41,15 @@ func (b *backendWriter) Close() error {
 var maxRowGroupSizeBytes int64 = 800 * 1024 * 1024
 
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
+	if cfg.ComputeTraceFingerprints {
+		if meta.Options[TraceSignatureVersionOption] != TraceSignatureVersionV1 {
+			return nil, fmt.Errorf("computing trace fingerprints needs the block option %s=%s", TraceSignatureVersionOption, TraceSignatureVersionV1)
+		}
+		if _, ok := i.(*commonIterator); ok {
+			return nil, errors.New("trace fingerprints can only be computed from protobuf traces")
+		}
+	}
+
 	s, newMeta := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
 	var next func(context.Context) error
@@ -72,6 +81,10 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			spanMapping  = dedicatedColumnsToColumnMapping(newMeta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
 			eventMapping = dedicatedColumnsToColumnMapping(newMeta.DedicatedColumns, backend.DedicatedColumnScopeEvent)
 		)
+		var fingerprints *traceFingerprinter
+		if cfg.ComputeTraceFingerprints {
+			fingerprints = newTraceFingerprinter(newMeta, resMapping)
+		}
 		next = func(context.Context) error {
 			id, tr, err := i.Next(ctx)
 			if err != nil {
@@ -90,6 +103,11 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			}
 			if buffer.RootSpanName == "" {
 				dataquality.WarnRootlessTrace(meta.TenantID, dataquality.PhaseTraceWalToComplete)
+			}
+
+			// buffer is reused across traces, so Similarity is set on every one.
+			if fingerprints != nil {
+				buffer.Similarity = fingerprints.similarity(tr, buffer)
 			}
 
 			err = s.Add(buffer, 0, 0) // start and end time are set outside
@@ -139,6 +157,8 @@ type streamingBlock struct {
 	index *index
 
 	withNoCompactFlag bool
+	// similarityBytes is added to the size estimate of each trace.
+	similarityBytes int
 
 	currentBufferedTraces int
 	currentBufferedBytes  int
@@ -179,7 +199,8 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 		r:                 r,
 		to:                to,
 		index:             &index{},
-		withNoCompactFlag: cfg.CreateWithNoCompactFlag,
+		withNoCompactFlag: cfg.CreateWithNoCompactFlag || cfg.ComputeTraceFingerprints,
+		similarityBytes:   estimatedSimilarityBytes(cfg),
 	}, newMeta
 }
 
@@ -194,7 +215,7 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 	b.bloom.Add(id)
 	b.meta.ObjectAdded(start, end)
 	b.currentBufferedTraces++
-	b.currentBufferedBytes += estimateMarshalledSizeFromTrace(tr)
+	b.currentBufferedBytes += estimateMarshalledSizeFromTrace(tr) + b.similarityBytes
 
 	return nil
 }

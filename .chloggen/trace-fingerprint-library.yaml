@@ -15,7 +15,7 @@ note: Add the `pkg/tracefingerprint` Go package, which computes v1 structural tr
 issues: [8478]
 
 # (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
-subtext: No Tempo writer computes fingerprints yet; the package is for offline block rewrites and future writers.
+subtext:
 
 # The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
 user: carles-grafana
