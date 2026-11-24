@@ -1,0 +1,6 @@
+change_type: enhancement
+component: operations
+note: Clarify Writes dashboard titles and make tenant and percentile breakdowns easier to distinguish.
+issues: []
+subtext:
+user: tinitiuset

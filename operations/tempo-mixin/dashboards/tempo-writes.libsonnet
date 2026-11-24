@@ -15,18 +15,18 @@ dashboard_utils {
       .addRow(
         g.row('Gateway')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)"}' % $.jobMatcher($._config.jobs.gateway))
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Request latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s, route=~"(opentelemetry_proto_collector_trace_v1_traceservice_export|otlp_v1_traces)"}' % $.jobMatcher($._config.jobs.gateway))
         )
       )
       .addRow(
-        g.row('Envoy Proxy')
+        g.row('Envoy proxy')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.queryPanel(
             |||
               sum by (grpc_status) (
@@ -91,7 +91,7 @@ dashboard_utils {
             fieldConfig+: { defaults+: { unit: 'percent' } },
           }
         ).addPanel(
-          $.panel('Envoy remaining requests/connections') +
+          $.panel('Envoy remaining requests and connections') +
           $.queryPanel(
             [
               'min(envoy_cluster_circuit_breakers_default_remaining_rq{namespace="$namespace"}) by(job)',
@@ -113,14 +113,14 @@ dashboard_utils {
           + { fieldConfig+: { defaults+: { unit: 'ops' } } }
         )
         .addPanel(
-          $.panel('Bytes / sec') +
+          $.panel('Ingestion throughput') +
           $.queryPanel('sum(rate(tempo_distributor_bytes_received_total{%s}[$__rate_interval])) by (status)' % $.jobMatcher($._config.jobs.distributor), 'received') {
             yaxes: $.yaxes('binBps'),
             fieldConfig+: { defaults+: { unit: 'binBps' } },
           }
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Push latency') +
           $.queryPanel(
             [
               ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_duration_seconds', $.jobMatcher($._config.jobs.distributor), multiplier='1e3')),
@@ -151,7 +151,7 @@ dashboard_utils {
       .addRow(
         g.row('')
         .addPanel(
-          $.panel('Push duration by tenant (top 10, p99)') +
+          $.panel('Per tenant p99 push latency (top 10)') +
           $.queryPanel(
             'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_duration_seconds', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'], multiplier='1e3')),
             '{{tenant}}'
@@ -161,7 +161,7 @@ dashboard_utils {
           }
         )
         .addPanel(
-          $.panel('Push size by tenant (top 10, p99)') +
+          $.panel('Per tenant p99 push size (top 10)') +
           $.queryPanel(
             'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_push_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
             '{{tenant}}'
@@ -172,9 +172,9 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Trace & attribute size')
+        g.row('Trace and attribute size')
         .addPanel(
-          $.panel('Trace size by tenant (top 10, p99)') +
+          $.panel('Per tenant p99 trace size (top 10)') +
           $.queryPanel(
             'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_trace_size_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
             '{{tenant}}'
@@ -184,7 +184,7 @@ dashboard_utils {
           }
         )
         .addPanel(
-          $.panel('Attribute size by tenant (top 10, p99)') +
+          $.panel('Per tenant p99 attribute size (top 10)') +
           $.queryPanel(
             'topk(10, %s)' % ncOrFallback(utils.ncHistogramQuantile('0.99', 'tempo_distributor_attribute_size_bytes', $.jobMatcher($._config.jobs.distributor), sum_by=['tenant'])),
             '{{tenant}}'
@@ -202,7 +202,7 @@ dashboard_utils {
           $.queryPanel('sum(rate(tempo_receiver_refused_spans{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'refused') +
           { fieldConfig+: { defaults+: { unit: 'ops' } } }
         ).addPanel(
-          $.panel('Discarded spans') +
+          $.panel('Discarded spans / sec by reason') +
           $.queryPanel('sum(rate(tempo_discarded_spans_total{%s}[$__rate_interval])) by(reason)' % $.jobMatcher($._config.jobs.distributor), '{{reason}}') +
           { fieldConfig+: { defaults+: { unit: 'ops' } } }
         )
@@ -210,12 +210,12 @@ dashboard_utils {
       .addRow(
         g.row('Kafka produced records')
         .addPanel(
-          $.panel('Kafka append records / sec') +
+          $.panel('Kafka record production rate') +
           $.queryPanel('sum(rate(tempo_distributor_produce_records_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'appends') +
           { fieldConfig+: { defaults+: { unit: 'ops' } } }
         )
         .addPanel(
-          $.panel('Kafka failed append records / sec') +
+          $.panel('Failed Kafka record production rate by reason') +
           $.queryPanel('sum(rate(tempo_distributor_produce_failures_total{%s}[$__rate_interval])) by(reason)' % $.jobMatcher($._config.jobs.distributor), '{{reason}}') +
           { fieldConfig+: { defaults+: { unit: 'ops' } } }
         )
@@ -223,14 +223,14 @@ dashboard_utils {
       .addRow(
         g.row('Kafka writes')
         .addPanel(
-          $.panel('Kafka write bytes / sec') +
+          $.panel('Kafka write throughput') +
           $.queryPanel('sum(rate(tempo_distributor_kafka_write_bytes_total{%s}[$__rate_interval]))' % $.jobMatcher($._config.jobs.distributor), 'writes') {
             yaxes: $.yaxes('binBps'),
             fieldConfig+: { defaults+: { unit: 'binBps' } },
           }
         )
         .addPanel(
-          $.panel('Kafka write latency (sec)') +
+          $.panel('Kafka write latency') +
           $.queryPanel([
             'histogram_quantile(0.50, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{%s}[$__rate_interval])))' % $.jobMatcher($._config.jobs.distributor),
             'histogram_quantile(0.99, sum by (le) (rate(tempo_distributor_kafka_write_latency_seconds_bucket{%s}[$__rate_interval])))' % $.jobMatcher($._config.jobs.distributor),
@@ -245,24 +245,24 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Memcached - Backend worker')
+        g.row('Backend worker – Memcached writes')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.qpsPanel('tempo_memcache_request_duration_seconds_count{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.backend_worker))
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Write latency') +
           $.latencyPanel('tempo_memcache_request_duration_seconds', '{%s,method="Memcache.Put"}' % $.jobMatcher($._config.jobs.backend_worker))
         )
       )
       .addRow(
-        g.row('Backend - Backend worker')
+        g.row('Backend worker – storage writes')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.qpsPanel('tempodb_backend_request_duration_seconds_count{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.backend_worker))
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Write latency') +
           $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation=~"(PUT|POST)"}' % $.jobMatcher($._config.jobs.backend_worker))
         )
       )
