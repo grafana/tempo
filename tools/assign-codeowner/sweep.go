@@ -50,8 +50,12 @@ const (
 	closedLoad
 )
 
+func isGrafanaAssistantAuthor(author *user) bool {
+	return author != nil && strings.EqualFold(author.Login, grafanaAssistantBotLogin)
+}
+
 func excludedBotAuthor(author *user) bool {
-	return author != nil && author.Type == "Bot" && !strings.EqualFold(author.Login, grafanaAssistantBotLogin)
+	return author != nil && author.Type == "Bot" && !isGrafanaAssistantAuthor(author)
 }
 
 func calculateLoad(openPRs, closedPRs []pullRequest, eligible []string, now time.Time, maxOpenAgeDays int) (map[string]ownerLoad, map[string]struct{}) {
@@ -111,23 +115,40 @@ func calculateLoad(openPRs, closedPRs []pullRequest, eligible []string, now time
 	return load, staleOwners
 }
 
-// candidateEligible centralizes candidate filtering and nil-author handling.
-func candidateEligible(pr pullRequest, owners map[string]struct{}) bool {
-	if len(pr.Assignees) > 0 || pr.Draft || pr.User == nil {
-		return false
-	}
-	if excludedBotAuthor(pr.User) {
-		return false
-	}
-	_, isOwner := owners[strings.ToLower(pr.User.Login)]
-	return !isOwner
+// candidate is an eligible PR plus the load weight each new owner will add.
+type candidate struct {
+	number         int
+	weight         int
+	requiredOwners int
+	excludedOwners []string
 }
 
-// candidate is an eligible unassigned PR plus the load weight it will add to
-// whichever owner receives it.
-type candidate struct {
-	number int
-	weight int
+func poolAssignees(pr pullRequest, owners map[string]struct{}) []string {
+	var result []string
+	for _, assignee := range pr.Assignees {
+		login := strings.ToLower(assignee.Login)
+		if _, ok := owners[login]; ok {
+			result = append(result, login)
+		}
+	}
+	return result
+}
+
+func newCandidate(pr pullRequest, owners map[string]struct{}) (candidate, bool) {
+	result := candidate{number: pr.Number, weight: weightOrDefault(pr.Weight), requiredOwners: 1}
+	if pr.Draft || pr.User == nil || excludedBotAuthor(pr.User) {
+		return candidate{}, false
+	}
+	if isGrafanaAssistantAuthor(pr.User) {
+		result.excludedOwners = poolAssignees(pr, owners)
+		result.requiredOwners = 2 - len(result.excludedOwners)
+		return result, result.requiredOwners > 0
+	}
+	if len(pr.Assignees) > 0 {
+		return candidate{}, false
+	}
+	_, isOwner := owners[strings.ToLower(pr.User.Login)]
+	return result, !isOwner
 }
 
 func findCandidates(pulls []pullRequest, eligible []string) []candidate {
@@ -137,8 +158,8 @@ func findCandidates(pulls []pullRequest, eligible []string) []candidate {
 	}
 	result := make([]candidate, 0, len(pulls))
 	for _, pr := range pulls {
-		if candidateEligible(pr, owners) {
-			result = append(result, candidate{number: pr.Number, weight: weightOrDefault(pr.Weight)})
+		if candidate, ok := newCandidate(pr, owners); ok {
+			result = append(result, candidate)
 		}
 	}
 	slices.SortFunc(result, func(a, b candidate) int { return cmp.Compare(a.number, b.number) })
@@ -158,9 +179,16 @@ func compareLoad(a, b ownerLoad) int {
 }
 
 func chooseAssignee(load map[string]ownerLoad, choose func([]string) string) (string, bool) {
+	return chooseAssigneeExcluding(load, nil, choose)
+}
+
+func chooseAssigneeExcluding(load map[string]ownerLoad, excluded map[string]struct{}, choose func([]string) string) (string, bool) {
 	var best ownerLoad
 	choices := make([]string, 0, len(load))
 	for _, owner := range slices.Sorted(maps.Keys(load)) {
+		if _, skip := excluded[owner]; skip {
+			continue
+		}
 		counts := load[owner]
 		switch comparison := compareLoad(counts, best); {
 		case len(choices) == 0 || comparison < 0:
@@ -185,26 +213,51 @@ type assignment struct {
 }
 
 // decideAssignments is the pure decision core of the sweep. Given each owner's
-// current load and the ordered candidate PRs, it picks the least-loaded owner
-// for each PR (exact ties go through the random chooser), updates load as it
-// goes so a batch spreads across owners, and honors the per-run cap. It
-// performs no I/O; runSweep fetches the inputs and applies the output.
+// current load and the ordered candidate PRs, it picks the required number of
+// distinct least-loaded owners for each PR. Exact ties go through the random
+// chooser. It charges every assignment and honors the per-run cap. It performs
+// no I/O; runSweep fetches the inputs and applies the output.
 func decideAssignments(load map[string]ownerLoad, candidates []candidate, maxAssignments int, choose func([]string) string) []assignment {
 	assignments := make([]assignment, 0, maxAssignments)
 	for _, c := range candidates {
-		if len(assignments) >= maxAssignments {
-			break
+		requiredOwners := c.requiredOwners
+		if requiredOwners < 1 {
+			requiredOwners = 1
 		}
-		owner, ok := chooseAssignee(load, choose)
-		if !ok {
+		if len(assignments)+requiredOwners > maxAssignments || len(load) < requiredOwners {
 			continue
 		}
-		assignments = append(assignments, assignment{number: c.number, owner: owner})
-		// Charge the receiving owner the PR's weight so a heavy PR pushes the
-		// next decision toward a less-loaded owner.
-		counts := load[owner]
-		counts.open += c.weight
-		load[owner] = counts
+
+		var excluded map[string]struct{}
+		if requiredOwners > 1 || len(c.excludedOwners) > 0 {
+			excluded = make(map[string]struct{}, len(c.excludedOwners)+requiredOwners)
+			for _, owner := range c.excludedOwners {
+				excluded[owner] = struct{}{}
+			}
+		}
+		available := len(load)
+		for owner := range excluded {
+			if _, ok := load[owner]; ok {
+				available--
+			}
+		}
+		if available < requiredOwners {
+			continue
+		}
+
+		for range requiredOwners {
+			owner, ok := chooseAssigneeExcluding(load, excluded, choose)
+			if !ok {
+				break
+			}
+			assignments = append(assignments, assignment{number: c.number, owner: owner})
+			counts := load[owner]
+			counts.open += c.weight
+			load[owner] = counts
+			if excluded != nil {
+				excluded[owner] = struct{}{}
+			}
+		}
 	}
 	return assignments
 }

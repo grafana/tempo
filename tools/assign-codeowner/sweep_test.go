@@ -102,9 +102,17 @@ func TestCandidatesFilterAndOrderByPRNumber(t *testing.T) {
 	ownerAuthored.User.Login = "Alice"
 	assistantBot := testPull(8)
 	assistantBot.User = &user{Login: "grafana-assistant-ops[bot]", Type: "Bot"}
+	assignedAssistant := assignedTo(testPull(9), "Alice")
+	assignedAssistant.User = &user{Login: "grafana-assistant-ops[bot]", Type: "Bot"}
+	fullyAssignedAssistant := assignedTo(testPull(10), "Alice", "Bob")
+	fullyAssignedAssistant.User = &user{Login: "grafana-assistant-ops[bot]", Type: "Bot"}
 	assigned := assignedTo(testPull(5), "Bob")
-	candidates := findCandidates([]pullRequest{ownerAuthored, assigned, testPull(1), bot, deletedAuthor, draft, assistantBot}, []string{"alice", "bob"})
-	require.Equal(t, []candidate{{number: 1, weight: 1}, {number: 8, weight: 1}}, candidates)
+	candidates := findCandidates([]pullRequest{ownerAuthored, assigned, testPull(1), bot, deletedAuthor, draft, assistantBot, assignedAssistant, fullyAssignedAssistant}, []string{"alice", "bob"})
+	require.Equal(t, []candidate{
+		{number: 1, weight: 1, requiredOwners: 1},
+		{number: 8, weight: 1, requiredOwners: 2},
+		{number: 9, weight: 1, requiredOwners: 1, excludedOwners: []string{"alice"}},
+	}, candidates)
 }
 
 func TestAssigneeTieBreakPrefersLessOpenLoadThenUsesExactTies(t *testing.T) {
@@ -146,6 +154,43 @@ func TestDecideAssignmentsSpreadsAcrossLeastLoadedOwners(t *testing.T) {
 	candidates := []candidate{{number: 10, weight: 1}, {number: 20, weight: 1}, {number: 30, weight: 1}}
 	assignments := decideAssignments(load, candidates, 2, firstChoice)
 	require.Equal(t, []assignment{{number: 10, owner: "bob"}, {number: 20, owner: "alice"}}, assignments)
+}
+
+func TestDecideAssignmentsGivesAssistantTwoDistinctOwners(t *testing.T) {
+	load := map[string]ownerLoad{"alice": {}, "bob": {}, "carol": {}}
+	candidates := []candidate{
+		{number: 10, weight: 2, requiredOwners: 2},
+		{number: 20, weight: 1, requiredOwners: 1},
+	}
+
+	assignments := decideAssignments(load, candidates, 3, firstChoice)
+	require.Equal(t, []assignment{
+		{number: 10, owner: "alice"},
+		{number: 10, owner: "bob"},
+		{number: 20, owner: "carol"},
+	}, assignments)
+	require.Equal(t, 2, load["alice"].open)
+	require.Equal(t, 2, load["bob"].open)
+	require.Equal(t, 1, load["carol"].open)
+}
+
+func TestDecideAssignmentsBackfillsDifferentAssistantOwner(t *testing.T) {
+	load := map[string]ownerLoad{"alice": {}, "bob": {open: 5}}
+	candidates := []candidate{{number: 10, weight: 1, requiredOwners: 1, excludedOwners: []string{"alice"}}}
+
+	assignments := decideAssignments(load, candidates, 1, firstChoice)
+	require.Equal(t, []assignment{{number: 10, owner: "bob"}}, assignments)
+}
+
+func TestDecideAssignmentsDoesNotPartiallyStaffAssistantPR(t *testing.T) {
+	load := map[string]ownerLoad{"alice": {}, "bob": {}}
+	candidates := []candidate{
+		{number: 10, weight: 1, requiredOwners: 2},
+		{number: 20, weight: 1, requiredOwners: 1},
+	}
+
+	assignments := decideAssignments(load, candidates, 1, firstChoice)
+	require.Equal(t, []assignment{{number: 20, owner: "alice"}}, assignments)
 }
 
 func TestDecideAssignmentsTiesUseChooserAndHonorCap(t *testing.T) {
