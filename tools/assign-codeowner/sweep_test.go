@@ -28,6 +28,18 @@ func TestLoadDeduplicatesAndFiltersBots(t *testing.T) {
 	require.Empty(t, staleOwners)
 }
 
+func TestLoadExcludesCodeOwnerAuthoredPRs(t *testing.T) {
+	open := assignedTo(testPull(1), "Alice")
+	open.User.Login = "Alice"
+	closed := assignedTo(testPull(2), "Alice")
+	closed.User.Login = "ALICE"
+	external := assignedTo(testPull(3), "Alice")
+
+	load, stale := calculateLoad([]pullRequest{open, external}, []pullRequest{closed}, []string{"alice"}, testNow, 90)
+	require.Equal(t, ownerLoad{open: 1}, load["alice"])
+	require.Empty(t, stale)
+}
+
 func TestLoadExpiryBoundary(t *testing.T) {
 	maxAge := 90 * 24 * time.Hour
 	for _, test := range []struct {

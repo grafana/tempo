@@ -66,6 +66,11 @@ func calculateLoad(openPRs, closedPRs []pullRequest, eligible []string, now time
 			if pr.User != nil && pr.User.Type == "Bot" {
 				continue
 			}
+			if pr.User != nil {
+				if _, isOwner := load[strings.ToLower(pr.User.Login)]; isOwner {
+					continue
+				}
+			}
 			for _, assignee := range pr.Assignees {
 				owner := strings.ToLower(assignee.Login)
 				key := prOwner{number: pr.Number, owner: owner}
