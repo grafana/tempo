@@ -61,21 +61,11 @@ func (r *jobReporter) option(ctx context.Context, tenant string) combiner.Option
 		}),
 		combiner.WithJobInspectedBytesObserver(func(jobTenant string, inspectedBytes uint64, cost jobcost.Cost) {
 			r.observeJob(inspectedBytes, cost)
-			r.settle(ctx, jobTenant, inspectedBytes, cost)
+			// looked up for every job, because the query is admitted after the combiner is created
+			pipeline.BudgetQueryFromContext(ctx).Settle(jobTenant, cost, inspectedBytes)
 			addEstimatedBytes(cost.Estimate)
 		}),
 	)
-}
-
-// budgetOption returns a combiner option that only settles the jobs of a query in the query budget. It is for
-// queries that otherwise aren't reported.
-func (r *jobReporter) budgetOption(ctx context.Context) combiner.Option {
-	if r == nil {
-		return combiner.WithOptions()
-	}
-	return combiner.WithJobInspectedBytesObserver(func(jobTenant string, inspectedBytes uint64, cost jobcost.Cost) {
-		r.settle(ctx, jobTenant, inspectedBytes, cost)
-	})
 }
 
 func (r *jobReporter) observeJob(inspectedBytes uint64, cost jobcost.Cost) {
@@ -96,13 +86,6 @@ func (r *jobReporter) observeJob(inspectedBytes uint64, cost jobcost.Cost) {
 	}
 
 	r.estimator.Observe(r.op, cost, inspectedBytes)
-}
-
-// settle corrects the charge of a completed job with the bytes it read, in the query budget of the query whose
-// cell is on ctx. The query budget is looked up for every job, as the query is admitted after the combiner is
-// created.
-func (r *jobReporter) settle(ctx context.Context, jobTenant string, inspectedBytes uint64, cost jobcost.Cost) {
-	pipeline.QueryBudgetFromContext(ctx).Settle(jobTenant, r.op.String(), cost, inspectedBytes)
 }
 
 func newJobCostMetrics(estimator *jobcost.Estimator, registerer prometheus.Registerer) *jobCostMetrics {

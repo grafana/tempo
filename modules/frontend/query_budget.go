@@ -1,12 +1,14 @@
 package frontend
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/grafana/dskit/tenant"
 	"go.opentelemetry.io/otel/attribute"
@@ -42,13 +44,13 @@ func (w *queryBudgetAdmitWare) RoundTrip(req pipeline.Request) (pipeline.Respons
 		return w.next.RoundTrip(req)
 	}
 
-	d := pipeline.AdmitQueryBudget(ctx, func() querybudget.Decision {
-		return w.budget.Admit(tenants, w.op.String())
+	d := pipeline.AdmitQueryBudgetOnce(ctx, func() querybudget.Decision {
+		return w.budget.Admit(tenants, w.op)
 	})
 	switch {
 	case d.Rejected:
 		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("query_budget.rejected", true))
-		return pipeline.NewHTTPToAsyncResponse(queryBudgetRejectedResponse(d)), nil
+		return pipeline.NewHTTPToAsyncResponse(queryBudgetRejectedResponse(d.RetryAfter)), nil
 	case d.DryRunRejected:
 		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("query_budget.dry_run_rejected", true))
 	}
@@ -59,21 +61,20 @@ func (w *queryBudgetAdmitWare) RoundTrip(req pipeline.Request) (pipeline.Respons
 // queryBudgetChargeWare charges every job sent to the queriers to the query budget of its tenant. It is the
 // innermost sync middleware, so cache hits are not charged and every retry is.
 type queryBudgetChargeWare struct {
-	op   jobcost.Op
 	next pipeline.RoundTripper
 }
 
-func newQueryBudgetChargeWare(op jobcost.Op) pipeline.Middleware {
+func newQueryBudgetChargeWare() pipeline.Middleware {
 	return pipeline.MiddlewareFunc(func(next pipeline.RoundTripper) pipeline.RoundTripper {
-		return &queryBudgetChargeWare{op: op, next: next}
+		return &queryBudgetChargeWare{next: next}
 	})
 }
 
 func (w *queryBudgetChargeWare) RoundTrip(req pipeline.Request) (*http.Response, error) {
 	ctx := req.Context()
 	cost := req.Cost()
-	query := pipeline.QueryBudgetFromContext(ctx)
-	if query == nil || cost.Estimate == 0 {
+	budgetQuery := pipeline.BudgetQueryFromContext(ctx)
+	if budgetQuery == nil || cost.Estimate == 0 {
 		return w.next.RoundTrip(req)
 	}
 	tenantID, err := tenant.TenantID(ctx)
@@ -81,8 +82,7 @@ func (w *queryBudgetChargeWare) RoundTrip(req pipeline.Request) (*http.Response,
 		return w.next.RoundTrip(req)
 	}
 
-	op := w.op.String()
-	query.Charge(tenantID, op, cost)
+	budgetQuery.Charge(tenantID, cost)
 
 	ctx, dequeued := pipeline.WithDequeueMarker(ctx)
 	req.SetContext(ctx)
@@ -92,18 +92,32 @@ func (w *queryBudgetChargeWare) RoundTrip(req pipeline.Request) (*http.Response,
 	// are not reported
 	resp, err := w.next.RoundTrip(req)
 	if err != nil && !dequeued.Load() {
-		query.Refund(tenantID, op, cost)
+		budgetQuery.Refund(tenantID, cost)
 	}
 	return resp, err
 }
 
+// queryBudgetSettleOption returns a combiner option that settles the completed jobs of the query whose cell is on
+// ctx in its query budget, and does nothing else.
+func queryBudgetSettleOption(ctx context.Context) combiner.Option {
+	return combiner.WithJobInspectedBytesObserver(func(jobTenant string, inspectedBytes uint64, cost jobcost.Cost) {
+		// looked up for every job, because the query is admitted after the combiner is created
+		pipeline.BudgetQueryFromContext(ctx).Settle(jobTenant, cost, inspectedBytes)
+	})
+}
+
 // queryBudgetRejectedResponse is the response to a query that the query budget rejected.
-func queryBudgetRejectedResponse(d querybudget.Decision) *http.Response {
-	retryAfter := strconv.Itoa(int(math.Ceil(d.RetryAfter.Seconds())))
+func queryBudgetRejectedResponse(retryAfter time.Duration) *http.Response {
+	seconds := retryAfterSeconds(retryAfter)
 	return &http.Response{
 		StatusCode: http.StatusTooManyRequests,
 		Status:     http.StatusText(http.StatusTooManyRequests),
-		Header:     http.Header{api.HeaderRetryAfter: {retryAfter}},
-		Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("query budget used up, retry after %s seconds", retryAfter))),
+		Header:     http.Header{api.HeaderRetryAfter: {seconds}},
+		Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("query budget used up, retry after %s seconds", seconds))),
 	}
+}
+
+// retryAfterSeconds returns the value of a Retry-After header for d, in whole seconds rounded up.
+func retryAfterSeconds(d time.Duration) string {
+	return strconv.Itoa(int(math.Ceil(d.Seconds())))
 }

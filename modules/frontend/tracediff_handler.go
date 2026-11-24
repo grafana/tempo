@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"net/url"
 	"path"
@@ -43,9 +42,9 @@ var (
 
 // newTraceDiffHandler creates an HTTP handler for trace diff requests.
 // EXPERIMENTAL: this endpoint is not yet a stable API contract.
-func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], reporter *jobReporter, _ cache.Provider, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], _ cache.Provider, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	fetchTrace := func(ctx context.Context, tenant string, traceReq api.TraceDiffTraceRequest, headers http.Header) (*tempopb.TraceByIDResponse, error) {
-		return fetchTraceForDiff(ctx, tenant, traceReq, headers, apiPrefix, tracePipeline, o, combinerFn, reporter, logger, dataAccessController)
+		return fetchTraceForDiff(ctx, tenant, traceReq, headers, apiPrefix, tracePipeline, o, combinerFn, logger, dataAccessController)
 	}
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -181,7 +180,7 @@ func buildTraceDiffTraceByIDRequest(ctx context.Context, apiPrefix string, trace
 	return mux.SetURLVars(req, map[string]string{"traceID": traceReq.TraceID})
 }
 
-func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDiffTraceRequest, headers http.Header, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) (*tempopb.TraceByIDResponse, error) {
+func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDiffTraceRequest, headers http.Header, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) (*tempopb.TraceByIDResponse, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -198,7 +197,7 @@ func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDif
 
 	// diff works on full traces, so no spanset filter. the jobs are only settled in the query budget, a diff is
 	// not reported like a trace by id query.
-	comb := combinerFn(o.MaxBytesPerTrace(tenant), api.MarshallingFormatProtobuf, traceRedactor, combiner.TraceByIDV2Options{}, reporter.budgetOption(ctx))
+	comb := combinerFn(o.MaxBytesPerTrace(tenant), api.MarshallingFormatProtobuf, traceRedactor, combiner.TraceByIDV2Options{}, queryBudgetSettleOption(ctx))
 	for {
 		resp, done, err := resps.Next(ctx)
 		if err != nil {
@@ -322,7 +321,7 @@ func traceDiffErrorResponse(err error) *http.Response {
 
 	header := http.Header{}
 	if delay, ok := retryDelay(err); ok && statusCode == http.StatusTooManyRequests {
-		header.Set(api.HeaderRetryAfter, strconv.Itoa(int(math.Ceil(delay.Seconds()))))
+		header.Set(api.HeaderRetryAfter, retryAfterSeconds(delay))
 	}
 
 	return &http.Response{

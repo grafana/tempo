@@ -37,13 +37,14 @@ const (
 	labelTenant = "tenant"
 )
 
-// SupportedModes are the valid values of the mode of a query budget.
-var SupportedModes = []string{ModeDisabled, ModeDryRun, ModeEnabled}
+var (
+	supportedModes = []string{ModeDisabled, ModeDryRun, ModeEnabled}
 
-var levelDesc = prometheus.NewDesc(
-	"tempo_query_frontend_query_budget_level",
-	"Units left in the query budget bucket of a tenant. Negative values are debt that has to refill before queries are admitted again.",
-	[]string{labelTenant}, nil,
+	levelDesc = prometheus.NewDesc(
+		"tempo_query_frontend_query_budget_level",
+		"Units left in the query budget bucket of a tenant. Negative values are debt that has to refill before queries are admitted again.",
+		[]string{labelTenant}, nil,
+	)
 )
 
 // Limits are the per-tenant limits of the query budget.
@@ -74,7 +75,7 @@ type queryTenant struct {
 	dryRunRejected bool
 
 	// forgiven are the units charged to the tenant beyond its debt cap. Later corrections of the query first
-	// take them back. It is guarded by the mutex of the tenant's bucket.
+	// take them back. It is guarded by the mutex of the Budget.
 	forgiven float64
 }
 
@@ -83,7 +84,7 @@ type Budget struct {
 	limits Limits
 	now    func() time.Time
 
-	mtx         sync.RWMutex
+	mtx         sync.Mutex
 	buckets     map[string]*bucket
 	lastCleanup time.Time
 
@@ -120,8 +121,8 @@ func New(limits Limits, reg prometheus.Registerer) *Budget {
 
 // Admit decides whether a query of op for tenants may start. A query is rejected if the bucket of a tenant in
 // ModeEnabled is in debt. Tenants in ModeDisabled are ignored, and tenants without a rate are only counted.
-func (b *Budget) Admit(tenants []string, op string) Decision {
-	if b == nil || b.limits == nil {
+func (b *Budget) Admit(tenants []string, op jobcost.Op) Decision {
+	if b.limits == nil {
 		return Decision{}
 	}
 
@@ -129,8 +130,8 @@ func (b *Budget) Admit(tenants []string, op string) Decision {
 	b.cleanup(now)
 
 	var (
-		d       Decision
-		queried = make(map[string]*queryTenant, len(tenants))
+		d        Decision
+		budgeted = make(map[string]*queryTenant, len(tenants))
 	)
 	for _, tenant := range tenants {
 		mode := b.limits.QueryBudgetMode(tenant)
@@ -139,22 +140,19 @@ func (b *Budget) Admit(tenants []string, op string) Decision {
 		}
 
 		qt := &queryTenant{}
-		queried[tenant] = qt
-
+		budgeted[tenant] = qt
 		rate, burst := b.rateAndBurst(tenant)
-		var level float64
-		b.withBucket(tenant, now, func(s *bucket) {
-			s.lastUsed = now
-			s.refill(now, rate, burst)
-			level = s.level
-		})
+
+		b.mtx.Lock()
+		level := b.useBucketLocked(tenant, now, rate, burst).level
+		b.mtx.Unlock()
 
 		if rate == 0 || level >= 0 {
 			continue
 		}
 
 		if mode == ModeEnabled {
-			b.rejected.WithLabelValues(tenant, op, mode).Inc()
+			b.rejected.WithLabelValues(tenant, op.String(), mode).Inc()
 			d.Rejected = true
 			d.RetryAfter = max(d.RetryAfter, retryAfter(level, rate))
 		} else {
@@ -163,18 +161,18 @@ func (b *Budget) Admit(tenants []string, op string) Decision {
 	}
 
 	if d.Rejected {
-		return Decision{Rejected: true, RetryAfter: d.RetryAfter}
+		return d
 	}
 
 	// dry run rejections are only counted for queries that are admitted, which is what dry run reports
-	for tenant, qt := range queried {
+	for tenant, qt := range budgeted {
 		if qt.dryRunRejected {
-			b.rejected.WithLabelValues(tenant, op, ModeDryRun).Inc()
+			b.rejected.WithLabelValues(tenant, op.String(), ModeDryRun).Inc()
 			d.DryRunRejected = true
 		}
 	}
-	if len(queried) > 0 {
-		d.Query = &Query{budget: b, tenants: queried}
+	if len(budgeted) > 0 {
+		d.Query = &Query{budget: b, op: op.String(), tenants: budgeted}
 	}
 	return d
 }
@@ -184,62 +182,41 @@ func (b *Budget) Describe(ch chan<- *prometheus.Desc) {
 	ch <- levelDesc
 }
 
-// Collect implements prometheus.Collector. It reports the level of every bucket with a rate, refilled to now.
+// Collect implements prometheus.Collector. It reports the level of every bucket with a rate.
 func (b *Budget) Collect(ch chan<- prometheus.Metric) {
-	if b == nil || b.limits == nil {
+	if b.limits == nil {
 		return
 	}
 
 	now := b.now()
 	levels := map[string]float64{}
 
-	b.mtx.RLock()
-	for tenant, s := range b.buckets {
+	b.mtx.Lock()
+	for tenant, bkt := range b.buckets {
 		if b.limits.QueryBudgetMode(tenant) == ModeDisabled {
 			continue
 		}
-		rate, burst := b.rateAndBurst(tenant)
-		if rate == 0 {
-			continue
+		if rate, burst := b.rateAndBurst(tenant); rate > 0 {
+			levels[tenant] = bkt.levelAt(now, rate, burst)
 		}
-
-		s.mtx.Lock()
-		s.refill(now, rate, burst)
-		levels[tenant] = s.level
-		s.mtx.Unlock()
 	}
-	b.mtx.RUnlock()
+	b.mtx.Unlock()
 
 	for tenant, level := range levels {
 		ch <- prometheus.MustNewConstMetric(levelDesc, prometheus.GaugeValue, level, tenant)
 	}
 }
 
-// withBucket calls fn with the locked bucket of tenant, and creates the bucket full if it does not exist yet. The
-// lock of the budget is held while fn runs, so that cleanup can't remove the bucket while it is changed.
-func (b *Budget) withBucket(tenant string, now time.Time, fn func(s *bucket)) {
-	b.mtx.RLock()
-	if s, ok := b.buckets[tenant]; ok {
-		s.mtx.Lock()
-		fn(s)
-		s.mtx.Unlock()
-		b.mtx.RUnlock()
-		return
-	}
-	b.mtx.RUnlock()
-
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
-
-	s, ok := b.buckets[tenant]
+// useBucketLocked returns the bucket of tenant refilled to now, and creates it full if it does not exist yet.
+// The caller must hold the mutex of the Budget.
+func (b *Budget) useBucketLocked(tenant string, now time.Time, rate, burst float64) *bucket {
+	bkt, ok := b.buckets[tenant]
 	if !ok {
-		_, burst := b.rateAndBurst(tenant)
-		s = &bucket{level: burst, lastRefill: now, lastUsed: now}
-		b.buckets[tenant] = s
+		bkt = &bucket{level: burst, last: now}
+		b.buckets[tenant] = bkt
 	}
-	s.mtx.Lock()
-	fn(s)
-	s.mtx.Unlock()
+	bkt.refill(now, rate, burst)
+	return bkt
 }
 
 // rateAndBurst returns the limits of the bucket of tenant. The burst is at least the rate, so a bucket always
@@ -250,58 +227,50 @@ func (b *Budget) rateAndBurst(tenant string) (rate, burst float64) {
 	return rate, max(burst, rate)
 }
 
-// cleanup removes tenants that didn't use their bucket for idleTimeout, at most once per cleanupInterval. A tenant
-// whose bucket is not full is kept, so that removing it doesn't forgive its debt.
+// cleanup removes idle tenants and their series.
 func (b *Budget) cleanup(now time.Time) {
-	b.mtx.RLock()
-	due := now.Sub(b.lastCleanup) >= cleanupInterval
-	b.mtx.RUnlock()
-	if !due {
-		return
-	}
+	removed := b.removeIdleBuckets(now)
 
-	var removed []string
-	defer func() {
-		// deleting series scans all series of a metric, so it is done without holding the lock. a tenant that
-		// is back already keeps its series
-		for _, tenant := range removed {
-			b.mtx.RLock()
-			_, back := b.buckets[tenant]
-			b.mtx.RUnlock()
-			if back {
-				continue
-			}
-			labels := prometheus.Labels{labelTenant: tenant}
-			b.rejected.DeletePartialMatch(labels)
-			b.charged.DeletePartialMatch(labels)
-			b.refunded.DeletePartialMatch(labels)
+	// deleting series scans all series of a metric, so it happens without holding the lock. a tenant that is
+	// back already keeps its series
+	for _, tenant := range removed {
+		b.mtx.Lock()
+		_, back := b.buckets[tenant]
+		b.mtx.Unlock()
+		if back {
+			continue
 		}
-	}()
 
+		labels := prometheus.Labels{labelTenant: tenant}
+		b.rejected.DeletePartialMatch(labels)
+		b.charged.DeletePartialMatch(labels)
+		b.refunded.DeletePartialMatch(labels)
+	}
+}
+
+// removeIdleBuckets removes the buckets that weren't used for idleTimeout, at most once per cleanupInterval, and
+// returns their tenants. A bucket that is not full is kept, so that removing it doesn't reset its debt.
+func (b *Budget) removeIdleBuckets(now time.Time) []string {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 
 	if now.Sub(b.lastCleanup) < cleanupInterval {
-		return
+		return nil
 	}
 	b.lastCleanup = now
 
-	for tenant, s := range b.buckets {
-		rate, burst := b.rateAndBurst(tenant)
-
-		s.mtx.Lock()
-		idle := now.Sub(s.lastUsed) >= idleTimeout
-		if idle && rate > 0 {
-			s.refill(now, rate, burst)
-			idle = s.level >= burst
+	var removed []string
+	for tenant, bkt := range b.buckets {
+		if now.Sub(bkt.last) < idleTimeout {
+			continue
 		}
-		s.mtx.Unlock()
-
-		if idle {
-			delete(b.buckets, tenant)
-			removed = append(removed, tenant)
+		if rate, burst := b.rateAndBurst(tenant); rate > 0 && bkt.levelAt(now, rate, burst) < burst {
+			continue
 		}
+		delete(b.buckets, tenant)
+		removed = append(removed, tenant)
 	}
+	return removed
 }
 
 // Query charges the jobs of an admitted query to the buckets of its tenants. The debt of a bucket is capped at
@@ -311,33 +280,34 @@ func (b *Budget) cleanup(now time.Time) {
 // corrected. It is safe for concurrent use, and a nil Query charges nothing.
 type Query struct {
 	budget *Budget
+	op     string
 	// tenants are the tenants of the query that have a query budget. The map is not modified after Admit.
 	tenants map[string]*queryTenant
 }
 
 // Charge takes the estimate of a job from the bucket of tenant when the job is sent to the queriers.
-func (q *Query) Charge(tenant, op string, cost jobcost.Cost) {
-	q.add(tenant, op, -float64(cost.Estimate))
+func (q *Query) Charge(tenant string, cost jobcost.Cost) {
+	q.add(tenant, -float64(cost.Estimate))
 }
 
 // Refund gives the estimate of a job back to the bucket of tenant if the job was charged but failed before a
 // querier took it, for example because the queue was full or the query was canceled.
-func (q *Query) Refund(tenant, op string, cost jobcost.Cost) {
-	q.add(tenant, op, float64(cost.Estimate))
+func (q *Query) Refund(tenant string, cost jobcost.Cost) {
+	q.add(tenant, float64(cost.Estimate))
 }
 
 // Settle corrects the charge of a completed job with the bytes it actually read. Only block jobs are settled,
 // the estimate of live-store jobs is a fixed cost.
-func (q *Query) Settle(tenant, op string, cost jobcost.Cost, actual uint64) {
+func (q *Query) Settle(tenant string, cost jobcost.Cost, actual uint64) {
 	if cost.Kind != jobcost.KindBlock {
 		return
 	}
-	q.add(tenant, op, float64(cost.Estimate)-float64(actual))
+	q.add(tenant, float64(cost.Estimate)-float64(actual))
 }
 
 // add changes the bucket of tenant by delta, which is negative for charges. The change is counted even if the
 // bucket is not changed, so that tenants in dry run and tenants without a rate report what they use.
-func (q *Query) add(tenant, op string, delta float64) {
+func (q *Query) add(tenant string, delta float64) {
 	if q == nil || delta == 0 {
 		return
 	}
@@ -348,9 +318,9 @@ func (q *Query) add(tenant, op string, delta float64) {
 
 	b := q.budget
 	if delta < 0 {
-		b.charged.WithLabelValues(tenant, op).Add(-delta)
+		b.charged.WithLabelValues(tenant, q.op).Add(-delta)
 	} else {
-		b.refunded.WithLabelValues(tenant, op).Add(delta)
+		b.refunded.WithLabelValues(tenant, q.op).Add(delta)
 	}
 
 	rate, burst := b.rateAndBurst(tenant)
@@ -359,61 +329,53 @@ func (q *Query) add(tenant, op string, delta float64) {
 	}
 
 	now := b.now()
-	b.withBucket(tenant, now, func(s *bucket) {
-		s.lastUsed = now
-		s.refill(now, rate, burst)
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
 
-		before := s.level
-		level := before + delta
-		if delta > 0 {
-			// a refund first takes back what was forgiven, as the forgiven charge was never taken
-			takenBack := min(delta, qt.forgiven)
-			qt.forgiven -= takenBack
-			level -= takenBack
-		}
-		// the debt is capped at burst. if burst was lowered below the debt, the debt is kept, but a charge
-		// doesn't add to it
-		floor := min(before, -burst)
-		if level < floor {
-			qt.forgiven += floor - level
-			level = floor
-		}
-		s.level = min(level, burst)
-	})
+	bkt := b.useBucketLocked(tenant, now, rate, burst)
+	if delta > 0 {
+		// a refund first takes back what was forgiven, as the forgiven charge was never taken
+		takenBack := min(delta, qt.forgiven)
+		qt.forgiven -= takenBack
+		bkt.level = min(bkt.level+delta-takenBack, burst)
+		return
+	}
+
+	// the debt is capped at burst. if burst was lowered below the debt, the debt is kept, but a charge doesn't
+	// add to it
+	floor := min(bkt.level, -burst)
+	level := bkt.level + delta
+	qt.forgiven += max(floor-level, 0)
+	bkt.level = max(level, floor)
 }
 
 // bucket is the token bucket of a tenant.
 type bucket struct {
-	mtx sync.Mutex
-
 	// level is the number of units in the bucket. It is negative if the tenant used more than it had.
 	level float64
-	// lastRefill is when level was last refilled, lastUsed when a query of the tenant was last admitted or charged.
-	lastRefill time.Time
-	lastUsed   time.Time
+	// last is when the bucket was last used and refilled.
+	last time.Time
 }
 
-// refill adds the units the bucket gained since the last refill. The level never exceeds burst.
-func (s *bucket) refill(now time.Time, rate, burst float64) {
-	if elapsed := now.Sub(s.lastRefill); elapsed > 0 {
-		s.level += rate * elapsed.Seconds()
-		s.lastRefill = now
-	}
-	s.level = min(s.level, burst)
+// refill adds the units the bucket gained since it was last used, and marks it as used now.
+func (bkt *bucket) refill(now time.Time, rate, burst float64) {
+	bkt.level = bkt.levelAt(now, rate, burst)
+	bkt.last = now
 }
 
-// ValidateMode returns an error if mode is not one of SupportedModes.
-func ValidateMode(mode string) error {
-	if !slices.Contains(SupportedModes, mode) {
-		return fmt.Errorf("query_budget mode %q is not valid, valid values: %q", mode, SupportedModes)
+// levelAt returns the level the bucket has at now. It never exceeds burst.
+func (bkt *bucket) levelAt(now time.Time, rate, burst float64) float64 {
+	level := bkt.level
+	if elapsed := now.Sub(bkt.last); elapsed > 0 {
+		level += rate * elapsed.Seconds()
 	}
-	return nil
+	return min(level, burst)
 }
 
 // ValidateLimits returns an error if the limits of a tenant are invalid.
 func ValidateLimits(mode string, rate, burst uint64) error {
-	if err := ValidateMode(mode); err != nil {
-		return err
+	if !slices.Contains(supportedModes, mode) {
+		return fmt.Errorf("query_budget mode %q is not valid, valid values: %q", mode, supportedModes)
 	}
 	if rate > 0 && burst < rate {
 		return fmt.Errorf("query_budget burst (%d) must be at least the rate (%d)", burst, rate)

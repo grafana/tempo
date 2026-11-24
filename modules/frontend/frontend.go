@@ -162,11 +162,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	estimator := jobcost.NewEstimator(cfg.JobCost)
 
-	var budgetLimits querybudget.Limits
-	if o != nil {
-		budgetLimits = o
-	}
-	budget := querybudget.New(budgetLimits, registerer)
+	budget := querybudget.New(o, registerer)
+	queryBudgetChargeWare := newQueryBudgetChargeWare()
 
 	adjustEndWareSeconds := pipeline.NewAdjustStartEndWare(cfg.Search.Sharder.QueryBackendAfter, cfg.QueryEndCutoff, false)
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer, logger)
@@ -188,7 +185,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			tenantValidatorWare,
 			newAsyncTraceIDSharder(&cfg.TraceByID, cfg.Config.MaxOutstandingPerTenant, reader, jobsPerQuery, estimator, logger),
 		},
-		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare, newQueryBudgetChargeWare(jobcost.OpTraceByID)},
+		[]pipeline.Middleware{traceIDStatusCodeWare, retryWare, queryBudgetChargeWare},
 		next,
 	)
 
@@ -204,7 +201,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			tenantValidatorWare,
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, cfg.SkipASTTransformations, jobsPerQuery, estimator, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, newQueryBudgetChargeWare(jobcost.OpSearch)},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryBudgetChargeWare},
 		next,
 	)
 
@@ -219,7 +216,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			tenantValidatorWare,
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, jobsPerQuery, estimator, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, newQueryBudgetChargeWare(jobcost.OpMetadata)},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryBudgetChargeWare},
 		next,
 	)
 
@@ -234,7 +231,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			tenantValidatorWare,
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, jobsPerQuery, estimator, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, newQueryBudgetChargeWare(jobcost.OpMetadata)},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryBudgetChargeWare},
 		next,
 	)
 
@@ -249,7 +246,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			tenantValidatorWare,
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequestV2, jobsPerQuery, estimator, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, newQueryBudgetChargeWare(jobcost.OpMetadata)},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryBudgetChargeWare},
 		next,
 	)
 
@@ -265,7 +262,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			tenantValidatorWare,
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, false, jobsPerQuery, estimator, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, newQueryBudgetChargeWare(jobcost.OpMetrics)},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryBudgetChargeWare},
 		next,
 	)
 
@@ -280,7 +277,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			tenantValidatorWare,
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.SkipASTTransformations, true, jobsPerQuery, estimator, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, newQueryBudgetChargeWare(jobcost.OpMetrics)},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryBudgetChargeWare},
 		next,
 	)
 
@@ -293,7 +290,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	metricsQueryRangeLimiter := newMetricsRangeLimiter(cfg, o, reader)
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, traceByIDReporter, logger, dataAccessController)
 	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, traceByIDReporter, logger, dataAccessController)
-	traceDiff := newTraceDiffHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, traceByIDReporter, cacheProvider, logger, dataAccessController)
+	traceDiff := newTraceDiffHandler(cfg, apiPrefix, tracePipeline, o, combiner.NewTypedTraceByIDV2, cacheProvider, logger, dataAccessController)
 	search := newSearchHTTPHandler(cfg, searchPipeline, o, searchReporter, logger, dataAccessController)
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, metadataReporter, logger, dataAccessController)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, metadataReporter, logger, dataAccessController)
