@@ -51,6 +51,7 @@ server:
         client_auth_type: ""
         client_ca_file: ""
     register_instrumentation: true
+    metrics_cache_duration: 0s
     report_grpc_codes_in_instrumentation_label_enabled: false
     graceful_shutdown_timeout: 30s
     http_server_read_timeout: 30s
@@ -129,6 +130,7 @@ internal_server:
         client_auth_type: ""
         client_ca_file: ""
     register_instrumentation: false
+    metrics_cache_duration: 0s
     report_grpc_codes_in_instrumentation_label_enabled: false
     graceful_shutdown_timeout: 30s
     http_server_read_timeout: 30s

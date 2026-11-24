@@ -31,9 +31,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.27.0
 	github.com/gorilla/mux v1.8.1
-	github.com/grafana/dskit v0.0.0-20261021083420-72e594bf1533
+	github.com/grafana/dskit v0.0.0-20261123050442-8ef50684f551
 	github.com/grafana/e2e v0.1.2-0.20260925181323-2ec4363d2215
-	github.com/grafana/gomemcache v0.0.0-20261102183244-888ddcfa6685
+	github.com/grafana/gomemcache v0.0.0-20261112174412-3f2aa5dee9f7
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
 	github.com/jaegertracing/jaeger-idl v0.14.0
 	github.com/jedib0t/go-pretty/v6 v6.9.2
@@ -322,7 +322,7 @@ require (
 	github.com/prometheus/client_golang/exp v0.0.0-20261019101427-217707f26b14 // indirect
 	github.com/prometheus/exporter-toolkit v0.20.0 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
-	github.com/prometheus/procfs v0.22.0 // indirect
+	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/prometheus/sigv4 v0.5.0 // indirect
 	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
 	github.com/relvacode/iso8601 v1.8.0 // indirect
@@ -358,8 +358,8 @@ require (
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.7.2 // indirect
-	go.etcd.io/etcd/client/v3 v3.7.2 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.7.3 // indirect
+	go.etcd.io/etcd/client/v3 v3.7.3 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector v0.161.0 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.165.0 // indirect
