@@ -12,6 +12,8 @@ import (
 	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -184,7 +186,7 @@ func schemaJSONFor(tool mcp.Tool) ([]byte, bool) {
 	if len(tool.RawInputSchema) > 0 {
 		return tool.RawInputSchema, true
 	}
-	if tool.InputSchema.Type == "" && len(tool.InputSchema.Properties) == 0 && len(tool.InputSchema.Required) == 0 && tool.InputSchema.AdditionalProperties == nil {
+	if tool.InputSchema.Type == "" && tool.InputSchema.Types == nil && len(tool.InputSchema.Properties) == 0 && len(tool.InputSchema.Required) == 0 && tool.InputSchema.AdditionalProperties == nil {
 		return nil, false
 	}
 	data, err := json.Marshal(tool.InputSchema)
@@ -224,10 +226,11 @@ func normalizeArgumentsForValidation(rawArgs any) (any, error) {
 		return map[string]any{}, nil
 	}
 	if raw, ok := rawArgs.(json.RawMessage); ok {
-		if len(bytes.TrimSpace(raw)) == 0 {
+		trimmed := bytes.TrimSpace(raw)
+		if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 			return map[string]any{}, nil
 		}
-		return jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+		return jsonschema.UnmarshalJSON(bytes.NewReader(trimmed))
 	}
 	encoded, err := json.Marshal(rawArgs)
 	if err != nil {
@@ -274,7 +277,7 @@ func formatLeafMessage(verr *jsonschema.ValidationError) string {
 	if location == "" {
 		location = "<root>"
 	}
-	return fmt.Sprintf("%s: %s", location, verr.ErrorKind)
+	return fmt.Sprintf("%s: %s", location, verr.ErrorKind.LocalizedString(message.NewPrinter(language.English)))
 }
 
 // jsonPointer renders a list of path segments as a RFC 6901 JSON Pointer.

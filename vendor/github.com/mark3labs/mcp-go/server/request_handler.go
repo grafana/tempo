@@ -3,6 +3,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,23 +16,77 @@ import (
 func (s *MCPServer) HandleMessage(
 	ctx context.Context,
 	message json.RawMessage,
+) mcp.JSONRPCMessage {
+	return s.handleMessage(ctx, message, false)
+}
+
+// handleMessage can reuse a request context reserved by stdio before dispatch.
+func (s *MCPServer) handleMessage(
+	ctx context.Context,
+	message json.RawMessage,
+	registered bool,
 ) (resp mcp.JSONRPCMessage) {
 	// Add server to context
 	ctx = context.WithValue(ctx, serverKey{}, s)
 	var err *requestError
 
+	type envelope struct {
+		JSONRPC string          `json:"jsonrpc"`
+		Method  mcp.MCPMethod   `json:"method"`
+		RawID   json.RawMessage `json:"id,omitempty"`
+		Result  json.RawMessage `json:"result,omitempty"`
+	}
 	var baseMessage struct {
-		JSONRPC string        `json:"jsonrpc"`
-		Method  mcp.MCPMethod `json:"method"`
-		ID      any           `json:"id,omitempty"`
-		Result  any           `json:"result,omitempty"`
+		envelope
+		Params struct {
+			Meta *mcp.Meta `json:"_meta"`
+		} `json:"params"`
+		ID any `json:"-"`
 	}
 
+	hasMeta := true
 	if err := json.Unmarshal(message, &baseMessage); err != nil {
+		hasMeta = false
+		baseMessage.envelope = envelope{}
+		baseMessage.Params.Meta = nil
+		if err := json.Unmarshal(message, &baseMessage.envelope); err != nil {
+			return createErrorResponse(
+				nil,
+				mcp.PARSE_ERROR,
+				"Failed to parse message",
+			)
+		}
+	}
+
+	if len(baseMessage.RawID) > 0 {
+		decoder := json.NewDecoder(bytes.NewReader(baseMessage.RawID))
+		decoder.UseNumber()
+		if err := decoder.Decode(&baseMessage.ID); err != nil {
+			return createErrorResponse(
+				nil,
+				mcp.PARSE_ERROR,
+				"Failed to parse message",
+			)
+		}
+	}
+
+	if number, ok := baseMessage.ID.(json.Number); ok {
+		var id mcp.RequestId
+		if err := json.Unmarshal([]byte(number), &id); err != nil {
+			return createErrorResponse(nil, mcp.INVALID_REQUEST, "Invalid request id")
+		}
+		baseMessage.ID = id.Value()
+		if value, ok := baseMessage.ID.(int64); ok && value >= -9007199254740991 && value <= 9007199254740991 {
+			baseMessage.ID = float64(value)
+		}
+	}
+
+	// encoding/json would also accept "Method" or "paramſ" here.
+	if err := validateProtocolMemberNames(message); err != nil {
 		return createErrorResponse(
-			nil,
-			mcp.PARSE_ERROR,
-			"Failed to parse message",
+			baseMessage.ID,
+			mcp.INVALID_REQUEST,
+			err.Error(),
 		)
 	}
 
@@ -57,10 +112,25 @@ func (s *MCPServer) HandleMessage(
 		return nil // Return nil for notifications
 	}
 
-	if baseMessage.Result != nil {
+	if len(baseMessage.Result) > 0 && !bytes.Equal(baseMessage.Result, []byte("null")) {
 		// this is a response to a request sent by the server (e.g. from a ping
 		// sent due to WithKeepAlive option)
 		return nil
+	}
+
+	var key inflightRequestKey
+	if !registered {
+		key = inflightKey(ctx, baseMessage.ID)
+		if key.sessionID != "" {
+			// Reject duplicates before hooks can reply with the same ID or
+			// the request can change session state.
+			var finish func()
+			ctx, finish = s.startRequest(ctx, key)
+			if finish == nil {
+				return duplicateRequestIDError()
+			}
+			defer finish()
+		}
 	}
 
 	handleErr := s.hooks.onRequestInitialization(ctx, baseMessage.ID, message)
@@ -80,26 +150,72 @@ func (s *MCPServer) HandleMessage(
 		headers = make(http.Header)
 	}
 
-	// Wrap context with cancel for in-flight request cancellation (MCP spec: notifications/cancelled)
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// Determine which protocol era this request belongs to. Protocol version
+	// 2026-07-28 removed the initialize handshake: a modern request carries
+	// its protocol version, client identity, and client capabilities in _meta
+	// (SEP-2575). Anything else is served through the legacy path.
+	protocolInfo := &RequestProtocolInfo{}
+	var protocolErr error
+	if hasMeta {
+		protocolInfo, protocolErr = protocolInfoFromMeta(baseMessage.Params.Meta)
+	}
+	if protocolErr != nil {
+		return errorResponseForProtocolError(baseMessage.ID, protocolErr)
+	}
+	ctx = WithRequestProtocolInfo(ctx, protocolInfo)
 
-	// Store cancel func so notifications/cancelled can cancel this request.
-	// Use session-scoped keys to prevent cross-session request ID collisions.
-	if baseMessage.ID != nil {
-		key := inflightKey(ctx, baseMessage.ID)
-		s.inflightCancels.Store(key, cancel)
-		defer s.inflightCancels.Delete(key)
+	if protocolInfo.Modern {
+		if !mcp.IsValidProtocolVersion(protocolInfo.ProtocolVersion) {
+			return errorResponseForProtocolError(baseMessage.ID, mcp.UnsupportedProtocolVersionError{
+				Version:   protocolInfo.ProtocolVersion,
+				Supported: SupportedProtocolVersionsFromContext(ctx),
+			})
+		}
+		if err := s.validateStandardHeadersForMessage(ctx, headers, protocolInfo.ProtocolVersion, baseMessage.Method, message); err != nil {
+			return errorResponseForProtocolError(baseMessage.ID, err)
+		}
+		// Synthesize the session state the handshake used to establish, so
+		// that hooks and handlers observing the session behave identically in
+		// both eras.
+		if session := ClientSessionFromContext(ctx); session != nil {
+			applyRequestProtocolInfoToSession(session, protocolInfo)
+		}
+	}
+
+	if !registered && key.sessionID == "" {
+		// Keep the existing cancellation timing for requests without a session ID.
+		var finish func()
+		ctx, finish = s.startRequest(ctx, key)
+		defer finish()
+	}
+
+	// Extract trace context from _meta before opening the server span so the span
+	// inherits the correct parent (SEP-414, transport-agnostic propagation).
+	if hasMeta {
+		ctx = s.extractMeta(ctx, baseMessage.Params.Meta)
 	}
 
 	ctx, endSpan := s.startMessageSpan(ctx, headers, string(baseMessage.Method))
 	defer func() { endSpan(resp) }()
 
+	endLog := s.startMessageLog(ctx, headers, string(baseMessage.Method))
+	defer func() { endLog(resp) }()
+
+	// Decorate outgoing results with the metadata required by protocol version
+	// 2026-07-28: resultType, serverInfo, and caching hints.
+	defer func() { resp = s.decorateResponse(ctx, protocolInfo, baseMessage.Method, resp) }()
+
 	switch baseMessage.Method {
 	case mcp.MethodInitialize:
 		var request mcp.InitializeRequest
 		var result *mcp.InitializeResult
-		if unmarshalErr := json.Unmarshal(message, &request); unmarshalErr != nil {
+		if protocolInfo.Modern {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.METHOD_NOT_FOUND,
+				err:  fmt.Errorf("%q %w", baseMessage.Method, ErrRemovedInProtocolVersion),
+			}
+		} else if unmarshalErr := json.Unmarshal(message, &request); unmarshalErr != nil {
 			err = &requestError{
 				id:   baseMessage.ID,
 				code: mcp.INVALID_REQUEST,
@@ -119,7 +235,13 @@ func (s *MCPServer) HandleMessage(
 	case mcp.MethodPing:
 		var request mcp.PingRequest
 		var result *mcp.EmptyResult
-		if unmarshalErr := json.Unmarshal(message, &request); unmarshalErr != nil {
+		if protocolInfo.Modern {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.METHOD_NOT_FOUND,
+				err:  fmt.Errorf("%q %w", baseMessage.Method, ErrRemovedInProtocolVersion),
+			}
+		} else if unmarshalErr := json.Unmarshal(message, &request); unmarshalErr != nil {
 			err = &requestError{
 				id:   baseMessage.ID,
 				code: mcp.INVALID_REQUEST,
@@ -136,10 +258,68 @@ func (s *MCPServer) HandleMessage(
 		}
 		s.hooks.afterPing(ctx, baseMessage.ID, &request, result)
 		return createResponse(baseMessage.ID, *result)
+	case mcp.MethodServerDiscover:
+		var request mcp.DiscoverRequest
+		var result *mcp.DiscoverResult
+		if !protocolInfo.Modern {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.METHOD_NOT_FOUND,
+				err:  fmt.Errorf("%q %w", baseMessage.Method, ErrRequiresModernProtocol),
+			}
+		} else if unmarshalErr := json.Unmarshal(message, &request); unmarshalErr != nil {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.INVALID_REQUEST,
+				err:  &UnparsableMessageError{message: message, err: unmarshalErr, method: baseMessage.Method},
+			}
+		} else {
+			request.Header = headers
+			s.hooks.beforeDiscover(ctx, baseMessage.ID, &request)
+			result, err = s.handleDiscover(ctx, baseMessage.ID, request)
+		}
+		if err != nil {
+			s.hooks.onError(ctx, baseMessage.ID, baseMessage.Method, &request, err)
+			return err.ToJSONRPCError()
+		}
+		s.hooks.afterDiscover(ctx, baseMessage.ID, &request, result)
+		return createResponse(baseMessage.ID, *result)
+	case mcp.MethodSubscriptionsListen:
+		var request mcp.SubscriptionsListenRequest
+		var result *mcp.SubscriptionsListenResult
+		if !protocolInfo.Modern {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.METHOD_NOT_FOUND,
+				err:  fmt.Errorf("%q %w", baseMessage.Method, ErrRequiresModernProtocol),
+			}
+		} else if unmarshalErr := json.Unmarshal(message, &request); unmarshalErr != nil {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.INVALID_REQUEST,
+				err:  &UnparsableMessageError{message: message, err: unmarshalErr, method: baseMessage.Method},
+			}
+		} else {
+			request.Header = headers
+			s.hooks.beforeSubscriptionsListen(ctx, baseMessage.ID, &request)
+			result, err = s.handleSubscriptionsListen(ctx, baseMessage.ID, request)
+		}
+		if err != nil {
+			s.hooks.onError(ctx, baseMessage.ID, baseMessage.Method, &request, err)
+			return err.ToJSONRPCError()
+		}
+		s.hooks.afterSubscriptionsListen(ctx, baseMessage.ID, &request, result)
+		return createResponse(baseMessage.ID, *result)
 	case mcp.MethodSetLogLevel:
 		var request mcp.SetLevelRequest
 		var result *mcp.EmptyResult
-		if s.capabilities.logging == nil {
+		if protocolInfo.Modern {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.METHOD_NOT_FOUND,
+				err:  fmt.Errorf("%q %w", baseMessage.Method, ErrRemovedInProtocolVersion),
+			}
+		} else if s.capabilities.logging == nil {
 			err = &requestError{
 				id:   baseMessage.ID,
 				code: mcp.METHOD_NOT_FOUND,
@@ -243,7 +423,13 @@ func (s *MCPServer) HandleMessage(
 	case mcp.MethodResourcesSubscribe:
 		var request mcp.SubscribeRequest
 		var result *mcp.EmptyResult
-		if s.capabilities.resources == nil {
+		if protocolInfo.Modern {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.METHOD_NOT_FOUND,
+				err:  fmt.Errorf("%q %w", baseMessage.Method, ErrRemovedInProtocolVersion),
+			}
+		} else if s.capabilities.resources == nil {
 			err = &requestError{
 				id:   baseMessage.ID,
 				code: mcp.METHOD_NOT_FOUND,
@@ -269,7 +455,13 @@ func (s *MCPServer) HandleMessage(
 	case mcp.MethodResourcesUnsubscribe:
 		var request mcp.UnsubscribeRequest
 		var result *mcp.EmptyResult
-		if s.capabilities.resources == nil {
+		if protocolInfo.Modern {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.METHOD_NOT_FOUND,
+				err:  fmt.Errorf("%q %w", baseMessage.Method, ErrRemovedInProtocolVersion),
+			}
+		} else if s.capabilities.resources == nil {
 			err = &requestError{
 				id:   baseMessage.ID,
 				code: mcp.METHOD_NOT_FOUND,
@@ -425,7 +617,13 @@ func (s *MCPServer) HandleMessage(
 	case mcp.MethodTasksList:
 		var request mcp.ListTasksRequest
 		var result *mcp.ListTasksResult
-		if s.capabilities.tasks == nil {
+		if protocolInfo.Modern {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.METHOD_NOT_FOUND,
+				err:  fmt.Errorf("%q %w", baseMessage.Method, ErrRemovedInProtocolVersion),
+			}
+		} else if s.capabilities.tasks == nil {
 			err = &requestError{
 				id:   baseMessage.ID,
 				code: mcp.METHOD_NOT_FOUND,
@@ -451,7 +649,13 @@ func (s *MCPServer) HandleMessage(
 	case mcp.MethodTasksResult:
 		var request mcp.TaskResultRequest
 		var result *mcp.TaskResultResult
-		if s.capabilities.tasks == nil {
+		if protocolInfo.Modern {
+			err = &requestError{
+				id:   baseMessage.ID,
+				code: mcp.METHOD_NOT_FOUND,
+				err:  fmt.Errorf("%q %w", baseMessage.Method, ErrRemovedInProtocolVersion),
+			}
+		} else if s.capabilities.tasks == nil {
 			err = &requestError{
 				id:   baseMessage.ID,
 				code: mcp.METHOD_NOT_FOUND,

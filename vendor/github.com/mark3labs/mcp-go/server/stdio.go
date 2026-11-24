@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -33,6 +34,7 @@ type StdioServer struct {
 	// Thread-safe tool call processing
 	toolCallQueue  chan *toolCallWork
 	workerWg       sync.WaitGroup
+	requestWg      sync.WaitGroup // Tracks in-flight request handlers
 	workerPoolSize int
 	queueSize      int
 	writeMu        sync.Mutex // Protects concurrent writes
@@ -41,8 +43,10 @@ type StdioServer struct {
 // toolCallWork represents a queued tool call request
 type toolCallWork struct {
 	ctx     context.Context
+	id      any // JSON-RPC id, so a recovered panic stays correlatable
 	message json.RawMessage
 	writer  io.Writer
+	finish  func()
 }
 
 // StdioOption defines a function type for configuring StdioServer
@@ -423,6 +427,13 @@ func (s *StdioServer) processInputStream(ctx context.Context, reader *bufio.Read
 		line, err := s.readNextLine(ctx, reader)
 		if err != nil {
 			if err == io.EOF {
+				// The final message may arrive without a trailing newline.
+				if strings.TrimSpace(line) != "" {
+					if err := s.processMessage(ctx, line, stdout); err != nil && err != io.EOF {
+						s.errLogger.Printf("Error handling message: %v", err)
+						return err
+					}
+				}
 				return nil
 			}
 			s.errLogger.Printf("Error reading input: %v", err)
@@ -439,35 +450,18 @@ func (s *StdioServer) processInputStream(ctx context.Context, reader *bufio.Read
 	}
 }
 
-// toolCallWorker processes tool calls from the queue
-func (s *StdioServer) toolCallWorker(ctx context.Context) {
+// toolCallWorker processes tool calls from the queue until Listen closes it.
+//
+// It does not stop on context cancellation: Listen cancels the request
+// context when input ends and only then closes the queue, so a worker that
+// returned on ctx.Done() could leave accepted calls unanswered. Calls still
+// queued at that point run with the cancelled context and get a response.
+func (s *StdioServer) toolCallWorker() {
 	defer s.workerWg.Done()
 
-	for {
-		select {
-		case work, ok := <-s.toolCallQueue:
-			if !ok {
-				// Channel closed, exit worker
-				return
-			}
-			// Process the tool call with panic recovery so a single
-			// panicking handler does not kill the worker permanently.
-			response := func() (resp mcp.JSONRPCMessage) {
-				defer func() {
-					if r := recover(); r != nil {
-						s.errLogger.Printf("panic recovered in stdio tool call worker: %v", r)
-						resp = createErrorResponse(nil, mcp.INTERNAL_ERROR, fmt.Sprintf("internal panic: %v", r))
-					}
-				}()
-				return s.server.HandleMessage(work.ctx, work.message)
-			}()
-			if response != nil {
-				if err := s.writeResponse(response, work.writer); err != nil {
-					s.errLogger.Printf("Error writing tool response: %v", err)
-				}
-			}
-		case <-ctx.Done():
-			return
+	for work := range s.toolCallQueue {
+		if err := s.handleRequest(work.ctx, work.id, work.message, work.writer, work.finish); err != nil {
+			s.errLogger.Printf("Error writing tool response: %v", err)
 		}
 	}
 }
@@ -517,19 +511,25 @@ func (s *StdioServer) Listen(
 	ctx = s.server.WithContext(ctx, &stdioSessionInstance)
 
 	// Set the writer for sending requests to the client
-	stdioSessionInstance.SetWriter(stdout)
+	stdioSessionInstance.SetWriter(&lockedWriter{mu: &s.writeMu, w: stdout})
 
 	// Add in any custom context.
 	if s.contextFunc != nil {
 		ctx = s.contextFunc(ctx)
 	}
 
+	// Requests are served on their own goroutines. Cancelling this context when
+	// input processing ends releases any handler still blocked on it, so none
+	// outlives the session it was registered against.
+	ctx, cancelRequests := context.WithCancel(ctx)
+	defer cancelRequests()
+
 	reader := bufio.NewReader(stdin)
 
 	// Start worker pool for tool calls
 	for i := 0; i < s.workerPoolSize; i++ {
 		s.workerWg.Add(1)
-		go s.toolCallWorker(ctx)
+		go s.toolCallWorker()
 	}
 
 	// Start notification handler
@@ -539,8 +539,10 @@ func (s *StdioServer) Listen(
 	err := s.processInputStream(ctx, reader, stdout)
 
 	// Shutdown workers gracefully
+	cancelRequests()
 	close(s.toolCallQueue)
 	s.workerWg.Wait()
+	s.requestWg.Wait()
 
 	return err
 }
@@ -582,32 +584,68 @@ func (s *StdioServer) processMessage(
 
 	// Check if this is a tool call that might need sampling (and thus should be processed concurrently)
 	var baseMessage struct {
-		Method string `json:"method"`
+		Method string        `json:"method"`
+		ID     mcp.RequestId `json:"id"`
 	}
-	if json.Unmarshal(rawMessage, &baseMessage) == nil && baseMessage.Method == string(mcp.MethodToolsCall) {
-		// Queue tool calls for processing by workers
-		select {
-		case s.toolCallQueue <- &toolCallWork{
-			ctx:     ctx,
-			message: rawMessage,
-			writer:  writer,
-		}:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			// Queue is full, process synchronously as fallback
-			s.errLogger.Printf("Tool call queue full, processing synchronously")
-			response := s.server.HandleMessage(ctx, rawMessage)
-			if response != nil {
-				return s.writeResponse(response, writer)
+	parsed := json.Unmarshal(rawMessage, &baseMessage) == nil
+	if !parsed {
+		var invalidIDMessage struct {
+			Method string          `json:"method"`
+			ID     json.RawMessage `json:"id"`
+		}
+		if err := json.Unmarshal(rawMessage, &invalidIDMessage); err == nil && invalidIDMessage.Method == string(mcp.MethodToolsCall) {
+			var id mcp.RequestId
+			if err := json.Unmarshal(invalidIDMessage.ID, &id); err != nil {
+				return s.writeResponse(createErrorResponse(nil, mcp.INVALID_REQUEST, "Invalid request id"), writer)
 			}
-			return nil
 		}
 	}
+	if parsed && !baseMessage.ID.IsNil() {
+		// Register before handing the request off, so even queued calls
+		// can receive cancellation notifications.
+		id := baseMessage.ID.Value()
+		reqCtx, finish := s.server.startRequest(ctx, inflightKey(ctx, id))
+		if finish == nil {
+			// Keep reading cancellation notifications and EOF if stdout blocks.
+			s.requestWg.Go(func() {
+				if err := s.writeResponse(duplicateRequestIDError(), writer); err != nil {
+					s.errLogger.Printf("Error writing duplicate request response: %v", err)
+				}
+			})
+			return nil
+		}
+		if baseMessage.Method == string(mcp.MethodToolsCall) {
+			select {
+			case s.toolCallQueue <- &toolCallWork{
+				ctx:     reqCtx,
+				id:      id,
+				message: rawMessage,
+				writer:  writer,
+				finish:  finish,
+			}:
+				return nil
+			case <-ctx.Done():
+				finish()
+				return ctx.Err()
+			default:
+				// Queue is full, process synchronously as fallback.
+				s.errLogger.Printf("Tool call queue full, processing synchronously")
+				return s.handleRequest(reqCtx, id, rawMessage, writer, finish)
+			}
+		}
 
-	// Handle other messages synchronously
-	response := s.server.HandleMessage(ctx, rawMessage)
+		// A blocking handler such as subscriptions/listen must not stall
+		// the read loop.
+		s.requestWg.Go(func() {
+			if err := s.handleRequest(reqCtx, id, rawMessage, writer, finish); err != nil {
+				s.errLogger.Printf("Error writing request response: %v", err)
+			}
+		})
+		return nil
+	}
+
+	// Notifications carry no response and must not queue behind a request.
+	response := s.handleMessage(ctx, baseMessage.ID.Value(), rawMessage, nil)
 
 	// Only write response if there is one (not for notifications)
 	if response != nil {
@@ -617,6 +655,34 @@ func (s *StdioServer) processMessage(
 	}
 
 	return nil
+}
+
+// handleMessage dispatches a message, recovering a panicking handler so that
+// it can't end the process. A request gets an INTERNAL_ERROR response
+// carrying its id; a notification (nil id) gets no response at all.
+func (s *StdioServer) handleMessage(ctx context.Context, id any, rawMessage json.RawMessage, finish func()) (response mcp.JSONRPCMessage) {
+	if finish != nil {
+		defer finish()
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			s.errLogger.Printf("panic recovered in stdio message handler: %v", r)
+			if id != nil {
+				response = createErrorResponse(id, mcp.INTERNAL_ERROR, fmt.Sprintf("internal panic: %v", r))
+			}
+		}
+	}()
+	return s.server.handleMessage(ctx, rawMessage, finish != nil)
+}
+
+// handleRequest serves one JSON-RPC request and writes its response. id is the
+// request's JSON-RPC id, so a recovered panic stays correlatable by the client.
+func (s *StdioServer) handleRequest(ctx context.Context, id any, rawMessage json.RawMessage, writer io.Writer, finish func()) error {
+	response := s.handleMessage(ctx, id, rawMessage, finish)
+	if response == nil {
+		return nil
+	}
+	return s.writeResponse(response, writer)
 }
 
 // handleSamplingResponse checks if the message is a response to a sampling request
@@ -665,15 +731,11 @@ func (s *stdioSession) handleSamplingResponse(rawMessage json.RawMessage) bool {
 			samplingResp.err = fmt.Errorf("failed to unmarshal sampling response: %w", err)
 		} else {
 			// Parse content from map[string]any to proper Content type (TextContent, ImageContent, AudioContent)
-			if contentMap, ok := result.Content.(map[string]any); ok {
-				content, err := mcp.ParseContent(contentMap)
-				if err != nil {
-					samplingResp.err = fmt.Errorf("failed to parse sampling response content: %w", err)
-				} else {
-					result.Content = content
-					samplingResp.result = &result
-				}
+			content, err := mcp.ParseSamplingContent(result.Content)
+			if err != nil {
+				samplingResp.err = fmt.Errorf("failed to parse sampling response content: %w", err)
 			} else {
+				result.Content = content
 				samplingResp.result = &result
 			}
 		}
@@ -832,6 +894,20 @@ func (s *StdioServer) writeResponse(
 	}
 
 	return nil
+}
+
+// lockedWriter writes to w while holding mu. The stdio session sends its
+// requests to the client through it, so they take the same lock as the
+// server's responses and notifications.
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  io.Writer
+}
+
+func (lw *lockedWriter) Write(p []byte) (int, error) {
+	lw.mu.Lock()
+	defer lw.mu.Unlock()
+	return lw.w.Write(p)
 }
 
 // ServeStdio is a convenience function that creates and starts a StdioServer with os.Stdin and os.Stdout.
