@@ -10,12 +10,17 @@ type Option func(*options)
 
 type options struct {
 	reportInspectedBytes     func(uint64)
-	observeJobInspectedBytes func(inspectedBytes uint64, cost jobcost.Cost)
+	observeJobInspectedBytes func(tenant string, inspectedBytes uint64, cost jobcost.Cost)
 }
 
 // responseWithCost is implemented by the responses that carry the estimated cost of their job.
 type responseWithCost interface {
 	Cost() jobcost.Cost
+}
+
+// responseWithTenant is implemented by the responses that carry the tenant of their job.
+type responseWithTenant interface {
+	Tenant() string
 }
 
 // WithInspectedBytesReporter reports the bytes inspected by each non-cached job response as soon as it is
@@ -25,9 +30,10 @@ func WithInspectedBytesReporter(fn func(uint64)) Option {
 }
 
 // WithJobInspectedBytesObserver observes the bytes inspected by every non-cached job response that has metrics,
-// including responses of jobs that inspected nothing, together with the estimated cost of the job. The cost is
-// zero if the response does not carry one. Responses that only summarize the jobs of a query are not observed.
-func WithJobInspectedBytesObserver(fn func(inspectedBytes uint64, cost jobcost.Cost)) Option {
+// including responses of jobs that inspected nothing, together with the tenant and the estimated cost of the job.
+// The tenant is empty and the cost zero if the response does not carry them. Responses that only summarize the
+// jobs of a query are not observed.
+func WithJobInspectedBytesObserver(fn func(tenant string, inspectedBytes uint64, cost jobcost.Cost)) Option {
 	return func(o *options) { o.observeJobInspectedBytes = fn }
 }
 
@@ -63,7 +69,11 @@ func (o options) observeJob(resp PipelineResponse, bytes uint64) {
 	if c, ok := resp.(responseWithCost); ok {
 		cost = c.Cost()
 	}
-	o.observeJobInspectedBytes(bytes, cost)
+	var tenant string
+	if t, ok := resp.(responseWithTenant); ok {
+		tenant = t.Tenant()
+	}
+	o.observeJobInspectedBytes(tenant, bytes, cost)
 }
 
 // These structs combine response metrics in a single place

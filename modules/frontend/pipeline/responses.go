@@ -22,6 +22,7 @@ type pipelineResponse struct {
 	r           *http.Response
 	requestData any
 	cost        jobcost.Cost
+	tenant      string
 }
 
 func (p pipelineResponse) HTTPResponse() *http.Response {
@@ -35,6 +36,11 @@ func (p pipelineResponse) RequestData() any {
 // Cost returns the estimated cost of the job that produced the response.
 func (p pipelineResponse) Cost() jobcost.Cost {
 	return p.cost
+}
+
+// Tenant returns the tenant of the job that produced the response, or "" if it is unknown.
+func (p pipelineResponse) Tenant() string {
+	return p.tenant
 }
 
 func (p pipelineResponse) IsMetadata() bool {

@@ -30,10 +30,12 @@ func (f *fakePipelineResponse) IsMetadata() bool { return f.isMetadata }
 // fakeCostedResponse also carries the cost of its job, like the responses of the pipeline.
 type fakeCostedResponse struct {
 	fakePipelineResponse
-	cost jobcost.Cost
+	cost   jobcost.Cost
+	tenant string
 }
 
 func (f *fakeCostedResponse) Cost() jobcost.Cost { return f.cost }
+func (f *fakeCostedResponse) Tenant() string     { return f.tenant }
 
 func TestSearchMetricsCombiner_SumsNewFields(t *testing.T) {
 	mc := NewSearchMetricsCombiner()
@@ -199,8 +201,9 @@ func TestMergeAdditionalMetrics(t *testing.T) {
 
 func TestMetricsCombiners_ReportAndObserveInspectedBytes(t *testing.T) {
 	type observation struct {
-		bytes uint64
-		cost  jobcost.Cost
+		tenant string
+		bytes  uint64
+		cost   jobcost.Cost
 	}
 
 	var (
@@ -209,7 +212,9 @@ func TestMetricsCombiners_ReportAndObserveInspectedBytes(t *testing.T) {
 	)
 	opt := WithOptions(
 		WithInspectedBytesReporter(func(b uint64) { reported = append(reported, b) }),
-		WithJobInspectedBytesObserver(func(b uint64, c jobcost.Cost) { observed = append(observed, observation{b, c}) }),
+		WithJobInspectedBytesObserver(func(tenant string, b uint64, c jobcost.Cost) {
+			observed = append(observed, observation{tenant, b, c})
+		}),
 	)
 
 	traceByID := NewTraceByIDMetricsCombiner(opt)
@@ -219,12 +224,12 @@ func TestMetricsCombiners_ReportAndObserveInspectedBytes(t *testing.T) {
 
 	block := jobcost.Cost{Kind: jobcost.KindBlock, Base: 100, Estimate: 7}
 	liveStore := jobcost.Cost{Kind: jobcost.KindLiveStore, Estimate: 9}
-	job := func(cost jobcost.Cost) *fakeCostedResponse { return &fakeCostedResponse{cost: cost} }
+	job := func(cost jobcost.Cost) *fakeCostedResponse { return &fakeCostedResponse{cost: cost, tenant: "t"} }
 	cached := func(cost jobcost.Cost) *fakeCostedResponse {
-		return &fakeCostedResponse{fakePipelineResponse{cacheHit: true}, cost}
+		return &fakeCostedResponse{fakePipelineResponse{cacheHit: true}, cost, "t"}
 	}
 	summary := func(cost jobcost.Cost) *fakeCostedResponse {
-		return &fakeCostedResponse{fakePipelineResponse{isMetadata: true}, cost}
+		return &fakeCostedResponse{fakePipelineResponse{isMetadata: true}, cost, "t"}
 	}
 
 	traceByID.Combine(&tempopb.TraceByIDMetrics{InspectedBytes: 3}, job(block))
@@ -244,13 +249,13 @@ func TestMetricsCombiners_ReportAndObserveInspectedBytes(t *testing.T) {
 	// cache hits and zero-byte responses are not reported
 	assert.Equal(t, []uint64{3, 1, 100, 1000}, reported)
 	// cache hits, missing metrics and summaries are not observed, zero-byte responses are.
-	// responses that do not carry a cost are observed without one
+	// responses that do not carry a cost and a tenant are observed without them
 	assert.Equal(t, []observation{
-		{3, block},
-		{0, jobcost.Cost{}},
-		{1, liveStore},
-		{100, block},
-		{1000, block},
-		{0, jobcost.Cost{}},
+		{"t", 3, block},
+		{"", 0, jobcost.Cost{}},
+		{"t", 1, liveStore},
+		{"t", 100, block},
+		{"t", 1000, block},
+		{"", 0, jobcost.Cost{}},
 	}, observed)
 }

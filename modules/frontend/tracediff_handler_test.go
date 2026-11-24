@@ -81,7 +81,7 @@ func TestTraceDiffHandlerFetchTraceForDiff(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 
-	actual, err := fetchTraceForDiff(context.Background(), "test-tenant", api.TraceDiffTraceRequest{TraceID: traceID}, nil, "/tempo", tracePipeline, o, combiner.NewTypedTraceByIDV2, log.NewNopLogger(), nil)
+	actual, err := fetchTraceForDiff(context.Background(), "test-tenant", api.TraceDiffTraceRequest{TraceID: traceID}, nil, "/tempo", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, log.NewNopLogger(), nil)
 	require.NoError(t, err)
 	require.NotNil(t, actual)
 	require.True(t, proto.Equal(trace, actual.Trace))
@@ -237,7 +237,7 @@ func TestTraceDiffHandlerReturnsDiff(t *testing.T) {
 			})
 			o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 			require.NoError(t, err)
-			handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, log.NewNopLogger(), nil), log.NewNopLogger(), noOpQueryTracker{})
+			handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, nil, log.NewNopLogger(), nil), log.NewNopLogger(), noOpQueryTracker{})
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v2/traces/diff", strings.NewReader(tt.body))
 			req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
@@ -283,7 +283,7 @@ func TestTraceDiffHandlerRejectsOversizedCombinedInput(t *testing.T) {
 		},
 	}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
-	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, log.NewNopLogger(), nil), log.NewNopLogger(), noOpQueryTracker{})
+	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, nil, log.NewNopLogger(), nil), log.NewNopLogger(), noOpQueryTracker{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v2/traces/diff", strings.NewReader(`{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"}}`))
 	req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
@@ -303,7 +303,7 @@ func TestTraceDiffHandlerAppliesTraceRedactor(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 	dataAccessController := &traceDiffDataAccessController{redactor: traceDiffHidingRedactor{}}
-	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, log.NewNopLogger(), dataAccessController), log.NewNopLogger(), noOpQueryTracker{})
+	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, nil, log.NewNopLogger(), dataAccessController), log.NewNopLogger(), noOpQueryTracker{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v2/traces/diff", strings.NewReader(`{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"}}`))
 	req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
@@ -322,7 +322,7 @@ func TestTraceDiffHandlerMapsWrappedTraceFetchStatus(t *testing.T) {
 	})
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
-	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, log.NewNopLogger(), nil), log.NewNopLogger(), noOpQueryTracker{})
+	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, nil, log.NewNopLogger(), nil), log.NewNopLogger(), noOpQueryTracker{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v2/traces/diff", strings.NewReader(`{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"}}`))
 	req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
@@ -342,7 +342,7 @@ func TestTraceDiffHandlerDataAccessErrorReturnsBadRequest(t *testing.T) {
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
 	dataAccessController := &traceDiffDataAccessController{err: errors.New("policy rejected")}
-	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, log.NewNopLogger(), dataAccessController), log.NewNopLogger(), noOpQueryTracker{})
+	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, nil, log.NewNopLogger(), dataAccessController), log.NewNopLogger(), noOpQueryTracker{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v2/traces/diff", strings.NewReader(`{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"}}`))
 	req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
@@ -365,7 +365,7 @@ func TestTraceDiffHandlerRejectsPartialTraces(t *testing.T) {
 	})
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
-	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, log.NewNopLogger(), nil), log.NewNopLogger(), noOpQueryTracker{})
+	handler := newHandler(nil, newTraceDiffHandler(Config{}, "", tracePipeline, o, combiner.NewTypedTraceByIDV2, nil, nil, log.NewNopLogger(), nil), log.NewNopLogger(), noOpQueryTracker{})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v2/traces/diff", strings.NewReader(`{"base":{"traceId":"abc123"},"compare":{"traceId":"def456"}}`))
 	req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
@@ -399,7 +399,7 @@ func TestTraceDiffHandlerSkeleton(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := newHandler(nil, newTraceDiffHandler(Config{}, "", nil, nil, nil, nil, log.NewNopLogger(), nil), log.NewNopLogger(), noOpQueryTracker{})
+			handler := newHandler(nil, newTraceDiffHandler(Config{}, "", nil, nil, nil, nil, nil, log.NewNopLogger(), nil), log.NewNopLogger(), noOpQueryTracker{})
 			req := httptest.NewRequest(tt.method, "/api/v2/traces/diff", strings.NewReader(tt.body))
 			req = req.WithContext(user.InjectOrgID(req.Context(), "test-tenant"))
 			resp := httptest.NewRecorder()

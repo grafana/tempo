@@ -131,6 +131,10 @@ Refer to [Tune search performance](https://grafana.com/docs/tempo/<TEMPO_VERSION
 | `tempo_query_frontend_job_actual_to_estimated_bytes_ratio` | Histogram of the bytes a job inspected divided by the bytes it was estimated to read, per operation and `kind`, for jobs with an estimate greater than zero |
 | `tempo_query_frontend_job_cost_factor` | Share of the bytes of the block range a job covers that it is estimated to read, per operation. Not reported for trace by ID |
 | `tempo_query_frontend_job_cost_bytes_per_block` | Bytes a trace by ID job is estimated to read per block it looks into, always with `op="traces"` |
+| `tempo_query_frontend_query_budget_rejected_queries_total` | Queries rejected because the query budget of a tenant was in debt, per tenant, operation and `mode`. With `mode="dry_run"` the queries were admitted anyway |
+| `tempo_query_frontend_query_budget_charged_total` | Query budget units charged to a tenant, per operation: the estimates of the jobs sent to the queriers and the bytes block jobs read above their estimate |
+| `tempo_query_frontend_query_budget_refunded_total` | Query budget units given back to a tenant, per operation: the bytes block jobs read below their estimate and the estimates of jobs that failed before a querier took them |
+| `tempo_query_frontend_query_budget_level` | Units left in the query budget bucket of a tenant. Negative values are debt |
 
 ## Related resources
 

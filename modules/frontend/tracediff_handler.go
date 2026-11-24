@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
@@ -24,6 +26,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/model/tracediff"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -40,9 +43,9 @@ var (
 
 // newTraceDiffHandler creates an HTTP handler for trace diff requests.
 // EXPERIMENTAL: this endpoint is not yet a stable API contract.
-func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], _ cache.Provider, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
+func newTraceDiffHandler(_ Config, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], reporter *jobReporter, _ cache.Provider, logger log.Logger, dataAccessController DataAccessController) http.RoundTripper {
 	fetchTrace := func(ctx context.Context, tenant string, traceReq api.TraceDiffTraceRequest, headers http.Header) (*tempopb.TraceByIDResponse, error) {
-		return fetchTraceForDiff(ctx, tenant, traceReq, headers, apiPrefix, tracePipeline, o, combinerFn, logger, dataAccessController)
+		return fetchTraceForDiff(ctx, tenant, traceReq, headers, apiPrefix, tracePipeline, o, combinerFn, reporter, logger, dataAccessController)
 	}
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -178,7 +181,7 @@ func buildTraceDiffTraceByIDRequest(ctx context.Context, apiPrefix string, trace
 	return mux.SetURLVars(req, map[string]string{"traceID": traceReq.TraceID})
 }
 
-func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDiffTraceRequest, headers http.Header, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], logger log.Logger, dataAccessController DataAccessController) (*tempopb.TraceByIDResponse, error) {
+func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDiffTraceRequest, headers http.Header, apiPrefix string, tracePipeline pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combinerFn func(int, api.MarshallingFormat, combiner.TraceRedactor, combiner.TraceByIDV2Options, ...combiner.Option) combiner.GRPCCombiner[*tempopb.TraceByIDResponse], reporter *jobReporter, logger log.Logger, dataAccessController DataAccessController) (*tempopb.TraceByIDResponse, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -193,8 +196,9 @@ func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDif
 		return nil, fmt.Errorf("fetch trace %s: %w", traceReq.TraceID, err)
 	}
 
-	// diff works on full traces, so no spanset filter.
-	comb := combinerFn(o.MaxBytesPerTrace(tenant), api.MarshallingFormatProtobuf, traceRedactor, combiner.TraceByIDV2Options{})
+	// diff works on full traces, so no spanset filter. the jobs are only settled in the query budget, a diff is
+	// not reported like a trace by id query.
+	comb := combinerFn(o.MaxBytesPerTrace(tenant), api.MarshallingFormatProtobuf, traceRedactor, combiner.TraceByIDV2Options{}, reporter.budgetOption(ctx))
 	for {
 		resp, done, err := resps.Next(ctx)
 		if err != nil {
@@ -316,9 +320,29 @@ func traceDiffErrorResponse(err error) *http.Response {
 		body = http.StatusText(statusCode)
 	}
 
+	header := http.Header{}
+	if delay, ok := retryDelay(err); ok && statusCode == http.StatusTooManyRequests {
+		header.Set(api.HeaderRetryAfter, strconv.Itoa(int(math.Ceil(delay.Seconds()))))
+	}
+
 	return &http.Response{
 		StatusCode: statusCode,
 		Status:     http.StatusText(statusCode),
+		Header:     header,
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}
+}
+
+// retryDelay returns the delay of the RetryInfo of the gRPC status of err, if it has one.
+func retryDelay(err error) (time.Duration, bool) {
+	st, ok := status.FromError(err)
+	if !ok {
+		return 0, false
+	}
+	for _, detail := range st.Details() {
+		if ri, ok := detail.(*errdetails.RetryInfo); ok {
+			return ri.GetRetryDelay().AsDuration(), true
+		}
+	}
+	return 0, false
 }

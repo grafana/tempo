@@ -2,9 +2,11 @@ package pipeline
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/querybudget"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
@@ -48,6 +50,13 @@ type queryShapeCell struct {
 	// estimatedBytes is the sum of the estimated bytes of the jobs of the query. The combiners add to it as
 	// job responses arrive, which can be concurrent.
 	estimatedBytes atomic.Uint64
+
+	// queryBudget is the admission decision of the query budget. Admission runs once per query, also if the
+	// query runs several pipelines, like a trace diff. budgetQuery charges the jobs of the admitted query.
+	queryBudgetMtx      sync.Mutex
+	queryBudgetAdmitted bool
+	queryBudget         querybudget.Decision
+	budgetQuery         atomic.Pointer[querybudget.Query]
 }
 
 // WithQueryShapeCell installs an empty cell on ctx that the weight middleware
@@ -83,6 +92,35 @@ func EstimatedBytesFromContext(ctx context.Context) (bytes uint64, ok bool) {
 		return 0, false
 	}
 	return cell.estimatedBytes.Load(), true
+}
+
+// AdmitQueryBudget returns the decision of admit for the query whose cell is installed on ctx. admit only runs
+// for the first call, later calls of the same query get the same decision. Without a cell admit runs every time
+// and the jobs of the query are not charged.
+func AdmitQueryBudget(ctx context.Context, admit func() querybudget.Decision) querybudget.Decision {
+	cell := queryShapeCellFromContext(ctx)
+	if cell == nil {
+		return admit()
+	}
+
+	cell.queryBudgetMtx.Lock()
+	defer cell.queryBudgetMtx.Unlock()
+
+	if !cell.queryBudgetAdmitted {
+		cell.queryBudget = admit()
+		cell.queryBudgetAdmitted = true
+		cell.budgetQuery.Store(cell.queryBudget.Query)
+	}
+	return cell.queryBudget
+}
+
+// QueryBudgetFromContext returns the query budget of the admitted query whose cell is installed on ctx. It is
+// nil if the query was not admitted by the query budget or none of its tenants has one.
+func QueryBudgetFromContext(ctx context.Context) *querybudget.Query {
+	if cell := queryShapeCellFromContext(ctx); cell != nil {
+		return cell.budgetQuery.Load()
+	}
+	return nil
 }
 
 func setQueryShapeOnContext(ctx context.Context, qs QueryShape) {

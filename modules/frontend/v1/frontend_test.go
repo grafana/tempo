@@ -526,3 +526,28 @@ func TestExecutingJobsCleanupDuringJobDoesNotRecreateSeries(t *testing.T) {
 	cancel()
 	require.ErrorIs(t, <-done, context.Canceled)
 }
+
+// only the jobs a querier takes are marked as dequeued, expired jobs are dropped without the mark
+func TestProcessMarksDequeuedJobs(t *testing.T) {
+	f, _ := newTestFrontend(t, 100, 2)
+
+	expiredCtx, cancelExpired := context.WithCancel(context.Background())
+	expiredCtx, expired := pipeline.WithDequeueMarker(expiredCtx)
+	enqueueJob(expiredCtx, t, f, pipeline.QueryTypeSearch)
+	runningCtx, running := pipeline.WithDequeueMarker(context.Background())
+	enqueueJob(runningCtx, t, f, pipeline.QueryTypeSearch)
+	cancelExpired()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	srv := newHeldProcessServer(ctx)
+	done := startProcess(f, srv)
+
+	waitForBatch(t, srv, 1)
+	require.False(t, expired.Load())
+	require.True(t, running.Load())
+
+	close(srv.release)
+	cancel()
+	require.ErrorIs(t, <-done, context.Canceled)
+}
