@@ -9,6 +9,7 @@ const (
 	repoOwner                 = "grafana"
 	repoName                  = "tempo"
 	defaultRepo               = repoOwner + "/" + repoName
+	grafanaAssistantBotLogin  = "grafana-assistant-ops[bot]"
 	defaultMaxAssignments     = 25
 	defaultOpenLoadMaxAgeDays = 90
 	closedLoadDays            = 7
