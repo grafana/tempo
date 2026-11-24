@@ -344,6 +344,8 @@ func (h *nativeHistogram) removeStaleSeries(appender storage.Appender, timeMs, s
 				encodedMetric := &dto.Metric{}
 				if err := s.promHistogram.Write(encodedMetric); err != nil {
 					errs = append(errs, err)
+					delete(h.series, hash)
+					h.lifecycler.OnDelete(hash, h.activeSeriesPerHistogramSerie())
 					continue
 				}
 
