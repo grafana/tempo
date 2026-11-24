@@ -17,7 +17,9 @@ import (
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"github.com/grafana/tempo/v3/pkg/util"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func TestErroredResponse(t *testing.T) {
@@ -95,6 +97,60 @@ func TestErroredResponse(t *testing.T) {
 			actualBody, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Equal(t, expectedBody, actualBody)
+		})
+	}
+}
+
+func TestGenericCombinerRetryAfter(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		retryAfter string
+
+		expectedHeader string
+		expectedCode   codes.Code
+		expectedDelay  time.Duration // 0 means no RetryInfo
+	}{
+		{name: "429 with seconds", statusCode: http.StatusTooManyRequests, retryAfter: "7", expectedHeader: "7", expectedCode: codes.ResourceExhausted, expectedDelay: 7 * time.Second},
+		{name: "429 without header", statusCode: http.StatusTooManyRequests, expectedCode: codes.ResourceExhausted},
+		{name: "429 with http date", statusCode: http.StatusTooManyRequests, retryAfter: "Wed, 21 Oct 2026 07:28:00 GMT", expectedHeader: "Wed, 21 Oct 2026 07:28:00 GMT", expectedCode: codes.ResourceExhausted},
+		{name: "503 keeps header", statusCode: http.StatusServiceUnavailable, retryAfter: "3", expectedHeader: "3", expectedCode: codes.Internal},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			if tc.retryAfter != "" {
+				rec.Header().Set(api.HeaderRetryAfter, tc.retryAfter)
+			}
+			rec.WriteHeader(tc.statusCode)
+			_, _ = rec.Write([]byte("slow down"))
+
+			combiner := newTestCombiner()
+			require.NoError(t, combiner.AddResponse(&testPipelineResponse{r: rec.Result()}))
+
+			resp, err := combiner.HTTPFinal(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, tc.statusCode, resp.StatusCode)
+			require.Equal(t, tc.expectedHeader, resp.Header.Get(api.HeaderRetryAfter))
+
+			_, err = combiner.GRPCFinal(context.Background())
+			st, ok := grpcstatus.FromError(err)
+			require.True(t, ok)
+			require.Equal(t, tc.expectedCode, st.Code())
+			require.Equal(t, "slow down", st.Message())
+
+			var delays []time.Duration
+			for _, d := range st.Details() {
+				if ri, ok := d.(*errdetails.RetryInfo); ok {
+					delays = append(delays, ri.GetRetryDelay().AsDuration())
+				}
+			}
+			if tc.expectedDelay == 0 {
+				require.Empty(t, delays)
+			} else {
+				require.Equal(t, []time.Duration{tc.expectedDelay}, delays)
+			}
 		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -60,6 +61,21 @@ func TestTraceByIDShouldQuit(t *testing.T) {
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
+}
+
+func TestTraceByIDKeepsRetryAfter(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rec.Header().Set(api.HeaderRetryAfter, "5")
+	rec.WriteHeader(http.StatusTooManyRequests)
+	_, _ = rec.Write([]byte("slow down"))
+
+	c := NewTraceByID(0, api.HeaderAcceptJSON, nil, log.NewNopLogger())
+	require.NoError(t, c.AddResponse(&testPipelineResponse{r: rec.Result()}))
+
+	resp, err := c.HTTPFinal(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	require.Equal(t, "5", resp.Header.Get(api.HeaderRetryAfter))
 }
 
 func TestTraceByIDHonorsContentType(t *testing.T) {

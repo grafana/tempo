@@ -8,8 +8,10 @@ import (
 	"io"
 	"math/bits"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	tempo_io "github.com/grafana/tempo/v3/pkg/io"
@@ -24,7 +26,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 var tracer = otel.Tracer("modules/frontend/combiner")
@@ -59,6 +64,8 @@ type genericCombiner[T TResponse] struct {
 	// Used to determine the response code and when to stop
 	httpStatusCode int
 	httpRespBody   string
+	// the Retry-After header of the response that set an error status code
+	httpRetryAfter string
 	// Used to marshal the response when using an HTTP Combiner, it doesn't affect for a GRPC combiner.
 	httpMarshalingFormat api.MarshallingFormat
 }
@@ -117,6 +124,7 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 			}
 			c.httpRespBody = string(bytesMsg)
 			c.httpStatusCode = res.StatusCode
+			c.httpRetryAfter = res.Header.Get(api.HeaderRetryAfter)
 			// don't return error. the error path is reserved for unexpected errors.
 			// http pipeline errors should be returned through the final response. (Complete/TypedComplete/TypedDiff)
 			return true, nil
@@ -296,7 +304,7 @@ func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
 	case http.StatusNotFound:
 		grpcErr = status.Error(codes.NotFound, c.httpRespBody)
 	case http.StatusTooManyRequests:
-		grpcErr = status.Error(codes.ResourceExhausted, c.httpRespBody)
+		grpcErr = resourceExhaustedError(c.httpRespBody, c.httpRetryAfter)
 	case http.StatusBadRequest:
 		grpcErr = status.Error(codes.InvalidArgument, c.httpRespBody)
 	case util.StatusClientClosedRequest:
@@ -312,10 +320,38 @@ func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
 	httpResp := &http.Response{
 		StatusCode: c.httpStatusCode,
 		Status:     util.StatusText(c.httpStatusCode),
+		Header:     retryAfterHeader(c.httpRetryAfter),
 		Body:       io.NopCloser(strings.NewReader(c.httpRespBody)),
 	}
 
 	return httpResp, grpcErr
+}
+
+// retryAfterHeader returns the header of an error response, which only carries Retry-After if it is set.
+func retryAfterHeader(retryAfter string) http.Header {
+	h := http.Header{}
+	if retryAfter != "" {
+		h.Set(api.HeaderRetryAfter, retryAfter)
+	}
+	return h
+}
+
+// resourceExhaustedError returns the gRPC error of a 429 response. If retryAfter is a number of seconds, the
+// error carries it as RetryInfo, so gRPC clients learn when to retry. That error is built with the grpc status
+// package, because the details of gogo status are gogo messages. gogo status reads it nonetheless.
+func resourceExhaustedError(msg, retryAfter string) error {
+	secs, err := strconv.Atoi(retryAfter)
+	if err != nil || secs < 0 {
+		return status.Error(codes.ResourceExhausted, msg)
+	}
+
+	st, err := grpcstatus.New(codes.ResourceExhausted, msg).WithDetails(&errdetails.RetryInfo{
+		RetryDelay: durationpb.New(time.Duration(secs) * time.Second),
+	})
+	if err != nil {
+		return status.Error(codes.ResourceExhausted, msg)
+	}
+	return st.Err()
 }
 
 func (c *genericCombiner[R]) StatusCode() int {

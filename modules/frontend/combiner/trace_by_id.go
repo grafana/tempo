@@ -33,6 +33,7 @@ type TraceByIDCombiner struct {
 
 	code          int
 	statusMessage string
+	retryAfter    string // the Retry-After header of the response that set an error code
 
 	MetricsCombiner *TraceByIDMetricsCombiner
 
@@ -83,6 +84,7 @@ func (c *TraceByIDCombiner) AddResponse(r PipelineResponse) error {
 			return fmt.Errorf("error reading response body: %w", err)
 		}
 		c.statusMessage = string(bytesMsg)
+		c.retryAfter = res.Header.Get(api.HeaderRetryAfter)
 		return nil
 	}
 
@@ -157,7 +159,7 @@ func (c *TraceByIDCombiner) HTTPFinal(ctx context.Context) (resp *http.Response,
 		return &http.Response{
 			StatusCode: statusCode,
 			Body:       io.NopCloser(strings.NewReader(c.statusMessage)),
-			Header:     http.Header{},
+			Header:     retryAfterHeader(c.retryAfter),
 		}, nil
 	}
 
