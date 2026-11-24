@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -413,12 +414,15 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_RUNNING:
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
+		jobType := j.GetType()
 		s.work.CompleteJob(req.JobId)
-		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
-		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Dec()
-		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
+		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, jobType.String()).Inc()
+		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, jobType.String()).Dec()
+		if jobType != tempopb.JobType_JOB_TYPE_COMPACTION {
+			level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
+		}
 
-		switch j.GetType() {
+		switch jobType {
 		case tempopb.JobType_JOB_TYPE_COMPACTION:
 			if req.Compaction != nil && req.Compaction.Output != nil {
 				s.work.SetJobCompactionOutput(req.JobId, req.Compaction.Output)
@@ -447,7 +451,15 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, err.Error())
 		}
 
-		metricLastSuccessfulJobTimestamp.WithLabelValues(j.GetType().String()).SetToCurrentTime()
+		if jobType == tempopb.JobType_JOB_TYPE_COMPACTION {
+			level.Info(log.Logger).Log(
+				"msg", "job completed",
+				"tenant", j.Tenant(),
+				"job_id", req.JobId,
+				"output_block_ids", strings.Join(req.GetCompaction().GetOutput(), ","),
+			)
+		}
+		metricLastSuccessfulJobTimestamp.WithLabelValues(jobType.String()).SetToCurrentTime()
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
 		s.work.FailJob(req.JobId)
 		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
