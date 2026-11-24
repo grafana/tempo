@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
+	"go.uber.org/atomic"
 
 	tempo_log "github.com/grafana/tempo/v3/pkg/util/log"
 )
@@ -68,6 +69,8 @@ type ManagedRegistry struct {
 	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
 	metricTotalCollections   prometheus.Counter
+
+	lastCollectionTimeMs atomic.Int64
 }
 
 // metric is the interface for a metric that is managed by ManagedRegistry.
@@ -281,6 +284,7 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 
 	appender := r.appendable.Appender(ctx)
 	collectionTimeMs := time.Now().UnixMilli()
+	r.lastCollectionTimeMs.Store(collectionTimeMs)
 
 	for _, m := range r.metrics {
 		if err = m.collectMetrics(appender, collectionTimeMs); err != nil {
@@ -315,7 +319,8 @@ func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 	appender := r.appendable.Appender(ctx)
-	removalTimeMs := time.Now().UnixMilli()
+	// agent WAL rejects t <= lastTs, keep the marker strictly after the last collected sample
+	removalTimeMs := max(time.Now().UnixMilli(), r.lastCollectionTimeMs.Load()+1)
 
 	remainingSeries := 0
 	for _, m := range r.metrics {
