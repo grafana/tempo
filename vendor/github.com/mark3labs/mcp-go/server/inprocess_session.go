@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,16 +28,19 @@ type RootsHandler interface {
 }
 
 type InProcessSession struct {
-	sessionID          string
-	notifications      chan mcp.JSONRPCNotification
-	initialized        atomic.Bool
-	loggingLevel       atomic.Value
-	clientInfo         atomic.Value
-	clientCapabilities atomic.Value
-	samplingHandler    SamplingHandler
-	elicitationHandler ElicitationHandler
-	rootsHandler       RootsHandler
-	mu                 sync.RWMutex
+	clientInfoStore // provides Get/SetClientInfo and Get/SetClientCapabilities via method promotion
+
+	sessionID              string
+	notifications          chan mcp.JSONRPCNotification
+	initialized            atomic.Bool
+	loggingLevel           atomic.Value
+	samplingHandler        SamplingHandler
+	elicitationHandler     ElicitationHandler
+	rootsHandler           RootsHandler
+	subscriptionFilter     mcp.SubscriptionFilter
+	subscriptionGeneration uint64
+	subscriptionID         any
+	mu                     sync.RWMutex
 }
 
 func NewInProcessSession(sessionID string, samplingHandler SamplingHandler) *InProcessSession {
@@ -56,11 +61,26 @@ func NewInProcessSessionWithHandlers(sessionID string, samplingHandler SamplingH
 	}
 }
 
+// isInProcess marks this session as dispatching server-initiated requests as
+// direct in-process function calls rather than protocol messages, which is why
+// they remain available on connections using protocol version 2026-07-28 or
+// later.
+func (s *InProcessSession) isInProcess() {}
+
 func (s *InProcessSession) SessionID() string {
 	return s.sessionID
 }
 
 func (s *InProcessSession) NotificationChannel() chan<- mcp.JSONRPCNotification {
+	return s.notifications
+}
+
+// ClientNotifications returns the receive-only endpoint of the session's
+// notification channel. In-process transports use this to drain
+// server-to-client notifications (progress, list-changed, resource
+// updates, etc.) queued via NotificationChannel and forward them to the
+// client's registered notification handler.
+func (s *InProcessSession) ClientNotifications() <-chan mcp.JSONRPCNotification {
 	return s.notifications
 }
 
@@ -73,32 +93,6 @@ func (s *InProcessSession) Initialized() bool {
 	return s.initialized.Load()
 }
 
-func (s *InProcessSession) GetClientInfo() mcp.Implementation {
-	if value := s.clientInfo.Load(); value != nil {
-		if clientInfo, ok := value.(mcp.Implementation); ok {
-			return clientInfo
-		}
-	}
-	return mcp.Implementation{}
-}
-
-func (s *InProcessSession) SetClientInfo(clientInfo mcp.Implementation) {
-	s.clientInfo.Store(clientInfo)
-}
-
-func (s *InProcessSession) GetClientCapabilities() mcp.ClientCapabilities {
-	if value := s.clientCapabilities.Load(); value != nil {
-		if clientCapabilities, ok := value.(mcp.ClientCapabilities); ok {
-			return clientCapabilities
-		}
-	}
-	return mcp.ClientCapabilities{}
-}
-
-func (s *InProcessSession) SetClientCapabilities(clientCapabilities mcp.ClientCapabilities) {
-	s.clientCapabilities.Store(clientCapabilities)
-}
-
 func (s *InProcessSession) SetLogLevel(level mcp.LoggingLevel) {
 	s.loggingLevel.Store(level)
 }
@@ -109,6 +103,75 @@ func (s *InProcessSession) GetLogLevel() mcp.LoggingLevel {
 		return mcp.LoggingLevelError
 	}
 	return level.(mcp.LoggingLevel)
+}
+
+// SetSubscriptionFilter records the notification types requested by subscriptions/listen.
+// Passing the zero filter clears the subscription. It is safe for concurrent use.
+func (s *InProcessSession) SetSubscriptionFilter(filter mcp.SubscriptionFilter) {
+	s.setOwnedSubscriptionFilter(context.Background(), nil, filter)
+}
+
+func (s *InProcessSession) setOwnedSubscriptionFilter(ctx context.Context, id any, filter mcp.SubscriptionFilter) func() {
+	clear, _ := s.activateSubscription(ctx, id, filter, func() error { return nil })
+	return clear
+}
+
+// activateSubscription queues the acknowledgement and installs its filter under
+// the same lock used to prepare subscription notifications.
+func (s *InProcessSession) activateSubscription(ctx context.Context, id any, filter mcp.SubscriptionFilter, acknowledge func() error) (func(), error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return func() {}, err
+	}
+	if err := acknowledge(); err != nil {
+		return func() {}, err
+	}
+	s.subscriptionGeneration++
+	generation := s.subscriptionGeneration
+	filter.ResourceSubscriptions = slices.Clone(filter.ResourceSubscriptions)
+	s.subscriptionFilter = filter
+	s.subscriptionID = id
+
+	return func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.subscriptionGeneration == generation {
+			s.subscriptionFilter = mcp.SubscriptionFilter{}
+			s.subscriptionID = nil
+		}
+	}, nil
+}
+
+// SubscriptionFilter returns a snapshot of the requested notification types and
+// whether a subscription is active. Sessions without a subscription remain unfiltered.
+func (s *InProcessSession) SubscriptionFilter() (mcp.SubscriptionFilter, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	filter := s.subscriptionFilter
+	filter.ResourceSubscriptions = slices.Clone(filter.ResourceSubscriptions)
+	return filter, !filter.IsEmpty()
+}
+
+// subscriptionNotification reads the filter and its correlation ID together so
+// a replacement cannot associate a notification with the wrong subscription.
+func (s *InProcessSession) subscriptionNotification(notification mcp.JSONRPCNotification) (mcp.JSONRPCNotification, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.subscriptionFilter.IsEmpty() {
+		return notification, true
+	}
+	if !subscriptionFilterAllowsNotification(s.subscriptionFilter, notification.Method) {
+		return notification, false
+	}
+	if s.subscriptionID != nil {
+		notification.Params.Meta = maps.Clone(notification.Params.Meta)
+		if notification.Params.Meta == nil {
+			notification.Params.Meta = make(map[string]any)
+		}
+		notification.Params.Meta[mcp.MetaKeySubscriptionID] = s.subscriptionID
+	}
+	return notification, true
 }
 
 func (s *InProcessSession) RequestSampling(ctx context.Context, request mcp.CreateMessageRequest) (*mcp.CreateMessageResult, error) {
@@ -149,17 +212,22 @@ func (s *InProcessSession) ListRoots(ctx context.Context, request mcp.ListRootsR
 	return handler.ListRoots(ctx, request)
 }
 
+// inProcessSessionCounter numbers in-process sessions: the wall clock alone
+// repeats, as it moves in microseconds on some platforms.
+var inProcessSessionCounter atomic.Uint64
+
 // GenerateInProcessSessionID generates a unique session ID for inprocess clients
 func GenerateInProcessSessionID() string {
-	return fmt.Sprintf("inprocess-%d", time.Now().UnixNano())
+	return fmt.Sprintf("inprocess-%d-%d", time.Now().UnixNano(), inProcessSessionCounter.Add(1))
 }
 
 // Ensure interface compliance
 var (
-	_ ClientSession          = (*InProcessSession)(nil)
-	_ SessionWithLogging     = (*InProcessSession)(nil)
-	_ SessionWithClientInfo  = (*InProcessSession)(nil)
-	_ SessionWithSampling    = (*InProcessSession)(nil)
-	_ SessionWithElicitation = (*InProcessSession)(nil)
-	_ SessionWithRoots       = (*InProcessSession)(nil)
+	_ ClientSession                 = (*InProcessSession)(nil)
+	_ SessionWithLogging            = (*InProcessSession)(nil)
+	_ SessionWithClientInfo         = (*InProcessSession)(nil)
+	_ SessionWithSampling           = (*InProcessSession)(nil)
+	_ SessionWithElicitation        = (*InProcessSession)(nil)
+	_ SessionWithRoots              = (*InProcessSession)(nil)
+	_ SessionWithSubscriptionFilter = (*InProcessSession)(nil)
 )
