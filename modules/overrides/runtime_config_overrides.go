@@ -507,6 +507,22 @@ func (o *runtimeConfigOverridesManager) SpanPruningEnabled(userID string) *bool 
 	return o.getOverridesForUser(userID).Read.SpanPruningEnabled
 }
 
+// QueryBudgetMode is the mode of the tenant's query budget: "" (disabled), "dry_run" or "enabled".
+func (o *runtimeConfigOverridesManager) QueryBudgetMode(userID string) string {
+	return o.getOverridesForUser(userID).Read.QueryBudget.Mode
+}
+
+// QueryBudgetRate is the number of query budget units per second the tenant's bucket refills with in each
+// query-frontend. 0 means the tenant has no bucket.
+func (o *runtimeConfigOverridesManager) QueryBudgetRate(userID string) uint64 {
+	return o.getOverridesForUser(userID).Read.QueryBudget.Rate
+}
+
+// QueryBudgetBurst is the capacity of the tenant's query budget bucket in each query-frontend.
+func (o *runtimeConfigOverridesManager) QueryBudgetBurst(userID string) uint64 {
+	return o.getOverridesForUser(userID).Read.QueryBudget.Burst
+}
+
 func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {
 	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
 }
@@ -834,6 +850,11 @@ func (o *runtimeConfigOverridesManager) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace, tenant)
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.Compaction.BlockRetention), MetricBlockRetention, tenant)
 		ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries, tenant)
+		// only tenants with a query budget, so that the experimental feature doesn't add series for every tenant
+		if limits.Read.QueryBudget.Rate > 0 {
+			ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.Read.QueryBudget.Rate), MetricQueryBudgetRate, tenant)
+			ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(limits.Read.QueryBudget.Burst), MetricQueryBudgetBurst, tenant)
+		}
 
 		if limits.MetricsGenerator.DisableCollection {
 			ch <- prometheus.MustNewConstMetric(metricOverridesLimitsDesc, prometheus.GaugeValue, float64(1), MetricsGeneratorDryRunEnabled, tenant)

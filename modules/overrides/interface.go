@@ -103,6 +103,9 @@ type Interface interface {
 	SpanPruningAwareness(userID string) bool
 	EngineBytesTracking(userID string) *bool
 	SpanPruningEnabled(userID string) *bool
+	QueryBudgetMode(userID string) string
+	QueryBudgetRate(userID string) uint64
+	QueryBudgetBurst(userID string) uint64
 	CostAttributionMaxCardinality(userID string) uint64
 	CostAttributionDimensions(userID string) map[string]string
 

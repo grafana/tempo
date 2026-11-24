@@ -95,6 +95,9 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		SpanPruningAwareness:          c.Read.SpanPruningAwareness,
 		EngineBytesTracking:           c.Read.EngineBytesTracking,
 		SpanPruningEnabled:            c.Read.SpanPruningEnabled,
+		QueryBudgetMode:               c.Read.QueryBudget.Mode,
+		QueryBudgetRate:               c.Read.QueryBudget.Rate,
+		QueryBudgetBurst:              c.Read.QueryBudget.Burst,
 
 		MaxBytesPerTrace: c.Global.MaxBytesPerTrace,
 
@@ -195,6 +198,9 @@ type LegacyOverrides struct {
 	SpanPruningAwareness   bool           `yaml:"span_pruning_awareness,omitempty" json:"span_pruning_awareness,omitempty"`
 	EngineBytesTracking    *bool          `yaml:"engine_bytes_tracking,omitempty" json:"engine_bytes_tracking,omitempty"`
 	SpanPruningEnabled     *bool          `yaml:"span_pruning_enabled,omitempty" json:"span_pruning_enabled,omitempty"`
+	QueryBudgetMode        string         `yaml:"query_budget_mode,omitempty" json:"query_budget_mode,omitempty"`
+	QueryBudgetRate        uint64         `yaml:"query_budget_rate,omitempty" json:"query_budget_rate,omitempty"`
+	QueryBudgetBurst       uint64         `yaml:"query_budget_burst,omitempty" json:"query_budget_burst,omitempty"`
 
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
 	//  is not used when doing a trace by id lookup.
@@ -359,6 +365,11 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			SpanPruningAwareness:          l.SpanPruningAwareness,
 			EngineBytesTracking:           l.EngineBytesTracking,
 			SpanPruningEnabled:            l.SpanPruningEnabled,
+			QueryBudget: QueryBudgetOverrides{
+				Mode:  l.QueryBudgetMode,
+				Rate:  l.QueryBudgetRate,
+				Burst: l.QueryBudgetBurst,
+			},
 		},
 		Compaction: CompactionOverrides{
 			BlockRetention:     l.BlockRetention,

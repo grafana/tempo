@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grafana/tempo/v3/modules/frontend/querybudget"
 	"github.com/grafana/tempo/v3/modules/generator/validation"
 	"github.com/grafana/tempo/v3/modules/overrides"
 	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/api"
@@ -32,6 +33,12 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 
 	if config.MetricsGenerator.SpanNameSanitization != "" {
 		if err := validation.ValidateSpanNameSanitization(config.MetricsGenerator.SpanNameSanitization); err != nil {
+			return warnings, err
+		}
+	}
+
+	if qb := config.Read.QueryBudget; qb != (overrides.QueryBudgetOverrides{}) {
+		if err := querybudget.ValidateLimits(qb.Mode, qb.Rate, qb.Burst); err != nil {
 			return warnings, err
 		}
 	}

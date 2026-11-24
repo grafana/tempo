@@ -497,6 +497,9 @@ func generateTestLegacyOverrides() LegacyOverrides {
 		SpanPruningAwareness:   true,
 		EngineBytesTracking:    boolPtr(true),
 		SpanPruningEnabled:     boolPtr(true),
+		QueryBudgetMode:        "dry_run",
+		QueryBudgetRate:        1024 * 1024 * 1024,
+		QueryBudgetBurst:       10 * 1024 * 1024 * 1024,
 
 		MaxBytesPerTrace: 10 * 1024 * 1024,
 
