@@ -50,6 +50,10 @@ const (
 	closedLoad
 )
 
+func excludedBotAuthor(author *user) bool {
+	return author != nil && author.Type == "Bot" && !strings.EqualFold(author.Login, grafanaAssistantBotLogin)
+}
+
 func calculateLoad(openPRs, closedPRs []pullRequest, eligible []string, now time.Time, maxOpenAgeDays int) (map[string]ownerLoad, map[string]struct{}) {
 	load := make(map[string]ownerLoad, len(eligible))
 	for _, owner := range eligible {
@@ -63,7 +67,7 @@ func calculateLoad(openPRs, closedPRs []pullRequest, eligible []string, now time
 	}{{openLoad, openPRs}, {closedLoad, closedPRs}} {
 		seen := make(map[prOwner]struct{}, len(state.pulls))
 		for _, pr := range state.pulls {
-			if pr.User != nil && pr.User.Type == "Bot" {
+			if excludedBotAuthor(pr.User) {
 				continue
 			}
 			if pr.User != nil {
@@ -112,7 +116,7 @@ func candidateEligible(pr pullRequest, owners map[string]struct{}) bool {
 	if len(pr.Assignees) > 0 || pr.Draft || pr.User == nil {
 		return false
 	}
-	if pr.User.Type == "Bot" {
+	if excludedBotAuthor(pr.User) {
 		return false
 	}
 	_, isOwner := owners[strings.ToLower(pr.User.Login)]

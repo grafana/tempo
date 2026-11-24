@@ -40,6 +40,17 @@ func TestLoadExcludesCodeOwnerAuthoredPRs(t *testing.T) {
 	require.Empty(t, stale)
 }
 
+func TestLoadIncludesGrafanaAssistantPRs(t *testing.T) {
+	open := assignedTo(testPull(1), "Alice")
+	open.User = &user{Login: "grafana-assistant-ops[bot]", Type: "Bot"}
+	closed := assignedTo(testPull(2), "Alice")
+	closed.User = &user{Login: "grafana-assistant-ops[bot]", Type: "Bot"}
+
+	load, stale := calculateLoad([]pullRequest{open}, []pullRequest{closed}, []string{"alice"}, testNow, 90)
+	require.Equal(t, ownerLoad{open: 1, closed: 1}, load["alice"])
+	require.Empty(t, stale)
+}
+
 func TestLoadExpiryBoundary(t *testing.T) {
 	maxAge := 90 * 24 * time.Hour
 	for _, test := range []struct {
@@ -89,9 +100,11 @@ func TestCandidatesFilterAndOrderByPRNumber(t *testing.T) {
 	draft.Draft = true
 	ownerAuthored := testPull(7)
 	ownerAuthored.User.Login = "Alice"
+	assistantBot := testPull(8)
+	assistantBot.User = &user{Login: "grafana-assistant-ops[bot]", Type: "Bot"}
 	assigned := assignedTo(testPull(5), "Bob")
-	candidates := findCandidates([]pullRequest{ownerAuthored, assigned, testPull(1), bot, deletedAuthor, draft}, []string{"alice", "bob"})
-	require.Equal(t, []candidate{{number: 1, weight: 1}}, candidates)
+	candidates := findCandidates([]pullRequest{ownerAuthored, assigned, testPull(1), bot, deletedAuthor, draft, assistantBot}, []string{"alice", "bob"})
+	require.Equal(t, []candidate{{number: 1, weight: 1}, {number: 8, weight: 1}}, candidates)
 }
 
 func TestAssigneeTieBreakPrefersLessOpenLoadThenUsesExactTies(t *testing.T) {
