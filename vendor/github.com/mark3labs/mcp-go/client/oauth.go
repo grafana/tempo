@@ -7,6 +7,12 @@ import (
 	"github.com/mark3labs/mcp-go/client/transport"
 )
 
+// ErrAuthorizationServerChanged indicates credentials or tokens belong to another issuer.
+var ErrAuthorizationServerChanged = transport.ErrAuthorizationServerChanged
+
+// ErrPKCERequired indicates PKCE is enabled but a code challenge or verifier is empty.
+var ErrPKCERequired = transport.ErrPKCERequired
+
 // OAuthConfig is a convenience type that wraps transport.OAuthConfig
 type OAuthConfig = transport.OAuthConfig
 
