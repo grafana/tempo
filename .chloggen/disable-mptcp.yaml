@@ -1,0 +1,6 @@
+change_type: security
+component: tempo
+note: Disable Multipath TCP on listeners by default (`godebug multipathtcp=0`) to reduce exposure to CVE-2026-98432. Set `GODEBUG=multipathtcp=2` to re-enable.
+issues: []
+subtext:
+user: soymgomez
