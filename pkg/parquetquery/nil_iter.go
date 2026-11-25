@@ -22,6 +22,7 @@ var _ Iterator = (*NilSyncIterator)(nil)
 func NewNilSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, opts ...SyncIteratorOpt) *NilSyncIterator {
 	// Create the sync iterator
 	syncIterator := NewSyncIterator(ctx, rgs, column, opts...)
+	syncIterator.plainPageReader.disabled = true // next reads the value reader
 
 	i := &NilSyncIterator{
 		SyncIterator:          *syncIterator,
