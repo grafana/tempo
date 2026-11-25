@@ -5,8 +5,6 @@
 package querybudget
 
 import (
-	"fmt"
-	"slices"
 	"sync"
 	"time"
 
@@ -38,8 +36,6 @@ const (
 )
 
 var (
-	supportedModes = []string{ModeDisabled, ModeDryRun, ModeEnabled}
-
 	levelDesc = prometheus.NewDesc(
 		"tempo_query_frontend_query_budget_level",
 		"Units left in the query budget bucket of a tenant. Negative values are debt that has to refill before queries are admitted again.",
@@ -370,17 +366,6 @@ func (bkt *bucket) levelAt(now time.Time, rate, burst float64) float64 {
 		level += rate * elapsed.Seconds()
 	}
 	return min(level, burst)
-}
-
-// ValidateLimits returns an error if the limits of a tenant are invalid.
-func ValidateLimits(mode string, rate, burst uint64) error {
-	if !slices.Contains(supportedModes, mode) {
-		return fmt.Errorf("query_budget mode %q is not valid, valid values: %q", mode, supportedModes)
-	}
-	if rate > 0 && burst < rate {
-		return fmt.Errorf("query_budget burst (%d) must be at least the rate (%d)", burst, rate)
-	}
-	return nil
 }
 
 // retryAfter returns the time until a bucket with a negative level and rate is out of debt again.

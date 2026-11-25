@@ -3,9 +3,11 @@ package validation
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/grafana/tempo/v3/modules/distributor/usage"
+	"github.com/grafana/tempo/v3/modules/frontend/querybudget"
 	"github.com/grafana/tempo/v3/modules/generator/processor"
 	"github.com/grafana/tempo/v3/modules/generator/registry"
 	"github.com/grafana/tempo/v3/pkg/sharedconfig"
@@ -41,6 +43,12 @@ var SupportedSpanNameSanitizationModes = []string{
 }
 
 var SupportedSpanNameSanitizationModesSet map[string]struct{}
+
+var SupportedQueryBudgetModes = []string{
+	querybudget.ModeDisabled,
+	querybudget.ModeDryRun,
+	querybudget.ModeEnabled,
+}
 
 var SupportedHistogramModesSet map[string]struct{}
 
@@ -229,5 +237,15 @@ func ValidateFilterPolicies(policies []filterconfig.FilterPolicy) error {
 }
 
 func ValidateServiceGraphsDimensions(dimensions []string) error {
+	return nil
+}
+
+func ValidateQueryBudget(mode string, rate, burst uint64) error {
+	if !slices.Contains(SupportedQueryBudgetModes, mode) {
+		return fmt.Errorf("read.query_budget.mode %q is not valid, valid values: %q", mode, SupportedQueryBudgetModes)
+	}
+	if rate > 0 && burst < rate {
+		return fmt.Errorf("read.query_budget.burst %d is less than read.query_budget.rate %d", burst, rate)
+	}
 	return nil
 }

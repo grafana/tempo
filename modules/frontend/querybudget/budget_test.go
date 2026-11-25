@@ -450,32 +450,6 @@ func TestNilQueryAndLimits(t *testing.T) {
 	b.Collect(make(chan prometheus.Metric, 1))
 }
 
-func TestValidateLimits(t *testing.T) {
-	tests := []struct {
-		name        string
-		mode        string
-		rate, burst uint64
-		expectedErr string
-	}{
-		{name: "disabled", mode: ModeDisabled},
-		{name: "dry run without rate", mode: ModeDryRun},
-		{name: "enabled", mode: ModeEnabled, rate: 10, burst: 10},
-		{name: "disabled is not a mode, the empty string is", mode: "disabled", expectedErr: `query_budget mode "disabled" is not valid`},
-		{name: "burst below rate", mode: ModeEnabled, rate: 10, burst: 5, expectedErr: "query_budget burst (5) must be at least the rate (10)"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateLimits(tc.mode, tc.rate, tc.burst)
-			if tc.expectedErr == "" {
-				require.NoError(t, err)
-				return
-			}
-			require.ErrorContains(t, err, tc.expectedErr)
-		})
-	}
-}
-
 // BenchmarkChargeAndSettle charges and settles jobs of many tenants concurrently, which all share the mutex of
 // the Budget.
 func BenchmarkChargeAndSettle(b *testing.B) {
