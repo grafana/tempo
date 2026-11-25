@@ -5,7 +5,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -31,6 +33,7 @@ type Config struct {
 	Parallelism           int  `yaml:"parallelism"`
 	MatchMaxConcurrency   bool `yaml:"match_max_concurrent"`
 	MaxConcurrentRequests int  `yaml:"-"`
+	MaxConcurrentJobs     int  `yaml:"-"`
 
 	QuerierID string `yaml:"id"`
 
@@ -70,7 +73,7 @@ type processor interface {
 	// This method must react on context being finished, and stop when that happens.
 	//
 	// processorManager (not processor) is responsible for starting as many goroutines as needed for each connection.
-	processQueriesOnSingleStream(ctx context.Context, conn *grpc.ClientConn, address string)
+	processQueriesOnSingleStream(ctx context.Context, conn *grpc.ClientConn, address string, slots int)
 
 	// notifyShutdown notifies the remote query-frontend or query-scheduler that the querier is
 	// shutting down.
@@ -93,6 +96,9 @@ type querierWorker struct {
 }
 
 func NewQuerierWorker(cfg Config, handler RequestHandler, log log.Logger, _ prometheus.Registerer) (services.Service, error) {
+	if cfg.MaxConcurrentJobs < 0 || uint64(cfg.MaxConcurrentJobs) > math.MaxUint32 {
+		return nil, errors.New("max_concurrent_jobs must be between 0 and 4294967295")
+	}
 	if cfg.QuerierID == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
@@ -199,17 +205,22 @@ func (w *querierWorker) AddressRemoved(address string) {
 	w.mu.Lock()
 	p := w.managers[address]
 	delete(w.managers, address)
-	// Called with lock.
-	w.resetConcurrency()
-	w.mu.Unlock()
-
+	// Stop removed streams before reusing their slot allocations.
 	if p != nil {
 		p.stop()
 	}
+	// Called with lock.
+	w.resetConcurrency()
+	w.mu.Unlock()
 }
 
 // Must be called with lock.
 func (w *querierWorker) resetConcurrency() {
+	if w.cfg.MaxConcurrentJobs > 0 {
+		w.resetSlotConcurrency()
+		return
+	}
+
 	totalConcurrency := 0
 	index := 0
 
@@ -248,6 +259,50 @@ func (w *querierWorker) resetConcurrency() {
 	}
 
 	level.Info(w.log).Log("msg", "total worker concurrency updated", "totalConcurrency", totalConcurrency)
+}
+
+// resetSlotConcurrency deliberately restarts streams on topology changes.
+// Joining them first prevents jobs from old allocations overlapping replacement streams.
+// Slots are reserved per frontend; idle frontends cannot lend their allocations.
+func (w *querierWorker) resetSlotConcurrency() {
+	addresses := make([]string, 0, len(w.managers))
+	for address, m := range w.managers {
+		addresses = append(addresses, address)
+		m.concurrency(0)
+	}
+	for _, m := range w.managers {
+		m.wg.Wait()
+	}
+	sort.Strings(addresses)
+
+	for i, address := range addresses {
+		budget := w.cfg.MaxConcurrentJobs / len(addresses)
+		if i < w.cfg.MaxConcurrentJobs%len(addresses) {
+			budget++
+		}
+		if budget == 0 {
+			level.Error(w.log).Log("msg", "not enough job slots for all frontends; frontend has no worker streams", "addr", address, "max_concurrent_jobs", w.cfg.MaxConcurrentJobs)
+			continue
+		}
+
+		streams := w.cfg.Parallelism
+		if w.cfg.MatchMaxConcurrency {
+			streams = w.cfg.MaxConcurrentRequests / len(addresses)
+			if i < w.cfg.MaxConcurrentRequests%len(addresses) {
+				streams++
+			}
+		}
+		streams = min(max(streams, 1), budget)
+		allocations := make([]int, streams)
+		for j := range allocations {
+			allocations[j] = budget / streams
+			if j < budget%streams {
+				allocations[j]++
+			}
+		}
+		w.managers[address].concurrency(streams, allocations...)
+		level.Info(w.log).Log("msg", "worker slot allocations updated", "addr", address, "streams", streams, "slots", budget)
+	}
 }
 
 func (w *querierWorker) connect(ctx context.Context, address string) (*grpc.ClientConn, error) {

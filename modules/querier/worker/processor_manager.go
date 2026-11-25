@@ -56,7 +56,7 @@ func (pm *processorManager) stop() {
 	_ = pm.conn.Close()
 }
 
-func (pm *processorManager) concurrency(n int) {
+func (pm *processorManager) concurrency(n int, slots ...int) {
 	pm.cancelsMu.Lock()
 	defer pm.cancelsMu.Unlock()
 
@@ -65,6 +65,10 @@ func (pm *processorManager) concurrency(n int) {
 	}
 
 	for len(pm.cancels) < n {
+		allocation := 0
+		if len(pm.cancels) < len(slots) {
+			allocation = slots[len(pm.cancels)]
+		}
 		ctx, cancel := context.WithCancel(pm.ctx)
 		pm.cancels = append(pm.cancels, cancel)
 
@@ -75,7 +79,7 @@ func (pm *processorManager) concurrency(n int) {
 			pm.currentProcessors.Inc()
 			defer pm.currentProcessors.Dec()
 
-			pm.p.processQueriesOnSingleStream(ctx, pm.conn, pm.address)
+			pm.p.processQueriesOnSingleStream(ctx, pm.conn, pm.address, allocation)
 		}()
 	}
 

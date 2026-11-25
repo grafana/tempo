@@ -35,20 +35,25 @@ func (b *requestBatch) clear() {
 }
 
 func (b *requestBatch) add(r *request) error {
-	b.pipelineRequests = append(b.pipelineRequests, r)
-
-	req, err := httpgrpc.FromHTTPRequest(r.request.HTTPRequest())
+	req, err := requestToHTTPGRPC(r)
 	if err != nil {
 		return err
+	}
+	b.pipelineRequests = append(b.pipelineRequests, r)
+	b.wireRequests = append(b.wireRequests, req)
+	return nil
+}
+
+func requestToHTTPGRPC(r *request) (*httpgrpc.HTTPRequest, error) {
+	req, err := httpgrpc.FromHTTPRequest(r.request.HTTPRequest())
+	if err != nil {
+		return nil, err
 	}
 
 	// Propagate trace context in gRPC too - this will be ignored if using HTTP.
 	carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
 	otel.GetTextMapPropagator().Inject(r.OriginalContext(), carrier)
-
-	b.wireRequests = append(b.wireRequests, req)
-
-	return nil
+	return req, nil
 }
 
 func (b *requestBatch) httpGrpcRequests() []*httpgrpc.HTTPRequest {

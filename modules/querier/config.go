@@ -28,6 +28,10 @@ type Config struct {
 	// BlocklistPolling is a temporary rollout switch, removed together with querier polling.
 	// TODO: deprecate and remove this flag with querier blocklist polling
 	BlocklistPolling bool `yaml:"blocklist_polling"`
+
+	// MaxConcurrentJobs enables experimental slot scheduling when positive.
+	// Zero preserves legacy batching; max_concurrent_queries still controls streams.
+	MaxConcurrentJobs int `yaml:"max_concurrent_jobs,omitempty"`
 }
 
 type SearchConfig struct {
