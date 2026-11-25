@@ -1,2 +1,5 @@
 * text=auto
 CHANGELOG.md merge=union
+
+# Vendored jsonnet dependencies of the mixin (jb install): collapse them in diffs and leave them out of language stats.
+operations/tempo-mixin/vendor/** linguist-vendored linguist-generated
