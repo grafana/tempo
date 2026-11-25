@@ -263,3 +263,53 @@ func defaultPartitionReaderWithCommitInterval(t *testing.T, address string, comm
 
 	return r
 }
+
+func TestProcessFetches_KeepsRecordsOnFetchError(t *testing.T) {
+	var consumed []int64
+	consumeFn := func(_ context.Context, rs recordIter, _ time.Time) (*kadm.Offset, error) {
+		var last *kgo.Record
+		for !rs.Done() {
+			last = rs.Next()
+			consumed = append(consumed, last.Offset)
+		}
+		if last == nil {
+			return nil, nil
+		}
+		offset := kadm.NewOffsetFromRecord(last)
+		return &offset, nil
+	}
+
+	cfg := ingest.KafkaConfig{Topic: testTopic, ConsumerGroup: testConsumerGroup}
+	// A non-zero commit interval stores the offset for the commit loop instead of committing it.
+	r, err := newPartitionReader(nil, testPartition, cfg, time.Minute, time.Hour, false, consumeFn, test.NewTestingLogger(t), newPartitionReaderMetrics(testPartition, prometheus.NewRegistry()))
+	require.NoError(t, err)
+
+	// An error-only poll consumes nothing and leaves the lag unset.
+	r.processFetches(t.Context(), kgo.Fetches{{Topics: []kgo.FetchTopic{{
+		Topic:      testTopic,
+		Partitions: []kgo.FetchPartition{{Partition: testPartition, Err: errors.New("fetch failed")}},
+	}}}})
+	require.Empty(t, consumed)
+	require.Nil(t, r.offsetWatermark.Load())
+	require.Equal(t, int64(-1), r.lag.Load())
+
+	// A poll that reports data loss together with valid records from the same partition.
+	r.processFetches(t.Context(), kgo.Fetches{{Topics: []kgo.FetchTopic{{
+		Topic: testTopic,
+		Partitions: []kgo.FetchPartition{{
+			Partition:     testPartition,
+			Err:           &kgo.ErrDataLoss{Topic: testTopic, Partition: testPartition, ConsumedTo: 5, ResetTo: 10},
+			HighWatermark: 15,
+			Records: []*kgo.Record{
+				{Topic: testTopic, Partition: testPartition, Offset: 10},
+				{Topic: testTopic, Partition: testPartition, Offset: 11},
+			},
+		}},
+	}}}})
+
+	require.Equal(t, []int64{10, 11}, consumed)
+	offset := r.offsetWatermark.Load()
+	require.NotNil(t, offset)
+	require.Equal(t, int64(12), offset.At)
+	require.Equal(t, int64(3), r.lag.Load())
+}
