@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/testonnet.git"
+        }
+      },
+      "version": "master"
+    },
+    {
+      "source": {
+        "local": {
+          "directory": ".."
+        }
+      }
+    },
+    {
+      "source": {
+        "local": {
+          "directory": "../../grafana-builder"
+        }
+      }
+    }
+  ],
+  "legacyImports": true
+}
