@@ -123,7 +123,7 @@ func replaceIncompleteMatchers(s string) string {
 // tokenize lexes the input into tokens, skipping END_ATTRIBUTE markers.
 func tokenize(s string) []token {
 	l := lenientLexer{}
-	l.Init(strings.NewReader(s))
+	l.init(s)
 	l.Scanner.Error = func(*scanner.Scanner, string) {} // Suppress scanner errors
 
 	var tokens []token
