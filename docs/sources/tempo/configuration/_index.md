@@ -2641,11 +2641,8 @@ overrides:
       # can start. It is measured in units of about one estimated byte read. A query is only admitted while
       # the bucket of each of its tenants is not in debt, otherwise it is rejected with HTTP 429 and a
       # Retry-After header. The jobs of a query are charged with their estimated cost when they are sent to
-      # the queriers, also when they are retried, and jobs that read backend blocks are corrected with the
-      # bytes they actually read. Jobs are refunded if they fail before a querier takes them, for example
-      # because the queue is full or the query is canceled.
-      # The debt of a bucket is capped at burst, so after a single huge query a tenant is rejected for at
-      # most burst/rate seconds.
+      # the queriers, jobs that read backend blocks are corrected with the bytes they actually read. 
+      # Jobs are refunded if they fail before a querier takes them.
       query_budget:
         # "" (disabled), "dry_run" or "enabled". dry_run tracks the budget and counts the queries that
         # would be rejected in tempo_query_frontend_query_budget_rejected_queries_total, but rejects none.
