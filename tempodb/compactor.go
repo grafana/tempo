@@ -33,6 +33,13 @@ const (
 
 var tracer = otel.Tracer("tempodb/compactor")
 
+type compactionJobIDKey struct{}
+
+// ContextWithCompactionJobID correlates compaction logs with the scheduler job.
+func ContextWithCompactionJobID(ctx context.Context, jobID string) context.Context {
+	return context.WithValue(ctx, compactionJobIDKey{}, jobID)
+}
+
 var (
 	metricCompactionBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
@@ -393,18 +400,28 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	}
 
 	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
+	inputIDs := make([]string, 0, len(blockMetas))
+	for _, meta := range blockMetas {
+		inputIDs = append(inputIDs, meta.BlockID.String())
+	}
+	outputIDs := make([]string, 0, len(newCompactedBlocks))
 	for _, meta := range newCompactedBlocks {
 		metricCompactionOutputBlockSize.Observe(float64(meta.Size_))
+		outputIDs = append(outputIDs, meta.BlockID.String())
 	}
 
-	logArgs := []interface{}{
-		"msg",
-		"compaction complete",
-		"elapsed",
-		time.Since(startTime),
+	logArgs := []any{
+		"msg", "compaction complete",
+		"elapsed", time.Since(startTime),
+		"tenant", tenantID,
+		"input_block_ids", strings.Join(inputIDs, ","),
+		"output_block_ids", strings.Join(outputIDs, ","),
 	}
-	for _, meta := range newCompactedBlocks {
-		logArgs = append(logArgs, "blockID", meta.BlockID.String())
+	if jobID, _ := ctx.Value(compactionJobIDKey{}).(string); jobID != "" {
+		logArgs = append(logArgs, "job_id", jobID)
+	}
+	for _, id := range outputIDs {
+		logArgs = append(logArgs, "blockID", id)
 	}
 	level.Info(rw.logger).Log(logArgs...)
 
