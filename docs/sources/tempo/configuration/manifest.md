@@ -235,6 +235,7 @@ distributor:
         dial_timeout: 0s
         write_timeout: 0s
         api_versions_max_version: 0
+        max_decompress_batch_bytes: 0
         sasl_mechanism: ""
         sasl_username: ""
         sasl_password: ""
@@ -556,6 +557,7 @@ ingest:
         dial_timeout: 2s
         write_timeout: 10s
         api_versions_max_version: 4
+        max_decompress_batch_bytes: 2147483647
         sasl_mechanism: PLAIN
         sasl_username: ""
         sasl_password: ""
