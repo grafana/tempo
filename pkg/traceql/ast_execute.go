@@ -363,6 +363,18 @@ func (a Aggregate) evaluate(input []*Spanset) ([]*Spanset, error) {
 }
 
 func (o *BinaryOperation) execute(span Span) (Static, error) {
+	if o.useFastPath(span) {
+		b, ok, err := o.executeFast(span)
+		if err != nil {
+			return NewStaticNil(), err
+		}
+		if ok {
+			return NewStaticBool(b), nil
+		}
+	}
+
+	// The generic path below evaluates any binary operation. It is the reference implementation
+	// for the boolean fast path in ast_execute_fast.go.
 	recording := o.b.Recording
 	if recording {
 		o.b.Start()
