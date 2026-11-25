@@ -318,7 +318,12 @@ func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 	defer r.metricsMtx.Unlock()
 
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
-	appender := r.appendable.Appender(ctx)
+
+	var appender storage.Appender
+	if !r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
+		appender = r.appendable.Appender(ctx)
+	}
+
 	// agent WAL rejects t <= lastTs, keep the marker strictly after the last collected sample
 	removalTimeMs := max(time.Now().UnixMilli(), r.lastCollectionTimeMs.Load()+1)
 
@@ -332,9 +337,11 @@ func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
 	}
 	r.entityDemand.Advance()
 
-	err := appender.Commit()
-	if err != nil {
-		level.Error(r.logger).Log("msg", "committing stale markers failed", "err", err)
+	if appender != nil {
+		err := appender.Commit()
+		if err != nil {
+			level.Error(r.logger).Log("msg", "committing stale markers failed", "err", err)
+		}
 	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", remainingSeries)
