@@ -2436,6 +2436,84 @@ func TestRecoverParseError(t *testing.T) {
 	}
 }
 
+type panickingRewriter struct {
+	val any
+}
+
+func (p panickingRewriter) RewriteRoot(*RootExpr) *RootExpr {
+	panic(p.val)
+}
+
+// TestParsePanicRecovery must not run in parallel because it replaces the package-level defaultTransformations.
+func TestParsePanicRecovery(t *testing.T) {
+	const panicker = "panicker"
+	existingParseErr := newParseError("existing", 1, 2)
+
+	orig := defaultTransformations
+	t.Cleanup(func() { defaultTransformations = orig })
+
+	tests := []struct {
+		name        string
+		panicValue  any
+		expectedErr string
+		sameErr     error
+	}{
+		{
+			name:        "string panic",
+			panicValue:  "i am not an error",
+			expectedErr: "parse error : internal parser panic: i am not an error",
+		},
+		{
+			name:        "int panic",
+			panicValue:  42,
+			expectedErr: "parse error : internal parser panic: 42",
+		},
+		{
+			name:        "plain error panic",
+			panicValue:  errors.New("boom"),
+			expectedErr: "parse error : boom",
+		},
+		{
+			name:        "parse error panic is returned as is",
+			panicValue:  existingParseErr,
+			expectedErr: "parse error at line 1, col 2: existing",
+			sameErr:     existingParseErr,
+		},
+	}
+
+	const query = "{ .a = 1 }"
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defaultTransformations = []namedTransformation{{panicker, panickingRewriter{val: tt.panicValue}}}
+
+			expr, err := Parse(query)
+			require.Error(t, err)
+			require.Nil(t, expr)
+			require.EqualError(t, err, tt.expectedErr)
+			if tt.sameErr != nil {
+				require.Same(t, tt.sameErr, err)
+			}
+		})
+	}
+
+	t.Run("skipped transformation does not panic", func(t *testing.T) {
+		defaultTransformations = []namedTransformation{{panicker, panickingRewriter{val: "should not run"}}}
+
+		expr, err := Parse(query, WithSkipOptimization(panicker))
+		require.NoError(t, err)
+		require.NotNil(t, expr)
+	})
+
+	t.Run("ParseNoOptimizations does not panic", func(t *testing.T) {
+		defaultTransformations = []namedTransformation{{panicker, panickingRewriter{val: "should not run"}}}
+
+		expr, err := ParseNoOptimizations(query)
+		require.NoError(t, err)
+		require.NotNil(t, expr)
+	})
+}
+
 func newMetricsFilter(op Operator, value float64, separator string) *MetricsFilter { //nolint:unparam
 	return &MetricsFilter{op: op, value: value, sep: separator}
 }
