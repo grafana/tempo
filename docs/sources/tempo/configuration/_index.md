@@ -406,7 +406,7 @@ Use the `tempo_distributor_attributes_truncated_total` metric to track how many 
 This metric includes `tenant` and `scope` labels, where `scope` is one of `resource`, `scope`, `span`, `event`, or `link`.
 
 Use the `tempo_distributor_attribute_size_bytes` histogram to observe the size distribution of attributes as they are received.
-Like the counter, it includes `tenant` and `scope` labels, and each observation records the combined size of an attribute's key and string value. Every attribute is measured, whether or not it is truncated.
+Like the counter, it includes `tenant` and `scope` labels, and each observation records the combined size of an attribute's key and value. Every attribute is measured, whatever its value type, whether or not it is truncated, and even when truncation is disabled.
 
 When truncation occurs, the distributor also emits a rate-limited log line (at most one per second) with diagnostic details including the tenant, total truncated count, configured limit, and an example of the first truncated attribute (scope, name, field, and original size).
 
