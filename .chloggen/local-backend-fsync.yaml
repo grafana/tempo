@@ -1,0 +1,8 @@
+change_type: bug_fix
+component: storage
+note: Fsync objects written by the local backend, so an unclean shutdown can no longer leave an empty or truncated block meta.
+issues: []
+subtext: |
+  The local backend now writes each object through a synced temporary file that is renamed into place, and syncs appended data before closing it.
+  A block's meta is written last, so a meta that survives a crash implies its data did too.
+user: chetto1983
