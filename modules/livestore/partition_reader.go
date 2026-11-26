@@ -134,6 +134,9 @@ func (r *PartitionReader) processFetches(ctx context.Context, fetches kgo.Fetche
 	if fetches.Err() != nil {
 		err := collectFetchErrs(fetches)
 		level.Error(r.logger).Log("msg", "encountered error while fetching", "err", err)
+		if fetches.Empty() {
+			return
+		}
 	}
 
 	r.recordFetchesMetrics(fetches)

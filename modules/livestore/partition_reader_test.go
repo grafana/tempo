@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/ingest/testkafka"
 	"github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -265,8 +266,12 @@ func defaultPartitionReaderWithCommitInterval(t *testing.T, address string, comm
 }
 
 func TestProcessFetches_KeepsRecordsOnFetchError(t *testing.T) {
-	var consumed []int64
+	var (
+		consumeCalls int
+		consumed     []int64
+	)
 	consumeFn := func(_ context.Context, rs recordIter, _ time.Time) (*kadm.Offset, error) {
+		consumeCalls++
 		var last *kgo.Record
 		for !rs.Done() {
 			last = rs.Next()
@@ -284,12 +289,19 @@ func TestProcessFetches_KeepsRecordsOnFetchError(t *testing.T) {
 	r, err := newPartitionReader(nil, testPartition, cfg, time.Minute, time.Hour, false, consumeFn, test.NewTestingLogger(t), newPartitionReaderMetrics(testPartition, prometheus.NewRegistry()))
 	require.NoError(t, err)
 
-	// An error-only poll consumes nothing and leaves the lag unset.
+	recordsPerFetchSamples := func() uint64 {
+		m := &dto.Metric{}
+		require.NoError(t, r.metrics.recordsPerFetch.Write(m))
+		return m.GetHistogram().GetSampleCount()
+	}
+
+	// An error-only poll is skipped: no consume call, no metrics, and the lag stays unset.
 	r.processFetches(t.Context(), kgo.Fetches{{Topics: []kgo.FetchTopic{{
 		Topic:      testTopic,
 		Partitions: []kgo.FetchPartition{{Partition: testPartition, Err: errors.New("fetch failed")}},
 	}}}})
-	require.Empty(t, consumed)
+	require.Zero(t, consumeCalls)
+	require.Zero(t, recordsPerFetchSamples())
 	require.Nil(t, r.offsetWatermark.Load())
 	require.Equal(t, int64(-1), r.lag.Load())
 
@@ -307,6 +319,8 @@ func TestProcessFetches_KeepsRecordsOnFetchError(t *testing.T) {
 		}},
 	}}}})
 
+	require.Equal(t, 1, consumeCalls)
+	require.Equal(t, uint64(1), recordsPerFetchSamples())
 	require.Equal(t, []int64{10, 11}, consumed)
 	offset := r.offsetWatermark.Load()
 	require.NotNil(t, offset)
