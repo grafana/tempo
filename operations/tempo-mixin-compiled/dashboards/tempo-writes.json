@@ -92,7 +92,7 @@
        "refId": "A"
       }
      ],
-     "title": "QPS",
+     "title": "Requests / sec",
      "type": "timeseries"
     },
     {
@@ -167,7 +167,7 @@
        "step": 10
       }
      ],
-     "title": "Latency",
+     "title": "Request latency",
      "type": "timeseries",
      "yaxes": [
       {
@@ -251,7 +251,7 @@
        "legendLink": null
       }
      ],
-     "title": "QPS",
+     "title": "Requests / sec",
      "type": "timeseries"
     },
     {
@@ -283,7 +283,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Envoy Proxy",
+   "title": "Envoy proxy",
    "titleSize": "h6"
   },
   {
@@ -402,7 +402,7 @@
        "legendLink": null
       }
      ],
-     "title": "Envoy remaining requests/connections",
+     "title": "Envoy remaining requests and connections",
      "type": "timeseries"
     }
    ],
@@ -529,7 +529,7 @@
        "legendLink": null
       }
      ],
-     "title": "Bytes / sec",
+     "title": "Ingestion throughput",
      "type": "timeseries",
      "yaxes": [
       {
@@ -615,7 +615,7 @@
        "legendLink": null
       }
      ],
-     "title": "Latency",
+     "title": "Push latency",
      "type": "timeseries",
      "yaxes": [
       {
@@ -785,7 +785,7 @@
        "legendLink": null
       }
      ],
-     "title": "Push duration by tenant (top 10, p99)",
+     "title": "Per tenant p99 push latency (top 10)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -857,7 +857,7 @@
        "legendLink": null
       }
      ],
-     "title": "Push size by tenant (top 10, p99)",
+     "title": "Per tenant p99 push size (top 10)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -941,7 +941,7 @@
        "legendLink": null
       }
      ],
-     "title": "Trace size by tenant (top 10, p99)",
+     "title": "Per tenant p99 trace size (top 10)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1013,7 +1013,7 @@
        "legendLink": null
       }
      ],
-     "title": "Attribute size by tenant (top 10, p99)",
+     "title": "Per tenant p99 attribute size (top 10)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1039,7 +1039,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Trace & attribute size",
+   "title": "Trace and attribute size",
    "titleSize": "h6"
   },
   {
@@ -1158,7 +1158,7 @@
        "legendLink": null
       }
      ],
-     "title": "Discarded spans",
+     "title": "Discarded spans / sec by reason",
      "type": "timeseries"
     }
    ],
@@ -1224,7 +1224,7 @@
        "legendLink": null
       }
      ],
-     "title": "Kafka append records / sec",
+     "title": "Kafka record production rate",
      "type": "timeseries"
     },
     {
@@ -1278,7 +1278,7 @@
        "legendLink": null
       }
      ],
-     "title": "Kafka failed append records / sec",
+     "title": "Failed Kafka record production rate by reason",
      "type": "timeseries"
     }
    ],
@@ -1344,7 +1344,7 @@
        "legendLink": null
       }
      ],
-     "title": "Kafka write bytes / sec",
+     "title": "Kafka write throughput",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1430,7 +1430,7 @@
        "legendLink": null
       }
      ],
-     "title": "Kafka write latency (sec)",
+     "title": "Kafka write latency",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1527,7 +1527,7 @@
        "refId": "A"
       }
      ],
-     "title": "QPS",
+     "title": "Requests / sec",
      "type": "timeseries"
     },
     {
@@ -1602,7 +1602,7 @@
        "step": 10
       }
      ],
-     "title": "Latency",
+     "title": "Write latency",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1628,7 +1628,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Memcached - Backend worker",
+   "title": "Backend worker – Memcached writes",
    "titleSize": "h6"
   },
   {
@@ -1699,7 +1699,7 @@
        "refId": "A"
       }
      ],
-     "title": "QPS",
+     "title": "Requests / sec",
      "type": "timeseries"
     },
     {
@@ -1774,7 +1774,7 @@
        "step": 10
       }
      ],
-     "title": "Latency",
+     "title": "Write latency",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1800,7 +1800,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Backend - Backend worker",
+   "title": "Backend worker – storage writes",
    "titleSize": "h6"
   }
  ],

@@ -51,6 +51,7 @@ server:
         client_auth_type: ""
         client_ca_file: ""
     register_instrumentation: true
+    metrics_cache_duration: 0s
     report_grpc_codes_in_instrumentation_label_enabled: false
     graceful_shutdown_timeout: 30s
     http_server_read_timeout: 30s
@@ -129,6 +130,7 @@ internal_server:
         client_auth_type: ""
         client_ca_file: ""
     register_instrumentation: false
+    metrics_cache_duration: 0s
     report_grpc_codes_in_instrumentation_label_enabled: false
     graceful_shutdown_timeout: 30s
     http_server_read_timeout: 30s
@@ -233,6 +235,7 @@ distributor:
         dial_timeout: 0s
         write_timeout: 0s
         api_versions_max_version: 0
+        max_decompress_batch_bytes: 0
         sasl_mechanism: ""
         sasl_username: ""
         sasl_password: ""
@@ -264,6 +267,7 @@ distributor:
         auto_create_topic_default_partitions: 0
         producer_max_record_size_bytes: 0
         producer_max_buffered_bytes: 0
+        producer_linger: 0s
         producer_compression: ""
         target_consumer_lag_at_startup: 0s
         max_consumer_lag_at_startup: 0s
@@ -553,6 +557,7 @@ ingest:
         dial_timeout: 2s
         write_timeout: 10s
         api_versions_max_version: 4
+        max_decompress_batch_bytes: 2147483647
         sasl_mechanism: PLAIN
         sasl_username: ""
         sasl_password: ""
@@ -584,6 +589,7 @@ ingest:
         auto_create_topic_default_partitions: 1000
         producer_max_record_size_bytes: 15983616
         producer_max_buffered_bytes: 1073741824
+        producer_linger: 50ms
         producer_compression: ""
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s

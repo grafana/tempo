@@ -303,8 +303,8 @@ func (w *BackendWorker) processCompactionJob(ctx context.Context, resp *tempopb.
 		}
 	}
 
-	// Execute compaction using existing logic
-	newCompacted, err := w.compact(ctx, sourceMetas, resp.Detail.Tenant)
+	// Execute compaction with the job ID so the rewrite can be correlated with the scheduler result.
+	newCompacted, err := w.compact(tempodb.ContextWithCompactionJobID(ctx, resp.JobId), sourceMetas, resp.Detail.Tenant)
 	if err != nil {
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error compacting blocks: %v", err))
 	}

@@ -1,7 +1,8 @@
 # Runs the unit tests for the separate `tools` Go module (tools/go.mod), which
-# the main CI unit-tests job does not cover. Runs on every PR (no path filter)
-# so it can be a required status check without blocking PRs that don't touch
-# the tools module.
+# the main CI unit-tests job does not cover. The code-owner sweep now lives in
+# that module (tools/assign-codeowner), so its tests run here too. Runs on every
+# PR (no path filter) so it can be a required status check without blocking PRs
+# that don't touch the module.
 name: Tools Unit Tests
 
 on:

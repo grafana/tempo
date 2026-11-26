@@ -16,8 +16,21 @@ import (
 )
 
 // NewReaderClient returns the kgo.Client that should be used by the Reader.
+//
+// Passing kgo.ConsumeResetOffset or kgo.MaxDecompressBatchBytes in opts
+// replaces the default.
 func NewReaderClient(kafkaCfg KafkaConfig, metrics *kprom.Metrics, logger log.Logger, opts ...kgo.Opt) (*kgo.Client, error) {
 	const fetchMaxBytes = 100_000_000
+
+	// Set before opts, so callers can replace them.
+	defaults := []kgo.Opt{
+		// After data loss while consuming, resume at the first record stamped at
+		// or after the last one consumed, as on franz-go < 1.22. The franz-go
+		// >= 1.22 default rewinds one minute and re-reads records.
+		kgo.ConsumeResetOffset(kgo.RewindOffset(0)),
+	}
+	defaults = append(defaults, maxDecompressBatchBytesOpts(kafkaCfg.MaxDecompressBatchBytes)...)
+	opts = append(defaults, opts...)
 
 	commonOpts, err := commonKafkaClientOptions(kafkaCfg, metrics, logger)
 	if err != nil {
@@ -63,7 +76,12 @@ func NewGroupReaderClient(kafkaCfg KafkaConfig, partitionRing ring.PartitionRing
 		kgo.SessionTimeout(3*time.Minute),
 		kgo.RebalanceTimeout(5*time.Minute),
 		kgo.Balancers(NewCooperativeActiveStickyBalancer(partitionRing)),
-		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
+		// Start from the beginning of a partition that has no committed offset,
+		// and after data loss resume where it was instead of from the start.
+		// With RewindOffset, ConsumeResetOffset no longer sets the start offset,
+		// so set it explicitly.
+		kgo.ConsumeStartOffset(kgo.NewOffset().AtStart()),
+		kgo.ConsumeResetOffset(kgo.RewindOffset(0)),
 	)
 
 	client, err := NewReaderClient(kafkaCfg, metrics, logger, opts...)

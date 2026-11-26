@@ -53,6 +53,8 @@ type tenantStore struct {
 	enc              encoding.VersionedEncoding
 	wal              *wal.WAL
 	noCompactBlockID *backend.UUID
+	minRecordTime    time.Time
+	maxRecordTime    time.Time
 
 	liveTraces *livetraces.LiveTraces[[]byte]
 }
@@ -107,6 +109,17 @@ func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error
 			}
 		}
 		overrides.RecordDiscardedSpans(count, overrides.ReasonTraceTooLarge, s.tenantID)
+		return nil
+	}
+
+	// Track accepted Kafka record times separately from the block's span time range.
+	if !ts.IsZero() {
+		if s.minRecordTime.IsZero() || ts.Before(s.minRecordTime) {
+			s.minRecordTime = ts
+		}
+		if s.maxRecordTime.IsZero() || ts.After(s.maxRecordTime) {
+			s.maxRecordTime = ts
+		}
 	}
 
 	return nil
@@ -205,7 +218,15 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 	}
 	span.AddEvent("cleared block from wal", trace.WithAttributes(attribute.String("block_id", newMeta.BlockID.String())))
 
-	level.Info(s.logger).Log(
+	logger := s.logger
+	if !s.minRecordTime.IsZero() {
+		logger = log.With(
+			logger,
+			"min_record_time", s.minRecordTime.UTC().Format(time.RFC3339Nano),
+			"max_record_time", s.maxRecordTime.UTC().Format(time.RFC3339Nano),
+		)
+	}
+	level.Info(logger).Log(
 		"msg", "Flushed block",
 		"tenant", s.tenantID,
 		"blockid", newMeta.BlockID,

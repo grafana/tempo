@@ -417,7 +417,7 @@ outer:
 				// Record lag at the start of the consumption
 				ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(rec.Timestamp))
 				writer = newPartitionSectionWriter(
-					b.logger,
+					log.With(b.logger, "source_topic", topic, "source_partition", ps.partition),
 					uint64(ps.partition),
 					uint64(rec.Offset),
 					rec.Timestamp,
