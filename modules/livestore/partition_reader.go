@@ -117,51 +117,65 @@ func (r *PartitionReader) running(ctx context.Context) error {
 
 	for ctx.Err() == nil {
 		fetches := r.client.PollFetches(ctx)
-		if fetches.Err() != nil {
-			if errors.Is(fetches.Err(), context.Canceled) {
-				return nil
-			}
-			err := collectFetchErrs(fetches)
-			level.Error(r.logger).Log("msg", "encountered error while fetching", "err", err)
-			continue
+		if errors.Is(fetches.Err(), context.Canceled) {
+			return nil
 		}
-
-		r.recordFetchesMetrics(fetches)
-		offset, consumptionErr := r.consume(ctx, fetches.RecordIter(), time.Now())
-		if consumptionErr != nil {
-			// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
-			level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "err", consumptionErr)
-		}
-		if offset != nil {
-			r.storeOffsetForCommit(ctx, offset)
-		}
-
-		// Calculate lag as the difference between the high watermark and
-		// the last successfully processed (committed) offset.
-		for _, fetch := range fetches {
-			for _, topic := range fetch.Topics {
-				for _, partition := range topic.Partitions {
-					owm := r.offsetWatermark.Load()
-					// if we had consumption error and no last offset registered, we cannot determine lag
-					if owm == nil && consumptionErr != nil {
-						continue
-					}
-					var committedOffset int64
-					var lag int64
-					if owm != nil {
-						committedOffset = owm.At
-						lag = partition.HighWatermark - committedOffset
-						if lag < 0 {
-							lag = 0
-						}
-					} // else offset is not yet set due to no new records, therefore lag is 0
-					r.lag.Store(lag)
-				}
-			}
-		}
+		r.processFetches(ctx, fetches)
 	}
 
 	return nil
+}
+
+// processFetches logs fetch errors and consumes the fetched records.
+// A poll can return an error, such as kgo.ErrDataLoss, together with valid
+// records. The fetch position has already moved past those records, so
+// skipping them would lose them once a later offset is committed.
+func (r *PartitionReader) processFetches(ctx context.Context, fetches kgo.Fetches) {
+	if fetches.Err() != nil {
+		err := collectFetchErrs(fetches)
+		level.Error(r.logger).Log("msg", "encountered error while fetching", "err", err)
+		if fetches.Empty() {
+			return
+		}
+	}
+
+	r.recordFetchesMetrics(fetches)
+	offset, consumptionErr := r.consume(ctx, fetches.RecordIter(), time.Now())
+	if consumptionErr != nil {
+		// TODO abort ingesting & back off if it's a server error, ignore error if it's a client error
+		level.Error(r.logger).Log("msg", "encountered error processing records; skipping", "err", consumptionErr)
+	}
+	if offset != nil {
+		r.storeOffsetForCommit(ctx, offset)
+	}
+
+	// Calculate lag as the difference between the high watermark and
+	// the last successfully processed (committed) offset.
+	for _, fetch := range fetches {
+		for _, topic := range fetch.Topics {
+			for _, partition := range topic.Partitions {
+				// A partition with only an error has no high watermark to compare against.
+				if partition.Err != nil && len(partition.Records) == 0 {
+					continue
+				}
+				owm := r.offsetWatermark.Load()
+				// if we had consumption error and no last offset registered, we cannot determine lag
+				if owm == nil && consumptionErr != nil {
+					continue
+				}
+				var committedOffset int64
+				var lag int64
+				if owm != nil {
+					committedOffset = owm.At
+					lag = partition.HighWatermark - committedOffset
+					if lag < 0 {
+						lag = 0
+					}
+				} // else offset is not yet set due to no new records, therefore lag is 0
+				r.lag.Store(lag)
+			}
+		}
+	}
 }
 
 func (r *PartitionReader) storeOffsetForCommit(ctx context.Context, offset *kadm.Offset) {
