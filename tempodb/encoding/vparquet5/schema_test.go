@@ -1236,8 +1236,18 @@ func TestTraceToParquetRootSpanWithChildOfLink(t *testing.T) {
 
 func writeSimilarityTestFile(t *testing.T, version string, traces []*Trace) []byte {
 	t.Helper()
+	return writeTraceTestFile(t, TraceSchemaConfig{Options: map[string]string{TraceSignatureVersionOption: version}}, traces)
+}
 
-	_, writerOptions, _ := SchemaWithDynamicChanges(TraceSchemaConfig{Options: map[string]string{TraceSignatureVersionOption: version}})
+func readSimilarityTestFile(t *testing.T, version string, data []byte, rowCount int) []*Trace {
+	t.Helper()
+	return readTraceTestFile(t, TraceSchemaConfig{Options: map[string]string{TraceSignatureVersionOption: version}}, data, rowCount)
+}
+
+func writeTraceTestFile(t *testing.T, tsc TraceSchemaConfig, traces []*Trace) []byte {
+	t.Helper()
+
+	_, writerOptions, _ := SchemaWithDynamicChanges(tsc)
 
 	var buf bytes.Buffer
 	w := parquet.NewGenericWriter[*Trace](&buf, writerOptions...)
@@ -1248,10 +1258,10 @@ func writeSimilarityTestFile(t *testing.T, version string, traces []*Trace) []by
 	return buf.Bytes()
 }
 
-func readSimilarityTestFile(t *testing.T, version string, data []byte, rowCount int) []*Trace {
+func readTraceTestFile(t *testing.T, tsc TraceSchemaConfig, data []byte, rowCount int) []*Trace {
 	t.Helper()
 
-	schema, _, readerOptions := SchemaWithDynamicChanges(TraceSchemaConfig{Options: map[string]string{TraceSignatureVersionOption: version}})
+	schema, _, readerOptions := SchemaWithDynamicChanges(tsc)
 	pf, err := parquet.OpenFile(bytes.NewReader(data), int64(len(data)), parquet.FileSchema(schema))
 	require.NoError(t, err)
 
