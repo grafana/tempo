@@ -64,6 +64,8 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64
 	MetricsGeneratorProcessorServiceGraphsDimensions(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(userID string) (bool, bool)
+	// MetricsGeneratorProcessorServiceGraphsPresentation returns both lists from one validated snapshot.
+	MetricsGeneratorProcessorServiceGraphsPresentation(userID string) ([]string, []string)
 	MetricsGeneratorProcessorServiceGraphsBypassServices(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(userID string) []string
 	MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string

@@ -41,7 +41,8 @@ type Config struct {
 	// EnableServiceGraphEdgeStorage persists uncollapsed span relationships in trace blocks
 	// and enables metrics matching across all span kinds. Disabled by default; increases
 	// memory and disk usage.
-	// MaxItems limits cached spans, and Wait bounds their retention when enabled.
+	// MaxItems limits cached spans. Metrics settle as endpoint wait windows expire,
+	// allowing shared IDs to arrive in either order without cutting off newer spans.
 	EnableServiceGraphEdgeStorage bool `yaml:"enable_service_graph_edge_storage"`
 
 	// BypassServices lists exact service names for visualization. It never removes

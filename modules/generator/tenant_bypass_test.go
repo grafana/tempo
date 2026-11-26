@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -83,7 +84,8 @@ func TestServiceGraphsBypassTenantOverrides(t *testing.T) {
 			metrics := registry.NewTestRegistry()
 			p, err := servicegraphs.New(copied.ServiceGraphs, tc.tenant, metrics, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
 			require.NoError(t, err)
-			t.Cleanup(func() { p.Shutdown(context.Background()) })
+			shutdown := sync.OnceFunc(func() { p.Shutdown(context.Background()) })
+			t.Cleanup(shutdown)
 			traceID := make([]byte, 16)
 			traceID[15] = 1
 			var batches []*tracev1.ResourceSpans
@@ -105,6 +107,7 @@ func TestServiceGraphsBypassTenantOverrides(t *testing.T) {
 				})
 			}
 			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: batches})
+			shutdown()
 			for _, edge := range []struct {
 				client, server string
 				want           float64

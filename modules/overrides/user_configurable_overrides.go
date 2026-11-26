@@ -81,6 +81,7 @@ type userConfigurableOverridesManager struct {
 
 	mtx          sync.RWMutex
 	tenantLimits tenantLimits
+	presentation map[string]presentationSnapshot
 
 	client userconfigurableoverrides.Client
 
@@ -208,12 +209,17 @@ func (o *userConfigurableOverridesManager) getAllTenantLimits() tenantLimits {
 
 func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits *userconfigurableoverrides.Limits) {
 	o.mtx.Lock()
-	defer o.mtx.Unlock()
-
 	if limits == nil {
 		delete(o.tenantLimits, userID)
+		delete(o.presentation, userID)
 	} else {
 		o.tenantLimits[userID] = limits
+	}
+	o.mtx.Unlock()
+	// Seed the last valid pair on reload, even if no query arrives before a later
+	// runtime update. No storage or network access occurs while validating it.
+	if limits != nil && o.Interface != nil {
+		o.MetricsGeneratorProcessorServiceGraphsPresentation(userID)
 	}
 }
 
@@ -501,16 +507,71 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(userID)
 }
 
-func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServices(userID string) []string {
-	if value, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetBypassServices(); ok {
-		return value
+// presentationSnapshot is bounded by tenants with saved presentation overrides.
+// The two source pointers avoid regex recompilation on unchanged query traffic.
+type presentationSnapshot struct {
+	runtime         *Overrides
+	saved           *userconfigurableoverrides.Limits
+	names, patterns []string
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsPresentation(userID string) ([]string, []string) {
+	var runtime *Overrides
+	var names, patterns []string
+	source, cacheable := o.Interface.(interface {
+		serviceGraphPresentationState(string) (*Overrides, []string, []string)
+	})
+	if cacheable {
+		runtime, names, patterns = source.serviceGraphPresentationState(userID)
+	} else {
+		names, patterns = o.Interface.MetricsGeneratorProcessorServiceGraphsPresentation(userID)
 	}
-	return o.Interface.MetricsGeneratorProcessorServiceGraphsBypassServices(userID)
+	o.mtx.Lock()
+	defer o.mtx.Unlock()
+	saved := o.tenantLimits[userID]
+	sg := saved.GetMetricsGenerator().GetProcessor().GetServiceGraphs()
+	savedNames, hasNames := sg.GetBypassServices()
+	savedPatterns, hasPatterns := sg.GetBypassServiceRegex()
+	if !hasNames && !hasPatterns {
+		delete(o.presentation, userID)
+		return names, patterns
+	}
+	previous, exists := o.presentation[userID]
+	if cacheable && exists && previous.runtime == runtime && previous.saved == saved {
+		return previous.names, previous.patterns
+	}
+	runtimeNames, runtimePatterns := names, patterns
+	if hasNames {
+		names = savedNames
+	}
+	if hasPatterns {
+		patterns = savedPatterns
+	}
+	if err := sharedconfig.ValidateServiceGraphPresentation(names, patterns); err != nil {
+		metricUserConfigurableOverridesReloadFailed.Inc()
+		level.Warn(o.logger).Log("msg", "keeping last valid service graph presentation after incompatible override reload", "tenant", userID, "err", err)
+		if exists {
+			names, patterns = previous.names, previous.patterns
+		} else {
+			names, patterns = runtimeNames, runtimePatterns
+			if sharedconfig.ValidateServiceGraphPresentation(names, patterns) != nil {
+				names, patterns = nil, nil
+			}
+		}
+	}
+	if o.presentation == nil {
+		o.presentation = make(map[string]presentationSnapshot)
+	}
+	o.presentation[userID] = presentationSnapshot{runtime: runtime, saved: saved, names: names, patterns: patterns}
+	return names, patterns
+}
+
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServices(userID string) []string {
+	names, _ := o.MetricsGeneratorProcessorServiceGraphsPresentation(userID)
+	return names
 }
 
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(userID string) []string {
-	if value, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetBypassServiceRegex(); ok {
-		return value
-	}
-	return o.Interface.MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(userID)
+	_, patterns := o.MetricsGeneratorProcessorServiceGraphsPresentation(userID)
+	return patterns
 }

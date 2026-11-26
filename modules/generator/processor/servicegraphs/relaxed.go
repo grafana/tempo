@@ -21,7 +21,7 @@ func (p *Processor) consumeRelaxed(batches []*tracev1.ResourceSpans) error {
 				if filtered {
 					p.filteredSpansCounter.Inc()
 				}
-				err := p.relaxedStore.AddSpan(span.TraceId, span.SpanId, span.ParentSpanId, filtered, func(e *store.Edge, serverDimensions map[string]string) {
+				err := p.relaxedStore.AddSpan(span.TraceId, span.SpanId, span.ParentSpanId, span.Kind, filtered, func(e *store.Edge, serverDimensions map[string]string) {
 					e.SetTraceID(span.TraceId)
 					e.SpanKind = span.Kind
 					e.ClientService = service

@@ -3,6 +3,7 @@ package servicegraphs
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +34,7 @@ func TestRelaxedServiceGraphsSpanKinds(t *testing.T) {
 				// Deliver the child before its parent, in separate pushes.
 				p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*tracev1.ResourceSpans{makeServiceGraphBatch("B", childKind, []byte{1}, []byte{2}, []byte{1})}})
 				p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*tracev1.ResourceSpans{makeServiceGraphBatch("A", parentKind, []byte{1}, []byte{1}, nil)}})
+				p.(*Processor).relaxedStore.Expire(time.Now().Add(2 * cfg.Wait))
 				want := map[string]string{"client": "A", "server": "B"}
 				if parentKind == tracev1.Span_SPAN_KIND_PRODUCER && childKind == tracev1.Span_SPAN_KIND_CONSUMER {
 					want["connection_type"] = "messaging_system"
@@ -71,6 +73,7 @@ func TestRelaxedServiceGraphsDimensionsAndFiltering(t *testing.T) {
 				makeServiceGraphBatch("A", tracev1.Span_SPAN_KIND_INTERNAL, []byte{1}, []byte{1}, nil, tempopb.MakeKeyValueStringPtr("zone", "west")),
 				makeServiceGraphBatch("B", tracev1.Span_SPAN_KIND_INTERNAL, []byte{1}, []byte{2}, []byte{1}, tempopb.MakeKeyValueStringPtr("zone", "east")),
 			}})
+			p.(*Processor).relaxedStore.Expire(time.Now().Add(2 * cfg.Wait))
 			count := metrics.Query(metricRequestTotal, labels.FromMap(map[string]string{"client": "A", "server": "B", "client_zone": "west", "server_zone": "east"}))
 			if filtered {
 				require.Zero(t, count)
@@ -105,7 +108,7 @@ func TestRelaxedServiceGraphsDatabaseAndVirtualNodes(t *testing.T) {
 			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*tracev1.ResourceSpans{
 				makeServiceGraphBatch("A", tc.kind, []byte{1}, []byte{1}, nil, tempopb.MakeKeyValueStringPtr(tc.attribute, tc.peer)),
 			}})
-			p.(*Processor).relaxedStore.Expire()
+			p.(*Processor).relaxedStore.Expire(time.Now())
 			want := labels.FromMap(map[string]string{"client": tc.client, "server": tc.server, "connection_type": tc.connection})
 			require.Equal(t, 1.0, metrics.Query(metricRequestTotal, want))
 			require.Equal(t, 1.0, metrics.Query(metricRequestServerSeconds+"_count", want))
@@ -149,6 +152,7 @@ func TestRelaxedServiceGraphsPreservesBypassedServices(t *testing.T) {
 					makeServiceGraphBatch(services[i], tracev1.Span_SPAN_KIND_INTERNAL, []byte{1}, []byte{byte(i + 1)}, parent),
 				}})
 			}
+			p.(*Processor).relaxedStore.Expire(time.Now().Add(2 * cfg.Wait))
 			for _, edge := range [][2]string{{"A", "gateway"}, {"gateway", "proxy"}, {"proxy", "B"}} {
 				require.Equal(t, 1.0, metrics.Query(metricRequestTotal, labels.FromMap(map[string]string{"client": edge[0], "server": edge[1]})))
 			}
@@ -164,4 +168,30 @@ func TestServiceGraphsPresentationConfigDoesNotEnableStorage(t *testing.T) {
 	require.False(t, cfg.EnableServiceGraphEdgeStorage)
 	cfg.EnableServiceGraphEdgeStorage = true
 	require.NoError(t, cfg.Validate())
+}
+
+// Stopping a processor must settle complete pending relationships before the
+// matching window closes, rather than losing them during configuration changes.
+func TestRelaxedServiceGraphsShutdownSettlesWindow(t *testing.T) {
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+	cfg.EnableServiceGraphEdgeStorage = true
+	cfg.Workers = 0
+	cfg.Wait = time.Hour
+	metrics := registry.NewTestRegistry()
+	p, err := New(cfg, "shutdown-window", metrics, log.NewNopLogger(), prometheus.NewCounter(prometheus.CounterOpts{}), prometheus.NewCounter(prometheus.CounterOpts{}))
+	require.NoError(t, err)
+	shutdown := sync.OnceFunc(func() { p.Shutdown(context.Background()) })
+	t.Cleanup(shutdown)
+	batches := []*tracev1.ResourceSpans{
+		makeServiceGraphBatch("A", tracev1.Span_SPAN_KIND_CLIENT, []byte{1}, []byte{1}, nil),
+		makeServiceGraphBatch("B", tracev1.Span_SPAN_KIND_SERVER, []byte{1}, []byte{2}, []byte{1}),
+	}
+	for i := 0; i < 2; i++ {
+		p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: batches})
+	}
+	want := labels.FromMap(map[string]string{"client": "A", "server": "B"})
+	require.Zero(t, metrics.Query(metricRequestTotal, want))
+	shutdown()
+	require.Equal(t, 1.0, metrics.Query(metricRequestTotal, want))
 }

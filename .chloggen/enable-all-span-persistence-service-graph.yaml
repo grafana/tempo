@@ -5,6 +5,9 @@ issues: []
 subtext: >-
   Enable all-span matching and edge persistence with enable_service_graph_edge_storage;
   this uses additional memory and disk space and retains individual edges in vParquet4 and vParquet5 blocks.
+  All-span metrics settle as endpoint wait windows expire to resolve shared IDs consistently.
+  Compaction preserves existing records without backfilling opted-out traces.
+  Incompatible runtime/API blacklist combinations retain the last valid presentation pair.
   Both trace-by-ID API versions support optional include_service_graph_presentation,
   bypass_service, and bypass_service_regex parameters in JSON and protobuf responses.
   Request overrides affect presentation hints only and are not saved;

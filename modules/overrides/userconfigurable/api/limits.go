@@ -13,6 +13,7 @@ import (
 
 // limitsFromOverrides will reconstruct a client.Limits from the overrides module
 func limitsFromOverrides(overrides overrides.Interface, userID string) *client.Limits {
+	bypassServices, bypassPatterns := overrides.MetricsGeneratorProcessorServiceGraphsPresentation(userID)
 	return &client.Limits{
 		Forwarders: strArrPtr(overrides.Forwarders(userID)),
 		MetricsGenerator: client.LimitsMetricsGenerator{
@@ -42,14 +43,14 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 						return boolPtr(value)
 					}(),
 					BypassServices: func() *[]string {
-						value := overrides.MetricsGeneratorProcessorServiceGraphsBypassServices(userID)
+						value := bypassServices
 						if value == nil {
 							return nil
 						}
 						return strArrPtr(value)
 					}(),
 					BypassServiceRegex: func() *[]string {
-						value := overrides.MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(userID)
+						value := bypassPatterns
 						if value == nil {
 							return nil
 						}

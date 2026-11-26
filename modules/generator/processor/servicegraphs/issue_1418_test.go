@@ -3,6 +3,7 @@ package servicegraphs
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -68,6 +69,9 @@ func TestServiceGraphsIssue1418(t *testing.T) {
 				p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*tracev1.ResourceSpans{batches[i]}})
 			}
 
+			if tc.enabled {
+				p.(*Processor).relaxedStore.Expire(time.Now().Add(2 * cfg.Wait))
+			}
 			aToIngress := metrics.Query(metricRequestTotal, labels.FromMap(map[string]string{
 				"client": "A", "server": "istio-ingressgateway",
 			}))

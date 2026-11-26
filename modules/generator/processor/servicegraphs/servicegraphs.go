@@ -209,7 +209,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 				// Periodically clean expired edges from the store
 				case <-expirationTicker.C:
 					if p.relaxedStore != nil {
-						p.relaxedStore.Expire()
+						p.relaxedStore.Expire(time.Now())
 					} else {
 						p.store.Expire()
 					}
@@ -427,6 +427,10 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 
 func (p *Processor) Shutdown(_ context.Context) {
 	close(p.closeCh)
+	if p.relaxedStore != nil {
+		// Settle accepted windows before replacing or stopping the processor.
+		p.relaxedStore.Expire(time.Now().Add(p.Cfg.Wait))
+	}
 }
 
 func (p *Processor) onComplete(e *store.Edge) {

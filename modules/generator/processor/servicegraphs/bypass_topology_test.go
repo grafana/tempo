@@ -131,11 +131,15 @@ func runBypassTopology(t *testing.T, nodes []bypassTopologyNode, tc bypassTopolo
 		seed := map[string]int64{"shuffle-0": 0, "shuffle-42": 42, "shuffle-2026": 2026}[arrival]
 		rand.New(rand.NewSource(seed)).Shuffle(len(batches), func(i, j int) { batches[i], batches[j] = batches[j], batches[i] })
 	}
-	// A replay must leave both counters and histograms unchanged.
+	// Replay before the matching window closes; each relationship must be counted once.
 	for replay := 0; replay < 2; replay++ {
 		for start := 0; start < len(batches); start += batchSize {
 			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: batches[start:min(start+batchSize, len(batches))]})
 		}
+		if replay == 0 {
+			continue
+		}
+		p.(*Processor).relaxedStore.Expire(time.Now().Add(2 * cfg.Wait))
 		var wantRequests []string
 		for _, edge := range tc.want {
 			for trace := 1; trace <= 2; trace++ {

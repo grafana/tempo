@@ -849,18 +849,31 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsEn
 	return false, false
 }
 
-func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServices(userID string) []string {
-	value := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.BypassServices
-	if value == nil {
-		return o.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.BypassServices
+// serviceGraphPresentationState resolves both lists against one runtime snapshot.
+func (o *runtimeConfigOverridesManager) serviceGraphPresentationState(userID string) (*Overrides, []string, []string) {
+	snapshot := o.getOverridesForUser(userID)
+	sg := snapshot.MetricsGenerator.Processor.ServiceGraphs
+	names, patterns := sg.BypassServices, sg.BypassServiceRegex
+	if names == nil {
+		names = o.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.BypassServices
 	}
-	return value
+	if patterns == nil {
+		patterns = o.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.BypassServiceRegex
+	}
+	return snapshot, names, patterns
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsPresentation(userID string) ([]string, []string) {
+	_, names, patterns := o.serviceGraphPresentationState(userID)
+	return names, patterns
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServices(userID string) []string {
+	names, _ := o.MetricsGeneratorProcessorServiceGraphsPresentation(userID)
+	return names
 }
 
 func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(userID string) []string {
-	value := o.getOverridesForUser(userID).MetricsGenerator.Processor.ServiceGraphs.BypassServiceRegex
-	if value == nil {
-		return o.defaultLimits.MetricsGenerator.Processor.ServiceGraphs.BypassServiceRegex
-	}
-	return value
+	_, patterns := o.MetricsGeneratorProcessorServiceGraphsPresentation(userID)
+	return patterns
 }

@@ -791,6 +791,7 @@ metrics_generator:
 
             # Persist full parent/child edge records in vParquet4 and vParquet5 trace blocks and match all span kinds.
             # Increases memory and disk usage; may also be overridden per tenant.
+            # All-span metrics settle after the wait window to resolve shared span IDs.
             [enable_service_graph_edge_storage: <bool> | default = false]
 
             # Presentation blacklist. Never filters stored spans, edge records, or generated metrics.
