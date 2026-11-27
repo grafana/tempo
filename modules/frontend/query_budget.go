@@ -44,7 +44,7 @@ func (w *queryBudgetAdmitWare) RoundTrip(req pipeline.Request) (pipeline.Respons
 	d := pipeline.AdmitQueryBudgetOnce(ctx, func() querybudget.Decision {
 		return w.budget.Admit(tenants, w.op)
 	})
-	if d.Rejected {
+	if d.Outcome == querybudget.OutcomeRejected {
 		return pipeline.NewHTTPToAsyncResponse(queryBudgetRejectedResponse(d.RetryAfter)), nil
 	}
 	return w.next.RoundTrip(req)

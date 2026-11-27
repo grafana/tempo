@@ -50,15 +50,39 @@ type Limits interface {
 	QueryBudgetBurst(tenant string) uint64
 }
 
+// Outcome is how the query budget decided on a query.
+type Outcome int
+
+const (
+	// OutcomeAdmitted admits the query. It is the zero value, also used if none of the tenants has a query budget.
+	OutcomeAdmitted Outcome = iota
+	// OutcomeRejected rejects the query because the bucket of a tenant in ModeEnabled is in debt. The query must
+	// not start.
+	OutcomeRejected
+	// OutcomeDryRunRejected admits the query, but a tenant in ModeDryRun would have rejected it.
+	OutcomeDryRunRejected
+)
+
+// String returns the name of o as it is logged.
+func (o Outcome) String() string {
+	switch o {
+	case OutcomeAdmitted:
+		return "admitted"
+	case OutcomeRejected:
+		return "rejected"
+	case OutcomeDryRunRejected:
+		return "dry_run_rejected"
+	default:
+		return "unknown"
+	}
+}
+
 // Decision is the result of admitting a query.
 type Decision struct {
-	// Rejected is true if the bucket of a tenant in ModeEnabled is in debt. The query must not start.
-	Rejected bool
-	// RetryAfter is the time until the buckets that rejected the query are out of debt again.
+	Outcome Outcome
+	// RetryAfter is the time until the buckets that rejected the query are out of debt again. It is only set
+	// for OutcomeRejected.
 	RetryAfter time.Duration
-
-	// DryRunRejected is true if a tenant in ModeDryRun would have rejected the query.
-	DryRunRejected bool
 	// Query charges the jobs of an admitted query. It is nil if the query is rejected or none of its tenants
 	// has a query budget.
 	Query *Query
@@ -149,14 +173,14 @@ func (b *Budget) Admit(tenants []string, op jobcost.Op) Decision {
 
 		if mode == ModeEnabled {
 			b.rejected.WithLabelValues(tenant, op.String(), mode).Inc()
-			d.Rejected = true
+			d.Outcome = OutcomeRejected
 			d.RetryAfter = max(d.RetryAfter, retryAfter(level, rate))
 		} else {
 			qt.dryRunRejected = true
 		}
 	}
 
-	if d.Rejected {
+	if d.Outcome == OutcomeRejected {
 		return d
 	}
 
@@ -164,7 +188,7 @@ func (b *Budget) Admit(tenants []string, op jobcost.Op) Decision {
 	for tenant, qt := range budgeted {
 		if qt.dryRunRejected {
 			b.rejected.WithLabelValues(tenant, op.String(), ModeDryRun).Inc()
-			d.DryRunRejected = true
+			d.Outcome = OutcomeDryRunRejected
 		}
 	}
 	if len(budgeted) > 0 {

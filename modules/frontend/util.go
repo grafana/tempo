@@ -15,6 +15,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/v3/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v3/modules/frontend/querybudget"
 	"github.com/grafana/tempo/v3/tempodb/backend"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -68,11 +69,8 @@ func recordResult(logger log.Logger, ctx context.Context, additionalMetrics map[
 	if estimatedBytes, ok := pipeline.EstimatedBytesFromContext(ctx); ok {
 		fields = append(fields, "estimated_bytes", estimatedBytes)
 	}
-	switch d := pipeline.QueryBudgetDecisionFromContext(ctx); {
-	case d.Rejected:
-		fields = append(fields, "query_budget", "rejected")
-	case d.DryRunRejected:
-		fields = append(fields, "query_budget", "dry_run_rejected")
+	if d := pipeline.QueryBudgetDecisionFromContext(ctx); d.Outcome != querybudget.OutcomeAdmitted {
+		fields = append(fields, "query_budget", d.Outcome.String())
 	}
 	logWithShape(logger, ctx, fields...)
 	setSpanAttrsWithShape(ctx, fields...)

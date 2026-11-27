@@ -61,21 +61,21 @@ func TestAdmit(t *testing.T) {
 			limits:        map[string]testLimit{"a": {mode: ModeEnabled, rate: 10, burst: 100}},
 			chargedBefore: map[string]uint64{"a": 150},
 			tenants:       []string{"a"},
-			expected:      Decision{Rejected: true, RetryAfter: 5 * time.Second},
+			expected:      Decision{Outcome: OutcomeRejected, RetryAfter: 5 * time.Second},
 		},
 		{
 			name:          "retry after is at least a second",
 			limits:        map[string]testLimit{"a": {mode: ModeEnabled, rate: 1000, burst: 1000}},
 			chargedBefore: map[string]uint64{"a": 1001},
 			tenants:       []string{"a"},
-			expected:      Decision{Rejected: true, RetryAfter: time.Second},
+			expected:      Decision{Outcome: OutcomeRejected, RetryAfter: time.Second},
 		},
 		{
 			name:            "dry run tenant in debt",
 			limits:          map[string]testLimit{"a": {mode: ModeDryRun, rate: 10, burst: 100}},
 			chargedBefore:   map[string]uint64{"a": 150},
 			tenants:         []string{"a"},
-			expected:        Decision{DryRunRejected: true},
+			expected:        Decision{Outcome: OutcomeDryRunRejected},
 			expectedTenants: []string{"a"},
 			expectedDryRun:  []string{"a"},
 		},
@@ -87,7 +87,7 @@ func TestAdmit(t *testing.T) {
 			},
 			chargedBefore: map[string]uint64{"b": 200},
 			tenants:       []string{"a", "b"},
-			expected:      Decision{Rejected: true, RetryAfter: 10 * time.Second},
+			expected:      Decision{Outcome: OutcomeRejected, RetryAfter: 10 * time.Second},
 		},
 		{
 			name: "retry after only depends on enabled tenants",
@@ -97,7 +97,7 @@ func TestAdmit(t *testing.T) {
 			},
 			chargedBefore: map[string]uint64{"a": 200, "b": 150},
 			tenants:       []string{"a", "b"},
-			expected:      Decision{Rejected: true, RetryAfter: 5 * time.Second},
+			expected:      Decision{Outcome: OutcomeRejected, RetryAfter: 5 * time.Second},
 		},
 		{
 			name: "dry run is per tenant",
@@ -108,7 +108,7 @@ func TestAdmit(t *testing.T) {
 			},
 			chargedBefore:   map[string]uint64{"a": 200},
 			tenants:         []string{"a", "b", "c"},
-			expected:        Decision{DryRunRejected: true},
+			expected:        Decision{Outcome: OutcomeDryRunRejected},
 			expectedTenants: []string{"a", "b"},
 			expectedDryRun:  []string{"a"},
 		},
@@ -309,8 +309,8 @@ func TestDryRunRejectionsAreNotCountedForRejectedQueries(t *testing.T) {
 	q.Charge("dry", block)
 	q.Charge("enabled", block)
 
-	require.True(t, b.Admit([]string{"dry", "enabled"}, jobcost.OpSearch).Rejected)
-	require.True(t, b.Admit([]string{"dry"}, jobcost.OpSearch).DryRunRejected)
+	require.Equal(t, OutcomeRejected, b.Admit([]string{"dry", "enabled"}, jobcost.OpSearch).Outcome)
+	require.Equal(t, OutcomeDryRunRejected, b.Admit([]string{"dry"}, jobcost.OpSearch).Outcome)
 
 	require.InDelta(t, 1.0, testutil.ToFloat64(b.rejected.WithLabelValues("dry", "search", ModeDryRun)), 0.001)
 	require.InDelta(t, 1.0, testutil.ToFloat64(b.rejected.WithLabelValues("enabled", "search", ModeEnabled)), 0.001)
