@@ -2,9 +2,11 @@ package pipeline
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
+	"github.com/grafana/tempo/v3/modules/frontend/querybudget"
 	"github.com/grafana/tempo/v3/pkg/traceql"
 )
 
@@ -48,6 +50,11 @@ type queryShapeCell struct {
 	// estimatedBytes is the sum of the estimated bytes of the jobs of the query. The combiners add to it as
 	// job responses arrive, which can be concurrent.
 	estimatedBytes atomic.Uint64
+
+	// budgetDecision is the decision of the query budget, made once per query, see AdmitQueryBudgetOnce. It is
+	// read without the once by the jobs and when the query is logged.
+	budgetOnce     sync.Once
+	budgetDecision atomic.Pointer[querybudget.Decision]
 }
 
 // WithQueryShapeCell installs an empty cell on ctx that the weight middleware

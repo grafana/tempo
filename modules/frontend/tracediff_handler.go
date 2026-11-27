@@ -12,6 +12,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
@@ -24,6 +25,7 @@ import (
 	"github.com/grafana/tempo/v3/pkg/model/tracediff"
 	"github.com/grafana/tempo/v3/pkg/tempopb"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -193,8 +195,9 @@ func fetchTraceForDiff(ctx context.Context, tenant string, traceReq api.TraceDif
 		return nil, fmt.Errorf("fetch trace %s: %w", traceReq.TraceID, err)
 	}
 
-	// diff works on full traces, so no spanset filter.
-	comb := combinerFn(o.MaxBytesPerTrace(tenant), api.MarshallingFormatProtobuf, traceRedactor, combiner.TraceByIDV2Options{})
+	// diff works on full traces, so no spanset filter. the jobs are only settled in the query budget, a diff is
+	// not reported like a trace by id query.
+	comb := combinerFn(o.MaxBytesPerTrace(tenant), api.MarshallingFormatProtobuf, traceRedactor, combiner.TraceByIDV2Options{}, queryBudgetSettleOption(ctx))
 	for {
 		resp, done, err := resps.Next(ctx)
 		if err != nil {
@@ -316,9 +319,29 @@ func traceDiffErrorResponse(err error) *http.Response {
 		body = http.StatusText(statusCode)
 	}
 
+	header := http.Header{}
+	if delay, ok := retryDelay(err); ok && statusCode == http.StatusTooManyRequests {
+		header.Set(api.HeaderRetryAfter, retryAfterSeconds(delay))
+	}
+
 	return &http.Response{
 		StatusCode: statusCode,
 		Status:     http.StatusText(statusCode),
+		Header:     header,
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}
+}
+
+// retryDelay returns the delay of the RetryInfo of the gRPC status of err, if it has one.
+func retryDelay(err error) (time.Duration, bool) {
+	st, ok := status.FromError(err)
+	if !ok {
+		return 0, false
+	}
+	for _, detail := range st.Details() {
+		if ri, ok := detail.(*errdetails.RetryInfo); ok {
+			return ri.GetRetryDelay().AsDuration(), true
+		}
+	}
+	return 0, false
 }

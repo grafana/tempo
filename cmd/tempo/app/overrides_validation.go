@@ -81,6 +81,11 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) (warnings
 		return warnings, fmt.Errorf("read.min_metrics_duration %s is greater than read.max_metrics_duration %s", time.Duration(minMetrics), time.Duration(maxMetrics))
 	}
 
+	qb := config.Read.QueryBudget
+	if err := validation.ValidateQueryBudget(qb.Mode, qb.Rate, qb.Burst); err != nil {
+		return warnings, err
+	}
+
 	return
 }
 

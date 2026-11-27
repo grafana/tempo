@@ -2642,6 +2642,25 @@ overrides:
       # is used.
       [span_pruning_enabled: <bool>]
 
+      # EXPERIMENTAL
+      # Per-tenant query budget: a token bucket in each query-frontend that limits the read work a tenant
+      # can start. It is measured in units of about one estimated byte read. A query is only admitted while
+      # the bucket of each of its tenants is not in debt, otherwise it is rejected with HTTP 429 and a
+      # Retry-After header. The jobs of a query are charged with their estimated cost when they are sent to
+      # the queriers, jobs that read backend blocks are corrected with the bytes they actually read. 
+      # Jobs are refunded if they fail before a querier takes them.
+      query_budget:
+        # "" (disabled), "dry_run" or "enabled". dry_run tracks the budget and counts the queries that
+        # would be rejected in tempo_query_frontend_query_budget_rejected_queries_total, but rejects none.
+        [mode: <string> | default = ""]
+
+        # Units per second the bucket refills with, per query-frontend. 0 means the tenant has no bucket,
+        # but with dry_run or enabled the units it uses are still counted.
+        [rate: <int> | default = 0]
+
+        # Capacity of the bucket, per query-frontend. Must be at least rate.
+        [burst: <int> | default = 0]
+
     # Compaction related overrides
     compaction:
       # Per-user block retention. If this value is set to 0 (default),

@@ -26,6 +26,10 @@ import (
 	tempotest "github.com/grafana/tempo/v3/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 func TestBuildTraceDiffTraceByIDRequest(t *testing.T) {
@@ -409,4 +413,19 @@ func TestTraceDiffHandlerSkeleton(t *testing.T) {
 			require.Equal(t, tt.statusCode, resp.Code)
 		})
 	}
+}
+
+// a trace diff answers a query rejected by the query budget with Retry-After
+func TestTraceDiffErrorResponseRetryAfter(t *testing.T) {
+	st, err := status.New(codes.ResourceExhausted, "query budget used up").WithDetails(&errdetails.RetryInfo{RetryDelay: durationpb.New(2500 * time.Millisecond)})
+	require.NoError(t, err)
+
+	resp := traceDiffErrorResponse(st.Err())
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	require.Equal(t, "3", resp.Header.Get(api.HeaderRetryAfter))
+
+	resp = traceDiffErrorResponse(status.Error(codes.ResourceExhausted, "too large"))
+	defer resp.Body.Close()
+	require.Empty(t, resp.Header.Get(api.HeaderRetryAfter))
 }

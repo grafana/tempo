@@ -24,8 +24,8 @@ type jobCostMetrics struct {
 	ratio *prometheus.HistogramVec
 }
 
-// jobReporter reports what the jobs of a single op read and were estimated to read as they complete, and
-// calibrates the estimator with it.
+// jobReporter reports what the jobs of a single op read and were estimated to read as they complete, calibrates
+// the estimator with it and settles the charges of the jobs in the query budget.
 type jobReporter struct {
 	op        jobcost.Op
 	estimator *jobcost.Estimator
@@ -59,8 +59,10 @@ func (r *jobReporter) option(ctx context.Context, tenant string) combiner.Option
 		combiner.WithInspectedBytesReporter(func(b uint64) {
 			r.inspected.WithLabelValues(tenant).Add(float64(b))
 		}),
-		combiner.WithJobInspectedBytesObserver(func(inspectedBytes uint64, cost jobcost.Cost) {
+		combiner.WithJobInspectedBytesObserver(func(jobTenant string, inspectedBytes uint64, cost jobcost.Cost) {
 			r.observeJob(inspectedBytes, cost)
+			// looked up for every job, because the query is admitted after the combiner is created
+			pipeline.BudgetQueryFromContext(ctx).Settle(jobTenant, cost, inspectedBytes)
 			addEstimatedBytes(cost.Estimate)
 		}),
 	)

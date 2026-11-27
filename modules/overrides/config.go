@@ -57,6 +57,8 @@ const (
 	MetricCompactionWindow                = "compaction_window"
 	MetricMetricsGeneratorMaxActiveSeries = "metrics_generator_max_active_series"
 	MetricsGeneratorDryRunEnabled         = "metrics_generator_dry_run_enabled"
+	MetricQueryBudgetRate                 = "query_budget_rate"
+	MetricQueryBudgetBurst                = "query_budget_burst"
 )
 
 var metricLimitsDesc = prometheus.NewDesc(
@@ -227,6 +229,20 @@ type ReadOverrides struct {
 	// override only takes effect when that kill switch is on.
 	// EXPERIMENTAL: span pruning is not yet a stable feature; config and behavior may change.
 	SpanPruningEnabled *bool `yaml:"span_pruning_enabled,omitempty" json:"span_pruning_enabled,omitempty"`
+
+	// QueryBudget limits the read work a tenant can start per query-frontend.
+	QueryBudget QueryBudgetOverrides `yaml:"query_budget,omitempty" json:"query_budget,omitempty"`
+}
+
+// QueryBudgetOverrides configure the token bucket of a tenant's query budget. The budget is measured in units of
+// about one estimated byte read. Each query-frontend has its own bucket per tenant.
+type QueryBudgetOverrides struct {
+	// Mode is "" (disabled), "dry_run" or "enabled". In dry run the budget is tracked but no query is rejected.
+	Mode string `yaml:"mode,omitempty" json:"mode,omitempty"`
+	// Rate is the number of units per second the bucket refills with. 0 means the tenant has no bucket.
+	Rate uint64 `yaml:"rate,omitempty" json:"rate,omitempty"`
+	// Burst is the capacity of the bucket, at least Rate.
+	Burst uint64 `yaml:"burst,omitempty" json:"burst,omitempty"`
 }
 
 type CompactionOverrides struct {
@@ -474,6 +490,10 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Compaction.BlockRetention), MetricBlockRetention)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
+	if c.Defaults.Read.QueryBudget.Rate > 0 {
+		ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Read.QueryBudget.Rate), MetricQueryBudgetRate)
+		ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Read.QueryBudget.Burst), MetricQueryBudgetBurst)
+	}
 }
 
 func HasNativeHistograms(s histograms.HistogramMethod) bool {

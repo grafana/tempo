@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/grafana/dskit/tenant"
+
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
 	"go.opentelemetry.io/otel"
@@ -214,12 +216,15 @@ func (b *pipelineBridge) RoundTrip(req Request) (Responses[combiner.PipelineResp
 		return nil, err
 	}
 
-	// echo the request data and the cost of the request back with the response
+	// echo the request data, the cost and the tenant of the request back with the response. a job belongs to a
+	// single tenant, the tenant is empty for the requests of multiple tenants.
+	tenantID, _ := tenant.TenantID(req.Context())
 	return syncResponse{
 		r: pipelineResponse{
 			r:           r,
 			requestData: req.ResponseData(),
 			cost:        req.Cost(),
+			tenant:      tenantID,
 		},
 	}, nil
 }

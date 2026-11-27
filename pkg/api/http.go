@@ -79,6 +79,7 @@ const (
 	HeaderAcceptJSON       = "application/json"
 	HeaderAcceptLLM        = "application/vnd.grafana.llm"
 	HeaderRecentDataTarget = "Recent-Data-Target"
+	HeaderRetryAfter       = "Retry-After"
 
 	PathPrefixQuerier = "/querier"
 

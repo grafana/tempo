@@ -82,6 +82,29 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 			}},
 		},
 		{
+			name: "read.query_budget valid",
+			cfg:  Config{},
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
+				QueryBudget: overrides.QueryBudgetOverrides{Mode: "enabled", Rate: 100, Burst: 1000},
+			}},
+		},
+		{
+			name: "read.query_budget invalid mode",
+			cfg:  Config{},
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
+				QueryBudget: overrides.QueryBudgetOverrides{Mode: "on"},
+			}},
+			expErr: `read.query_budget.mode "on" is not valid, valid values: ["" "dry_run" "enabled"]`,
+		},
+		{
+			name: "read.query_budget burst below rate",
+			cfg:  Config{},
+			overrides: overrides.Overrides{Read: overrides.ReadOverrides{
+				QueryBudget: overrides.QueryBudgetOverrides{Mode: "dry_run", Rate: 100, Burst: 10},
+			}},
+			expErr: "read.query_budget.burst 10 is less than read.query_budget.rate 100",
+		},
+		{
 			name: "service graphs histogram buckets must be increasing",
 			cfg:  Config{},
 			overrides: overrides.Overrides{

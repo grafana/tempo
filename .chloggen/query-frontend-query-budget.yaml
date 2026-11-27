@@ -1,0 +1,14 @@
+change_type: enhancement
+
+component: query-frontend
+
+note: Add an experimental per-tenant query budget, a token bucket in each query-frontend that rejects queries with 429 once a tenant used up the estimated bytes its queries may read. Configured with the `read.query_budget` overrides `mode`, `rate`, and `burst`
+
+issues: []
+
+subtext: |
+  The budget is measured in units of about one estimated byte read. Jobs are charged with their estimate when they are sent to the queriers, and jobs that read backend blocks are corrected with the bytes they actually read. Jobs that read recent data from the live store keep the fixed cost set with `query_frontend.job_cost.live_store_cost`.
+  With `mode: dry_run` the budget is tracked and the queries that would be rejected are counted, but no query is rejected. Adds `tempo_query_frontend_query_budget_rejected_queries_total`, `tempo_query_frontend_query_budget_charged_total`, `tempo_query_frontend_query_budget_refunded_total`, and `tempo_query_frontend_query_budget_level`.
+  Rejected queries get a `Retry-After` header, and gRPC clients a `RetryInfo` detail. 429 responses of jobs now keep their `Retry-After` header when they are combined.
+
+user: stoewer

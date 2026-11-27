@@ -434,3 +434,29 @@ func TestValidateCostAttributionDimensions(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateQueryBudget(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        string
+		rate, burst uint64
+		expErrText  string
+	}{
+		{name: "not configured"},
+		{name: "dry run without rate", mode: "dry_run"},
+		{name: "enabled", mode: "enabled", rate: 10, burst: 10},
+		{name: "disabled is not a mode, the empty string is", mode: "disabled", expErrText: `read.query_budget.mode "disabled" is not valid`},
+		{name: "burst below rate", mode: "enabled", rate: 10, burst: 5, expErrText: "read.query_budget.burst 5 is less than read.query_budget.rate 10"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateQueryBudget(tt.mode, tt.rate, tt.burst)
+			if tt.expErrText == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.expErrText)
+		})
+	}
+}

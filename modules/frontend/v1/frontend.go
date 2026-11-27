@@ -285,6 +285,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 			if req.OriginalContext().Err() != nil {
 				continue
 			}
+			pipeline.MarkDequeued(req.OriginalContext())
 
 			err = reqBatch.add(req)
 			if err != nil {
