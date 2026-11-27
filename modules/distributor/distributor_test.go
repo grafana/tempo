@@ -113,7 +113,25 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received 8 bits"),
+			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit and not all zero, received 8 bits"),
+		},
+		{
+			name: "zero trace id",
+			batches: []*v1.ResourceSpans{
+				{
+					ScopeSpans: []*v1.ScopeSpans{
+						{
+							Spans: []*v1.Span{
+								{
+									TraceId: make([]byte, 16),
+									SpanId:  spanID,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit and not all zero, received 128 bits"),
 		},
 		{
 			name: "empty trace id",
@@ -130,7 +148,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received 0 bits"),
+			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit and not all zero, received 0 bits"),
 		},
 		{
 			name: "one span",
