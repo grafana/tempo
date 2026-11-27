@@ -4,7 +4,7 @@ menuTitle: Querier
 description: How the querier executes queries against live-stores and object storage.
 weight: 600
 topicType: concept
-versionDate: 2026-03-20
+versionDate: 2026-11-13
 ---
 
 # Querier
@@ -23,7 +23,8 @@ When a querier receives a batch of jobs from the query frontend, it processes ea
 
 For recent data, the querier contacts live-stores that own the partitions covering the query's time range. Live-stores respond with any matching spans held in memory or their local WAL.
 
-For historical data, the querier reads block metadata from the blocklist, identifies which blocks may contain matching data, and fetches the relevant portions from object storage. Bloom filters efficiently skip blocks that don't contain the requested trace IDs.
+For historical data, the querier searches the object storage blocks that the query frontend lists in the job.
+For trace ID lookups, bloom filters skip blocks that don't contain the requested trace ID.
 
 Results from both sources are combined and returned to the query frontend.
 
@@ -35,7 +36,18 @@ If a live-store is unavailable, the querier falls back to the live-store in the 
 
 ## Backend queries
 
-For historical data, the querier consults the blocklist (maintained by backend workers) to find blocks in the relevant time range. It uses bloom filters to quickly eliminate blocks that don't contain the target trace ID, fetches matching block data from object storage (using caching where configured), reads the Parquet data, and applies any TraceQL filters.
+For historical data, the query frontend selects the blocks to search from its own blocklist,
+the list of blocks it knows exist in object storage,
+and sends their metadata with each job,
+so the querier doesn't need its own blocklist to find them.
+For trace ID lookups, the querier checks each block's bloom filter and skips blocks that don't contain the trace ID.
+It then fetches block data from object storage (using caching where configured), reads the Parquet data, and applies any TraceQL filters.
+
+Queriers that run as a dedicated `querier` target still poll the blocklist by default,
+so they can serve trace ID jobs from older query frontends that don't send block metadata.
+After every component runs a version that supports `querier.blocklist_polling`,
+you can set it to `false` to stop querier polling and reduce object storage requests.
+Refer to [Reduce querier polling after upgrading](../../../configuration/polling/#reduce-querier-polling-after-upgrading).
 
 ### Caching
 

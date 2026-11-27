@@ -15,6 +15,9 @@ The following terms are often used when discussing traces.
 Active series
 : {{< docs/glossary "active series" >}}
 
+Blocklist
+: The list of blocks that a Tempo component knows exist in object storage for each tenant. Tempo stores trace data in object storage as blocks, and components such as the query frontend, querier, and backend worker build their blocklist by polling object storage on a regular interval. A blocklist isn't a deny list and doesn't filter any data. For more information, refer to [Polling](../../configuration/polling/).
+
 Cardinality
 : {{< docs/glossary "cardinality" >}}
 

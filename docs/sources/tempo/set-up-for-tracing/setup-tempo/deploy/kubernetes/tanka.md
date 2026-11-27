@@ -406,6 +406,10 @@ _config+:: {
       min_replicas: 3,
       max_replicas: 200,
       threshold: 200,
+      // jobs_in_flight+: {  // Optional: also scale on backend-scheduler jobs in flight.
+      //   enabled: true,
+      //   jobs_per_worker: 1,
+      // },
     },
   },
   live_store+: {
@@ -440,6 +444,18 @@ By default, the metrics-generator scales on CPU using `target_cpu`.
 To scale on a custom signal instead, set `_config.metrics_generator.keda.query` to a PromQL query.
 When you set `query`, it replaces the CPU trigger, and the query must return the exact desired pod count.
 You can use this to cap replicas at the live-store partition count: because the metrics-generator reads from live-store partitions, any pods beyond the partition count have no partition to own and sit idle.
+
+By default, the backend-worker scales on the average number of outstanding compaction blocks per worker, compared against `threshold`.
+Outstanding blocks only measure the compaction backlog,
+so the autoscaler can remove workers that are still running other jobs, for example, a redaction batch.
+When backend-worker KEDA is enabled, you can also scale on all backend-scheduler jobs
+by setting `_config.backend_worker.keda.jobs_in_flight.enabled` to `true`.
+This adds a second Prometheus trigger.
+It sums the highest active job count and the highest pending job count over the last `window` (default: `5m`),
+then requests enough workers to run those jobs at `jobs_per_worker` jobs per worker (default: `1`).
+KEDA uses the higher replica count of the two triggers.
+Use `jobs_in_flight+:`, as in the example, so your settings merge with the defaults.
+Without the `+`, your settings replace the default `query`, and Jsonnet fails with `field does not exist: query`.
 
 You configure block-builder autoscaling independently under `_config.block_builder.keda`. The default approach (`scaling: 'rollout-operator'`) uses the rollout-operator to mirror the live-store zone-a replica count directly to block-builder.
 This is the faster approach on both scale-up and scale-down: block-builder reacts as soon as the ReplicaTemplate changes, which is the same signal zone-a responds to.
