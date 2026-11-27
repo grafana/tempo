@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/tenant"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/v3/modules/frontend/combiner"
 	"github.com/grafana/tempo/v3/modules/frontend/jobcost"
@@ -47,14 +45,9 @@ func (w *queryBudgetAdmitWare) RoundTrip(req pipeline.Request) (pipeline.Respons
 	d := pipeline.AdmitQueryBudgetOnce(ctx, func() querybudget.Decision {
 		return w.budget.Admit(tenants, w.op)
 	})
-	switch {
-	case d.Rejected:
-		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("query_budget.rejected", true))
+	if d.Rejected {
 		return pipeline.NewHTTPToAsyncResponse(queryBudgetRejectedResponse(d.RetryAfter)), nil
-	case d.DryRunRejected:
-		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("query_budget.dry_run_rejected", true))
 	}
-
 	return w.next.RoundTrip(req)
 }
 

@@ -51,11 +51,10 @@ type queryShapeCell struct {
 	// job responses arrive, which can be concurrent.
 	estimatedBytes atomic.Uint64
 
-	// budgetDecision is the decision of the query budget, made once per query, see AdmitQueryBudgetOnce.
-	// budgetQuery is the Query of the decision, for the jobs that read it without the once.
+	// budgetDecision is the decision of the query budget, made once per query, see AdmitQueryBudgetOnce. It is
+	// read without the once by the jobs and when the query is logged.
 	budgetOnce     sync.Once
-	budgetDecision querybudget.Decision
-	budgetQuery    atomic.Pointer[querybudget.Query]
+	budgetDecision atomic.Pointer[querybudget.Decision]
 }
 
 // WithQueryShapeCell installs an empty cell on ctx that the weight middleware

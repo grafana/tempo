@@ -56,7 +56,8 @@ func setQueryShapeSpanAttrs(span trace.Span, qs pipeline.QueryShape) {
 
 // recordResult logs the response fields and mirrors them as span attributes.
 // Every entry in additionalMetrics is appended as a log key/value (keys sorted).
-// The estimated bytes of the jobs of the query are appended as estimated_bytes, if the context has a cell.
+// The estimated bytes of the jobs of the query are appended as estimated_bytes, if the context has a cell, and
+// query_budget if the query budget rejected the query or would have rejected it in dry run.
 // Pass nil when the response has no AdditionalMetrics.
 //
 //nolint:revive // logger first to match logWithShape's calling convention: recordResult(level.Info(logger), ctx, ...)
@@ -66,6 +67,12 @@ func recordResult(logger log.Logger, ctx context.Context, additionalMetrics map[
 	}
 	if estimatedBytes, ok := pipeline.EstimatedBytesFromContext(ctx); ok {
 		fields = append(fields, "estimated_bytes", estimatedBytes)
+	}
+	switch d := pipeline.QueryBudgetDecisionFromContext(ctx); {
+	case d.Rejected:
+		fields = append(fields, "query_budget", "rejected")
+	case d.DryRunRejected:
+		fields = append(fields, "query_budget", "dry_run_rejected")
 	}
 	logWithShape(logger, ctx, fields...)
 	setSpanAttrsWithShape(ctx, fields...)
