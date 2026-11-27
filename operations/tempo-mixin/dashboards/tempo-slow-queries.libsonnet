@@ -70,7 +70,7 @@ dashboard_utils {
   // Measurements shown in each row, in display order.
   local measurements = [
     {
-      title: 'Response time',
+      title: 'Query latency',
       lines: responseLines,
       field: 'duration_seconds',
       unit: 's',
@@ -127,9 +127,10 @@ dashboard_utils {
   local topkRow(title, label) = std.foldl(
     function(row, m)
       row.addPanel(
-        $.timeseriesPanel('P99 ' + std.asciiLower(m.title)) +
+        local panelTitle = 'Per %s p99 %s' % [label, std.asciiLower(m.title)];
+        $.timeseriesPanel(panelTitle) +
         $.lokiMetricsQueryPanel(topk(m.lines, m.field, label), '{{%s}}' % label, unit=m.unit) +
-        $.panelDescription(m.title, m.description)
+        $.panelDescription(panelTitle, m.description)
       ),
     measurements,
     g.row(title) { collapse: true },

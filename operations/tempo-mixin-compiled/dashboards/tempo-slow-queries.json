@@ -30,7 +30,7 @@
    "panels": [
     {
      "datasource": "${loki_datasource}",
-     "description": "### Response time\nTime the query-frontend took to answer the query, from request to response.\n",
+     "description": "### Query latency\nTime the query-frontend took to answer the query, from request to response.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -85,7 +85,7 @@
        "legendLink": null
       }
      ],
-     "title": "Response time",
+     "title": "Query latency",
      "type": "timeseries"
     },
     {
@@ -402,7 +402,7 @@
    "panels": [
     {
      "datasource": "${loki_datasource}",
-     "description": "### Response time\nTime the query-frontend took to answer the query, from request to response.\n",
+     "description": "### Per tenant p99 query latency\nTime the query-frontend took to answer the query, from request to response.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -451,12 +451,12 @@
        "legendLink": null
       }
      ],
-     "title": "P99 response time",
+     "title": "Per tenant p99 query latency",
      "type": "timeseries"
     },
     {
      "datasource": "${loki_datasource}",
-     "description": "### Inspected spans\nNumber of spans the queriers evaluated to answer the query. A search with no span conditions reports zero. Only query types: search, query range, and instant query report this value.\n",
+     "description": "### Per tenant p99 inspected spans\nNumber of spans the queriers evaluated to answer the query. A search with no span conditions reports zero. Only query types: search, query range, and instant query report this value.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -505,12 +505,12 @@
        "legendLink": null
       }
      ],
-     "title": "P99 inspected spans",
+     "title": "Per tenant p99 inspected spans",
      "type": "timeseries"
     },
     {
      "datasource": "${loki_datasource}",
-     "description": "### Inspected bytes\nBytes the queriers read from blocks and live-stores to answer the query, including bytes served from the cache.\n",
+     "description": "### Per tenant p99 inspected bytes\nBytes the queriers read from blocks and live-stores to answer the query, including bytes served from the cache.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -559,12 +559,12 @@
        "legendLink": null
       }
      ],
-     "title": "P99 inspected bytes",
+     "title": "Per tenant p99 inspected bytes",
      "type": "timeseries"
     },
     {
      "datasource": "${loki_datasource}",
-     "description": "### Response size\nSize of the response returned to the client. Only the Min duration filter applies.\n",
+     "description": "### Per tenant p99 response size\nSize of the response returned to the client. Only the Min duration filter applies.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -613,12 +613,12 @@
        "legendLink": null
       }
      ],
-     "title": "P99 response size",
+     "title": "Per tenant p99 response size",
      "type": "timeseries"
     },
     {
      "datasource": "${loki_datasource}",
-     "description": "### Time span\nTime range that the query covers, from its start time to its end time.\n",
+     "description": "### Per tenant p99 time span\nTime range that the query covers, from its start time to its end time.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -667,12 +667,12 @@
        "legendLink": null
       }
      ],
-     "title": "P99 time span",
+     "title": "Per tenant p99 time span",
      "type": "timeseries"
     },
     {
      "datasource": "${loki_datasource}",
-     "description": "### Jobs per query\nNumber of jobs the query-frontend split the query into. Each job runs on a querier, so more jobs means the query uses more of the read path. Only query types: search, query range, and instant query report this value.\n",
+     "description": "### Per tenant p99 jobs per query\nNumber of jobs the query-frontend split the query into. Each job runs on a querier, so more jobs means the query uses more of the read path. Only query types: search, query range, and instant query report this value.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -721,7 +721,7 @@
        "legendLink": null
       }
      ],
-     "title": "P99 jobs per query",
+     "title": "Per tenant p99 jobs per query",
      "type": "timeseries"
     }
    ],

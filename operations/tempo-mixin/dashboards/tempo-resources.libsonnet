@@ -6,7 +6,7 @@ dashboard_utils {
     $.containerCPUUsagePanel('CPU', job) +
     { fieldConfig+: { defaults+: { unit: 'cores' } } },
   local memoryPanel(job) =
-    $.containerMemoryWorkingSetPanel('Memory (workingset)', job) +
+    $.containerMemoryWorkingSetPanel('Memory (working set)', job) +
     { fieldConfig+: { defaults+: { unit: 'bytes' } } },
   local heapPanel(title, job) =
     $.goHeapInUsePanel(title, job) +
@@ -25,7 +25,7 @@ dashboard_utils {
           memoryPanel($._config.jobs.gateway),
         )
         .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.gateway)),
+          heapPanel('Memory (Go heap in use)', $.jobMatcher($._config.jobs.gateway)),
         )
       )
       .addRow(
@@ -37,7 +37,7 @@ dashboard_utils {
           memoryPanel($._config.jobs.distributor),
         )
         .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.distributor)),
+          heapPanel('Memory (Go heap in use)', $.jobMatcher($._config.jobs.distributor)),
         )
       )
       .addRow(
@@ -49,7 +49,7 @@ dashboard_utils {
           memoryPanel($._config.jobs.live_store),
         )
         .addPanel(
-          heapPanel('Memory (go heap inuse)', $.containerMatcher($._config.jobs.live_store)),
+          heapPanel('Memory (Go heap in use)', $.containerMatcher($._config.jobs.live_store)),
         )
       )
       .addRow(
@@ -61,11 +61,11 @@ dashboard_utils {
           memoryPanel($._config.jobs.metrics_generator),
         )
         .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.metrics_generator)),
+          heapPanel('Memory (Go heap in use)', $.jobMatcher($._config.jobs.metrics_generator)),
         )
       )
       .addRow(
-        g.row('Query Frontend')
+        g.row('Query-frontend')
         .addPanel(
           cpuPanel($._config.jobs.query_frontend),
         )
@@ -73,7 +73,7 @@ dashboard_utils {
           memoryPanel($._config.jobs.query_frontend),
         )
         .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.query_frontend)),
+          heapPanel('Memory (Go heap in use)', $.jobMatcher($._config.jobs.query_frontend)),
         )
       )
       .addRow(
@@ -85,7 +85,7 @@ dashboard_utils {
           memoryPanel($._config.jobs.querier),
         )
         .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.querier)),
+          heapPanel('Memory (Go heap in use)', $.jobMatcher($._config.jobs.querier)),
         )
       )
       .addRow(
@@ -107,7 +107,7 @@ dashboard_utils {
           memoryPanel($._config.jobs.backend_scheduler),
         )
         .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.backend_scheduler)),
+          heapPanel('Memory (Go heap in use)', $.jobMatcher($._config.jobs.backend_scheduler)),
         )
       )
       .addRow(
@@ -119,7 +119,7 @@ dashboard_utils {
           memoryPanel($._config.jobs.backend_worker),
         )
         .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.backend_worker)),
+          heapPanel('Memory (Go heap in use)', $.jobMatcher($._config.jobs.backend_worker)),
         )
       )
       .addRow(
@@ -131,7 +131,7 @@ dashboard_utils {
           memoryPanel($._config.jobs.block_builder),
         )
         .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.block_builder)),
+          heapPanel('Memory (Go heap in use)', $.jobMatcher($._config.jobs.block_builder)),
         )
       )
       .addRow(
@@ -143,7 +143,7 @@ dashboard_utils {
           memoryPanel($._config.jobs.live_store),
         )
         .addPanel(
-          heapPanel('Memory (go heap inuse)', $.jobMatcher('live-store-.*')),
+          heapPanel('Memory (Go heap in use)', $.jobMatcher('live-store-.*')),
         )
       ),
   },

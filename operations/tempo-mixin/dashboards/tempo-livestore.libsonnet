@@ -186,7 +186,7 @@ dashboard_utils {
         row('Triage cockpit', [4, 2, 2, 2, 2])
         .addPanel(
           timeseriesPanel(
-            'Read latency p99 by zone/route',
+            'By zone/route p99 read latency',
             'First read-path signal: p99 live-store read latency split by zone and gRPC route. If this rises, open the Read latency row next.',
             'histogram_quantile(0.99, sum by (le, zone, route) (%s))' % zoneFromPod(metricRate('tempo_request_duration_seconds_bucket', readRequestMatcher)),
             '{{zone}} {{route}}',
@@ -195,7 +195,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Read QPS by zone',
+            'Read requests / sec by zone',
             'Live-store read request rate by zone. This gives read-traffic context for the p99 latency panel without route-cardinality noise.',
             'sum by (zone) (%s)' % zoneFromPod(metricRate('tempo_request_duration_seconds_count', readRequestMatcher)),
             '{{zone}}',
@@ -214,7 +214,7 @@ dashboard_utils {
         )
         .addPanel(
           statPanel(
-            'Backpressure seconds/s by zone',
+            'Backpressure seconds / sec by zone',
             'Accumulated backpressure seconds per second, split by live-store zone. Values can exceed 1 when multiple pushes wait concurrently. Uses tempo_live_store_back_pressure_seconds_total when present, with duration histogram sum as fallback for cells that do not expose the counter.',
             'sum by (zone) (%s) or sum by (zone) (%s)' % [
               zoneRate('tempo_live_store_back_pressure_seconds_total'),
@@ -227,7 +227,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Complete queue depth by zone',
+            'Completion queue length by zone',
             'Pending complete-block queue depth by live-store zone. Max highlights the hottest pod; p99 shows broad zone pressure.',
             [
               'max by (zone) (%s)' % zoneMetric('tempo_live_store_complete_queue_length'),
@@ -241,7 +241,7 @@ dashboard_utils {
         row('Read latency and query impact', [5, 3, 4])
         .addPanel(
           timeseriesPanel(
-            'Query latency p99/p50 by namespace/route',
+            'By namespace/route query latency',
             'Live-store read latency by cluster, namespace, and gRPC route with live-store zones collapsed by aggregating histogram buckets before quantiles. This is the request-weighted latency view; use zone-specific panels only for diagnostics.',
             [
               'histogram_quantile(0.99, sum by (le, cluster, namespace, route) (%s))' % metricRate('tempo_request_duration_seconds_bucket', readRequestMatcher),
@@ -253,7 +253,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Query QPS by namespace/route',
+            'Requests / sec by namespace/route',
             'Read traffic served by live-store query routes, split by cluster, namespace, and route with live-store zones collapsed.',
             'sum by (cluster, namespace, route) (%s)' % metricRate('tempo_request_duration_seconds_count', readRequestMatcher),
             '{{cluster}}/{{namespace}} {{route}}',
@@ -262,7 +262,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Lag-affected requests/s',
+            'Lag-affected requests / sec',
             'Live-store request rate where Kafka lag means complete results cannot be guaranteed, split by cluster, namespace, zone, and route. This counts live-store RPC attempts; querier zone failover may prevent an end-user failure.',
             'sum by (cluster, namespace, zone, route) (%s)' % zoneRate('tempo_live_store_lagged_requests_total'),
             '{{cluster}}/{{namespace}} {{zone}} {{route}}',
@@ -292,7 +292,7 @@ dashboard_utils {
         )
         .addPanel(
           statPanel(
-            'Records processed/s by zone',
+            'Record processing rate by zone',
             'Live-store records processed after Kafka fetch, split by live-store zone. This avoids hiding zone imbalance or double-counting as a single total.',
             'sum by (zone) (%s)' % zoneRate('tempo_live_store_records_processed_total', liveStoreTenantAfterMatcher),
             '{{zone}}',
@@ -301,7 +301,7 @@ dashboard_utils {
         )
         .addPanel(
           statPanel(
-            'Bytes received/s by zone',
+            'Input throughput by zone',
             'Consumer-side live-store input bytes/s from the ingest stream, split by live-store zone. This is live-store consumer work, not unique producer-side Kafka ingress.',
             'sum by (zone) (%s)' % zoneRate('tempo_live_store_bytes_received_total', liveStoreTenantAfterMatcher),
             '{{zone}}',
@@ -311,7 +311,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Records processed trend by zone',
+            'Record processing trend by zone',
             'Live-store records successfully processed after Kafka fetch, split by zone. This is not a loss detector; use lag, backpressure, completion queue, readiness, and logs to investigate missing throughput.',
             'sum by (zone) (%s)' % zoneRate('tempo_live_store_records_processed_total', liveStoreTenantAfterMatcher),
             '{{zone}}',
@@ -323,7 +323,7 @@ dashboard_utils {
         row('Backpressure and readiness', [6, 6, 6, 6, 6], collapsed=true)
         .addPanel(
           timeseriesPanel(
-            'Backpressure seconds/s by zone/reason',
+            'Backpressure seconds / sec by zone/reason',
             'Accumulated backpressure seconds per second by live-store zone and reason. Values can exceed 1 when multiple pushes wait concurrently. Uses reason when the counter is available; otherwise falls back to duration-sum by zone.',
             'sum by (zone, reason) (%s) or sum by (zone) (%s)' % [
               zoneRate('tempo_live_store_back_pressure_seconds_total'),
@@ -347,7 +347,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Backpressure seconds/s by pod',
+            'Backpressure seconds / sec per pod',
             'Top live-store pods by accumulated backpressure seconds per second. Values can exceed 1 when multiple pushes wait concurrently. Reason is shown when that counter is available; otherwise duration-sum fallback is shown by pod.',
             'topk(30, sum by (cluster, namespace, pod, reason) (%s)) or topk(30, sum by (cluster, namespace, pod) (%s))' % [
               zoneRate('tempo_live_store_back_pressure_seconds_total'),
@@ -359,7 +359,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Live-store readiness by zone',
+            'Readiness by zone',
             'Ready live-store pods versus pod count, split by zone. Drops indicate lost capacity or pods not serving normally.',
             [
               'sum by (zone) (%s)' % zoneMetric('tempo_live_store_ready'),
@@ -382,7 +382,7 @@ dashboard_utils {
         row('WAL completion path', [4, 4, 4, 6, 6], collapsed=true)
         .addPanel(
           timeseriesPanel(
-            'Completion duration by zone',
+            'Completion latency by zone',
             'WAL completion latency by live-store zone. Rising p99 with queue depth indicates completion throughput trouble.',
             [
               'histogram_quantile(0.50, sum by (le, zone) (%s))' % zoneRate('tempo_live_store_completion_duration_seconds_bucket'),
@@ -394,7 +394,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Blocks completed / failures by zone',
+            'Block completion/failure rates by zone',
             'Successful block completions, failures, and retries by live-store zone.',
             [
               'sum by (zone) (%s)' % zoneRate('tempo_live_store_blocks_completed_total'),
@@ -407,7 +407,7 @@ dashboard_utils {
         )
         .addPanel(
           statPanel(
-            'Completion failures/s by zone',
+            'Completion failure rate by zone',
             'WAL complete-block failures split by live-store zone. Non-zero means the completion path needs inspection.',
             'sum by (zone) (%s)' % zoneRate('tempo_live_store_failed_completions_total'),
             '{{zone}}',
@@ -430,7 +430,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Blocks cut by zone/reason',
+            'Block cut rate by zone/reason',
             'Rate of WAL block cuts by zone and reason. Use with block size to confirm expected cut behavior.',
             'sum by (zone, reason) (%s)' % zoneRate('tempo_live_store_blocks_cut_total'),
             '{{zone}} {{reason}}',
@@ -459,7 +459,7 @@ dashboard_utils {
         )
         .addPanel(
           tenantTablePanel(
-            'Top tenants by traces created/s (current)',
+            'Top tenants by trace creation rate (current)',
             'Current top tenants by live-store trace creation rate across selected zones.',
             'topk(10, sum by (tenant) (%s))' % metricRate('tempo_live_store_traces_created_total', liveStoreTenantMatcher),
             'traces/s',
@@ -506,7 +506,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'Go heap allocation by zone',
+            'Go heap allocation rate by zone',
             'Go heap allocation churn summed by live-store zone. Rising allocation with backpressure suggests GC/memory pressure.',
             'sum by (zone) (%s)' % zoneRate('go_memstats_alloc_bytes_total'),
             '{{zone}}',
@@ -526,7 +526,7 @@ dashboard_utils {
         row('Autoscaling / KEDA', [3, 3, 3, 3])
         .addPanel(
           timeseriesPanel(
-            'KEDA/HPA replicas',
+            'Replicas',
             'Replica bounds and HPA decisions for live-store when present plus the Warpstream agents that feed the live-store path. Some prod cells do not have a live-store HPA.',
             [
               |||
@@ -563,7 +563,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'KEDA CPU desired replicas',
+            'Desired replicas (CPU)',
             'KEDA scaler metric divided by the HPA target, following the Warpstream Agent Read dashboard pattern. Shows which Warpstream agent CPU scaler is driving desired replicas.',
             |||
               sum by (scaledObject) (
@@ -581,7 +581,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'KEDA memory desired replicas',
+            'Desired replicas (memory)',
             'KEDA memory scaler metric divided by the HPA target, following the Warpstream Agent Read dashboard pattern.',
             |||
               sum by (scaledObject) (
@@ -599,7 +599,7 @@ dashboard_utils {
         )
         .addPanel(
           timeseriesPanel(
-            'KEDA scaler failures',
+            'Autoscaler failures rate',
             'KEDA scaler error rate for live-store when present plus Warpstream agents on the live-store ingest path.',
             |||
               sum by (scaledObject, scaler) (
