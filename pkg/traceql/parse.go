@@ -37,14 +37,8 @@ func ParseNoOptimizations(s string) (*RootExpr, error) {
 func parseInternal(s string, skipTransformations []string, allowUnsafeHints bool) (expr *RootExpr, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			var ok bool
-			if err, ok = r.(error); ok {
-				var parseErr *ParseError
-				if errors.As(err, &parseErr) {
-					return
-				}
-				err = newParseError(err.Error(), 0, 0)
-			}
+			expr = nil
+			err = recoverParseError(r)
 		}
 	}()
 	l := lexer{
@@ -77,6 +71,21 @@ func parseInternal(s string, skipTransformations []string, allowUnsafeHints bool
 	}
 
 	return l.expr, nil
+}
+
+// recoverParseError converts a recovered panic value into an error. It never returns nil,
+// so a panic during parsing can't be mistaken for a successful parse.
+func recoverParseError(r any) error {
+	err, ok := r.(error)
+	if !ok {
+		return newParseError(fmt.Sprintf("internal parser panic: %v", r), 0, 0)
+	}
+
+	var parseErr *ParseError
+	if errors.As(err, &parseErr) {
+		return err
+	}
+	return newParseError(err.Error(), 0, 0)
 }
 
 // warning: ParseIdentifier is used to parse filter policies in pkg/spanfilter/config/config.go

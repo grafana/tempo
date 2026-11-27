@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: traceql
+
+note: Fix a TraceQL parser panic with a non-error value being silently swallowed and treated as a successful parse. It now returns a parse error.
+
+issues: []
+
+subtext:
+
+user: eric-mj
