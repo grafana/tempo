@@ -1,0 +1,110 @@
+$defs:
+  duration_transform:
+    description: DurationTransform selects a transform applied to span durations before outlier thresholds are computed.
+    type: string
+  exemplar_sampling_config:
+    description: ExemplarSamplingConfig controls random exemplar selection. Sampling runs once per aggregation tree, on its top-level group of N spans, drawing D = ceil(PrecisionMultiplier * sqrt(N)) spans without replacement and keeping each as a whole subtree.
+    type: object
+    properties:
+      precision_multiplier:
+        description: 'PrecisionMultiplier scales the top-level sample count. Samples per top-level group = ceil(PrecisionMultiplier * sqrt(N)). Standard error of cross-trace estimators built from exemplars scales as 1/sqrt(PrecisionMultiplier). This is a precision knob, not a confidence-interval level. Default: 1.0'
+        type: number
+        x-customType: float64
+  outlier_analysis_config:
+    description: OutlierAnalysisConfig controls outlier detection and attribute correlation.
+    type: object
+    properties:
+      correlation_max_normal_occurrence:
+        description: 'CorrelationMaxNormalOccurrence is the maximum fraction of normal spans that can have the correlated value. Lower values mean stronger signal. Range: [0.0, 1.0) Default: 0.25 (at most 25% of normal spans can have the value)'
+        type: number
+        x-customType: float64
+      correlation_min_occurrence:
+        description: 'CorrelationMinOccurrence is the minimum fraction of outliers that must share an attribute value for it to be reported as correlated. Range: (0.0, 1.0] Default: 0.75 (75% of outliers must share the value)'
+        type: number
+        x-customType: float64
+      duration_transform:
+        description: 'DurationTransform selects a transform applied to durations before the outlier method measures their spread. Valid values: "none" (default), "log"'
+        $ref: duration_transform
+      iqr_multiplier:
+        description: 'IQRMultiplier sets the threshold for IQR-based outlier detection. Outliers are spans with duration > Q3 + (IQRMultiplier * IQR). Common values: 1.5 (standard), 3.0 (extreme only). Default: 1.5'
+        type: number
+        x-customType: float64
+      mad_multiplier:
+        description: 'MADMultiplier sets the threshold for MAD-based outlier detection. Outliers are spans with duration > median + (MADMultiplier * MAD * 1.4826). Common values: 2.5-3.0 (standard), 3.5+ (extreme only). Default: 3.0'
+        type: number
+        x-customType: float64
+      max_correlated_attributes:
+        description: 'MaxCorrelatedAttributes limits how many correlated attributes are reported in the summary span attribute. Default: 5'
+        type: integer
+      max_preserved_outliers:
+        description: 'MaxPreservedOutliers limits how many outlier spans are preserved per aggregation group. Spans are selected by most extreme duration first. 0 = preserve all detected outliers. Default: 2'
+        type: integer
+      method:
+        description: 'Method selects the statistical method for outlier detection. Valid values: "iqr" (default), "mad"'
+        $ref: outlier_method
+      min_group_size:
+        description: 'MinGroupSize is the minimum number of spans needed for reliable outlier detection. Groups smaller than this skip outlier analysis. Must be at least 4 (need quartiles). Default: 7'
+        type: integer
+      min_outlier_threshold_percent:
+        description: 'MinOutlierThresholdPercent sets a minimum percentage above median that a span must exceed to be considered an outlier, regardless of statistical method. This prevents overly sensitive outlier detection when IQR or MAD is zero (tightly clustered data) or produces very small thresholds. Range: [0.0, 1.0+] Default: 0.1 (10% above median)'
+        type: number
+        x-customType: float64
+      preserve_only_with_correlation:
+        description: 'PreserveOnlyWithCorrelation only preserves outliers when a strong attribute correlation is found. This avoids preserving outliers that are just random variance. Default: false'
+        type: boolean
+      preserve_outliers:
+        description: 'PreserveOutliers controls whether outlier spans are kept as individual spans instead of being aggregated. When true, only normal spans are aggregated; outliers remain in the trace. Default: false (aggregate all, add summary attributes)'
+        type: boolean
+  outlier_method:
+    description: OutlierMethod defines the statistical method for outlier detection.
+    type: string
+description: Config defines the configuration options for the span pruning processor and the rules used to identify and aggregate similar spans.
+type: object
+properties:
+  aggregation_attribute_prefix:
+    description: 'AggregationAttributePrefix prefixes all aggregation-related attributes that are added to summary spans. Default: "aggregation."'
+    type: string
+  aggregation_histogram_buckets:
+    description: AggregationHistogramBuckets lists cumulative histogram bucket upper bounds for latency tracking on aggregated spans. Empty slice disables histograms.
+    type: array
+    items:
+      type: string
+      format: duration
+  attribute_loss_exemplar_sample_rate:
+    description: 'AttributeLossExemplarSampleRate controls the fraction of attribute-loss metric recordings that include exemplars when loss analysis is enabled. Range: 0.0 (disabled) to 1.0 (always).'
+    type: number
+    x-customType: float64
+  conditions:
+    description: 'Conditions is a list of OTTL conditions that determine which traces should be pruned. Conditions use OTTL span context syntax. When empty, all traces are pruned (current behavior). When set, only traces where at least one span matches any condition are pruned. Example: `resource.attributes["service.name"] == "loki-query-engine"`'
+    type: array
+    items:
+      type: string
+  enable_attribute_loss_analysis:
+    description: 'EnableAttributeLossAnalysis toggles analysis of attribute loss during aggregation. When enabled, the processor compares attribute sets across aggregated spans, records loss metrics, and annotates summary spans. Default: false (to reduce telemetry overhead)'
+    type: boolean
+  enable_bytes_metrics:
+    description: 'EnableBytesMetrics toggles measurement of serialized trace sizes before and after pruning. When enabled, records bytes_received, bytes_processed_input, bytes_processed_output, and bytes_emitted metrics. This serializes each batch (full batch plus matched subset before and after pruning) and is expensive for large batches; keep disabled unless needed for capacity analysis. Default: false'
+    type: boolean
+  enable_exemplar_sampling:
+    description: 'EnableExemplarSampling toggles preservation of randomly sampled spans from each aggregation group as exemplars. Exemplars are kept as siblings of the summary span and have their TraceState threshold updated so downstream consumers can extrapolate via CPS adjusted-count semantics. Default: false'
+    type: boolean
+  enable_outlier_analysis:
+    description: 'EnableOutlierAnalysis toggles IQR-based outlier detection and attribute correlation. When enabled, adds duration_median_ns and outlier_correlated_attributes to summary spans. Default: false'
+    type: boolean
+  exemplar_sampling:
+    description: ExemplarSampling configures random exemplar selection per aggregation group.
+    $ref: exemplar_sampling_config
+  group_by_attributes:
+    description: 'GroupByAttributes lists attribute patterns used to decide which leaf spans belong in the same aggregation group. Spans must share the span name and have identical values for every matched attribute to be grouped. Patterns accept glob syntax, for example: - "db.*" matches db.operation, db.name, db.statement, etc. - "http.request.*" matches http.request.method, http.request.header, etc. - "service" matches only the exact key "service" Examples: ["db.*", "http.method"], ["rpc.*"].'
+    type: array
+    items:
+      type: string
+  max_parent_depth:
+    description: 'MaxParentDepth bounds how many ancestor levels above the aggregated leaves can also be aggregated. Use 0 to aggregate only leaves, -1 for unlimited depth, or a positive integer to cap traversal. Default: 1'
+    type: integer
+  min_spans_to_aggregate:
+    description: 'MinSpansToAggregate is the minimum number of similar spans required before aggregation occurs. Groups smaller than this threshold are preserved. Default: 5'
+    type: integer
+  outlier_analysis:
+    description: OutlierAnalysis configures IQR-based outlier detection and attribute correlation for aggregation groups.
+    $ref: outlier_analysis_config

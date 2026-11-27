@@ -25,13 +25,10 @@ func PathExpressionParser[K any](cacheGetter Getter[K]) ottl.PathExpressionParse
 	}
 }
 
-func accessCache[K any](cacheGetter Getter[K]) ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
+func accessCache[K any](cacheGetter Getter[K]) ctxutil.MapGetSetter[K] {
+	return ctxutil.MapGetSetter[K]{
+		Getter: func(_ context.Context, tCtx K) (pcommon.Map, error) {
 			return cacheGetter(tCtx), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			return ctxutil.SetMap(cacheGetter(tCtx), val)
 		},
 	}
 }

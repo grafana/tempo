@@ -175,15 +175,6 @@ type (
 	// broker omitted the partition from its response.
 	ShareAckResults []ShareAckResult
 
-	// shareMove records a partition that should be moved to a new leader,
-	// collected from CurrentLeader hints in ShareFetch responses.
-	shareMove struct {
-		topicID   [16]byte
-		partition int32
-		leaderID  int32
-		cursor    *shareCursor // cursor to re-enable (clear moving) after the migration runs; see shareCursor.moving
-	}
-
 	// shareAckRange is a contiguous offset range with a fixed ack
 	// type. Used for:
 	//   - wire format: merged ranges sent in ShareFetch/ShareAcknowledge
@@ -273,8 +264,7 @@ type (
 	// shareFetch to act on at the request level.
 	shareFetchResult struct {
 		fetch           Fetch
-		moves           []shareMove
-		moveBrokers     []BrokerMetadata // NodeEndpoints from response; used by applyMoves to add unknown brokers
+		kmove           kip951move
 		ackResults      ShareAckResults
 		ackRequeued     int64
 		discardErr      error // non-nil: response thrown away, error all pending acks
@@ -817,23 +807,13 @@ func (s *source) closeShareSession(ctx context.Context) {
 		sc.enqueueAckErrors(drains, err, nAcks-nStaleAcks) // piggybacked acks lost, decrement pendingAcks
 		return
 	}
-	done := make(chan struct{})
-	var respErr error
-	var resp *kmsg.ShareAcknowledgeResponse
-	br.do(ctx, req, func(k kmsg.Response, e error) {
-		respErr = e
-		if k != nil {
-			resp, _ = k.(*kmsg.ShareAcknowledgeResponse)
-		}
-		close(done)
-	})
-	select {
-	case <-done:
-	case <-ctx.Done():
+	kresp, respErr := br.waitResp(ctx, req)
+	if respErr != nil && ctx.Err() != nil {
 		sc.enqueueAckErrors(drains, ctx.Err(), nAcks-nStaleAcks) // ctx expired before response; acks lost, decrement pendingAcks
 		s.resetShareSession()
 		return
 	}
+	resp, _ := kresp.(*kmsg.ShareAcknowledgeResponse)
 
 	// Per-partition callback dispatch.
 	if respErr != nil {
@@ -1042,7 +1022,7 @@ func (sc *shareConsumer) manage() {
 		}
 
 		switch {
-		case errors.Is(err, context.Canceled):
+		case errors.Is(err, context.Canceled), sc.cl.ctx.Err() != nil:
 			return
 
 		case errors.Is(err, kerr.UnknownMemberID),
@@ -1367,15 +1347,12 @@ func (sc *shareConsumer) assignPartitions(assignments map[string][]int32) {
 	sc.nowAssigned.store(assignments)
 }
 
-// applyMoves moves share cursors to new leaders based on CurrentLeader
-// hints from a ShareFetch response. When the response's NodeEndpoints
-// list includes brokers we do not yet know about, register them first
-// (via the kip951move pattern) so we can move the cursor without
-// waiting for a metadata refresh. The move runs asynchronously inside
-// blockingMetadataFn so it serializes with metadata updates and purge,
-// matching the kip951move pattern for producers.
-func (sc *shareConsumer) applyMoves(moves []shareMove, endpoints []BrokerMetadata) {
-	if len(moves) == 0 {
+// applyMoves moves share cursors to the leaders staged from CurrentLeader
+// hints, through the same kip951move as the classic consumer. The move runs
+// asynchronously inside blockingMetadataFn so it serializes with metadata
+// updates and purge.
+func (sc *shareConsumer) applyMoves(k kip951move) {
+	if len(k.shareCursors) == 0 {
 		return
 	}
 	// Mark each migrating cursor unusable BEFORE spawning, on this (the
@@ -1384,123 +1361,38 @@ func (sc *shareConsumer) applyMoves(moves []shareMove, endpoints []BrokerMetadat
 	// which could rebuild a request that re-fetches the partition (getting
 	// NOT_LEADER again) before the goroutine runs. applyMovesBlocking clears
 	// the flag once the migration has run. See shareCursor.moving.
-	for i := range moves {
-		moves[i].cursor.moving.Store(true)
+	for c := range k.shareCursors {
+		c.moving.Store(true)
 	}
-	go sc.applyMovesBlocking(moves, endpoints)
+	go sc.applyMovesBlocking(k)
 }
 
 // applyMovesBlocking performs the cursor migration on the metadata loop.
 // It registers as a share-consumer worker (incWorker/decWorker) so leave's
-// barrier waits for an in-flight migration before it drains and closes the
-// per-source sessions: the move runs via blockingMetadataFn and can relocate
-// a cursor (or create a brand-new source) concurrently with leave. Without
-// the worker registration, a CurrentLeader-hint move racing LeaveGroup/Close
-// can land a cursor on a source whose closeShareSession already drained (or
-// on a source created after leave snapshotted the source list), stranding
-// that cursor's pending acks: sc.pendingAcks never returns to 0 (FlushAcks
-// hangs) and the held records release only via the broker's acquisition-lock
-// timeout. If the consumer is already dying, incWorker returns false and the
-// move is skipped; the cursor stays on its current source, which the leave's
-// closeShareSession drains.
-func (sc *shareConsumer) applyMovesBlocking(moves []shareMove, endpoints []BrokerMetadata) {
+// barrier waits for a queued move before it drains and closes the
+// per-source sessions. The relocation itself is in migrateShareCursorTo,
+// which registers again and explains the leave race. If the consumer is
+// already dying, incWorker returns false and the move is skipped; the cursor
+// stays on its current source, which the leave's closeShareSession drains.
+func (sc *shareConsumer) applyMovesBlocking(k kip951move) {
 	if !sc.incWorker() {
 		return
 	}
 	defer sc.decWorker()
 	sc.cl.blockingMetadataFn(func() {
-		// Seed any brokers from the response's NodeEndpoints that we
-		// do not yet know about. Same merge-without-remove invariant
-		// as kip951move.ensureBrokers.
-		if len(endpoints) > 0 {
-			k := kip951move{brokers: endpoints}
-			k.ensureBrokers(sc.cl)
-		}
-		// Ensure per-broker sink+source exist for every move target,
-		// and snapshot the sink+source pointer per leader to avoid
-		// repeated locks.
-		leaderSrcs := make(map[int32]*source, len(moves))
-		sc.cl.sinksAndSourcesMu.Lock()
-		for _, m := range moves {
-			if _, exists := leaderSrcs[m.leaderID]; exists {
-				continue
-			}
-			sns, ok := sc.cl.sinksAndSources[m.leaderID]
-			if !ok {
-				sns = sinkAndSource{
-					sink:   sc.cl.newSink(m.leaderID),
-					source: sc.cl.newSource(m.leaderID),
-				}
-				sc.cl.sinksAndSources[m.leaderID] = sns
-			}
-			leaderSrcs[m.leaderID] = sns.source
-		}
-		sc.cl.sinksAndSourcesMu.Unlock()
-
-		// Safety: Any leader whose endpoint we didn't see needs
-		// metadata to populate cl.brokers.
-		seenEndpoint := make(map[int32]struct{}, len(endpoints))
-		for _, ep := range endpoints {
-			seenEndpoint[ep.NodeID] = struct{}{}
-		}
-		needsMeta := false
-		for _, m := range moves {
-			if _, ok := seenEndpoint[m.leaderID]; !ok {
-				needsMeta = true
-				break
-			}
-		}
-		if needsMeta {
-			sc.cl.triggerUpdateMetadataNow("share cursor CurrentLeader hint points to broker not in NodeEndpoints")
-		}
-
-		id2t := sc.cl.id2tMap()
-		tps := sc.tps.load()
-
-		var moved int
-		for _, m := range moves {
-			topicName := id2t[m.topicID]
-			if topicName == "" {
-				continue
-			}
-			tp, ok := tps[topicName]
-			if !ok {
-				continue
-			}
-			td := tp.load()
-			if m.partition < 0 || int(m.partition) >= len(td.partitions) {
-				continue
-			}
-			cursor := td.partitions[m.partition].shareCursor
-			oldSource := cursor.source.Load()
-			if oldSource.nodeID == m.leaderID {
-				continue
-			}
-			newSource := leaderSrcs[m.leaderID]
-			oldSource.removeShareCursor(cursor)
-			cursor.source.Store(newSource)
-			newSource.addShareCursor(cursor)
-			moved++
-		}
-		if moved > 0 {
-			sc.cfg.logger.Log(LogLevelInfo, "migrated share cursors via CurrentLeader hints",
-				"total_hints", len(moves),
-				"applied", moved,
-			)
-		}
+		k.doMove(sc.cl)
 
 		// Re-enable each cursor for fetching now that its move has run, and
-		// re-signal its (current) source. addShareCursor above woke the new
+		// re-signal its (current) source. migrateShareCursorTo woke the new
 		// source's loop while moving was still set, so that loop may have
 		// skipped this cursor and exited via maybeFinish before we got here;
 		// maybeShareConsume re-fetches it. Cursors whose move was skipped
-		// (topic unresolved, out of range, already on the leader) are
+		// (topic purged, or metadata already at the hint's epoch) are
 		// re-enabled on their current source so they retry. This clear runs
 		// before decWorker, so it cannot race leave's barrier; the dying
 		// bail and the cl.ctx escape skip it, but those are shutdown paths
 		// where closeShareSession drains the cursor regardless of moving.
-		for i := range moves {
-			c := moves[i].cursor
+		for c := range k.shareCursors {
 			c.moving.Store(false)
 			c.source.Load().maybeShareConsume()
 		}
@@ -1924,11 +1816,21 @@ func (s *source) shareAck(predrained []cursorAckDrain) {
 	s.bumpShareSessionEpochIfCurrent(epoch) // concurrent session reset / disconnect could have reset us
 
 	var (
-		seen     = make(map[tidp]struct{}, len(drains))
-		results  ShareAckResults
-		moves    []shareMove
-		requeued int64
+		seen      = make(map[tidp]struct{}, len(drains))
+		results   ShareAckResults
+		kmove     kip951move
+		brokers   []BrokerMetadata
+		requeued  int64
+		leaderErr bool // a leader error with no hint we can act on
 	)
+	for _, ep := range resp.NodeEndpoints {
+		brokers = append(brokers, BrokerMetadata{
+			NodeID: ep.NodeID,
+			Host:   ep.Host,
+			Port:   ep.Port,
+			Rack:   ep.Rack,
+		})
+	}
 	for _, rt := range resp.Topics {
 		for _, rp := range rt.Partitions {
 			tpKey := tidp{rt.TopicID, rp.Partition}
@@ -1949,13 +1851,9 @@ func (s *source) shareAck(predrained []cursorAckDrain) {
 			var partErr error
 			if rp.ErrorCode != 0 {
 				partErr = kerr.ErrorForCode(rp.ErrorCode)
-				if rp.CurrentLeader.LeaderID >= 0 && rp.CurrentLeader.LeaderEpoch >= 0 {
-					moves = append(moves, shareMove{
-						topicID:   rt.TopicID,
-						partition: rp.Partition,
-						leaderID:  rp.CurrentLeader.LeaderID,
-						cursor:    drained.cursor,
-					})
+				if !kmove.maybeAddSharePartition(sc, drained.cursor, rp.ErrorCode, rp.CurrentLeader.LeaderID, rp.CurrentLeader.LeaderEpoch, brokers) &&
+					(rp.ErrorCode == kerr.NotLeaderForPartition.Code || rp.ErrorCode == kerr.FencedLeaderEpoch.Code) {
+					leaderErr = true
 				}
 				if isShareAckRetryable(partErr) {
 					drained.requeue(sc)
@@ -1998,21 +1896,12 @@ func (s *source) shareAck(predrained []cursorAckDrain) {
 			})
 		}
 	}
-	if len(moves) > 0 {
-		var moveBrokers []BrokerMetadata
-		if len(resp.NodeEndpoints) > 0 {
-			moveBrokers = make([]BrokerMetadata, 0, len(resp.NodeEndpoints))
-			for _, ep := range resp.NodeEndpoints {
-				moveBrokers = append(moveBrokers, BrokerMetadata{
-					NodeID: ep.NodeID,
-					Host:   ep.Host,
-					Port:   ep.Port,
-					Rack:   ep.Rack,
-				})
-			}
-		}
-		sc.applyMoves(moves, moveBrokers)
+	// A standalone ack can be the last request for a cursor, with no fetch
+	// error after it to refresh metadata: do it here.
+	if leaderErr {
+		sc.cl.triggerUpdateMetadataNow("share ack leader error without a usable CurrentLeader hint")
 	}
+	sc.applyMoves(kmove)
 	sc.enqueueCallback(results, nAcks-requeued)
 }
 
@@ -2540,24 +2429,8 @@ func (s *source) shareFetch(doneFetch chan<- bool) (fetched, acked bool) {
 	// the broker already processed, causing double-ack or stale-
 	// epoch errors on the FINAL_EPOCH resend path).
 	timeout := time.Duration(req.MaxWaitMillis)*time.Millisecond + 5*time.Second
-	var (
-		kresp       kmsg.Response
-		err         error
-		requested   = make(chan struct{})
-		ctx, cancel = context.WithTimeout(sc.cl.ctx, timeout)
-	)
+	ctx, cancel := context.WithTimeout(sc.cl.ctx, timeout)
 	defer cancel()
-
-	br, brerr := s.cl.brokerOrErr(ctx, s.nodeID, errUnknownBroker)
-	if brerr != nil {
-		close(requested)
-		err = brerr
-	} else {
-		br.do(ctx, req, func(k kmsg.Response, e error) {
-			kresp, err = k, e
-			close(requested)
-		})
-	}
 
 	// Wait for the response. ctx carries a MaxWait+5s deadline rather
 	// than fm.ctx cancellation: cancelling mid-fetch is lossy (the
@@ -2568,24 +2441,20 @@ func (s *source) shareFetch(doneFetch chan<- bool) (fetched, acked bool) {
 	// hard-stuck case (broker unresponsive past the deadline) falls
 	// into the requeue path below, where closeShareSession re-sends
 	// the acks on the userCtx-bounded FINAL_EPOCH ShareAcknowledge.
-	select {
-	case <-requested:
-		if isContextErr(err) && ctx.Err() != nil {
-			// Deadline hit or cl.ctx cancelled. Requeue piggybacked
-			// acks so closeShareSession or a later fetch can retry.
-			for _, pa := range piggybackAcks {
-				pa.requeue(sc)
-			}
-			return s.shareFetchAbandoned(), false
-		}
-		fetched = true
-	case <-ctx.Done():
-		// cl.ctx cancelled or deadline. Requeue for closeShareSession.
+	var kresp kmsg.Response
+	br, err := s.cl.brokerOrErr(ctx, s.nodeID, errUnknownBroker)
+	if err == nil {
+		kresp, err = br.waitResp(ctx, req)
+	}
+	if err != nil && ctx.Err() != nil {
+		// Deadline hit or cl.ctx cancelled. Requeue piggybacked
+		// acks so closeShareSession or a later fetch can retry.
 		for _, pa := range piggybackAcks {
 			pa.requeue(sc)
 		}
 		return s.shareFetchAbandoned(), false
 	}
+	fetched = true
 
 	var didBackoff bool
 	backoff := func(why any) {
@@ -2597,9 +2466,9 @@ func (s *source) shareFetch(doneFetch chan<- bool) (fetched, acked bool) {
 
 		// Like the classic source backoff: a fetch failure is the
 		// only signal we get when a broker dies (no response means no
-		// CurrentLeader hint), so opportunistically refresh metadata
-		// to migrate our cursors to the new leader.
-		s.cl.triggerUpdateMetadata(false, fmt.Sprintf("opportunistic load during share source backoff: %v", why))
+		// CurrentLeader hint), so we refresh metadata to migrate our
+		// cursors to the new leader.
+		s.cl.triggerUpdateMetadata(true, fmt.Sprintf("load during share source backoff: %v", why))
 		s.consecutiveFailures++
 		after := time.NewTimer(sc.cfg.retryBackoff(s.consecutiveFailures))
 		defer after.Stop()
@@ -2636,9 +2505,7 @@ func (s *source) shareFetch(doneFetch chan<- bool) (fetched, acked bool) {
 		return fetched, false
 	}
 
-	if len(res.moves) > 0 {
-		sc.applyMoves(res.moves, res.moveBrokers)
-	}
+	sc.applyMoves(res.kmove)
 
 	sc.enqueueCallback(res.ackResults, nAcks-res.ackRequeued)
 
@@ -2736,12 +2603,21 @@ func (s *source) handleShareReqResp(req *kmsg.ShareFetchRequest, resp *kmsg.Shar
 	var (
 		fetch              Fetch
 		ackResults         ShareAckResults
-		moves              []shareMove
+		kmove              kip951move
+		brokers            []BrokerMetadata
 		ackRequeued        int64
 		partitionsWithErrs int
 		seen               = make(map[tidp]struct{}, len(usable)+len(piggybackAcks))
 		updateWhy          multiUpdateWhy
 	)
+	for _, ep := range resp.NodeEndpoints {
+		brokers = append(brokers, BrokerMetadata{
+			NodeID: ep.NodeID,
+			Host:   ep.Host,
+			Port:   ep.Port,
+			Rack:   ep.Rack,
+		})
+	}
 
 	for i := range resp.Topics {
 		rt := &resp.Topics[i]
@@ -2800,18 +2676,12 @@ func (s *source) handleShareReqResp(req *kmsg.ShareFetchRequest, resp *kmsg.Shar
 
 			// then records.
 			if rp.ErrorCode != 0 {
-				partitionsWithErrs++
-				if rp.CurrentLeader.LeaderID >= 0 && rp.CurrentLeader.LeaderEpoch >= 0 {
-					moves = append(moves, shareMove{
-						topicID:   rt.TopicID,
-						partition: rp.Partition,
-						leaderID:  rp.CurrentLeader.LeaderID,
-						cursor:    cursor,
-					})
-					continue
+				if kmove.maybeAddSharePartition(sc, cursor, rp.ErrorCode, rp.CurrentLeader.LeaderID, rp.CurrentLeader.LeaderEpoch, brokers) {
+					continue // handled: the move needs no backoff
 				}
-				// No leader hint: classify like the classic fetch
-				// path (source.go handleReqResp). Retriable errors
+				partitionsWithErrs++
+				// No hint we can act on: classify like the classic
+				// fetch path (source.go handleReqResp). Retryable errors
 				// are stripped and heal via the metadata update
 				// triggered below (the broker only fills
 				// CurrentLeader for NotLeader/FencedLeaderEpoch and
@@ -2916,23 +2786,9 @@ func (s *source) handleShareReqResp(req *kmsg.ShareFetchRequest, resp *kmsg.Shar
 		}
 	}
 
-	var moveBrokers []BrokerMetadata
-	if len(moves) > 0 && len(resp.NodeEndpoints) > 0 {
-		moveBrokers = make([]BrokerMetadata, 0, len(resp.NodeEndpoints))
-		for _, ep := range resp.NodeEndpoints {
-			moveBrokers = append(moveBrokers, BrokerMetadata{
-				NodeID: ep.NodeID,
-				Host:   ep.Host,
-				Port:   ep.Port,
-				Rack:   ep.Rack,
-			})
-		}
-	}
-
 	return shareFetchResult{
 		fetch:           fetch,
-		moves:           moves,
-		moveBrokers:     moveBrokers,
+		kmove:           kmove,
 		ackResults:      ackResults,
 		ackRequeued:     ackRequeued,
 		allErrsStripped: partitionsWithErrs > 0 && !fetch.hasErrorsOrRecords(),

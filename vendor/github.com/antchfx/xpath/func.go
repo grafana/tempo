@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Defined an interface of stringBuilder that compatible with
@@ -432,9 +433,11 @@ func matchesFunc(arg1, arg2 query) func(query, iterator) interface{} {
 		case query:
 			node := typ.Select(t)
 			if node == nil {
-				return ""
+				return false
 			}
 			s = node.Value()
+		default:
+			s = asString(t, typ)
 		}
 		var pattern string
 		var ok bool
@@ -462,6 +465,8 @@ func normalizespaceFunc(arg1 query) func(query, iterator) interface{} {
 				return ""
 			}
 			m = node.Value()
+		default:
+			m = asString(t, typ)
 		}
 		var b = builderPool.Get().(stringBuilder)
 		b.Grow(len(m))
@@ -499,6 +504,8 @@ func substringFunc(arg1, arg2, arg3 query) func(query, iterator) interface{} {
 				return ""
 			}
 			m = node.Value()
+		default:
+			m = asString(t, typ)
 		}
 
 		var start, length float64
@@ -506,39 +513,33 @@ func substringFunc(arg1, arg2, arg3 query) func(query, iterator) interface{} {
 		if start, ok = functionArgs(arg2).Evaluate(t).(float64); !ok {
 			panic(errors.New("substring() function first argument type must be number"))
 		}
+		// positions are in characters, not bytes (REC 4.2)
+		rs := []rune(m)
 		// fix https://github.com/antchfx/xpath/issues/109
-		start = math.Round(start)
-		if start > float64(len(m)) {
+		// XPath round, not math.Round: -0.5 goes to 0, so
+		// substring("12345", -0.5, 3) is "12".
+		start = round(start)
+		if start > float64(len(rs)) {
 			return ""
 		}
 		if arg3 == nil {
 			if start <= 0 {
 				return m
 			}
-			return m[int(start)-1:]
+			return string(rs[int(start)-1:])
 		}
 
 		if length, ok = functionArgs(arg3).Evaluate(t).(float64); !ok {
 			panic(errors.New("substring() function second argument type must be number"))
 		}
-		length = math.Round(length)
-		if length <= 0 {
+		length = round(length)
+		// keep positions p with start <= p < start+length, clipped to the string (REC 4.2)
+		first := math.Max(start, 1)
+		last := math.Min(start+length, float64(len(rs))+1)
+		if !(last > first) {
 			return ""
 		}
-		if length > float64(len(m)) {
-			length = float64(len(m))
-		}
-		if start < 0 {
-			length = length - math.Abs(start)
-			if length <= 1 {
-				return ""
-			}
-			return m[:int(length-1)]
-		}
-		if start == 0 {
-			return m[:int(length-1)]
-		}
-		return m[int(start-1):int(length+start-1)]
+		return string(rs[int(first)-1 : int(last)-1])
 	}
 }
 
@@ -588,13 +589,15 @@ func stringLengthFunc(arg1 query) func(query, iterator) interface{} {
 	return func(_ query, t iterator) interface{} {
 		switch v := functionArgs(arg1).Evaluate(t).(type) {
 		case string:
-			return float64(len(v))
+			return float64(utf8.RuneCountInString(v))
 		case query:
 			node := v.Select(t)
 			if node == nil {
 				break
 			}
-			return float64(len(node.Value()))
+			return float64(utf8.RuneCountInString(node.Value()))
+		default:
+			return float64(utf8.RuneCountInString(asString(t, v)))
 		}
 		return float64(0)
 	}
@@ -607,11 +610,13 @@ func translateFunc(arg1, arg2, arg3 query) func(query, iterator) interface{} {
 		src := asString(t, functionArgs(arg2).Evaluate(t))
 		dst := asString(t, functionArgs(arg3).Evaluate(t))
 
-		replace := make([]string, 0, len(src))
-		for i, s := range src {
+		// src and dst are paired by character position, not byte offset
+		dstRunes := []rune(dst)
+		replace := make([]string, 0, 2*utf8.RuneCountInString(src))
+		for i, s := range []rune(src) {
 			d := ""
-			if i < len(dst) {
-				d = string(dst[i])
+			if i < len(dstRunes) {
+				d = string(dstRunes[i])
 			}
 			replace = append(replace, string(s), d)
 		}

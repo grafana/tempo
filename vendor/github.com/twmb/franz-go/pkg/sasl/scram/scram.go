@@ -109,11 +109,8 @@ func (s scram) Authenticate(ctx context.Context, _ string) (sasl.Session, []byte
 		return nil, nil, errors.New(s.name + " user and pass must be non-empty")
 	}
 	if len(auth.Nonce) == 0 {
-		buf := make([]byte, 20)
-		if _, err = rand.Read(buf); err != nil {
-			return nil, nil, err
-		}
-		auth.Nonce = buf
+		auth.Nonce = make([]byte, 20)
+		rand.Read(auth.Nonce)
 	}
 
 	auth.Nonce = []byte(base64.RawStdEncoding.EncodeToString(auth.Nonce))
@@ -138,6 +135,7 @@ func (s scram) Authenticate(ctx context.Context, _ string) (sasl.Session, []byte
 		auth:    auth,
 		newhash: s.newhash,
 
+		gs2Header:          gs2Header,
 		clientFirstMsgBare: clientFirstMsgBare,
 	}, clientFirstMsg, nil
 }
@@ -147,6 +145,7 @@ type session struct {
 	auth    Auth
 	newhash func() hash.Hash
 
+	gs2Header          string
 	clientFirstMsgBare []byte
 	expServerSignature []byte
 }
@@ -203,6 +202,13 @@ func (s *session) authenticateClient(serverFirstMsg []byte) ([]byte, error) {
 	if iters < 4096 {
 		return nil, fmt.Errorf("server iterations %d less than minimum 4096", iters)
 	}
+	// Kafka allows at most 16384. We allow more for other servers, but cap
+	// it: a malicious server could send i=2147483647 and keep pbkdf2
+	// running for about 9.5 minutes (SHA-512).
+	const maxIters = 1 << 20
+	if iters > maxIters {
+		return nil, fmt.Errorf("server iterations %d more than maximum %d", iters, maxIters)
+	}
 
 	//////////////////
 	// CALCULATIONS //
@@ -215,26 +221,21 @@ func (s *session) authenticateClient(serverFirstMsg []byte) ([]byte, error) {
 	}
 
 	mac := hmac.New(s.newhash, saltedPassword)
-	if _, err = mac.Write([]byte("Client Key")); err != nil {
-		return nil, fmt.Errorf("hmac err: %v", err)
-	}
+	mac.Write([]byte("Client Key"))
 	clientKey := mac.Sum(nil) // ClientKey := HMAC(SaltedPassword, "Client Key")
-	if _, err = h.Write(clientKey); err != nil {
-		return nil, fmt.Errorf("sha err: %v", err)
-	}
+	h.Write(clientKey)
 	storedKey := h.Sum(nil) // StoredKey := H(ClientKey)
 
-	// biws is `n,,` base64 encoded; we do not use a channel
-	clientFinalMsgWithoutProof := append([]byte("c=biws,r="), serverNonce...)
+	// c= is the base64 encoded gs2 header, which is biws without a Zid
+	clientFinalMsgWithoutProof := []byte("c=" + base64.StdEncoding.EncodeToString([]byte(s.gs2Header)) + ",r=")
+	clientFinalMsgWithoutProof = append(clientFinalMsgWithoutProof, serverNonce...)
 	authMsg := append(s.clientFirstMsgBare, ',')             // AuthMsg := client-first-message-bare + "," +
 	authMsg = append(authMsg, serverFirstMsg...)             //            server-first-message +
 	authMsg = append(authMsg, ',')                           //            "," +
 	authMsg = append(authMsg, clientFinalMsgWithoutProof...) //            client-final-message-without-proof
 
 	mac = hmac.New(s.newhash, storedKey)
-	if _, err = mac.Write(authMsg); err != nil {
-		return nil, fmt.Errorf("hmac err: %v", err)
-	}
+	mac.Write(authMsg)
 	clientSignature := mac.Sum(nil) // ClientSignature := HMAC(StoredKey, AuthMessage)
 
 	clientProof := clientSignature
@@ -243,14 +244,10 @@ func (s *session) authenticateClient(serverFirstMsg []byte) ([]byte, error) {
 	}
 
 	mac = hmac.New(s.newhash, saltedPassword)
-	if _, err = mac.Write([]byte("Server Key")); err != nil {
-		return nil, fmt.Errorf("hmac err: %v", err)
-	}
+	mac.Write([]byte("Server Key"))
 	serverKey := mac.Sum(nil) // ServerKey := HMAC(SaltedPassword, "Server Key")
 	mac = hmac.New(s.newhash, serverKey)
-	if _, err = mac.Write(authMsg); err != nil {
-		return nil, fmt.Errorf("hmac err: %v", err)
-	}
+	mac.Write(authMsg)
 	s.expServerSignature = []byte(base64.StdEncoding.EncodeToString(mac.Sum(nil))) // ServerSignature := HMAC(ServerKey, AuthMessage)
 
 	clientFinalMsg := append(clientFinalMsgWithoutProof, ",p="...)
@@ -260,10 +257,6 @@ func (s *session) authenticateClient(serverFirstMsg []byte) ([]byte, error) {
 
 func (s *session) verifyServer(serverFinalMsg []byte) error {
 	kvs := bytes.Split(serverFinalMsg, []byte(","))
-	if len(kvs) < 1 {
-		return errors.New("received no kvs, even though this should be impossible")
-	}
-
 	kv := kvs[0]
 	if isErr := bytes.HasPrefix(kv, []byte("e=")); isErr {
 		return fmt.Errorf("server sent authentication error %q", kv[2:])
@@ -271,7 +264,7 @@ func (s *session) verifyServer(serverFinalMsg []byte) error {
 	if !bytes.HasPrefix(kv, []byte("v=")) {
 		return fmt.Errorf("server sent unexpected first kv %q", kv)
 	}
-	if !bytes.Equal(s.expServerSignature, kv[2:]) {
+	if !hmac.Equal(s.expServerSignature, kv[2:]) {
 		return fmt.Errorf("server signature mismatch; got %q != exp %q", kv[2:], s.expServerSignature)
 	}
 	return nil

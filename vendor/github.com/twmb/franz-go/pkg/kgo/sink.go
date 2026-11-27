@@ -175,9 +175,12 @@ func (s *sink) createReq(id int64, epoch int16) (*produceRequest, *kmsg.AddParti
 		recBuf.lockedStopLinger()
 		recBuf.seq = incrementSequence(recBuf.seq, int32(len(batch.records)))
 		moreToDrain = recBuf.checkIfShouldDrainOrStartLinger() || moreToDrain
-		recBuf.mu.Unlock()
 
+		// A metadata update running at the same time can fail this batch
+		// once we unlock. If we unlocked before adding, Flush could see
+		// nothing buffered and return before addingToTxn counts this add.
 		txnBuilder.add(recBuf)
+		recBuf.mu.Unlock()
 	}
 
 	// We could have lost our only record buffer just before we grabbed the
@@ -222,6 +225,7 @@ func (t *txnReqBuilder) add(rb *recBuf) {
 		return
 	}
 	if t.req == nil {
+		rb.cl.producer.addingToTxn.Add(1) // sink.produce decrements once this request finishes
 		req := kmsg.NewPtrAddPartitionsToTxnRequest()
 		req.TransactionalID = *t.txnID
 		req.ProducerID = t.id
@@ -477,6 +481,15 @@ func (s *sink) produce(sem <-chan struct{}) bool {
 	// sequence numbers using our new producer ID, which will then again
 	// fail with OOOSN.
 	req, txnReq, moreToDrain := s.createReq(id, epoch)
+	if txnReq != nil {
+		p := &s.cl.producer
+		defer func() {
+			p.mu.Lock()
+			p.addingToTxn.Add(-1)
+			p.mu.Unlock()
+			p.c.Broadcast()
+		}()
+	}
 	if len(req.batches.bs) == 0 { // every recBuf is failing, has nothing new buffered, or is waiting on what is in flight
 		return moreToDrain
 	}
@@ -513,6 +526,7 @@ func (s *sink) produce(sem <-chan struct{}) bool {
 		// - TransactionAbortable
 		// - retry failure
 		// - auth failure
+		// - an abort while retrying CONCURRENT_TRANSACTIONS
 		// - producer id mapping / epoch errors
 		// The latter case can potentially recover with the kip logic
 		// we have defined in EndTransaction. Regardless, on failure
@@ -520,6 +534,8 @@ func (s *sink) produce(sem <-chan struct{}) bool {
 		batchesStripped, err := s.doTxnReq(req, txnReq)
 		if err != nil {
 			switch {
+			case errors.Is(err, ErrAborting):
+				return true // doTxnReq requeued the batches for the next drain
 			case isRetryableBrokerErr(err) || isDialNonTimeoutErr(err):
 				s.cl.bumpRepeatedLoadErr(err)
 				s.cl.cfg.logger.Log(LogLevelWarn, "unable to AddPartitionsToTxn due to retryable broker err, bumping client's buffered record load errors by 1 and retrying", "err", err)
@@ -653,12 +669,18 @@ func (s *sink) doTxnReq(
 	// difference there is the user knows explicitly at the function call
 	// that canceling the context will opt them into invalid state.
 	//
-	// Note that the concurrent-transactions wrapper is defensive only:
-	// AddPartitionsToTxn is pinned at most v3 (no top-level error code)
-	// and a per-partition CONCURRENT_TRANSACTIONS is retriable, so it is
-	// stripped in issueTxnReq and healed by requeue+backoff rather than
-	// ever surfacing to the wrapper.
+	// A per-partition CONCURRENT_TRANSACTIONS is not retryable in kerr, so
+	// issueTxnReq returns it and the wrapper re-sends the request. While
+	// aborting, we stop re-sending: the broker accepted no attempt of this
+	// request, so the abort does not need these partitions added. We
+	// always send the first attempt: a batch with an unknown produce
+	// outcome cannot fail, and only a finished add lets it send again.
+	var tries int
 	err = s.cl.doWithConcurrentTransactions(s.cl.ctx, fmt.Sprintf("AddPartitionsToTxn-sink%d", s.nodeID), func() error {
+		tries++
+		if tries > 1 && s.cl.producer.isAborting() {
+			return ErrAborting
+		}
 		stripped, err = s.issueTxnReq(req, txnReq)
 		return err
 	})

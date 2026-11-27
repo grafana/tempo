@@ -789,6 +789,12 @@ func (cl *Client) PauseFetchPartitions(topicPartitions map[string][]int32) map[s
 // ResumeFetchTopics resumes fetching the input topics if they were previously
 // paused. Resuming topics that are not currently paused is a per-topic no-op.
 // See the documentation on PauseFetchTopics for more details.
+//
+// Note that resuming does not interrupt a fetch already in flight: resumed
+// topics are included in the next fetch to each broker, after that broker's
+// in-flight fetch completes. A fetch with no new data waits up to
+// FetchMaxWait (default 5s). If you pause and resume often, consider
+// lowering FetchMaxWait.
 func (cl *Client) ResumeFetchTopics(topics ...string) {
 	defer cl.allSources(func(s *source) {
 		s.maybeConsume()
@@ -806,7 +812,8 @@ func (cl *Client) ResumeFetchTopics(topics ...string) {
 // ResumeFetchPartitions resumes fetching the input partitions if they were
 // previously paused. Resuming partitions that are not currently paused is a
 // per-topic no-op. See the documentation on PauseFetchPartitions for more
-// details.
+// details, and ResumeFetchTopics for how resuming interacts with an in-flight
+// fetch.
 func (cl *Client) ResumeFetchPartitions(topicPartitions map[string][]int32) {
 	defer cl.allSources(func(s *source) {
 		s.maybeConsume()
@@ -821,28 +828,21 @@ func (cl *Client) ResumeFetchPartitions(topicPartitions map[string][]int32) {
 	c.storePaused(paused)
 }
 
-// SetOffsets sets any matching offsets in setOffsets to the given
-// epoch/offset. Partitions that are not specified are not set. It is invalid
-// to set topics that were not yet returned from a PollFetches: this function
-// sets only partitions that were previously consumed, any extra partitions are
-// skipped.
-//
-// If directly consuming, this function operates as expected given the caveats
-// of the prior paragraph.
+// SetOffsets sets the partitions in setOffsets to the given offsets.
+// Fetching continues from the new offset. SetOffsets skips a partition that
+// is not being consumed and skips a negative offset.
 //
 // If using transactions, it is advised to just use a GroupTransactSession and
 // avoid this function entirely.
 //
-// If using group consuming, it is strongly recommended to use this function
-// outside of the context of a PollFetches loop and only when you know the
-// group is not revoked (i.e., block any concurrent revoke while issuing this
-// call) and to not use this concurrent with committing. Any other usage is
-// prone to odd interactions.
+// If using group consuming, it is strongly recommended to call SetOffsets
+// from the goroutine that polls, while no revoke can run: use
+// BlockRebalanceOnPoll and call SetOffsets before AllowRebalance.
 func (cl *Client) SetOffsets(setOffsets map[string]map[int32]EpochOffset) {
 	cl.setOffsets(setOffsets, true)
 }
 
-func (cl *Client) setOffsets(setOffsets map[string]map[int32]EpochOffset, log bool) {
+func (cl *Client) setOffsets(setOffsets map[string]map[int32]EpochOffset, user bool) {
 	if len(setOffsets) == 0 {
 		return
 	}
@@ -861,13 +861,13 @@ func (cl *Client) setOffsets(setOffsets map[string]map[int32]EpochOffset, log bo
 		assigns = c.d.applySetOffsets(setOffsets)
 		tps = c.d.tps
 	case c.g != nil:
-		assigns = c.g.applySetOffsets(setOffsets)
+		assigns = c.g.applySetOffsets(setOffsets, user)
 		tps = c.g.tps
 	}
 	if len(assigns) == 0 {
 		return
 	}
-	if log {
+	if user {
 		c.assignPartitions(assigns, assignSetMatching, tps, "from manual SetOffsets")
 	} else {
 		c.assignPartitions(assigns, assignSetMatching, tps, "")
@@ -1244,8 +1244,13 @@ func (c *consumer) assignPartitions(assignments map[string]map[int32]Offset, how
 							// A cursor stopped by a batch over
 							// MaxDecompressBatchBytes is re-enabled
 							// the same way: the set offset is how the
-							// user skips the batch.
-							if loadOffsets.removeLoad(usedCursor.topic, usedCursor.partition) || usedCursor.fatal.Swap(false) {
+							// user skips the batch. The stopped cursor
+							// can have a pending load too, so we clear
+							// `fatal` whether or not we dropped a load:
+							// allowUsable does nothing while `fatal` is
+							// set.
+							wasFatal := usedCursor.fatal.Swap(false)
+							if loadOffsets.removeLoad(usedCursor.topic, usedCursor.partition) || wasFatal {
 								usedCursor.allowUsable()
 							}
 						}
@@ -1273,21 +1278,28 @@ func (c *consumer) assignPartitions(assignments map[string]map[int32]Offset, how
 		case assignInvalidateAll:
 			loadOffsets = listOrEpochLoads{}
 		case assignSetMatching:
-			// Loads for partitions that were being consumed were
-			// handled in the cursor walk above (offset set directly,
-			// pending load dropped). Anything remaining is a load for
-			// a partition that never finished loading; SetOffsets
-			// documents those are skipped, so we keep their loads
-			// untouched.
-			//
-			// NOTE: the direct consumer's applySetOffsets translates
-			// all user input blindly (unlike the group path, which
-			// filters to g.uncommitted); the "extra partitions are
-			// skipped" contract holds only because this arm touches
-			// nothing beyond usingCursors and returns before the
-			// offset-loading section below. If setMatching ever gains
-			// load handling, filter never-consumed direct partitions
-			// first or they will silently start loading.
+			// The cursor walk above set every partition with a cursor
+			// in use. A partition still on its first offset load has
+			// no cursor in use, and the load would start the partition
+			// at the load's offset rather than the set offset: we drop
+			// the load and assign the set offset below like a new
+			// assignment. Any other partition has no cursor in use and
+			// no load: the partition is not being consumed, and we
+			// drop the partition.
+			loading := make(map[string]map[int32]Offset)
+			for t, ps := range assignments {
+				var loadingTopic map[int32]Offset
+				for p, o := range ps {
+					if loadOffsets.removeLoad(t, p) {
+						if loadingTopic == nil {
+							loadingTopic = make(map[int32]Offset)
+							loading[t] = loadingTopic
+						}
+						loadingTopic[p] = o
+					}
+				}
+			}
+			assignments = loading
 		case assignInvalidateMatching:
 			loadOffsets.keepFilter(func(t string, p int32) bool {
 				if assignTopic, ok := assignments[t]; ok {
@@ -1321,8 +1333,11 @@ func (c *consumer) assignPartitions(assignments map[string]map[int32]Offset, how
 	}
 
 	// This assignment could contain nothing (for the purposes of
-	// invalidating active fetches), so we only do this if needed.
-	if len(assignments) == 0 || how != assignWithoutInvalidating {
+	// invalidating active fetches), so we only do this if needed. With
+	// assignSetMatching, assignments now holds only the partitions on their
+	// first offset load: we dropped the loads above, and the loop below
+	// assigns the set offsets like a new assignment.
+	if len(assignments) == 0 || (how != assignWithoutInvalidating && how != assignSetMatching) {
 		return
 	}
 
@@ -1337,8 +1352,13 @@ func (c *consumer) assignPartitions(assignments map[string]map[int32]Offset, how
 	// there is no epoch to validate, so we immediately begin consuming
 	// at the offset. The epoch request returns and tries also using the
 	// cursor concurrently. We need to guard it.
-	session.listOrEpochMu.Lock()
-	defer session.listOrEpochMu.Unlock()
+	//
+	// If we stopped the session (assignSetMatching), no results can
+	// arrive until the new session starts.
+	if session != nil {
+		session.listOrEpochMu.Lock()
+		defer session.listOrEpochMu.Unlock()
+	}
 
 	topics := tps.load()
 	for topic, partitions := range assignments {
@@ -2305,7 +2325,7 @@ func (s *consumerSession) handleListOrEpochResults(loaded loadedOffsets) (reload
 
 		default: // from ErrorCode in a response, or broker request err, or request is canceled as our session is ending
 			reloads.addLoad(load.topic, load.partition, loaded.loadType, load.request)
-			if !kerr.IsRetriable(load.err) && !isRetryableBrokerErr(load.err) && !isDialNonTimeoutErr(load.err) && !isContextErr(load.err) { // non-retryable response error; signal such in a response
+			if !kerr.IsRetriable(load.err) && !isRetryableBrokerErr(load.err) && !isDialNonTimeoutErr(load.err) && !isContextErr(load.err) && s.c.cl.ctx.Err() == nil { // non-retryable response error; signal such in a response
 				s.c.addFakeReadyForDraining(load.topic, load.partition, load.err, fmt.Sprintf("notification of non-retryable error from %s request", loaded.loadType))
 			}
 
@@ -2504,29 +2524,27 @@ func (cl *Client) listOffsetsForBrokerLoad(ctx context.Context, broker *broker, 
 		return
 	}
 	req1, req2, req3 := load.buildListReq(cl.cfg.isolationLevel, cl.cfg.resetOffset, lookbacks)
+	w1 := broker.issue(ctx, req1)
+	var w2, w3 *respWaiter
+	if req2 != nil {
+		w2 = broker.issue(ctx, req2)
+	}
+	if req3 != nil {
+		w3 = broker.issue(ctx, req3)
+	}
 	var (
-		wg     sync.WaitGroup
 		kresp2 kmsg.Response
 		err2   error
 		kresp3 kmsg.Response
 		err3   error
 	)
-	if req2 != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			kresp2, err2 = broker.waitResp(ctx, req2)
-		}()
+	kresp, err := w1.wait()
+	if w2 != nil {
+		kresp2, err2 = w2.wait()
 	}
-	if req3 != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			kresp3, err3 = broker.waitResp(ctx, req3)
-		}()
+	if w3 != nil {
+		kresp3, err3 = w3.wait()
 	}
-	kresp, err := broker.waitResp(ctx, req1)
-	wg.Wait()
 	if err == nil {
 		err = err2
 	}

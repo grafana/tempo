@@ -35,6 +35,10 @@ attributes:
   partition:
     description: The Kafka topic partition.
     type: int
+  stage:
+    description: The record processing stage.
+    type: string
+    enum: [decode, consume]
   topic:
     description: The Kafka topic.
     type: string
@@ -109,10 +113,12 @@ telemetry:
     kafka_receiver_current_offset:
       enabled: true
       description: Current message offset
+      extended_documentation: Reported only for currently assigned partitions after processing at least one record. Reporting stops when a partition is lost, revoked, or terminally paused, and resumes after a reassigned partition processes a record. Temporary backpressure and rewind pauses continue reporting the last observed offset. With eager group_rebalance_strategies (e.g. range), every rebalance revokes all partitions, so each series pauses until that partition's next record; the default cooperative-sticky strategy only affects moved partitions.
       stability: development
       unit: "1"
       gauge:
         value_type: int
+        async: true
       attributes: [topic, partition]
     kafka_receiver_latency:
       enabled: true
@@ -140,10 +146,12 @@ telemetry:
     kafka_receiver_offset_lag:
       enabled: true
       description: Current offset lag
+      extended_documentation: Reported only for currently assigned partitions after processing at least one record. Reporting stops when a partition is lost, revoked, or terminally paused, and resumes after a reassigned partition processes a record. Temporary backpressure and rewind pauses continue reporting the last observed lag. With eager group_rebalance_strategies (e.g. range), every rebalance revokes all partitions, so each series pauses until that partition's next record; the default cooperative-sticky strategy only affects moved partitions.
       stability: development
       unit: "1"
       gauge:
         value_type: int
+        async: true
       attributes: [topic, partition]
     kafka_receiver_partition_close:
       enabled: true
@@ -153,6 +161,26 @@ telemetry:
       sum:
         value_type: int
         monotonic: true
+    kafka_receiver_partition_data_wait:
+      enabled: true
+      description: Time waiting for data with no queued batch, current batch, or active record-processing call.
+      extended_documentation: Only produced with independent partition processing. Wait durations are recorded when a wait ends, including on partition loss or shutdown; ongoing waits, retries, rewinds, and time after shutdown are excluded. The SDK accumulates completed waits across assignments.
+      stability: development
+      unit: s
+      sum:
+        value_type: double
+        monotonic: true
+      attributes: [topic, partition]
+    kafka_receiver_partition_in_flight_records:
+      enabled: true
+      description: The number of active record-processing calls, including decoding, Consume, and retry backoff.
+      extended_documentation: Only produced with independent partition processing. Excludes queued records, completed calls awaiting marking, and calls from stopped assignments. The count returns to zero when an assignment stops.
+      stability: development
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: false
+      attributes: [topic, partition]
     kafka_receiver_partition_start:
       enabled: true
       description: Number of started partitions
@@ -171,6 +199,16 @@ telemetry:
         value_type: double
         bucket_boundaries: [0, 0.005, 0.010, 0.025, 0.050, 0.075, 0.100, 0.250, 0.500, 0.750, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100]
       attributes: [node_id, topic, partition, outcome]
+    kafka_receiver_record_processing_duration:
+      enabled: true
+      description: The duration of each decode or Consume attempt, including failures and excluding retry backoff.
+      extended_documentation: Only produced with independent partition processing. Observations are recorded when attempts return.
+      stability: development
+      unit: s
+      histogram:
+        value_type: double
+        bucket_boundaries: [0, 0.005, 0.010, 0.025, 0.050, 0.075, 0.100, 0.250, 0.500, 0.750, 1, 2.5, 5, 7.5, 10, 25, 50, 75, 100]
+      attributes: [topic, partition, stage]
     kafka_receiver_records:
       enabled: true
       description: The number of received records.

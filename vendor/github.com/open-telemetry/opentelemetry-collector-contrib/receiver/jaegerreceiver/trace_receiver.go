@@ -15,7 +15,6 @@ import (
 	"sync"
 
 	apacheThrift "github.com/apache/thrift/lib/go/thrift"
-	"github.com/gorilla/mux"
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger-idl/thrift-gen/agent"
@@ -364,8 +363,8 @@ func (jr *jReceiver) startCollector(ctx context.Context, host component.Host) er
 				httpConfig.NetAddr.Endpoint, err)
 		}
 
-		nr := mux.NewRouter()
-		nr.HandleFunc("/api/traces", jr.HandleThriftHTTPBatch).Methods(http.MethodPost)
+		nr := http.NewServeMux()
+		nr.HandleFunc("POST /api/traces", jr.HandleThriftHTTPBatch)
 		jr.collectorServer, err = httpConfig.ToServer(ctx, host.GetExtensions(), jr.settings.TelemetrySettings, nr)
 		if err != nil {
 			return err

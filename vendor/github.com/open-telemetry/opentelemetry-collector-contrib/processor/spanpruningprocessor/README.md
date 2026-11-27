@@ -118,6 +118,11 @@ processors:
       # "mad": Median Absolute Deviation method (more robust to extreme outliers)
       method: iqr
 
+      # Transform applied to durations before the method measures their spread
+      # "none" (default): the method runs over durations unchanged
+      # "log": the method runs over log durations, for heavy-tailed latency
+      duration_transform: none
+
       # IQR multiplier for outlier detection threshold (when method=iqr)
       # Outliers are spans with duration > Q3 + (iqr_multiplier * IQR)
       # Common values: 1.5 (standard), 3.0 (extreme only)
@@ -207,6 +212,7 @@ processors:
 | `enable_bytes_metrics` | bool | false | Enable measurement of serialized trace sizes (bytes_received/bytes_processed_input/bytes_processed_output/bytes_emitted metrics) |
 | `enable_outlier_analysis` | bool | false | Enable outlier detection and correlation analysis |
 | `outlier_analysis.method` | string | "iqr" | Statistical method: "iqr" or "mad" |
+| `outlier_analysis.duration_transform` | string | "none" | Transform applied to durations before measuring spread: "none" or "log" |
 | `outlier_analysis.iqr_multiplier` | float64 | 1.5 | IQR threshold multiplier (when method=iqr) |
 | `outlier_analysis.mad_multiplier` | float64 | 3.0 | MAD threshold multiplier (when method=mad) |
 | `outlier_analysis.min_group_size` | int | 7 | Minimum group size for outlier analysis |
@@ -362,6 +368,23 @@ The processor supports two statistical methods for outlier detection:
 - **IQR**: Best for typical distributions with moderate outliers. Standard choice for most use cases.
 - **MAD**: Better when you have extreme outliers that would skew IQR calculations, or when you need more stable detection thresholds.
 
+#### Duration Transform
+
+`duration_transform` transforms each duration before the method above measures
+its spread.
+
+| `duration_transform` | The method runs over | Two spans are far apart when |
+|----------------------|----------------------|------------------------------|
+| `none` (default) | durations | their difference is large |
+| `log` | the natural log of each duration | their ratio is large |
+
+Use `log` for heavy-tailed latency, where durations within a group span orders
+of magnitude. Measuring spread in absolute time lets the tail inflate the
+threshold meant to exclude it, so a large share of the upper tail gets flagged.
+
+Zero-duration spans have no logarithm, so `log` leaves them out of the spread
+and classifies them as normal. They also do not count toward `min_group_size`.
+
 #### How It Works
 
 **IQR (Interquartile Range) Method:**
@@ -377,6 +400,9 @@ The processor supports two statistical methods for outlier detection:
 4. Flag spans with duration > median + (mad_multiplier × MAD × 1.4826) as outliers
 
 *Note: The 1.4826 scale factor makes MAD comparable to standard deviation for normal distributions.*
+
+Both methods apply `min_outlier_threshold_percent` as a floor; with
+`duration_transform: log` the steps above run over log durations.
 
 **Attribute Correlation** (same for both methods):
 - Compare attribute values between outliers and normal spans
@@ -790,6 +816,7 @@ The processor emits the following metrics to help monitor its operation:
 | `otelcol_processor_spanpruning_aggregations_created` | Total number of aggregation summary spans created |
 | `otelcol_processor_spanpruning_traces_processed` | Total number of traces processed |
 | `otelcol_processor_spanpruning_traces_skipped` | Total traces skipped due to conditions not matching |
+| `otelcol_processor_spanpruning_invalid_traces` | Total traces left unpruned because their span structure is invalid, such as parent links forming a cycle |
 | `otelcol_processor_spanpruning_outliers_detected` | Total spans identified as outliers by analysis (when `enable_outlier_analysis: true`) |
 | `otelcol_processor_spanpruning_outliers_preserved` | Total outlier spans kept (when `preserve_outliers: true`) |
 | `otelcol_processor_spanpruning_outliers_correlations_detected` | Total aggregation groups where outliers had correlated attributes |
@@ -835,6 +862,7 @@ These metrics can be used to:
 - Monitor the effectiveness of span pruning (compare `spans_received` vs `spans_pruned`)
 - Track the compression ratio achieved by aggregation
 - Track condition selectivity with `traces_skipped`
+- Detect malformed traces that went out unpruned with `invalid_traces`
 - Track byte changes (`bytes_received`/`bytes_emitted` for the full batch, `bytes_processed_input`/`bytes_processed_output` for the matched subset)
 - Identify processing bottlenecks via `processing_duration`
 - Understand aggregation patterns via `aggregation_group_size`

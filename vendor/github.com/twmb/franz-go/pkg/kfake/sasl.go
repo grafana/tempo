@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"golang.org/x/crypto/pbkdf2"
+	"crypto/pbkdf2"
 
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
@@ -95,12 +95,12 @@ func saslSplitPlain(auth []byte) (user, pass string, err error) {
 
 func newScramAuth(mechanism, pass string) scramAuth {
 	var saltedPass []byte
-	salt := randBytes(10)
+	salt := randBytes(16)
 	switch mechanism {
 	case saslScram256:
-		saltedPass = pbkdf2.Key([]byte(pass), salt, scramIterations, sha256.Size, sha256.New)
+		saltedPass, _ = pbkdf2.Key(sha256.New, pass, salt, scramIterations, sha256.Size) // cannot fail: salt >= 16 B, keyLen = 32 B
 	case saslScram512:
-		saltedPass = pbkdf2.Key([]byte(pass), salt, scramIterations, sha512.Size, sha512.New)
+		saltedPass, _ = pbkdf2.Key(sha512.New, pass, salt, scramIterations, sha512.Size) // cannot fail: salt >= 16 B, keyLen = 64 B
 	default:
 		panic("unreachable")
 	}
@@ -124,6 +124,7 @@ type scramClient0 struct {
 	user  string
 	bare  []byte // client-first-message-bare
 	nonce []byte // nonce in client0
+	cbind string // base64 gs2-header, the c= we expect in client-final
 }
 
 var scramUnescaper = strings.NewReplacer("=3D", "=", "=2C", ",")
@@ -134,11 +135,12 @@ func scramParseClient0(client0 []byte) (scramClient0, error) {
 		return scramClient0{}, errors.New("invalid client0")
 	}
 	var (
-		zid   = string(m[1])
-		bare  = bytes.Clone(m[2])
-		user  = string(m[3])
-		nonce = bytes.Clone(m[4])
-		ext   = string(m[5])
+		gs2   = m[1]
+		zid   = string(m[2])
+		bare  = bytes.Clone(m[3])
+		user  = string(m[4])
+		nonce = bytes.Clone(m[5])
+		ext   = string(m[6])
 	)
 	if len(ext) != 0 {
 		return scramClient0{}, errors.New("invalid extensions")
@@ -150,6 +152,7 @@ func scramParseClient0(client0 []byte) (scramClient0, error) {
 		user:  scramUnescaper.Replace(user),
 		bare:  bare,
 		nonce: nonce,
+		cbind: base64.StdEncoding.EncodeToString(gs2),
 	}, nil
 }
 
@@ -163,6 +166,7 @@ func scramServerFirst(client0 scramClient0, auth scramAuth) (scramServer0, []byt
 	return scramServer0{
 		a:      auth,
 		c0bare: client0.bare,
+		cbind:  client0.cbind,
 		s0:     serverFirst,
 	}, serverFirst
 }
@@ -171,6 +175,7 @@ func scramServerFirst(client0 scramClient0, auth scramAuth) (scramServer0, []byt
 type scramServer0 struct {
 	a      scramAuth
 	c0bare []byte
+	cbind  string
 	s0     []byte
 }
 
@@ -189,7 +194,7 @@ func (s *scramServer0) serverFinal(clientFinal []byte) ([]byte, error) {
 	if s.a.mechanism == saslScram512 {
 		h = sha512.New
 	}
-	if !bytes.Equal(channel, []byte("biws")) { // "biws" == base64("n,,")
+	if string(channel) != s.cbind { // "biws" == base64("n,,") without a zid
 		return nil, errors.New("invalid channel binding")
 	}
 	clientProof, err := base64.StdEncoding.DecodeString(string(clientProof64))
@@ -273,12 +278,13 @@ func init() {
 	)
 
 	// 0: entire match
-	// 1: authzid
-	// 2: client-first-message-bare
-	// 3: username
-	// 4: nonce
-	// 5: ext
-	client0 := fmt.Sprintf("^n,(?:a=(%s))?,((?:m=%s,)?n=(%s),r=(%s)(%s))$", saslName, value, saslName, printable, ext)
+	// 1: gs2-header
+	// 2: authzid
+	// 3: client-first-message-bare
+	// 4: username
+	// 5: nonce
+	// 6: ext
+	client0 := fmt.Sprintf("^(n,(?:a=(%s))?,)((?:m=%s,)?n=(%s),r=(%s)(%s))$", saslName, value, saslName, printable, ext)
 
 	// We reject extensions in client0. Kafka does not validate the nonce
 	// and some clients may generate it incorrectly (i.e. old franz-go), so

@@ -43,19 +43,24 @@ func (c *consumer) initDirect() {
 	d.tps.storeTopics(topics) // prime topics to load if non-regex (this is of no benefit if regex)
 }
 
-// applySetOffsets for a direct consumer blindly translates EpochOffsets into
-// Offsets. Unlike the group consumer, there is no uncommitted map to check.
+// applySetOffsets for a direct consumer translates EpochOffsets into Offsets.
+// Unlike the group consumer, there is no uncommitted map to check.
 func (*directConsumer) applySetOffsets(setOffsets map[string]map[int32]EpochOffset) (assigns map[string]map[int32]Offset) {
 	assigns = make(map[string]map[int32]Offset)
 	for topic, partitions := range setOffsets {
 		set := make(map[int32]Offset)
 		for partition, eo := range partitions {
+			if eo.Offset < 0 {
+				continue // not an offset
+			}
 			set[partition] = Offset{
 				at:    eo.Offset,
 				epoch: eo.Epoch,
 			}
 		}
-		assigns[topic] = set
+		if len(set) > 0 {
+			assigns[topic] = set
+		}
 	}
 	return assigns
 }

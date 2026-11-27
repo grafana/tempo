@@ -357,28 +357,50 @@ type TagReader interface {
 }
 
 // SkipTags skips tags in a TagReader.
+//
+// If b has an Ok method, as kbin.Reader does, we stop once it returns false.
+// Otherwise, a tag count larger than the input loops until the count is
+// exhausted.
 func SkipTags(b TagReader) {
-	for num := b.Uvarint(); num > 0; num-- {
+	for num := b.Uvarint(); num > 0 && tagReaderOk(b); num-- {
 		_, size := b.Uvarint(), b.Uvarint()
 		b.Span(int(size))
 	}
 }
 
 // ReadTags reads tags in a TagReader and returns the tags.
+//
+// If b has an Ok method, as kbin.Reader does, we stop once it returns false.
+// Otherwise, a tag count larger than the input loops until the count is
+// exhausted.
 func ReadTags(b TagReader) Tags {
 	var t Tags
-	for num := b.Uvarint(); num > 0; num-- {
+	for num := b.Uvarint(); num > 0 && tagReaderOk(b); num-- {
 		key, size := b.Uvarint(), b.Uvarint()
 		t.Set(key, b.Span(int(size)))
 	}
 	return t
 }
 
-// internalReadTags reads tags in a reader and returns the tags from a
-// duplicated inner kbin.Reader.
-func internalReadTags(b *kbin.Reader) Tags {
+func tagReaderOk(b TagReader) bool {
+	r, ok := b.(interface{ Ok() bool })
+	return !ok || r.Ok()
+}
+
+// internalReadTags reads tags in a reader into dst from a duplicated inner
+// kbin.Reader.
+func internalReadTags(b *kbin.Reader, dst *Tags) {
+	if len(b.Src) > 0 && b.Src[0] == 0 {
+		b.Src = b.Src[1:]
+		*dst = Tags{}
+		return
+	}
+	*dst = internalReadTagsSlow(b)
+}
+
+func internalReadTagsSlow(b *kbin.Reader) Tags {
 	var t Tags
-	for num := b.Uvarint(); num > 0; num-- {
+	for num := b.Uvarint(); num > 0 && b.Ok(); num-- {
 		key, size := b.Uvarint(), b.Uvarint()
 		t.Set(key, b.Span(int(size)))
 	}
@@ -424,6 +446,23 @@ func (t *Tags) Set(key uint32, val []byte) {
 
 // AppendEach appends each keyval in tags to dst and returns the updated dst.
 func (t *Tags) AppendEach(dst []byte) []byte {
+	if len(t.keyvals) == 0 {
+		return dst
+	}
+	return t.appendEach(dst)
+}
+
+// appendWithCount appends the number of tags and then each tag, for a struct
+// that has no tags of its own.
+func (t *Tags) appendWithCount(dst []byte) []byte {
+	if len(t.keyvals) == 0 {
+		return append(dst, 0)
+	}
+	dst = kbin.AppendUvarint(dst, uint32(len(t.keyvals)))
+	return t.appendEach(dst)
+}
+
+func (t *Tags) appendEach(dst []byte) []byte {
 	t.Each(func(key uint32, val []byte) {
 		dst = kbin.AppendUvarint(dst, key)
 		dst = kbin.AppendUvarint(dst, uint32(len(val)))

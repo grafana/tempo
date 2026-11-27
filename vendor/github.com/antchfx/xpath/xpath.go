@@ -72,8 +72,9 @@ type NodeNavigator interface {
 
 // NodeIterator holds all matched Node object.
 type NodeIterator struct {
-	node  NodeNavigator
-	query query
+	node   NodeNavigator
+	query  query
+	scalar bool
 }
 
 // Current returns current node which matched.
@@ -83,6 +84,9 @@ func (t *NodeIterator) Current() NodeNavigator {
 
 // MoveNext moves Navigator to the next match node.
 func (t *NodeIterator) MoveNext() bool {
+	if t.scalar {
+		return false
+	}
 	n := t.query.Select(t)
 	if n == nil {
 		return false
@@ -128,7 +132,7 @@ func (expr *Expr) Evaluate(root NodeNavigator) interface{} {
 
 // Select selects a node set using the specified XPath expression.
 func (expr *Expr) Select(root NodeNavigator) *NodeIterator {
-	return &NodeIterator{query: expr.q.Clone(), node: root}
+	return &NodeIterator{query: expr.q.Clone(), node: root, scalar: expr.q.ValueType() == xpathResultType.Boolean}
 }
 
 // String returns XPath expression string.
