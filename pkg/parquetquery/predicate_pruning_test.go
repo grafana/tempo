@@ -7,6 +7,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/grafana/tempo/v3/pkg/parquetquery/base"
+
 	"github.com/grafana/dskit/user"
 	"github.com/parquet-go/parquet-go"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -310,7 +312,7 @@ func TestKeepColumnChunkReadsIndexOnlyWhenNeeded(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cc := &countingChunk{ColumnChunk: pf.RowGroups()[0].ColumnChunks()[0]}
-			it := &SyncIterator{filter: tt.pred}
+			it := &SyncIterator{state: base.IteratorState{Filter: tt.pred}}
 			require.Equal(t, tt.keep, it.keepColumnChunk(&ColumnChunkHelper{ColumnChunk: cc}))
 			require.Equal(t, tt.indexReads, cc.indexReads)
 		})
@@ -411,7 +413,7 @@ func TestKeepColumnChunkDecisions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cc := &countingChunk{ColumnChunk: tt.chunk}
-			it := &SyncIterator{filter: tt.pred}
+			it := &SyncIterator{state: base.IteratorState{Filter: tt.pred}}
 			require.Equal(t, tt.keep, it.keepColumnChunk(&ColumnChunkHelper{ColumnChunk: cc}))
 			require.Equal(t, tt.indexReads, cc.indexReads, "column index reads")
 		})
@@ -442,7 +444,7 @@ func TestKeepPageDecisions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			it := &SyncIterator{filter: tt.pred}
+			it := &SyncIterator{state: base.IteratorState{Filter: tt.pred}}
 			require.Equal(t, tt.keep, it.keepPage(tt.page))
 		})
 	}
