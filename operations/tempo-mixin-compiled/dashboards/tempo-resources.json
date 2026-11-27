@@ -185,7 +185,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -257,7 +257,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (go heap inuse)",
+     "title": "Memory (Go heap in use)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -447,7 +447,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -519,7 +519,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (go heap inuse)",
+     "title": "Memory (Go heap in use)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -709,7 +709,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -781,7 +781,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (go heap inuse)",
+     "title": "Memory (Go heap in use)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -971,7 +971,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1043,7 +1043,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (go heap inuse)",
+     "title": "Memory (Go heap in use)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1233,7 +1233,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1305,7 +1305,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (go heap inuse)",
+     "title": "Memory (Go heap in use)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1331,7 +1331,7 @@
    "repeatIteration": null,
    "repeatRowId": null,
    "showTitle": true,
-   "title": "Query Frontend",
+   "title": "Query-frontend",
    "titleSize": "h6"
   },
   {
@@ -1495,7 +1495,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1567,7 +1567,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (go heap inuse)",
+     "title": "Memory (Go heap in use)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1757,7 +1757,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -1947,7 +1947,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -2019,7 +2019,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (go heap inuse)",
+     "title": "Memory (Go heap in use)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -2209,7 +2209,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -2281,7 +2281,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (go heap inuse)",
+     "title": "Memory (Go heap in use)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -2471,7 +2471,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -2543,7 +2543,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (go heap inuse)",
+     "title": "Memory (Go heap in use)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -2733,7 +2733,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (workingset)",
+     "title": "Memory (working set)",
      "type": "timeseries",
      "yaxes": [
       {
@@ -2805,7 +2805,7 @@
        "legendLink": null
       }
      ],
-     "title": "Memory (go heap inuse)",
+     "title": "Memory (Go heap in use)",
      "type": "timeseries",
      "yaxes": [
       {

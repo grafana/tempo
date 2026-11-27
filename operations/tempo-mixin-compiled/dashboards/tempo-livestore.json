@@ -31,7 +31,7 @@
    "panels": [
     {
      "datasource": "$datasource",
-     "description": "### Read latency p99 by zone/route\nFirst read-path signal: p99 live-store read latency split by zone and gRPC route. If this rises, open the Read latency row next.\n",
+     "description": "### By zone/route p99 read latency\nFirst read-path signal: p99 live-store read latency split by zone and gRPC route. If this rises, open the Read latency row next.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -87,12 +87,12 @@
        "legendLink": null
       }
      ],
-     "title": "Read latency p99 by zone/route",
+     "title": "By zone/route p99 read latency",
      "type": "timeseries"
     },
     {
      "datasource": "$datasource",
-     "description": "### Read QPS by zone\nLive-store read request rate by zone. This gives read-traffic context for the p99 latency panel without route-cardinality noise.\n",
+     "description": "### Read requests / sec by zone\nLive-store read request rate by zone. This gives read-traffic context for the p99 latency panel without route-cardinality noise.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -148,7 +148,7 @@
        "legendLink": null
       }
      ],
-     "title": "Read QPS by zone",
+     "title": "Read requests / sec by zone",
      "type": "timeseries"
     },
     {
@@ -212,7 +212,7 @@
     },
     {
      "datasource": "$datasource",
-     "description": "### Backpressure seconds/s by zone\nAccumulated backpressure seconds per second, split by live-store zone. Values can exceed 1 when multiple pushes wait concurrently. Uses tempo_live_store_back_pressure_seconds_total when present, with duration histogram sum as fallback for cells that do not expose the counter.\n",
+     "description": "### Backpressure seconds / sec by zone\nAccumulated backpressure seconds per second, split by live-store zone. Values can exceed 1 when multiple pushes wait concurrently. Uses tempo_live_store_back_pressure_seconds_total when present, with duration histogram sum as fallback for cells that do not expose the counter.\n",
      "fieldConfig": {
       "defaults": {
        "color": {
@@ -266,12 +266,12 @@
        "step": null
       }
      ],
-     "title": "Backpressure seconds/s by zone",
+     "title": "Backpressure seconds / sec by zone",
      "type": "stat"
     },
     {
      "datasource": "$datasource",
-     "description": "### Complete queue depth by zone\nPending complete-block queue depth by live-store zone. Max highlights the hottest pod; p99 shows broad zone pressure.\n",
+     "description": "### Completion queue length by zone\nPending complete-block queue depth by live-store zone. Max highlights the hottest pod; p99 shows broad zone pressure.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -334,7 +334,7 @@
        "legendLink": null
       }
      ],
-     "title": "Complete queue depth by zone",
+     "title": "Completion queue length by zone",
      "type": "timeseries"
     }
    ],
@@ -351,7 +351,7 @@
    "panels": [
     {
      "datasource": "$datasource",
-     "description": "### Query latency p99/p50 by namespace/route\nLive-store read latency by cluster, namespace, and gRPC route with live-store zones collapsed by aggregating histogram buckets before quantiles. This is the request-weighted latency view; use zone-specific panels only for diagnostics.\n",
+     "description": "### By namespace/route query latency\nLive-store read latency by cluster, namespace, and gRPC route with live-store zones collapsed by aggregating histogram buckets before quantiles. This is the request-weighted latency view; use zone-specific panels only for diagnostics.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -414,12 +414,12 @@
        "legendLink": null
       }
      ],
-     "title": "Query latency p99/p50 by namespace/route",
+     "title": "By namespace/route query latency",
      "type": "timeseries"
     },
     {
      "datasource": "$datasource",
-     "description": "### Query QPS by namespace/route\nRead traffic served by live-store query routes, split by cluster, namespace, and route with live-store zones collapsed.\n",
+     "description": "### Requests / sec by namespace/route\nRead traffic served by live-store query routes, split by cluster, namespace, and route with live-store zones collapsed.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -475,12 +475,12 @@
        "legendLink": null
       }
      ],
-     "title": "Query QPS by namespace/route",
+     "title": "Requests / sec by namespace/route",
      "type": "timeseries"
     },
     {
      "datasource": "$datasource",
-     "description": "### Lag-affected requests/s\nLive-store request rate where Kafka lag means complete results cannot be guaranteed, split by cluster, namespace, zone, and route. This counts live-store RPC attempts; querier zone failover may prevent an end-user failure.\n",
+     "description": "### Lag-affected requests / sec\nLive-store request rate where Kafka lag means complete results cannot be guaranteed, split by cluster, namespace, zone, and route. This counts live-store RPC attempts; querier zone failover may prevent an end-user failure.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -536,7 +536,7 @@
        "legendLink": null
       }
      ],
-     "title": "Lag-affected requests/s",
+     "title": "Lag-affected requests / sec",
      "type": "timeseries"
     }
    ],
@@ -675,7 +675,7 @@
     },
     {
      "datasource": "$datasource",
-     "description": "### Records processed/s by zone\nLive-store records processed after Kafka fetch, split by live-store zone. This avoids hiding zone imbalance or double-counting as a single total.\n",
+     "description": "### Record processing rate by zone\nLive-store records processed after Kafka fetch, split by live-store zone. This avoids hiding zone imbalance or double-counting as a single total.\n",
      "fieldConfig": {
       "defaults": {
        "color": {
@@ -729,12 +729,12 @@
        "step": null
       }
      ],
-     "title": "Records processed/s by zone",
+     "title": "Record processing rate by zone",
      "type": "stat"
     },
     {
      "datasource": "$datasource",
-     "description": "### Bytes received/s by zone\nConsumer-side live-store input bytes/s from the ingest stream, split by live-store zone. This is live-store consumer work, not unique producer-side Kafka ingress.\n",
+     "description": "### Input throughput by zone\nConsumer-side live-store input bytes/s from the ingest stream, split by live-store zone. This is live-store consumer work, not unique producer-side Kafka ingress.\n",
      "fieldConfig": {
       "defaults": {
        "color": {
@@ -788,12 +788,12 @@
        "step": null
       }
      ],
-     "title": "Bytes received/s by zone",
+     "title": "Input throughput by zone",
      "type": "stat"
     },
     {
      "datasource": "$datasource",
-     "description": "### Records processed trend by zone\nLive-store records successfully processed after Kafka fetch, split by zone. This is not a loss detector; use lag, backpressure, completion queue, readiness, and logs to investigate missing throughput.\n",
+     "description": "### Record processing trend by zone\nLive-store records successfully processed after Kafka fetch, split by zone. This is not a loss detector; use lag, backpressure, completion queue, readiness, and logs to investigate missing throughput.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -849,7 +849,7 @@
        "legendLink": null
       }
      ],
-     "title": "Records processed trend by zone",
+     "title": "Record processing trend by zone",
      "type": "timeseries"
     }
    ],
@@ -866,7 +866,7 @@
    "panels": [
     {
      "datasource": "$datasource",
-     "description": "### Backpressure seconds/s by zone/reason\nAccumulated backpressure seconds per second by live-store zone and reason. Values can exceed 1 when multiple pushes wait concurrently. Uses reason when the counter is available; otherwise falls back to duration-sum by zone.\n",
+     "description": "### Backpressure seconds / sec by zone/reason\nAccumulated backpressure seconds per second by live-store zone and reason. Values can exceed 1 when multiple pushes wait concurrently. Uses reason when the counter is available; otherwise falls back to duration-sum by zone.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -922,7 +922,7 @@
        "legendLink": null
       }
      ],
-     "title": "Backpressure seconds/s by zone/reason",
+     "title": "Backpressure seconds / sec by zone/reason",
      "type": "timeseries"
     },
     {
@@ -995,7 +995,7 @@
     },
     {
      "datasource": "$datasource",
-     "description": "### Backpressure seconds/s by pod\nTop live-store pods by accumulated backpressure seconds per second. Values can exceed 1 when multiple pushes wait concurrently. Reason is shown when that counter is available; otherwise duration-sum fallback is shown by pod.\n",
+     "description": "### Backpressure seconds / sec per pod\nTop live-store pods by accumulated backpressure seconds per second. Values can exceed 1 when multiple pushes wait concurrently. Reason is shown when that counter is available; otherwise duration-sum fallback is shown by pod.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -1051,12 +1051,12 @@
        "legendLink": null
       }
      ],
-     "title": "Backpressure seconds/s by pod",
+     "title": "Backpressure seconds / sec per pod",
      "type": "timeseries"
     },
     {
      "datasource": "$datasource",
-     "description": "### Live-store readiness by zone\nReady live-store pods versus pod count, split by zone. Drops indicate lost capacity or pods not serving normally.\n",
+     "description": "### Readiness by zone\nReady live-store pods versus pod count, split by zone. Drops indicate lost capacity or pods not serving normally.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -1119,7 +1119,7 @@
        "legendLink": null
       }
      ],
-     "title": "Live-store readiness by zone",
+     "title": "Readiness by zone",
      "type": "timeseries"
     },
     {
@@ -1197,7 +1197,7 @@
    "panels": [
     {
      "datasource": "$datasource",
-     "description": "### Completion duration by zone\nWAL completion latency by live-store zone. Rising p99 with queue depth indicates completion throughput trouble.\n",
+     "description": "### Completion latency by zone\nWAL completion latency by live-store zone. Rising p99 with queue depth indicates completion throughput trouble.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -1260,12 +1260,12 @@
        "legendLink": null
       }
      ],
-     "title": "Completion duration by zone",
+     "title": "Completion latency by zone",
      "type": "timeseries"
     },
     {
      "datasource": "$datasource",
-     "description": "### Blocks completed / failures by zone\nSuccessful block completions, failures, and retries by live-store zone.\n",
+     "description": "### Block completion/failure rates by zone\nSuccessful block completions, failures, and retries by live-store zone.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -1335,12 +1335,12 @@
        "legendLink": null
       }
      ],
-     "title": "Blocks completed / failures by zone",
+     "title": "Block completion/failure rates by zone",
      "type": "timeseries"
     },
     {
      "datasource": "$datasource",
-     "description": "### Completion failures/s by zone\nWAL complete-block failures split by live-store zone. Non-zero means the completion path needs inspection.\n",
+     "description": "### Completion failure rate by zone\nWAL complete-block failures split by live-store zone. Non-zero means the completion path needs inspection.\n",
      "fieldConfig": {
       "defaults": {
        "color": {
@@ -1394,7 +1394,7 @@
        "step": null
       }
      ],
-     "title": "Completion failures/s by zone",
+     "title": "Completion failure rate by zone",
      "type": "stat"
     },
     {
@@ -1467,7 +1467,7 @@
     },
     {
      "datasource": "$datasource",
-     "description": "### Blocks cut by zone/reason\nRate of WAL block cuts by zone and reason. Use with block size to confirm expected cut behavior.\n",
+     "description": "### Block cut rate by zone/reason\nRate of WAL block cuts by zone and reason. Use with block size to confirm expected cut behavior.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -1523,7 +1523,7 @@
        "legendLink": null
       }
      ],
-     "title": "Blocks cut by zone/reason",
+     "title": "Block cut rate by zone/reason",
      "type": "timeseries"
     }
    ],
@@ -1661,7 +1661,7 @@
      "type": "timeseries"
     },
     {
-     "description": "### Top tenants by traces created/s (current)\nCurrent top tenants by live-store trace creation rate across selected zones.\n",
+     "description": "### Top tenants by trace creation rate (current)\nCurrent top tenants by live-store trace creation rate across selected zones.\n",
      "id": 26,
      "span": 6,
      "styles": [
@@ -1734,7 +1734,7 @@
        "refId": "A"
       }
      ],
-     "title": "Top tenants by traces created/s (current)",
+     "title": "Top tenants by trace creation rate (current)",
      "transform": "table",
      "transformations": [
       {
@@ -2038,7 +2038,7 @@
     },
     {
      "datasource": "$datasource",
-     "description": "### Go heap allocation by zone\nGo heap allocation churn summed by live-store zone. Rising allocation with backpressure suggests GC/memory pressure.\n",
+     "description": "### Go heap allocation rate by zone\nGo heap allocation churn summed by live-store zone. Rising allocation with backpressure suggests GC/memory pressure.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -2094,7 +2094,7 @@
        "legendLink": null
       }
      ],
-     "title": "Go heap allocation by zone",
+     "title": "Go heap allocation rate by zone",
      "type": "timeseries"
     },
     {
@@ -2172,7 +2172,7 @@
    "panels": [
     {
      "datasource": "$datasource",
-     "description": "### KEDA/HPA replicas\nReplica bounds and HPA decisions for live-store when present plus the Warpstream agents that feed the live-store path. Some prod cells do not have a live-store HPA.\n",
+     "description": "### Replicas\nReplica bounds and HPA decisions for live-store when present plus the Warpstream agents that feed the live-store path. Some prod cells do not have a live-store HPA.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -2249,12 +2249,12 @@
        "legendLink": null
       }
      ],
-     "title": "KEDA/HPA replicas",
+     "title": "Replicas",
      "type": "timeseries"
     },
     {
      "datasource": "$datasource",
-     "description": "### KEDA CPU desired replicas\nKEDA scaler metric divided by the HPA target, following the Warpstream Agent Read dashboard pattern. Shows which Warpstream agent CPU scaler is driving desired replicas.\n",
+     "description": "### Desired replicas (CPU)\nKEDA scaler metric divided by the HPA target, following the Warpstream Agent Read dashboard pattern. Shows which Warpstream agent CPU scaler is driving desired replicas.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -2310,12 +2310,12 @@
        "legendLink": null
       }
      ],
-     "title": "KEDA CPU desired replicas",
+     "title": "Desired replicas (CPU)",
      "type": "timeseries"
     },
     {
      "datasource": "$datasource",
-     "description": "### KEDA memory desired replicas\nKEDA memory scaler metric divided by the HPA target, following the Warpstream Agent Read dashboard pattern.\n",
+     "description": "### Desired replicas (memory)\nKEDA memory scaler metric divided by the HPA target, following the Warpstream Agent Read dashboard pattern.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -2371,12 +2371,12 @@
        "legendLink": null
       }
      ],
-     "title": "KEDA memory desired replicas",
+     "title": "Desired replicas (memory)",
      "type": "timeseries"
     },
     {
      "datasource": "$datasource",
-     "description": "### KEDA scaler failures\nKEDA scaler error rate for live-store when present plus Warpstream agents on the live-store ingest path.\n",
+     "description": "### Autoscaler failures rate\nKEDA scaler error rate for live-store when present plus Warpstream agents on the live-store ingest path.\n",
      "fieldConfig": {
       "defaults": {
        "custom": {
@@ -2432,7 +2432,7 @@
        "legendLink": null
       }
      ],
-     "title": "KEDA scaler failures",
+     "title": "Autoscaler failures rate",
      "type": "timeseries"
     }
    ],

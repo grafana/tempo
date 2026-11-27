@@ -9,68 +9,68 @@ dashboard_utils {
       .addRow(
         g.row('Gateway')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"%sapi_.*"}' % [$.jobMatcher($._config.jobs.gateway), $._config.http_api_prefix])
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Request latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"%sapi_.*"}' % [$.jobMatcher($._config.jobs.gateway), $._config.http_api_prefix], additional_grouping='route')
         )
       )
       .addRow(
-        g.row('Query Frontend')
+        g.row('Query-frontend')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"%sapi_.*"}' % [$.jobMatcher($._config.jobs.query_frontend), $._config.http_api_prefix])
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Request latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"%sapi_.*"}' % [$.jobMatcher($._config.jobs.query_frontend), $._config.http_api_prefix], additional_grouping='route')
         )
       )
       .addRow(
         g.row('Querier')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"querier_%sapi_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix])
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Request latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"querier_%sapi_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix], additional_grouping='route')
         )
         .addPanel(
-          $.panel('Requests Executed') +
+          $.panel('Requests executed') +
           $.latencyPanel('tempo_querier_worker_request_executed_total', '{%s,route=~"querier_%sapi_.*"}' % [$.jobMatcher($._config.jobs.querier), $._config.http_api_prefix], additional_grouping='route')
         )
       )
       .addRow(
         g.row('Livestore')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.qpsPanel('tempo_request_duration_seconds_count{%s, route=~"/tempopb.Querier/.*"}' % $.containerMatcher($._config.jobs.live_store))
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Request latency') +
           $.latencyPanel('tempo_request_duration_seconds', '{%s,route=~"/tempopb.Querier/.*"}' % $.containerMatcher($._config.jobs.live_store), additional_grouping='route')
         )
         .addPanel(
-          $.panel('Pending Queue Length') +
+          $.panel('Pending queue length') +
           $.queryPanel(
             'tempo_live_store_complete_queue_length{%s}' % $.podMatcher('live-store-zone.*'), '{{pod}}'
           ) + { fieldConfig+: { defaults+: { unit: 'short' } } }
         )
         .addPanel(
-          $.panel('Completed Blocks') +
+          $.panel('Block completion rate') +
           $.queryPanel('sum by(pod) (rate(tempo_live_store_blocks_completed_total{%s}[$__rate_interval]))' % $.containerMatcher($._config.jobs.live_store), '{{pod}}') +
           { fieldConfig+: { defaults+: { unit: 'ops' } } }
         )
       )
       .addRow(
-        $.row('Livestore Partitions')
+        $.row('Livestore partitions')
         .addPanel(
-          $.timeseriesPanel('Lag of records by partition') +
+          $.timeseriesPanel('Record lag by partition') +
           $.panelDescription(
-            'Kafka lag by partition records',
+            'Record lag by partition',
             'Overview of the lag by partition in records.',
           ) +
           $.queryPanel(
@@ -81,9 +81,9 @@ dashboard_utils {
           { fieldConfig+: { defaults+: { unit: 'short' } } },
         )
         .addPanel(
-          $.timeseriesPanel('Lag by partition (sec)') +
+          $.timeseriesPanel('Time lag by partition') +
           $.panelDescription(
-            'Kafka lag by partition in seconds',
+            'Time lag by partition',
             'Overview of the lag by partition in seconds.',
           ) +
           $.queryPanel(
@@ -97,38 +97,38 @@ dashboard_utils {
       .addRow(
         g.row('Memcached')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.qpsPanel('tempo_memcache_request_duration_seconds_count{%s,method=~"Memcache.Get|Memcache.GetMulti"}' % $.jobMatcher($._config.jobs.querier))
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Read latency') +
           $.latencyPanel('tempo_memcache_request_duration_seconds', '{%s,method=~"Memcache.Get|Memcache.GetMulti"}' % $.jobMatcher($._config.jobs.querier))
         )
       )
       .addRow(
         g.row('Backend')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.qpsPanel('tempodb_backend_request_duration_seconds_count{%s,operation="GET"}' % $.jobMatcher($._config.jobs.querier))
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Read latency') +
           $.latencyPanel('tempodb_backend_request_duration_seconds', '{%s,operation="GET"}' % $.jobMatcher($._config.jobs.querier))
         )
       )
       .addRow(
-        g.row('External Requests')
+        g.row('External requests')
         .addPanel(
-          $.panel('QPS') +
+          $.panel('Requests / sec') +
           $.qpsPanel('tempo_querier_external_endpoint_request_duration_seconds_count{%s}' % $.jobMatcher($._config.jobs.querier))
         )
         .addPanel(
-          $.panel('Latency') +
+          $.panel('Request latency') +
           $.latencyPanel('tempo_querier_external_endpoint_request_duration_seconds', '{%s}' % $.jobMatcher($._config.jobs.querier))
         )
       )
       // Autoscaling rows are grouped at the bottom so they don't interleave with the request-path rows.
-      .addRowIf($._config.autoscaling.query_frontend.enabled, $.autoscalingRow('Query Frontend', 'query_frontend'))
+      .addRowIf($._config.autoscaling.query_frontend.enabled, $.autoscalingRow('Query-frontend', 'query_frontend'))
       .addRowIf($._config.autoscaling.querier.enabled, $.autoscalingRow('Querier', 'querier')),
   },
 }
