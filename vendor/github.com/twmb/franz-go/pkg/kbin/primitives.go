@@ -253,6 +253,13 @@ func AppendVarint(dst []byte, i int32) []byte {
 
 // AppendUvarint appends a uvarint encoded u to dst.
 func AppendUvarint(dst []byte, u uint32) []byte {
+	if u < 0x80 {
+		return append(dst, byte(u))
+	}
+	return appendUvarint(dst, u)
+}
+
+func appendUvarint(dst []byte, u uint32) []byte {
 	switch UvarintLen(u) {
 	case 5:
 		return append(dst,
@@ -627,6 +634,15 @@ func (b *Reader) Varlong() int64 {
 
 // Uvarint returns a uvarint encoded uint32 from the reader.
 func (b *Reader) Uvarint() uint32 {
+	if len(b.Src) > 0 && b.Src[0] < 0x80 {
+		r := uint32(b.Src[0])
+		b.Src = b.Src[1:]
+		return r
+	}
+	return b.uvarint()
+}
+
+func (b *Reader) uvarint() uint32 {
 	val, n := Uvarint(b.Src)
 	if n <= 0 {
 		b.bad = true

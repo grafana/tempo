@@ -74,6 +74,15 @@ telemetry:
         value_type: int
         monotonic: true
 
+    processor_spanpruning_invalid_traces:
+      enabled: true
+      description: Total traces left unpruned because their span structure is invalid, such as parent links forming a cycle
+      unit: "{traces}"
+      stability: development
+      sum:
+        value_type: int
+        monotonic: true
+
     processor_spanpruning_leaf_attribute_diversity_loss:
       enabled: false
       description: Attribute values lost due to diversity per leaf aggregation

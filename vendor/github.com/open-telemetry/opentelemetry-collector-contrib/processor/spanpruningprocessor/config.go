@@ -28,11 +28,30 @@ const (
 	OutlierMethodMAD OutlierMethod = "mad"
 )
 
+// DurationTransform selects a transform applied to span durations before
+// outlier thresholds are computed.
+type DurationTransform string
+
+const (
+	// DurationTransformNone runs the method over durations unchanged, so two
+	// spans are far apart when their difference is large.
+	DurationTransformNone DurationTransform = "none"
+
+	// DurationTransformLog runs the method over the natural log of each
+	// duration, so two spans are far apart when their ratio is large.
+	DurationTransformLog DurationTransform = "log"
+)
+
 // OutlierAnalysisConfig controls outlier detection and attribute correlation.
 type OutlierAnalysisConfig struct {
 	// Method selects the statistical method for outlier detection.
 	// Valid values: "iqr" (default), "mad"
 	Method OutlierMethod `mapstructure:"method"`
+
+	// DurationTransform selects a transform applied to durations before the
+	// outlier method measures their spread.
+	// Valid values: "none" (default), "log"
+	DurationTransform DurationTransform `mapstructure:"duration_transform"`
 
 	// IQRMultiplier sets the threshold for IQR-based outlier detection.
 	// Outliers are spans with duration > Q3 + (IQRMultiplier * IQR).
@@ -277,6 +296,9 @@ func (cfg *OutlierAnalysisConfig) Validate(enabled bool) error {
 	}
 	if cfg.Method != "" && cfg.Method != OutlierMethodIQR && cfg.Method != OutlierMethodMAD {
 		return fmt.Errorf("outlier_analysis.method must be %q or %q", OutlierMethodIQR, OutlierMethodMAD)
+	}
+	if cfg.DurationTransform != "" && cfg.DurationTransform != DurationTransformNone && cfg.DurationTransform != DurationTransformLog {
+		return fmt.Errorf("outlier_analysis.duration_transform must be %q or %q", DurationTransformNone, DurationTransformLog)
 	}
 	if cfg.IQRMultiplier <= 0 {
 		return errors.New("outlier_analysis.iqr_multiplier must be positive")

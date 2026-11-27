@@ -15,7 +15,9 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,7 +32,7 @@ type Auth struct {
 	// AccessKey is an AWS AccessKey.
 	AccessKey string
 
-	// AccessKey is an AWS SecretKey.
+	// SecretKey is an AWS SecretKey.
 	SecretKey string
 
 	// SessionToken, if non-empty, is a session / security token to use for
@@ -137,7 +139,7 @@ func challenge(auth Auth, host string) ([]byte, error) {
 	v.Set("X-Amz-Algorithm", "AWS4-HMAC-SHA256")
 	v.Set("X-Amz-Credential", auth.AccessKey+"/"+scope)
 	v.Set("X-Amz-Date", timestamp)
-	v.Set("X-Amz-Expires", "300") // 5 min
+	v.Set("X-Amz-Expires", "900") // 15 min, as in the Java source
 	v.Set("X-Amz-SignedHeaders", "host")
 	if auth.SessionToken != "" {
 		v.Set("X-Amz-Security-Token", auth.SessionToken)
@@ -256,25 +258,41 @@ func task3(secretKey, region, date string, sts []byte) string {
 	return hex.EncodeToString(h.Sum(key[:0]))
 }
 
-// aws-java-sdk-core/src/main/resources/com/amazonaws/partitions/endpoints.json
+// The dnsSuffix and dualStackDnsSuffix of every partition in aws-sdk-go-v2's
+// internal/endpoints/awsrulesfn/partitions.json.
 var suffixes = []string{
 	".amazonaws.com",
+	".api.aws",
 	".amazonaws.com.cn",
+	".api.amazonwebservices.com.cn",
+	".amazonaws.eu",
+	".api.amazonwebservices.eu",
 	".c2s.ic.gov",
+	".api.aws.ic.gov",
 	".sc2s.sgov.gov",
+	".api.aws.scloud",
+	".cloud.adc-e.uk",
+	".api.cloud-aws.adc-e.uk",
+	".csp.hci.ic.gov",
+	".api.aws.hci.ic.gov",
 }
 
-// aws-java-sdk-core/src/main/java/com/amazonaws/partitions/PartitionMetadataProvider.java
-// tryGetRegionByEndpointDnsSuffix
+// A region such as us-east-1 or us-gov-west-1; this accepts every partition's
+// regionRegex in partitions.json.
+var reRegion = regexp.MustCompile(`^[a-z]+(-[a-z0-9]+)+-\d+$`)
+
+// As in the Java source, the region is the label before the suffix. A VPC
+// endpoint host has vpce there (vpce-<id>.kafka.us-east-1.vpce.amazonaws.com),
+// so we take the nearest label to its left that looks like a region.
 func identifyRegion(host string) (string, error) {
+	name := strings.TrimSuffix(strings.ToLower(host), ".") // a FQDN can end in the root "."
 	for _, suffix := range suffixes {
-		if strings.HasSuffix(host, suffix) {
-			serviceRegion := strings.TrimSuffix(host, suffix)
-			regionDot := strings.LastIndexByte(serviceRegion, '.')
-			if regionDot == -1 {
-				break
+		if prefix, ok := strings.CutSuffix(name, suffix); ok {
+			for _, label := range slices.Backward(strings.Split(prefix, ".")) {
+				if reRegion.MatchString(label) {
+					return label, nil
+				}
 			}
-			return serviceRegion[regionDot+1:], nil
 		}
 	}
 	return "", fmt.Errorf("cannot determine the region in %+q", host)

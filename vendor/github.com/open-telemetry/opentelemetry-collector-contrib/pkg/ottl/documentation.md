@@ -9,6 +9,7 @@ This component has the following feature gates:
 | Feature Gate | Stage | Description | From Version | To Version | Reference |
 | ------------ | ----- | ----------- | ------------ | ---------- | --------- |
 | `ottl.functions.enableLambda` | alpha | Allow OTTL functions to take lambda arguments. When disabled, lambda arguments are rejected. | v0.155.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/48227) |
+| `pkg.ottl.enableDynamicMapKeys` | alpha | Allow map literal keys to be paths or converters that resolve to a string at runtime. When disabled, map literal keys must be string literals. | v0.164.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/52210) |
 | `pkg.ottl.functions.enableDynamicSliceArguments` | beta | Allow slice arguments of stable OTTL functions, such as the values of Concat, to be paths or converters that resolve to a slice at runtime. When disabled, these arguments only accept list literals. | v0.163.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/27821) |
 | `pkg.ottl.functions.enableExperimental` | alpha | Allow OTTL statements and conditions to use experimental functions. When disabled, experimental functions are rejected. | v0.163.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/50927) |
 

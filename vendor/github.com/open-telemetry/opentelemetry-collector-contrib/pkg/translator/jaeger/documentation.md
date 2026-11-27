@@ -8,7 +8,7 @@ This component has the following feature gates:
 
 | Feature Gate | Stage | Description | From Version | To Version | Reference |
 | ------------ | ----- | ----------- | ------------ | ---------- | --------- |
-| `pkg.translator.jaeger.DontEmitV0HttpConventions` | alpha | When enabled, the Jaeger translator no longer emits the deprecated http.status_code attribute (semconv v1.25.0). Requires pkg.translator.jaeger.EmitV1HttpConventions to also be enabled. | v0.158.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45036) |
-| `pkg.translator.jaeger.EmitV1HttpConventions` | alpha | When enabled, the Jaeger translator emits http.response.status_code (semconv v1.40.0) instead of the deprecated http.status_code (semconv v1.25.0). | v0.158.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45036) |
+| `pkg.translator.jaeger.DontEmitV0HttpConventions` | beta | When enabled, the Jaeger translator no longer emits the deprecated http.status_code attribute (semconv v1.25.0). Requires pkg.translator.jaeger.EmitV1HttpConventions to also be enabled. | v0.158.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45036) |
+| `pkg.translator.jaeger.EmitV1HttpConventions` | beta | When enabled, the Jaeger translator emits http.response.status_code (semconv v1.40.0) instead of the deprecated http.status_code (semconv v1.25.0). | v0.158.0 | N/A | [Link](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45036) |
 
 For more information about feature gates, see the [Feature Gates](https://github.com/open-telemetry/opentelemetry-collector/blob/main/featuregate/README.md) documentation.

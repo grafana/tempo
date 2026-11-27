@@ -32,6 +32,7 @@ type TelemetryBuilder struct {
 	ProcessorSpanpruningBytesProcessedOutput         metric.Int64Counter
 	ProcessorSpanpruningBytesReceived                metric.Int64Counter
 	ProcessorSpanpruningExemplarsSampled             metric.Int64Counter
+	ProcessorSpanpruningInvalidTraces                metric.Int64Counter
 	ProcessorSpanpruningLeafAttributeDiversityLoss   metric.Int64Histogram
 	ProcessorSpanpruningLeafAttributeLoss            metric.Int64Histogram
 	ProcessorSpanpruningOutliersCorrelationsDetected metric.Int64Counter
@@ -115,6 +116,12 @@ func NewTelemetryBuilder(settings component.TelemetrySettings, options ...Teleme
 		"otelcol_processor_spanpruning_exemplars_sampled",
 		metric.WithDescription("Spans randomly sampled as exemplars (excluded from aggregation) [Development]"),
 		metric.WithUnit("{spans}"),
+	)
+	errs = errors.Join(errs, err)
+	builder.ProcessorSpanpruningInvalidTraces, err = builder.meter.Int64Counter(
+		"otelcol_processor_spanpruning_invalid_traces",
+		metric.WithDescription("Total traces left unpruned because their span structure is invalid, such as parent links forming a cycle [Development]"),
+		metric.WithUnit("{traces}"),
 	)
 	errs = errors.Join(errs, err)
 	builder.ProcessorSpanpruningLeafAttributeDiversityLoss, err = builder.meter.Int64Histogram(

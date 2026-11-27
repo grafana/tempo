@@ -134,8 +134,13 @@ func (p *spanPruningProcessor) processTraces(ctx context.Context, td ptrace.Trac
 
 	// Process each trace independently
 	tracesProcessed := int64(0)
+	tracesInvalid := int64(0)
 	for traceID := range matchedTraces {
-		p.processTrace(ctx, traceSpans[traceID])
+		if err := p.processTrace(ctx, traceSpans[traceID]); err != nil {
+			p.logger.Warn("leaving trace unpruned", zap.Stringer("trace.id", traceID), zap.Error(err))
+			tracesInvalid++
+			continue
+		}
 		tracesProcessed++
 	}
 
@@ -147,6 +152,9 @@ func (p *spanPruningProcessor) processTraces(ctx context.Context, td ptrace.Trac
 	}
 	if tracesSkipped > 0 {
 		p.telemetryBuilder.ProcessorSpanpruningTracesSkipped.Add(ctx, tracesSkipped)
+	}
+	if tracesInvalid > 0 {
+		p.telemetryBuilder.ProcessorSpanpruningInvalidTraces.Add(ctx, tracesInvalid)
 	}
 
 	// Measure bytes emitted after pruning to capture the reduction in trace size.
@@ -275,18 +283,22 @@ func (p *spanPruningProcessor) traceMatchesConditions(ctx context.Context, spans
 
 // processTrace applies the pruning algorithm to a single trace:
 // 1) analyze aggregation candidates bottom-up, 2) build a top-down execution
-// plan, and 3) create summary spans while removing originals.
-func (p *spanPruningProcessor) processTrace(ctx context.Context, spans []spanInfo) {
+// plan, and 3) create summary spans while removing originals. It returns an
+// error, leaving the trace untouched, when the trace cannot be pruned.
+func (p *spanPruningProcessor) processTrace(ctx context.Context, spans []spanInfo) error {
 	// Build trace tree
-	tree := p.buildTraceTree(spans)
+	tree, err := p.buildTraceTree(spans)
+	if err != nil {
+		return err
+	}
 	if len(tree.nodeByID) == 0 {
-		return
+		return nil
 	}
 
 	// Phase 1: Analyze aggregations (bottom-up)
 	aggregationGroups := p.analyzeAggregationsWithTree(ctx, tree)
 	if len(aggregationGroups) == 0 {
-		return
+		return nil
 	}
 
 	// Phase 2: Build aggregation plan (order top-down)
@@ -301,6 +313,7 @@ func (p *spanPruningProcessor) processTrace(ctx context.Context, spans []spanInf
 	for i := range plan.groups {
 		p.telemetryBuilder.ProcessorSpanpruningAggregationGroupSize.Record(ctx, int64(len(plan.groups[i].nodes)))
 	}
+	return nil
 }
 
 // analyzeAggregationsWithTree plans the candidate aggregation groups, then

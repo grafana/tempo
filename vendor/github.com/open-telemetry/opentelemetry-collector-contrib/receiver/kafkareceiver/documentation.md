@@ -111,6 +111,8 @@ The uncompressed size in bytes of received records seen by the client.
 
 Current message offset
 
+Reported only for currently assigned partitions after processing at least one record. Reporting stops when a partition is lost, revoked, or terminally paused, and resumes after a reassigned partition processes a record. Temporary backpressure and rewind pauses continue reporting the last observed offset. With eager group_rebalance_strategies (e.g. range), every rebalance revokes all partitions, so each series pauses until that partition's next record; the default cooperative-sticky strategy only affects moved partitions.
+
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
 | 1 | Gauge | Int | Development |
@@ -164,6 +166,8 @@ Deprecated in favor of kafka_receiver_records.
 
 Current offset lag
 
+Reported only for currently assigned partitions after processing at least one record. Reporting stops when a partition is lost, revoked, or terminally paused, and resumes after a reassigned partition processes a record. Temporary backpressure and rewind pauses continue reporting the last observed lag. With eager group_rebalance_strategies (e.g. range), every rebalance revokes all partitions, so each series pauses until that partition's next record; the default cooperative-sticky strategy only affects moved partitions.
+
 | Unit | Metric Type | Value Type | Stability |
 | ---- | ----------- | ---------- | --------- |
 | 1 | Gauge | Int | Development |
@@ -182,6 +186,40 @@ Number of finished partitions
 | Unit | Metric Type | Value Type | Monotonic | Stability |
 | ---- | ----------- | ---------- | --------- | --------- |
 | 1 | Sum | Int | true | Development |
+
+### otelcol_kafka_receiver_partition_data_wait
+
+Time waiting for data with no queued batch, current batch, or active record-processing call.
+
+Only produced with independent partition processing. Wait durations are recorded when a wait ends, including on partition loss or shutdown; ongoing waits, retries, rewinds, and time after shutdown are excluded. The SDK accumulates completed waits across assignments.
+
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| s | Sum | Double | true | Development |
+
+#### Attributes
+
+| Name | Description | Values | Semantic Convention |
+| ---- | ----------- | ------ | ------------------- |
+| topic | The Kafka topic. | Any Str | - |
+| partition | The Kafka topic partition. | Any Int | - |
+
+### otelcol_kafka_receiver_partition_in_flight_records
+
+The number of active record-processing calls, including decoding, Consume, and retry backoff.
+
+Only produced with independent partition processing. Excludes queued records, completed calls awaiting marking, and calls from stopped assignments. The count returns to zero when an assignment stops.
+
+| Unit | Metric Type | Value Type | Monotonic | Stability |
+| ---- | ----------- | ---------- | --------- | --------- |
+| 1 | Sum | Int | false | Development |
+
+#### Attributes
+
+| Name | Description | Values | Semantic Convention |
+| ---- | ----------- | ------ | ------------------- |
+| topic | The Kafka topic. | Any Str | - |
+| partition | The Kafka topic partition. | Any Int | - |
 
 ### otelcol_kafka_receiver_partition_start
 
@@ -209,6 +247,24 @@ Only produced when franz-go is enabled.
 | topic | The Kafka topic. | Any Str | - |
 | partition | The Kafka topic partition. | Any Int | - |
 | outcome | The operation outcome. | Str: ``success``, ``failure`` | - |
+
+### otelcol_kafka_receiver_record_processing_duration
+
+The duration of each decode or Consume attempt, including failures and excluding retry backoff.
+
+Only produced with independent partition processing. Observations are recorded when attempts return.
+
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| s | Histogram | Double | Development |
+
+#### Attributes
+
+| Name | Description | Values | Semantic Convention |
+| ---- | ----------- | ------ | ------------------- |
+| topic | The Kafka topic. | Any Str | - |
+| partition | The Kafka topic partition. | Any Int | - |
+| stage | The record processing stage. | Str: ``decode``, ``consume`` | - |
 
 ### otelcol_kafka_receiver_records
 

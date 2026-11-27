@@ -561,8 +561,8 @@ Available Converters:
 - [Day](#day)
 - [Double](#double)
 - [Duration](#duration)
-- [ExtractPatterns](#extractpatterns)
 - [ExtractGrokPatterns](#extractgrokpatterns)
+- [ExtractPatterns](#extractpatterns)
 - [FNV](#fnv)
 - [Format](#format)
 - [FormatTime](#formattime)
@@ -743,6 +743,8 @@ The output format is base64 encoding string of <2-byte-seed><source-IP-bytes><de
 `destination_port` is a destination port (must be between 0 and 65535).
 `protocol` (optional) is a protocol, one of `ICMP`, `TCP`, `UDP`, `RSVP`, `ICMP6` or `SCTP`. Defaults to `TCP` if not specified.
 `seed` (optional) is seed value (must be between 0 and 65535). Defaults to `0` if not specified.
+
+The Community ID specification mandates SHA-1, which is not a FIPS 140-3 approved algorithm for new uses. The converter computes the hash outside strict FIPS enforcement (`GODEBUG=fips140=only`) because the output is a flow identifier and not a security function.
 
 Examples:
 
@@ -927,22 +929,6 @@ Examples:
 - `Duration("333ms")`
 - `Duration("1000000h")`
 
-### ExtractPatterns
-
-`ExtractPatterns(target, pattern)`
-
-The `ExtractPatterns` Converter returns a `pcommon.Map` struct that is a result of extracting named capture groups from the target string. If not matches are found then an empty `pcommon.Map` is returned.
-
-`target` is a Getter that returns a string. `pattern` is a regex string.
-
-If `target` is not a string or nil `ExtractPatterns` will return an error. If `pattern` does not contain at least 1 named capture group then `ExtractPatterns` will error on startup.
-
-Examples:
-
-- `ExtractPatterns(resource.attributes["k8s.change_cause"], "GIT_SHA=(?P<git.sha>\w+)")`
-
-- `ExtractPatterns(log.body, "^(?P<timestamp>\\w+ \\w+ [0-9]+:[0-9]+:[0-9]+) (?P<hostname>([A-Za-z0-9-_]+)) (?P<process>\\w+)(\\[(?P<pid>\\d+)\\])?: (?P<message>.*)$")`
-
 ### ExtractGrokPatterns
 
 `ExtractGrokPatterns(target, pattern, Optional[namedCapturesOnly], Optional[patternDefinitions])`
@@ -956,7 +942,7 @@ It returns a `pcommon.Map` struct that is a result of extracting named capture g
 - `patternDefinitions` (optional) is a list of custom pattern definition strings used inside `pattern` in the form of `PATTERN_NAME=PATTERN`. 
 This parameter lets you define your own custom patterns to improve readability when the extracted `pattern` is not part of the default set or when you need custom naming. 
 
-If `target` is not a string or nil `ExtractGrokPatterns` returns an error. If `pattern` does not contain at least 1 named capture group and `namedCapturesOnly` is set to `true` then `ExtractPatterns` errors on startup.
+If `target` is not a string or nil `ExtractGrokPatterns` returns an error. If `pattern` does not contain at least 1 named capture group and `namedCapturesOnly` is set to `true` then `ExtractGrokPatterns` errors on startup.
 
 Parsing is done using [Elastic Go-Grok](https://github.com/elastic/go-grok?tab=readme-ov-file) library.
 Grok is a regular expression dialect that supports reusable aliased expressions. It sits on `re2` regex library so any valid `re2` expressions are valid in grok.
@@ -1000,7 +986,7 @@ Examples:
 
 - _Uses regex pattern with named captures to extract_:
 
-  `ExtractGrokPatterns(resource.attributes["k8s.change_cause"], "GIT_SHA=(?P<git.sha>\w+)")`
+  `ExtractGrokPatterns(resource.attributes["k8s.change_cause"], "GIT_SHA=(?P<git.sha>\\w+)")`
 
 - _Uses regex pattern with named captures to extract_:
 
@@ -1032,6 +1018,22 @@ Examples:
   - Return values: 
      - `user.name`: smith
      - `user.password`: pass123
+
+### ExtractPatterns
+
+`ExtractPatterns(target, pattern)`
+
+The `ExtractPatterns` Converter returns a `pcommon.Map` struct that is a result of extracting named capture groups from the target string. If not matches are found then an empty `pcommon.Map` is returned.
+
+`target` is a Getter that returns a string. `pattern` is a regex string.
+
+If `target` is not a string or nil `ExtractPatterns` will return an error. If `pattern` does not contain at least 1 named capture group then `ExtractPatterns` will error on startup.
+
+Examples:
+
+- `ExtractPatterns(resource.attributes["k8s.change_cause"], "GIT_SHA=(?P<git.sha>\\w+)")`
+
+- `ExtractPatterns(log.body, "^(?P<timestamp>\\w+ \\w+ [0-9]+:[0-9]+:[0-9]+) (?P<hostname>([A-Za-z0-9-_]+)) (?P<process>\\w+)(\\[(?P<pid>\\d+)\\])?: (?P<message>.*)$")`
 
 ### FNV
 
@@ -1126,7 +1128,7 @@ Examples:
 
 - `FormatTime(Time("02/04/2023", "%m/%d/%Y"), "%A %h %e %Y")`
 - `FormatTime(UnixNano(span.attributes["time_nanoseconds"]), "%b %d %Y %H:%M:%S")`
-- `FormatTime(TruncateTime(spanevent.time, Duration("10h 20m"))), "%Y-%m-%d %H:%M:%S")`
+- `FormatTime(TruncateTime(spanevent.time, Duration("10h20m")), "%Y-%m-%d %H:%M:%S")`
 
 ### GetXML
 
@@ -1354,9 +1356,6 @@ Examples:
 - `IsBool(false)`
 
 
-- `IsBool(pcommon.NewValueBool(false))`
-
-
 - `IsBool(42)`
 
 
@@ -1537,7 +1536,7 @@ The `Keys` Converter returns a slice containing all the keys from the given map.
 The returned type is `pcommon.Slice`.
 
 Examples:
-- 
+
 - `Keys(resource.attributes)`
 - `Keys({"k1":"v1", "k2": "v2"})`
 
@@ -1579,7 +1578,7 @@ Examples:
 - `Log(span.attributes["duration_ms"])`
 
 
-- `Int(Log(span.attributes["duration_ms"])`
+- `Int(Log(span.attributes["duration_ms"]))`
 
 ### IsValidLuhn
 
@@ -1616,11 +1615,13 @@ Examples:
 
 **Note:** According to the National Institute of Standards and Technology (NIST), MD5 is no longer a recommended hash function. It should be avoided except when required for compatibility. New uses should prefer a SHA-2 family function (e.g. SHA-256, SHA-512) whenever possible.
 
+MD5 is not a FIPS 140-3 approved algorithm. The converter computes the digest outside strict FIPS enforcement (`GODEBUG=fips140=only`) because the output is a plain hash of telemetry data and not a security function. Do not rely on `MD5` for any security purpose in a FIPS deployment.
+
 ### Microseconds
 
 `Microseconds(duration)`
 
-The `Microseconds` Converter returns the duration as an integer millisecond count.
+The `Microseconds` Converter returns the duration as an integer microsecond count.
 
 `duration` is a `time.Duration`. If `duration` is another type an error is returned.
 
@@ -1941,7 +1942,7 @@ An element has "extraneous text content" when it contains both text and element 
 3. Elements which contain child elements are converted into a key/value pair where the value is a map.
    e.g. `<foo> <bar>baz</bar> </foo>` becomes `"foo": { "bar": "baz" }`
 4. Sibling elements that share the same tag will be combined into a slice.
-   e.g. `<a> <b>1</b> <c>2</c> <c>3</c> </foo>` becomes `"a": { "b": "1", "c": [ "2", "3" ] }`.
+   e.g. `<a> <b>1</b> <c>2</c> <c>3</c> </a>` becomes `"a": { "b": "1", "c": [ "2", "3" ] }`.
 5. Empty elements are dropped, but they can determine whether a value should be a slice or map.
    e.g. `<a> <b>1</b> <b/> </a>` becomes `"a": { "b": [ "1" ] }` instead of `"a": { "b": "1" }`
 
@@ -1964,7 +1965,7 @@ Parse a Simplified XML document from the body:
 ```json
 {
   "event": {
-    "id": 1,
+    "id": "1",
     "user": "jane",
     "details": {
       "time": "2021-10-01T12:00:00Z",
@@ -2039,7 +2040,7 @@ If `target` is not a string, nil, or cannot be parsed as XML, `ParseXML` will re
 Unmarshalling XML is done using the following rules:
 1. All character data for an XML element is trimmed, joined, and placed into the `content` field.
 2. The tag for an XML element is trimmed, and placed into the `tag` field.
-3. The attributes for an XML element is placed as a `pcommon.Map` into the `attribute` field.
+3. The attributes for an XML element is placed as a `pcommon.Map` into the `attributes` field.
 4. Processing instructions, directives, and comments are ignored and not represented in the resultant map.
 5. All child elements are parsed as above, and placed in a `pcommon.Slice`, which is then placed into the `children` field.
 
@@ -2213,6 +2214,8 @@ Examples:
 
 **Note:** [According to the National Institute of Standards and Technology (NIST)](https://csrc.nist.gov/projects/hash-functions), SHA1 is no longer a recommended hash function. It should be avoided except when required for compatibility. New uses should prefer a SHA-2 family function (such as SHA-256 or SHA-512) whenever possible.
 
+SHA-1 is not a FIPS 140-3 approved algorithm for new uses. The converter computes the digest outside strict FIPS enforcement (`GODEBUG=fips140=only`) because the output is a plain hash of telemetry data and not a security function. Do not rely on `SHA1` for any security purpose in a FIPS deployment.
+
 ### SHA256
 
 `SHA256(target)`
@@ -2322,8 +2325,8 @@ attributes:
 Once the `SliceToMap` function has been applied to a value, the converted entries are addressable via their keys:
 
 - `set(resource.attributes["thingsMap"], SliceToMap(resource.attributes["things"], ["name"]))`
-- `set(resource.attributes["element_1"], resource.attributes["thingsMap"]["foo'])`
-- `set(resource.attributes["element_2"], resource.attributes["thingsMap"]["bar'])`
+- `set(resource.attributes["element_1"], resource.attributes["thingsMap"]["foo"])`
+- `set(resource.attributes["element_2"], resource.attributes["thingsMap"]["bar"])`
 
 ### Sort
 
@@ -2415,7 +2418,7 @@ Examples:
 
 `TrimSuffix(target, suffix)`
 
-The `TrimSuffix` function returns the `target` without the provided trailing `suffix` string. If `target` doesn't start with `suffix`, `target` is returned unchanged.
+The `TrimSuffix` function returns the `target` without the provided trailing `suffix` string. If `target` doesn't end with `suffix`, `target` is returned unchanged.
 
 The returned type is `string`.
 
@@ -2580,7 +2583,7 @@ The `ToKeyValueString` Converter takes a `pcommon.Map` and converts it to a `str
 For example, the following map `{"k1":"v1","k2":"v2","k3":"v3"}` will use default delimiters and be converted into the following string:
 
 ```
-`k1=v1 k2=v2 k3=v3`
+k1=v1 k2=v2 k3=v3
 ```
 
 **Note:** Any nested arrays or maps will be represented as a JSON string. It is recommended to [flatten](#flatten) `target` before using this function. 
@@ -2588,15 +2591,15 @@ For example, the following map `{"k1":"v1","k2":"v2","k3":"v3"}` will use defaul
 For example, `{"k1":"v1","k2":{"k3":"v3","k4":["v4","v5"]}}` will be converted to:
 
 ```
-`k1=v1 k2={\"k3\":\"v3\",\"k4\":[\"v4\",\"v5\"]}`
+k1=v1 k2={\"k3\":\"v3\",\"k4\":[\"v4\",\"v5\"]}
 ```
 
 **Note:** If any keys or values contain either delimiter, they will be double quoted. If any double quotes are present in the quoted value, they will be escaped.
 
-For example, `{"k1":"v1","k2":"v=2","k3"="\"v=3\""}` will be converted to:
+For example, `{"k1":"v1","k2":"v=2","k3":"\"v=3\""}` will be converted to:
 
 ```
-`k1=v1 k2="v=2" k3="\"v=3\""`
+k1=v1 k2="v=2" k3="\"v=3\""
 ```
 
 Examples:
@@ -2761,14 +2764,14 @@ Examples:
   "user_agent.original": "curl/7.81.0",
   "os.name": "Other",
   ```
-- `Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0`
+- `UserAgent("Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0")`
   ```yaml
   "user_agent.name": "Firefox"
   "user_agent.version": "126.0"
   "user_agent.original": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
   "os.name": "Linux",
   ```
-- `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59`
+- `UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59")`
   ```yaml
   "user_agent.name": "Edge"
   "user_agent.version": "91.0.864"

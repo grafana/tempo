@@ -19,11 +19,14 @@ import (
 	"github.com/twmb/franz-go/pkg/sasl"
 )
 
-////////////////////////////////////////////////////////
-// NOTE:                                              //
-// NOTE: Make sure new configs are added to OptValues //
-// NOTE:                                              //
-////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+// NOTE:                                                                //
+// NOTE: Make sure new configs are added to OptValues.                  //
+// NOTE:                                                                //
+// NOTE: OptValues returns cfg fields as stored, so changing a field's  //
+// NOTE: type changes what OptValue returns: that is a breaking change. //
+// NOTE:                                                                //
+//////////////////////////////////////////////////////////////////////////
 
 // Opt is an option to configure a client.
 type Opt interface {
@@ -1275,10 +1278,15 @@ func MaxProduceRequestsInflightPerBroker(n int) ProducerOpt {
 // example, zstd compression was introduced in Kafka 2.1, so the preference can
 // be first zstd, fallback snappy, fallback none.
 //
-// The default preference is [snappy, none], which should be fine for all old
-// consumers since snappy compression has existed since Kafka 0.8.0.  To use
-// zstd, your brokers must be at least 2.1 and all consumers must be upgraded
-// to support decoding zstd records.
+// The default preference is [snappy, none]. Snappy has been part of the Kafka
+// protocol since Kafka 0.8.0, but some clients only decode it when an optional
+// library is installed (for example, ruby-kafka needs the snappy gem). Make sure
+// every consumer of your topics can decode the codecs you produce with, or use
+// [NoCompression] to disable compression. To use zstd, your brokers must be at
+// least 2.1 and all consumers must be upgraded to support decoding zstd records.
+//
+// A batch is only sent compressed if compressing makes it smaller, so small or
+// incompressible batches go out uncompressed even with a codec configured.
 //
 // Alternatively, if you want finer control over compression you can use
 // [WithCompressor] for complete control.

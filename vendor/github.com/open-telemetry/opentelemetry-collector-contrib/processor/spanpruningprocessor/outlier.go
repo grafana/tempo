@@ -4,8 +4,8 @@
 package spanpruningprocessor // import "github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpruningprocessor"
 
 import (
-	"cmp"
 	"fmt"
+	"math"
 	"slices"
 	"sort"
 	"strings"
@@ -41,17 +41,41 @@ func analyzeOutliers(nodes []*spanNode, cfg OutlierAnalysisConfig) *outlierAnaly
 	}
 
 	// Collect and sort durations
-	durations := make([]indexedDuration, n)
+	values := make([]indexedValue, n)
 	for i, node := range nodes {
-		// Use raw timestamps to avoid time.Time allocations
-		durations[i] = indexedDuration{
-			index:    i,
-			duration: time.Duration(node.span.EndTimestamp() - node.span.StartTimestamp()),
+		values[i] = indexedValue{
+			index: i,
+			value: float64(getDuration(node)),
 		}
 	}
-	sort.Slice(durations, func(i, j int) bool {
-		return durations[i].duration < durations[j].duration
+	sort.Slice(values, func(i, j int) bool {
+		return values[i].value < values[j].value
 	})
+
+	// The median and the minimum threshold are both reported and reasoned about
+	// in real durations, so take them before any transform is applied.
+	median := time.Duration(medianValue(values))
+	minThreshold := float64(median) * (1 + cfg.MinOutlierThresholdPercent)
+
+	// Transforms are monotonic, so they preserve both the sort above and the
+	// classification below; only the spread the detectors measure changes.
+	var zeroIndices []int
+	if cfg.DurationTransform == DurationTransformLog {
+		// Zero durations sort first and have no logarithm. They are classified as
+		// normal and left out of the spread and the median the minimum threshold
+		// is relative to, both of which the floor would otherwise set.
+		for len(values) > 0 && values[0].value <= 0 {
+			zeroIndices = append(zeroIndices, values[0].index)
+			values = values[1:]
+		}
+		if len(zeroIndices) > 0 && len(values) > 0 {
+			minThreshold = medianValue(values) * (1 + cfg.MinOutlierThresholdPercent)
+		}
+		for i := range values {
+			values[i].value = logTransform(values[i].value)
+		}
+		minThreshold = logTransform(minThreshold)
+	}
 
 	// Determine method (default to IQR)
 	method := cfg.Method
@@ -60,14 +84,21 @@ func analyzeOutliers(nodes []*spanNode, cfg OutlierAnalysisConfig) *outlierAnaly
 	}
 
 	var outlierIndices, normalIndices []int
-	var median time.Duration
 
-	switch method {
-	case OutlierMethodMAD:
-		outlierIndices, normalIndices, median = detectOutliersMAD(durations, cfg.MADMultiplier, cfg.MinOutlierThresholdPercent)
-	default: // IQR
-		outlierIndices, normalIndices, median = detectOutliersIQR(durations, cfg.IQRMultiplier, cfg.MinOutlierThresholdPercent)
+	// Zero durations left out above do not count toward the minimum group size.
+	if len(values) >= cfg.MinGroupSize {
+		switch method {
+		case OutlierMethodMAD:
+			outlierIndices, normalIndices = detectOutliersMAD(values, cfg.MADMultiplier, minThreshold)
+		default: // IQR
+			outlierIndices, normalIndices = detectOutliersIQR(values, cfg.IQRMultiplier, minThreshold)
+		}
+	} else {
+		for _, v := range values {
+			normalIndices = append(normalIndices, v.index)
+		}
 	}
+	normalIndices = append(normalIndices, zeroIndices...)
 
 	hasOutliers := len(outlierIndices) > 0
 
@@ -109,48 +140,22 @@ func analyzeOutliers(nodes []*spanNode, cfg OutlierAnalysisConfig) *outlierAnaly
 	}
 }
 
-// indexedDuration pairs an index with its duration for sorting.
-type indexedDuration struct {
-	index    int
-	duration time.Duration
+// indexedValue pairs an index with the value the detectors compare, which is
+// the span duration in nanoseconds, transformed if a transform is configured.
+type indexedValue struct {
+	index int
+	value float64
 }
 
 // detectOutliersIQR identifies outliers using Interquartile Range method.
-// Returns (outlierIndices, normalIndices, median).
-func detectOutliersIQR(durations []indexedDuration, multiplier, minThresholdPercent float64) ([]int, []int, time.Duration) {
-	n := len(durations)
+// Returns (outlierIndices, normalIndices).
+func detectOutliersIQR(values []indexedValue, multiplier, minThreshold float64) ([]int, []int) {
+	n := len(values)
+	q1 := values[n/4].value
+	q3 := values[3*n/4].value
 
-	// Calculate median
-	var median time.Duration
-	if n%2 == 1 {
-		median = durations[n/2].duration
-	} else {
-		median = (durations[n/2-1].duration + durations[n/2].duration) / 2
-	}
-
-	// Calculate IQR
-	q1 := durations[n/4].duration
-	q3 := durations[3*n/4].duration
-	iqr := q3 - q1
-
-	// Calculate thresholds
-	statisticalThreshold := q3 + time.Duration(float64(iqr)*multiplier)
-	minimumThreshold := time.Duration(float64(median) * (1 + minThresholdPercent))
-	upperThreshold := max(statisticalThreshold, minimumThreshold)
-
-	// Classify spans (pre-allocate: outliers typically <20%)
-	outlierIndices := make([]int, 0, n/5+1)
-	normalIndices := make([]int, 0, n)
-
-	for _, d := range durations {
-		if d.duration > upperThreshold {
-			outlierIndices = append(outlierIndices, d.index)
-		} else {
-			normalIndices = append(normalIndices, d.index)
-		}
-	}
-
-	return outlierIndices, normalIndices, median
+	upperThreshold := max(q3+(q3-q1)*multiplier, minThreshold)
+	return classifyByThreshold(values, upperThreshold)
 }
 
 // madScaleFactor converts MAD to a consistent scale with standard deviation.
@@ -159,56 +164,66 @@ func detectOutliersIQR(durations []indexedDuration, multiplier, minThresholdPerc
 const madScaleFactor = 1.4826
 
 // detectOutliersMAD identifies outliers using Median Absolute Deviation method.
-// Returns (outlierIndices, normalIndices, median).
+// Returns (outlierIndices, normalIndices).
 // MAD is more robust to extreme outliers than IQR.
-func detectOutliersMAD(durations []indexedDuration, multiplier, minThresholdPercent float64) ([]int, []int, time.Duration) {
-	n := len(durations)
+func detectOutliersMAD(values []indexedValue, multiplier, minThreshold float64) ([]int, []int) {
+	median := medianValue(values)
 
-	// Calculate median (durations are already sorted)
-	var median time.Duration
-	if n%2 == 1 {
-		median = durations[n/2].duration
-	} else {
-		median = (durations[n/2-1].duration + durations[n/2].duration) / 2
+	// Absolute deviations from the median, then the median of those.
+	deviations := make([]float64, len(values))
+	for i, v := range values {
+		deviations[i] = math.Abs(v.value - median)
 	}
+	slices.Sort(deviations)
+	mad := medianSorted(deviations)
 
-	// Calculate absolute deviations from median
-	deviations := make([]time.Duration, n)
-	for i, d := range durations {
-		dev := d.duration - median
-		if dev < 0 {
-			dev = -dev
-		}
-		deviations[i] = dev
+	upperThreshold := max(median+multiplier*madScaleFactor*mad, minThreshold)
+	return classifyByThreshold(values, upperThreshold)
+}
+
+// logTransform maps a duration in nanoseconds onto the log scale, where the
+// spread the detectors measure is the typical ratio between spans rather than
+// the typical difference. The logarithm is undefined at or below zero, so
+// values are floored at one nanosecond.
+func logTransform(nanos float64) float64 {
+	if nanos < 1 {
+		nanos = 1
 	}
+	return math.Log(nanos)
+}
 
-	// Sort deviations to find MAD (median of absolute deviations)
-	slices.SortFunc(deviations, cmp.Compare)
-
-	var mad time.Duration
-	if n%2 == 1 {
-		mad = deviations[n/2]
-	} else {
-		mad = (deviations[n/2-1] + deviations[n/2]) / 2
-	}
-
-	// Calculate thresholds
-	statisticalThreshold := median + time.Duration(multiplier*madScaleFactor*float64(mad))
-	minimumThreshold := time.Duration(float64(median) * (1 + minThresholdPercent))
-	upperThreshold := max(statisticalThreshold, minimumThreshold)
-
-	// Classify spans (pre-allocate: outliers typically <20%)
-	outlierIndices := make([]int, 0, n/5+1)
-	normalIndices := make([]int, 0, n)
-	for _, d := range durations {
-		if d.duration > upperThreshold {
-			outlierIndices = append(outlierIndices, d.index)
+// classifyByThreshold splits values into those above the threshold and those at
+// or below it, returning the original span indices for each.
+func classifyByThreshold(values []indexedValue, upperThreshold float64) ([]int, []int) {
+	// Pre-allocate: outliers typically <20%.
+	outlierIndices := make([]int, 0, len(values)/5+1)
+	normalIndices := make([]int, 0, len(values))
+	for _, v := range values {
+		if v.value > upperThreshold {
+			outlierIndices = append(outlierIndices, v.index)
 		} else {
-			normalIndices = append(normalIndices, d.index)
+			normalIndices = append(normalIndices, v.index)
 		}
 	}
+	return outlierIndices, normalIndices
+}
 
-	return outlierIndices, normalIndices, median
+// medianValue returns the median of a slice already sorted by value.
+func medianValue(sorted []indexedValue) float64 {
+	n := len(sorted)
+	if n%2 == 1 {
+		return sorted[n/2].value
+	}
+	return (sorted[n/2-1].value + sorted[n/2].value) / 2
+}
+
+// medianSorted returns the median of an already sorted slice.
+func medianSorted(sorted []float64) float64 {
+	n := len(sorted)
+	if n%2 == 1 {
+		return sorted[n/2]
+	}
+	return (sorted[n/2-1] + sorted[n/2]) / 2
 }
 
 // findCorrelations identifies attributes that distinguish outliers from normal spans.
@@ -308,9 +323,17 @@ func formatCorrelations(correlations []attributeCorrelation) string {
 	return sb.String()
 }
 
-// getDuration calculates span duration efficiently.
+// getDuration calculates span duration efficiently. Timestamps are unsigned, so
+// a span that has no end timestamp yet underflows the subtraction and the signed
+// conversion turns it back into a negative duration. Those are clamped to zero:
+// a negative Q1 or median otherwise stretches the measured spread far enough to
+// hide every real outlier in the group.
 func getDuration(node *spanNode) time.Duration {
-	return time.Duration(node.span.EndTimestamp() - node.span.StartTimestamp())
+	d := time.Duration(node.span.EndTimestamp() - node.span.StartTimestamp())
+	if d < 0 {
+		return 0
+	}
+	return d
 }
 
 // filterOutlierNodes returns (normalNodes, outlierNodes) based on analysis.

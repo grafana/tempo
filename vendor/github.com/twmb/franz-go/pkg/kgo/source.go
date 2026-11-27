@@ -944,10 +944,12 @@ func (s *source) loopFetch() {
 	}
 }
 
-func (s *source) killSessionOnClose(ctx context.Context) {
+// killSessionOnClose issues a fetch that closes the source's fetch session,
+// returning nil if the source's broker is gone.
+func (s *source) killSessionOnClose(ctx context.Context) *respWaiter {
 	br, err := s.cl.brokerOrErr(nil, s.nodeID, errUnknownBroker)
 	if err != nil {
-		return
+		return nil
 	}
 	s.session.kill()
 	req := &fetchRequest{
@@ -959,9 +961,7 @@ func (s *source) killSessionOnClose(ctx context.Context) {
 		isolationLevel: s.cl.cfg.isolationLevel,
 		session:        s.session,
 	}
-	ch := make(chan struct{})
-	br.do(ctx, req, func(kmsg.Response, error) { close(ch) })
-	<-ch
+	return br.issue(ctx, req)
 }
 
 // fetch is the main logic center of fetching messages.
@@ -1010,35 +1010,17 @@ func (s *source) fetch(consumerSession *consumerSession, doneFetch chan<- bool) 
 		return fetched
 	}
 
-	// If our fetch is killed, we want to cancel waiting for the response.
-	var (
-		kresp       kmsg.Response
-		requested   = make(chan struct{})
-		ctx, cancel = context.WithCancel(consumerSession.ctx)
-	)
-	defer cancel()
-
+	// The request returns early if our session stops.
+	ctx := consumerSession.ctx
+	var kresp kmsg.Response
 	br, err := s.cl.brokerOrErr(ctx, s.nodeID, errUnknownBroker)
-	if err != nil {
-		close(requested)
-	} else {
-		br.do(ctx, req, func(k kmsg.Response, e error) {
-			kresp, err = k, e
-			close(requested)
-		})
+	if err == nil {
+		kresp, err = br.waitResp(ctx, req)
 	}
-
-	select {
-	case <-requested:
-		// As `select` is pseudo-random when both cases are ready,
-		// check for context error in this branch to avoid retrying immediately with a failed context.
-		if isContextErr(err) && ctx.Err() != nil {
-			return fetched
-		}
-		fetched = true
-	case <-ctx.Done():
+	if err != nil && ctx.Err() != nil {
 		return fetched
 	}
+	fetched = true
 
 	var didBackoff bool
 	backoff := func(why any) {
@@ -1050,7 +1032,7 @@ func (s *source) fetch(consumerSession *consumerSession, doneFetch chan<- bool) 
 		s.session.reset()
 		didBackoff = true
 
-		s.cl.triggerUpdateMetadata(false, fmt.Sprintf("opportunistic load during source backoff: %v", why)) // as good a time as any
+		s.cl.triggerUpdateMetadata(true, fmt.Sprintf("load during source backoff: %v", why))
 		s.consecutiveFailures++
 		after := time.NewTimer(s.cl.cfg.retryBackoff(s.consecutiveFailures))
 		defer after.Stop()
@@ -1605,6 +1587,8 @@ func (o *cursorOffsetNext) processRespPartition(br *broker, rp *kmsg.FetchRespon
 		Topic:                o.from.topic,
 		Partition:            o.from.partition,
 		Pools:                br.cl.cfg.pools,
+
+		lastEpoch: &o.lastConsumedEpoch,
 	}
 	fp, o.offset = ProcessFetchPartition(opts, rp, decompressor, func(m FetchBatchMetrics) {
 		hooks.each(func(h Hook) {
@@ -1614,9 +1598,7 @@ func (o *cursorOffsetNext) processRespPartition(br *broker, rp *kmsg.FetchRespon
 		})
 	})
 	if len(fp.Records) > 0 {
-		lastRecord := fp.Records[len(fp.Records)-1]
-		o.lastConsumedEpoch = lastRecord.LeaderEpoch
-		o.lastConsumedTime = lastRecord.Timestamp
+		o.lastConsumedTime = fp.Records[len(fp.Records)-1].Timestamp
 	}
 
 	return fp
@@ -1658,6 +1640,11 @@ type ProcessFetchPartitionOpts struct {
 	// to allocate a slab for share group ack state tracking. The
 	// slab is injected into each record's context via shareAckKey.
 	shareAckSlab func(numRecords int, firstRecord *Record) *shareAckSlab
+
+	// lastEpoch, if non-nil, is set to the leader epoch of each decoded
+	// record or batch that moves Offset forward, including control records
+	// and aborted batches that are not returned.
+	lastEpoch *int32
 }
 
 // ProcessFetchPartition processes all records in all batches or message sets
@@ -2019,6 +2006,9 @@ func (o *ProcessFetchPartitionOpts) processRecordBatch(
 	defer func() {
 		if numRecords == ndecoded && o.Offset < nextAskOffset {
 			o.Offset = nextAskOffset
+			if o.lastEpoch != nil {
+				*o.lastEpoch = batch.PartitionLeaderEpoch
+			}
 		}
 	}()
 
@@ -2428,6 +2418,9 @@ func (o *ProcessFetchPartitionOpts) maybeKeepRecord(fp *FetchPartition, record *
 	// The record offset may be much larger than our expected offset if the
 	// topic is compacted.
 	o.Offset = record.Offset + 1
+	if o.lastEpoch != nil {
+		*o.lastEpoch = record.LeaderEpoch
+	}
 	return kept
 }
 
@@ -3130,7 +3123,7 @@ func (s *source) addShareCursor(add *shareCursor) {
 	//   - addShareCursor reads pending under c.ackMu before
 	//     appendAck appends: hasPending may be false here, but
 	//     appendAck's later c.source.Load() returns this new
-	//     source (applyMoves stored it before calling
+	//     source (migrateShareCursorTo stored it before calling
 	//     addShareCursor) and signals us directly.
 	//   - addShareCursor reads pending after appendAck appends:
 	//     hasPending is true and we signal here. appendAck's

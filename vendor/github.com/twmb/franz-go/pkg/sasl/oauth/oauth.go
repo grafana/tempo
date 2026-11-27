@@ -5,7 +5,9 @@ package oauth
 import (
 	"context"
 	"errors"
-	"sort"
+	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/twmb/franz-go/pkg/sasl"
 )
@@ -40,6 +42,10 @@ func (a Auth) AsMechanism() sasl.Mechanism {
 
 // Oauth returns an OAUTHBEARER sasl mechanism that will call authFn whenever
 // authentication is needed. The returned Auth is used for a single session.
+//
+// authFn is called for every new connection and every reauthentication; it is
+// recommended to cache the token and fetch a new one only when the cached
+// token is close to expiring.
 func Oauth(authFn func(context.Context) (Auth, error)) sasl.Mechanism {
 	return oauth(authFn)
 }
@@ -56,20 +62,6 @@ func (fn oauth) Authenticate(ctx context.Context, _ string) (sasl.Session, []byt
 		return nil, nil, errors.New("OAUTHBEARER token must be non-empty")
 	}
 
-	// We sort extensions for consistency, but it is not required.
-	type kv struct {
-		k string
-		v string
-	}
-	kvs := make([]kv, 0, len(auth.Extensions))
-	for k, v := range auth.Extensions {
-		if len(k) == 0 {
-			continue
-		}
-		kvs = append(kvs, kv{k, v})
-	}
-	sort.Slice(kvs, func(i, j int) bool { return kvs[i].k < kvs[j].k })
-
 	// https://tools.ietf.org/html/rfc7628#section-3.1
 	gs2Header := "n," // no channel binding
 	if auth.Zid != "" {
@@ -79,22 +71,36 @@ func (fn oauth) Authenticate(ctx context.Context, _ string) (sasl.Session, []byt
 	init := []byte(gs2Header + "\x01auth=Bearer ")
 	init = append(init, auth.Token...)
 	init = append(init, '\x01')
-	for _, kv := range kvs {
-		init = append(init, kv.k...)
+	// We sort extensions for consistency, but it is not required.
+	for _, k := range slices.Sorted(maps.Keys(auth.Extensions)) {
+		if k == "" {
+			continue
+		}
+		init = append(init, k...)
 		init = append(init, '=')
-		init = append(init, kv.v...)
+		init = append(init, auth.Extensions[k]...)
 		init = append(init, '\x01')
 	}
 	init = append(init, '\x01')
 
-	return session{}, init, nil
+	return &session{}, init, nil
 }
 
-type session struct{}
+type session struct {
+	serverErr string
+}
 
-func (session) Challenge(resp []byte) (bool, []byte, error) {
+func (s *session) Challenge(resp []byte) (bool, []byte, error) {
+	// A non-empty challenge is the server's error (RFC 7628 section
+	// 3.2.2). We reply with a single %x01, and Kafka then fails the
+	// authentication with SASL_AUTHENTICATION_FAILED and the error as
+	// the message. We are only called again if the server did not fail.
+	if s.serverErr != "" {
+		return false, nil, fmt.Errorf("OAUTHBEARER authentication failed: %s", s.serverErr)
+	}
 	if len(resp) != 0 {
-		return false, nil, errors.New("unexpected data in oauth response")
+		s.serverErr = string(resp)
+		return false, []byte{'\x01'}, nil
 	}
 	return true, nil, nil
 }

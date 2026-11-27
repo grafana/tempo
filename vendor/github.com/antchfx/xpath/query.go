@@ -581,6 +581,8 @@ func (f *followingQuery) Select(t iterator) NodeNavigator {
 
 func (f *followingQuery) Evaluate(t iterator) interface{} {
 	f.Input.Evaluate(t)
+	f.iterator = nil
+	f.posit = 0
 	return f
 }
 
@@ -670,6 +672,8 @@ func (p *precedingQuery) Select(t iterator) NodeNavigator {
 
 func (p *precedingQuery) Evaluate(t iterator) interface{} {
 	p.Input.Evaluate(t)
+	p.iterator = nil
+	p.posit = 0
 	return p
 }
 

@@ -1,6 +1,8 @@
 package kfake
 
 import (
+	"slices"
+
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
@@ -29,8 +31,6 @@ func (c *Cluster) handleShareAcknowledge(creq *clientReq) (kmsg.Response, error)
 		return nil, err
 	}
 
-	resp.AcquisitionLockTimeoutMillis = c.shareRecordLockDurationMs()
-
 	var groupID, memberID string
 	if req.GroupID != nil {
 		groupID = *req.GroupID
@@ -38,22 +38,17 @@ func (c *Cluster) handleShareAcknowledge(creq *clientReq) (kmsg.Response, error)
 	if req.MemberID != nil {
 		memberID = *req.MemberID
 	}
+	resp.AcquisitionLockTimeoutMillis = c.shareRecordLockDurationMs(groupID)
 
 	// ACL: require GROUP READ.
-	if !c.allowedACL(creq, groupID, kmsg.ACLResourceTypeGroup, kmsg.ACLOperationRead) {
-		resp.ErrorCode = kerr.GroupAuthorizationFailed.Code
+	if e := c.deny(creq, groupID, kmsg.ACLResourceTypeGroup, kmsg.ACLOperationRead, faultKey{group: groupID}); e != nil {
+		resp.ErrorCode = e.Code
 		return resp, nil
 	}
 
 	// Validate memberID format (non-empty, <=36 chars).
 	if memberID == "" || len(memberID) > 36 {
 		resp.ErrorCode = kerr.InvalidRequest.Code
-		return resp, nil
-	}
-
-	sg := c.shareGroups.get(groupID)
-	if sg == nil {
-		resp.ErrorCode = kerr.GroupIDNotFound.Code
 		return resp, nil
 	}
 
@@ -67,8 +62,6 @@ func (c *Cluster) handleShareAcknowledge(creq *clientReq) (kmsg.Response, error)
 		broker:   creq.cc.b.node,
 	}
 
-	id2t := c.data.id2t
-	maxDelivery := c.shareMaxDeliveryAttempts()
 	maxAckType := shareAckReject
 	if req.Version >= 2 && req.IsRenewAck {
 		maxAckType = shareAckRenew
@@ -90,6 +83,13 @@ func (c *Cluster) handleShareAcknowledge(creq *clientReq) (kmsg.Response, error)
 		sp := kmsg.NewShareAcknowledgeResponseTopicPartition()
 		sp.Partition = p
 		sp.ErrorCode = ec
+		// Kafka fills CurrentLeader only for leader errors, with -1/-1
+		// when it does not know the leader. Every other partition gets
+		// 0/0.
+		if ec == kerr.NotLeaderForPartition.Code || ec == kerr.FencedLeaderEpoch.Code {
+			sp.CurrentLeader.LeaderID = -1
+			sp.CurrentLeader.LeaderEpoch = -1
+		}
 		resp.Topics[i].Partitions = append(resp.Topics[i].Partitions, sp)
 		return &resp.Topics[i].Partitions[len(resp.Topics[i].Partitions)-1]
 	}
@@ -100,6 +100,14 @@ func (c *Cluster) handleShareAcknowledge(creq *clientReq) (kmsg.Response, error)
 		sp := donep(tid, p, kerr.NotLeaderForPartition.Code)
 		sp.CurrentLeader.LeaderID = pd.leader.node
 		sp.CurrentLeader.LeaderEpoch = pd.epoch
+		// Kafka sends the endpoint of each leader it names.
+		if !slices.ContainsFunc(resp.NodeEndpoints, func(ne kmsg.ShareAcknowledgeResponseNodeEndpoint) bool { return ne.NodeID == pd.leader.node }) {
+			ne := kmsg.NewShareAcknowledgeResponseNodeEndpoint()
+			ne.NodeID = pd.leader.node
+			ne.Host, ne.Port = pd.leader.hostport()
+			ne.Rack = &brokerRack
+			resp.NodeEndpoints = append(resp.NodeEndpoints, ne)
+		}
 	}
 
 	// Session close: process acks, release remaining acquired records,
@@ -111,11 +119,10 @@ func (c *Cluster) handleShareAcknowledge(creq *clientReq) (kmsg.Response, error)
 			resp.ErrorCode = kerr.ShareSessionNotFound.Code
 			return resp, nil
 		}
+		sg := sgs.getOrCreate(groupID)
 		ackTs := ackTopicsFromAcknowledge(req.Topics)
-		sg.mu.Lock()
-		toFire := sg.processShareAcks(creq, memberID, ackTs, maxAckType, id2t, maxDelivery, onPartition, onNotLeader)
-		released := sg.releaseRecordsForSessionLocked(memberID, session, id2t, maxDelivery)
-		sg.mu.Unlock()
+		toFire := sg.processShareAcks(creq, memberID, ackTs, maxAckType, onPartition, onNotLeader)
+		released := sg.releaseRecordsForSession(memberID, session)
 		fireAll(toFire)
 		if released {
 			sg.fireAllShareWatchers()
@@ -140,10 +147,11 @@ func (c *Cluster) handleShareAcknowledge(creq *clientReq) (kmsg.Response, error)
 		return resp, nil
 	}
 
+	// Like Kafka, we check only the session: its group may have been
+	// emptied and dropped since the session opened.
+	sg := sgs.getOrCreate(groupID)
 	ackTs := ackTopicsFromAcknowledge(req.Topics)
-	sg.mu.Lock()
-	toFire := sg.processShareAcks(creq, memberID, ackTs, maxAckType, id2t, maxDelivery, onPartition, onNotLeader)
-	sg.mu.Unlock()
+	toFire := sg.processShareAcks(creq, memberID, ackTs, maxAckType, onPartition, onNotLeader)
 	fireAll(toFire)
 
 	session.bumpEpoch()
