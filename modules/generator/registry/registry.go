@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
+	"go.uber.org/atomic"
 
 	tempo_log "github.com/grafana/tempo/v3/pkg/util/log"
 )
@@ -68,6 +69,8 @@ type ManagedRegistry struct {
 	metricTotalSeriesRemoved prometheus.Counter
 	metricTotalSeriesLimited prometheus.Counter
 	metricTotalCollections   prometheus.Counter
+
+	lastCollectionTimeMs atomic.Int64
 }
 
 // metric is the interface for a metric that is managed by ManagedRegistry.
@@ -77,7 +80,7 @@ type metric interface {
 	countActiveSeries() int
 	// countSeriesDemand estimates the number of active series that would be created if the maxActiveSeries were unlimited.
 	countSeriesDemand() int
-	removeStaleSeries(staleTimeMs int64)
+	removeStaleSeries(appender storage.Appender, timeMs, staleTimeMs int64) error
 }
 
 const highestAggregationInterval = 1 * time.Minute
@@ -247,7 +250,7 @@ func (r *ManagedRegistry) registerMetric(m metric) {
 	if old, ok := r.metrics[m.name()]; ok {
 		level.Info(r.logger).Log("msg", "replacing metric, counters will be reset", "metric", m.name())
 		// Drain old series so the limiter's active count is properly decremented.
-		old.removeStaleSeries(math.MaxInt64)
+		_ = old.removeStaleSeries(nil, 0, math.MaxInt64)
 	}
 	r.metrics[m.name()] = m
 }
@@ -281,6 +284,7 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 
 	appender := r.appendable.Appender(ctx)
 	collectionTimeMs := time.Now().UnixMilli()
+	r.lastCollectionTimeMs.Store(collectionTimeMs)
 
 	for _, m := range r.metrics {
 		if err = m.collectMetrics(appender, collectionTimeMs); err != nil {
@@ -309,18 +313,36 @@ func (r *ManagedRegistry) collectionInterval() time.Duration {
 	return r.cfg.CollectionInterval
 }
 
-func (r *ManagedRegistry) removeStaleSeries(context.Context) {
-	r.metricsMtx.RLock()
-	defer r.metricsMtx.RUnlock()
+func (r *ManagedRegistry) removeStaleSeries(ctx context.Context) {
+	r.metricsMtx.Lock()
+	defer r.metricsMtx.Unlock()
 
 	timeMs := time.Now().Add(-1 * r.cfg.StaleDuration).UnixMilli()
 
+	var appender storage.Appender
+	if !r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
+		appender = r.appendable.Appender(ctx)
+	}
+
+	// agent WAL rejects t <= lastTs, keep the marker strictly after the last collected sample
+	removalTimeMs := max(time.Now().UnixMilli(), r.lastCollectionTimeMs.Load()+1)
+
 	remainingSeries := 0
 	for _, m := range r.metrics {
-		m.removeStaleSeries(timeMs)
+		err := m.removeStaleSeries(appender, removalTimeMs, timeMs)
+		if err != nil {
+			level.Error(r.logger).Log("msg", "some stale markers failed to be added", "err", err)
+		}
 		remainingSeries += m.countActiveSeries()
 	}
 	r.entityDemand.Advance()
+
+	if appender != nil {
+		err := appender.Commit()
+		if err != nil {
+			level.Error(r.logger).Log("msg", "committing stale markers failed", "err", err)
+		}
+	}
 
 	level.Info(r.logger).Log("msg", "deleted stale series", "active_series", remainingSeries)
 }
