@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -885,6 +886,17 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 	return ringTokens, traces, truncatedCount, nil, nil
 }
 
+// truncateUTF8 truncates s to at most maxBytes bytes without splitting a multi-byte UTF-8 character.
+func truncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	for maxBytes > 0 && !utf8.RuneStart(s[maxBytes]) {
+		maxBytes--
+	}
+	return s[:maxBytes]
+}
+
 // processAttributes finds and truncates attribute keys/values that exceed maxAttrSize.
 func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, truncationExample *truncatedAttrInfo, scope, tenant string) int {
 	count := 0
@@ -892,7 +904,7 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, trunca
 		keySize := len(attr.Key)
 		if keySize > maxAttrSize {
 			origSize := keySize
-			attr.Key = attr.Key[:maxAttrSize]
+			attr.Key = truncateUTF8(attr.Key, maxAttrSize)
 			if truncationExample != nil && truncationExample.origSize == 0 { // only capture the first truncation
 				// name is the truncated prefix; origSize records the full original length.
 				*truncationExample = truncatedAttrInfo{scope: scope, name: attr.Key, field: "key", origSize: origSize}
@@ -910,7 +922,7 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, trunca
 				if truncationExample != nil && truncationExample.origSize == 0 { // only capture the first truncation
 					*truncationExample = truncatedAttrInfo{scope: scope, name: attr.Key, field: "value", origSize: origSize}
 				}
-				value.StringValue = value.StringValue[:maxAttrSize]
+				value.StringValue = truncateUTF8(value.StringValue, maxAttrSize)
 				count++
 			}
 		default:

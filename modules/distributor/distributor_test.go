@@ -1334,6 +1334,34 @@ func TestProcessAttributesDetail(t *testing.T) {
 	assert.Equal(t, 3000, detail.origSize)
 }
 
+func TestProcessAttributesUTF8Safe(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		max      int
+		expected string
+	}{
+		{name: "ascii cut exactly", input: "abcdef", max: 4, expected: "abcd"},
+		{name: "cut on rune boundary", input: "abécd", max: 4, expected: "abé"},
+		{name: "cut inside 2-byte rune", input: "abcé", max: 4, expected: "abc"},
+		{name: "cut inside 3-byte rune", input: "a世界", max: 3, expected: "a"},
+		{name: "cut inside 4-byte rune", input: "ab\U0001F600", max: 4, expected: "ab"},
+		{name: "max smaller than first rune", input: "\U0001F600", max: 2, expected: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			attributes := []*v1_common.KeyValue{
+				test.MakeAttribute(tc.input, tc.input),
+			}
+			count := processAttributes(attributes, tc.max, nil, "span", "test")
+			assert.Equal(t, 2, count)
+			assert.Equal(t, tc.expected, attributes[0].Key)
+			assert.Equal(t, tc.expected, attributes[0].Value.GetStringValue())
+		})
+	}
+}
+
 func TestProcessAttributesRecordsSizeMetric(t *testing.T) {
 	metricAttributeSizeBytes.Reset()
 	t.Cleanup(metricAttributeSizeBytes.Reset)
