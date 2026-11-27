@@ -21,7 +21,7 @@ permissions: {}
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
 
       - name: Check out code
@@ -61,7 +61,7 @@ jobs:
 
   unit-tests:
     name: Run Unit Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -132,7 +132,7 @@ jobs:
 
   integration-tests-validation:
     name: Validate integration test coverage
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -180,7 +180,7 @@ jobs:
 
   build-e2e-images:
     name: Build e2e test images
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -205,7 +205,7 @@ jobs:
 
   integration-tests:
     name: Run integration tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [integration-tests-validation, build-e2e-images]
     strategy:
       fail-fast: false
@@ -268,7 +268,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -300,7 +300,7 @@ jobs:
 
   build-riscv64:
     name: Build (riscv64 cross-compilation)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       GOARCH: riscv64
       GOOS: linux
@@ -330,7 +330,7 @@ jobs:
 
   vendor-check:
     name: Vendor check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -351,7 +351,7 @@ jobs:
 
   tempo-jsonnet:
     name: Check jsonnet & tempo-mixin
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -374,7 +374,7 @@ jobs:
 
   build-technical-documentation:
     name: Build technical documentation
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -386,7 +386,7 @@ jobs:
 
   coverage-annotations:
     name: Coverage Annotations
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     needs: [unit-tests]
     permissions:
