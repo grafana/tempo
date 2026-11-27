@@ -1,0 +1,21 @@
+# Changelog entry. Generate a copy with `make chlog-new`, then fill in the fields.
+
+# One of: breaking | change | feature | enhancement | bug_fix | security
+change_type: feature
+
+# Component or area of the change. Must be one of the components in .chloggen/config.yaml,
+# e.g. distributor, querier, query-frontend, storage, operations.
+component: tempo-cli
+
+# A brief description of the change. Surround with quotes ("") if it must start with a backtick (`).
+note: Add `--fingerprint` and `--fingerprint-report` to `tempo-cli parquet rewrite` to write v1 trace fingerprints into vParquet5 blocks and measure their size, cost and accuracy.
+
+# (Optional) PR number(s), e.g. [7339]. Leave blank to auto-fill at release. See
+# .chloggen/README.md.
+issues: [8513]
+
+# (Optional) Additional lines rendered under the note. Use a pipe (|) for multiline text.
+subtext: Blocks that already have fingerprints can now be rewritten, with an explicit choice. `--fingerprint=v1` recomputes the fingerprints from the traces and never copies them from the input block, and `--fingerprint=none` drops them. A block written with fingerprints is flagged nocompact, because compaction does not recompute them when it merges traces. The rewrite now refuses an output block directory that already exists, which could be its own input.
+
+# The GitHub handle (without the leading @) of the change's author. Rendered as "(@handle)".
+user: carles-grafana

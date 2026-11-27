@@ -103,7 +103,7 @@ func TestReferenceVectors(t *testing.T) {
 				withKinds[i].kind = kinds[i%len(kinds)]
 			}
 			for _, tr := range []*tempopb.Trace{newTrace(spans...), newTrace(withKinds...)} {
-				hashes, ok := f.shingleHashes(tr)
+				hashes, ok := f.ShingleHashes(nil, tr)
 				require.True(t, ok)
 				got := make([]string, len(hashes))
 				for i, h := range hashes {
@@ -213,6 +213,8 @@ func TestEmptyAndUnavailable(t *testing.T) {
 			var f Fingerprinter
 			res := f.Fingerprint(tc.tr)
 			require.Equal(t, Result{Version: Version, Status: tc.want}, res)
+			_, ok := f.ShingleHashes(nil, tc.tr)
+			require.Equal(t, tc.want != StatusUnavailable, ok)
 		})
 	}
 }

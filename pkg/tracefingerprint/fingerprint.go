@@ -188,6 +188,18 @@ func (f *Fingerprinter) Fingerprint(tr *tempopb.Trace) Result {
 	return res
 }
 
+// ShingleHashes appends the sorted distinct shingle hashes of tr to dst and
+// returns the extended slice, or false if the trace has a parent cycle. The
+// exact Jaccard similarity of two traces is the overlap of their shingle
+// hashes, which is what Similarity estimates.
+func (f *Fingerprinter) ShingleHashes(dst []uint64, tr *tempopb.Trace) ([]uint64, bool) {
+	shingles, ok := f.shingleHashes(tr)
+	if !ok {
+		return dst, false
+	}
+	return append(dst, shingles...), true
+}
+
 // shingleHashes returns the sorted distinct shingle hashes of tr, or false if
 // the trace has a parent cycle. The slice belongs to f and is valid until the
 // next call.

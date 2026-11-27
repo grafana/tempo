@@ -29,6 +29,11 @@ type BlockConfig struct {
 
 	// used internally. If true, the block will be created by default with the nocompact flag set.
 	CreateWithNoCompactFlag bool `yaml:"-"`
+
+	// used internally. If true, vParquet5 CreateBlock computes a v1 trace fingerprint for every trace
+	// and flags the block nocompact, because compaction does not recompute fingerprints when it merges
+	// traces. The block meta must ask for v1 fingerprints, and the traces must come as protobuf.
+	ComputeTraceFingerprints bool `yaml:"-"`
 }
 
 func (cfg *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
