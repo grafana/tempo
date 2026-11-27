@@ -51,6 +51,7 @@ func (a *UserConfigOverridesAPI) GetHandler(w http.ResponseWriter, r *http.Reque
 	}
 	if scope != queryParamScopeAPI && scope != queryParamScopeMerged {
 		http.Error(w, fmt.Sprintf("unknown scope \"%s\", valid options are api and merged", scope), http.StatusBadRequest)
+		return
 	}
 
 	limits, version, err := a.get(ctx, userID)

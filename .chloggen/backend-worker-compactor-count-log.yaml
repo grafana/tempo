@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: backend-worker
+
+note: Fix the unexpected compactor count error so it logs the `expected` and `got` fields instead of a literal format verb.
+
+issues: []
+
+subtext:
+
+user: eric-mj

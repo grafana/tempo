@@ -1,0 +1,11 @@
+change_type: bug_fix
+
+component: distributor
+
+note: Fix the forwarder failure warning so it logs the `tenant` and `err` fields instead of literal format verbs.
+
+issues: []
+
+subtext:
+
+user: eric-mj

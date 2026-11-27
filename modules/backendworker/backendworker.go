@@ -498,7 +498,7 @@ func (w *BackendWorker) Owns(hash string) bool {
 	}
 
 	if len(rs.Instances) != 1 {
-		level.Error(log.Logger).Log("msg", "unexpected number of compactors in the shard (expected 1, got %d)", len(rs.Instances))
+		level.Error(log.Logger).Log("msg", "unexpected number of compactors in the shard", "expected", 1, "got", len(rs.Instances))
 		return false
 	}
 

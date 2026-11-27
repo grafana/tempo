@@ -74,6 +74,14 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			expStatusCode: 404,
 		},
 		{
+			name:           "GET - unknown scope",
+			handler:        overridesAPI.GetHandler,
+			req:            prepareRequestWithQuery(tenant, "GET", "scope=unknown"),
+			expResp:        "unknown scope \"unknown\", valid options are api and merged\n",
+			expContentType: "text/plain; charset=utf-8",
+			expStatusCode:  400,
+		},
+		{
 			name:          "POST",
 			handler:       overridesAPI.PostHandler,
 			req:           prepareRequest(tenant, "POST", postJSON),
@@ -564,6 +572,12 @@ func TestUserConfigOverridesAPI_assertConflictingRuntimeOverrides(t *testing.T) 
 			assert.Equal(t, tc.expResp, data)
 		})
 	}
+}
+
+func prepareRequestWithQuery(tenant, method, rawQuery string) *http.Request {
+	r := prepareRequest(tenant, method, nil)
+	r.URL.RawQuery = rawQuery
+	return r
 }
 
 func prepareRequest(tenant, method string, payload []byte) *http.Request {
