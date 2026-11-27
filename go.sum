@@ -711,8 +711,8 @@ github.com/prometheus/sigv4 v0.5.0 h1:WWZDeiCPFTBJIniIa+pv3edYtPHtZxDAa5w5Tmp+Uu
 github.com/prometheus/sigv4 v0.5.0/go.mod h1:oLsQ72mP5bVxsIrFgv/gT2jY1devyRLZhAvrsWG4SEk=
 github.com/puzpuzpuz/xsync/v4 v4.5.0 h1:vOSWu6b57/emh+L/Cw0BeQfvxa/cogFywXHeGUxQxAg=
 github.com/puzpuzpuz/xsync/v4 v4.5.0/go.mod h1:VJDmTCJMBt8igNxnkQd86r+8KUeN1quSfNKu5bLYFQo=
-github.com/redis/go-redis/v9 v9.23.0 h1:/TTVdJa8BRNsybwwGGnmiYktHNlUXtbOQxlWpHBPL3s=
-github.com/redis/go-redis/v9 v9.23.0/go.mod h1:EWP2UUk+XDaI1s5nQB5mablZN6vccXlmBQTyfnF87D0=
+github.com/redis/go-redis/v9 v9.24.0 h1:X1AnQHWaSfMeggDQm7UFad1YwJmoZxVm5XkaP0kr6nQ=
+github.com/redis/go-redis/v9 v9.24.0/go.mod h1:ted97kpLnB4S2KJkTkw+7GzRjgkFnU909IIrksu+ut4=
 github.com/relvacode/iso8601 v1.8.0 h1:lDGJ4+nIXPzY1KOTk6DNfKZQWRGMmbvQKPNuZ7GxZPk=
 github.com/relvacode/iso8601 v1.8.0/go.mod h1:FlNp+jz+TXpyRqgmM7tnzHHzBnz776kmAH2h3sZCn0I=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
