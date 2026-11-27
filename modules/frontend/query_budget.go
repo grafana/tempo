@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -112,5 +111,5 @@ func queryBudgetRejectedResponse(retryAfter time.Duration) *http.Response {
 
 // retryAfterSeconds returns the value of a Retry-After header for d, in whole seconds rounded up.
 func retryAfterSeconds(d time.Duration) string {
-	return strconv.Itoa(int(math.Ceil(d.Seconds())))
+	return strconv.FormatInt(int64(ceilSeconds(d)/time.Second), 10)
 }
