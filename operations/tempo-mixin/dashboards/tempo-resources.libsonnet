@@ -1,5 +1,6 @@
 local dashboard_utils = import 'dashboard-utils.libsonnet';
 local g = import 'grafana-builder/grafana.libsonnet';
+local filename = 'tempo-resources.json';
 
 dashboard_utils {
   local cpuPanel(job) =
@@ -13,8 +14,8 @@ dashboard_utils {
     { fieldConfig+: { defaults+: { unit: 'bytes' } } },
 
   grafanaDashboards+: {
-    'tempo-resources.json':
-      $.dashboard('Tempo / Resources')
+    [filename]:
+      ($.dashboard('Tempo / Resources') + { uid: std.md5(filename) })
       .addClusterSelectorTemplates()
       .addRow(
         g.row('Gateway')

@@ -1,5 +1,6 @@
 local dashboard_utils = import 'dashboard-utils.libsonnet';
 local g = import 'grafana-builder/grafana.libsonnet';
+local filename = 'tempo-tenants.json';
 
 dashboard_utils {
 
@@ -20,8 +21,8 @@ dashboard_utils {
   },
 
   grafanaDashboards+: {
-    'tempo-tenants.json':
-      $.dashboard('Tempo / Tenants')
+    [filename]:
+      ($.dashboard('Tempo / Tenants') + { uid: std.md5(filename) })
       .addClusterSelectorTemplates()
       .addTemplate('tenant', 'tempodb_blocklist_length{%s}' % $.jobMatcher($._config.jobs.backend_scheduler), 'tenant')
       .addRow(
