@@ -1384,3 +1384,7 @@ func (w *recordingWriter) pushBytes(_ time.Time, tenant string, req *tempopb.Pus
 func (w *recordingWriter) flush(context.Context, tempodb.Reader, tempodb.Writer, tempodb.Compactor) error {
 	return nil
 }
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(string) (bool, bool) {
+	return false, false
+}

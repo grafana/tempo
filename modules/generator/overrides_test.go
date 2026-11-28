@@ -10,6 +10,9 @@ import (
 )
 
 type mockOverrides struct {
+	serviceGraphsEnableServiceGraphEdgeStorage         *bool
+	serviceGraphsBypassServices                        []string
+	serviceGraphsBypassServiceRegex                    []string
 	maxCardinalityPerLabel                             uint64
 	processors                                         map[string]struct{}
 	nativeHistogramMaxBucketNumber                     uint32
@@ -252,4 +255,19 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsEnableTraceStateSpan
 		return *m.spanMetricsEnableTraceStateSpanMultiplier, true
 	}
 	return false, false
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(string) (bool, bool) {
+	if m.serviceGraphsEnableServiceGraphEdgeStorage != nil {
+		return *m.serviceGraphsEnableServiceGraphEdgeStorage, true
+	}
+	return false, false
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsBypassServices(string) []string {
+	return m.serviceGraphsBypassServices
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorServiceGraphsBypassServiceRegex(string) []string {
+	return m.serviceGraphsBypassServiceRegex
 }

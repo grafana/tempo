@@ -13,6 +13,7 @@ import (
 
 // limitsFromOverrides will reconstruct a client.Limits from the overrides module
 func limitsFromOverrides(overrides overrides.Interface, userID string) *client.Limits {
+	bypassServices, bypassPatterns := overrides.MetricsGeneratorProcessorServiceGraphsPresentation(userID)
 	return &client.Limits{
 		Forwarders: strArrPtr(overrides.Forwarders(userID)),
 		MetricsGenerator: client.LimitsMetricsGenerator{
@@ -34,6 +35,28 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 			}(),
 			Processor: client.LimitsMetricsGeneratorProcessor{
 				ServiceGraphs: client.LimitsMetricsGeneratorProcessorServiceGraphs{
+					EnableServiceGraphEdgeStorage: func() *bool {
+						value, ok := overrides.MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(userID)
+						if !ok {
+							return nil
+						}
+						return boolPtr(value)
+					}(),
+					BypassServices: func() *[]string {
+						value := bypassServices
+						if value == nil {
+							return nil
+						}
+						return strArrPtr(value)
+					}(),
+					BypassServiceRegex: func() *[]string {
+						value := bypassPatterns
+						if value == nil {
+							return nil
+						}
+						return strArrPtr(value)
+					}(),
+
 					Dimensions:               strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsDimensions(userID)),
 					EnableClientServerPrefix: boolPtr(overrides.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)),
 					PeerAttributes:           strArrPtr(overrides.MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID)),

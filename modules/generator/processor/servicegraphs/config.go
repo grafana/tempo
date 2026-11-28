@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/tempo/v3/modules/generator/registry"
 	"github.com/grafana/tempo/v3/modules/generator/validation"
+	"github.com/grafana/tempo/v3/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/v3/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
@@ -15,7 +16,7 @@ import (
 type Config struct {
 	// Wait is the value to wait for an edge to be completed
 	Wait time.Duration `yaml:"wait"`
-	// MaxItems is the amount of edges that will be stored in the storeMap
+	// MaxItems bounds cached edges, or cached spans when span-kind relaxation is enabled.
 	MaxItems int `yaml:"max_items"`
 
 	// Workers is the amount of workers that will be used to process the edges
@@ -36,6 +37,22 @@ type Config struct {
 	// "client_" or "server_" depending on the span kind. Up to two labels will be added
 	// per dimension.
 	EnableClientServerPrefix bool `yaml:"enable_client_server_prefix"`
+
+	// EnableServiceGraphEdgeStorage persists uncollapsed span relationships in trace blocks
+	// and enables metrics matching across all span kinds. Disabled by default; increases
+	// memory and disk usage.
+	// MaxItems limits cached spans. Metrics settle as endpoint wait windows expire,
+	// allowing shared IDs to arrive in either order without cutting off newer spans.
+	EnableServiceGraphEdgeStorage bool `yaml:"enable_service_graph_edge_storage"`
+
+	// BypassServices lists exact service names for visualization. It never removes
+	// spans, stored edges, or generated metrics.
+	BypassServices []string `yaml:"bypass_services"`
+
+	// BypassServiceRegex adds Go regular expressions to the exact-name bypass list.
+	// Expressions use substring matching; use ^ and $ to match a whole service name.
+	// This is presentation metadata and never filters stored relationships.
+	BypassServiceRegex []string `yaml:"bypass_service_regex"`
 
 	// If enabled another histogram will be produced for interactions over messaging systems middlewares
 	EnableMessagingSystemLatencyHistogram bool `yaml:"enable_messaging_system_latency_histogram"`
@@ -69,6 +86,9 @@ type Config struct {
 
 // Validate checks the config of an enabled service-graphs processor.
 func (cfg *Config) Validate() error {
+	if err := sharedconfig.ValidateServiceGraphPresentation(cfg.BypassServices, cfg.BypassServiceRegex); err != nil {
+		return err
+	}
 	return validation.ValidateServiceGraphsMaxItems(cfg.MaxItems)
 }
 
@@ -87,6 +107,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.PeerAttributes = peerAttr
 
 	cfg.EnableMessagingSystemLatencyHistogram = false
+	cfg.EnableServiceGraphEdgeStorage = false
 
 	// Searched in order, first match wins. db.namespace and db.name identify the
 	// database itself (for example "mydb"), so they are preferred over db.system

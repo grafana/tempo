@@ -178,7 +178,11 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 		"meta", meta,
 	)
 
-	newMeta, err := s.enc.CreateBlock(ctx, &s.cfg.BlockConfig, meta, iter, reader, writer)
+	blockCfg := s.cfg.BlockConfig
+	if enabled, set := s.overrides.MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(s.tenantID); set {
+		blockCfg.PersistServiceGraphEdges = enabled
+	}
+	newMeta, err := s.enc.CreateBlock(ctx, &blockCfg, meta, iter, reader, writer)
 	if err != nil {
 		return err
 	}

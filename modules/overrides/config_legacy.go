@@ -46,6 +46,9 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorRemoteWriteHeaders:                                          c.MetricsGenerator.RemoteWriteHeaders,
 		MetricsGeneratorForwarderQueueSize:                                          c.MetricsGenerator.Forwarder.QueueSize,
 		MetricsGeneratorForwarderWorkers:                                            c.MetricsGenerator.Forwarder.Workers,
+		MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage:         c.MetricsGenerator.Processor.ServiceGraphs.EnableServiceGraphEdgeStorage,
+		MetricsGeneratorProcessorServiceGraphsBypassServices:                        c.MetricsGenerator.Processor.ServiceGraphs.BypassServices,
+		MetricsGeneratorProcessorServiceGraphsBypassServiceRegex:                    c.MetricsGenerator.Processor.ServiceGraphs.BypassServiceRegex,
 		MetricsGeneratorProcessorServiceGraphsMaxItems:                              c.MetricsGenerator.Processor.ServiceGraphs.MaxItems,
 		MetricsGeneratorProcessorServiceGraphsHistogramBuckets:                      c.MetricsGenerator.Processor.ServiceGraphs.HistogramBuckets,
 		MetricsGeneratorProcessorServiceGraphsDimensions:                            c.MetricsGenerator.Processor.ServiceGraphs.Dimensions,
@@ -147,6 +150,9 @@ type LegacyOverrides struct {
 	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
 	MetricsGeneratorRemoteWriteHeaders                                          RemoteWriteHeaders               `yaml:"metrics_generator_remote_write_headers,omitempty" json:"metrics_generator_remote_write_headers,omitempty"`
+	MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage         *bool                            `yaml:"metrics_generator_processor_service_graphs_enable_service_graph_edge_storage,omitempty" json:"metrics_generator_processor_service_graphs_enable_service_graph_edge_storage,omitempty"`
+	MetricsGeneratorProcessorServiceGraphsBypassServices                        []string                         `yaml:"metrics_generator_processor_service_graphs_bypass_services,omitempty" json:"metrics_generator_processor_service_graphs_bypass_services,omitempty"`
+	MetricsGeneratorProcessorServiceGraphsBypassServiceRegex                    []string                         `yaml:"metrics_generator_processor_service_graphs_bypass_service_regex,omitempty" json:"metrics_generator_processor_service_graphs_bypass_service_regex,omitempty"`
 	MetricsGeneratorProcessorServiceGraphsMaxItems                              *int                             `yaml:"metrics_generator_processor_service_graphs_max_items,omitempty" json:"metrics_generator_processor_service_graphs_max_items,omitempty"`
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets                      []float64                        `yaml:"metrics_generator_processor_service_graphs_histogram_buckets" json:"metrics_generator_processor_service_graphs_histogram_buckets"`
 	MetricsGeneratorProcessorServiceGraphsDimensions                            []string                         `yaml:"metrics_generator_processor_service_graphs_dimensions" json:"metrics_generator_processor_service_graphs_dimensions"`
@@ -382,6 +388,9 @@ func (l *LegacyOverrides) toNewLimits() *Overrides {
 			},
 			Processor: ProcessorOverrides{
 				ServiceGraphs: ServiceGraphsOverrides{
+					EnableServiceGraphEdgeStorage:         l.MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage,
+					BypassServices:                        l.MetricsGeneratorProcessorServiceGraphsBypassServices,
+					BypassServiceRegex:                    l.MetricsGeneratorProcessorServiceGraphsBypassServiceRegex,
 					MaxItems:                              l.MetricsGeneratorProcessorServiceGraphsMaxItems,
 					HistogramBuckets:                      l.MetricsGeneratorProcessorServiceGraphsHistogramBuckets,
 					Dimensions:                            l.MetricsGeneratorProcessorServiceGraphsDimensions,

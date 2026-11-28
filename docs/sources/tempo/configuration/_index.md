@@ -795,6 +795,16 @@ metrics_generator:
             # MaxItems is the amount of edges that will be stored in the store.
             [max_items: <int> | default = 10000]
 
+            # Persist full parent/child edge records in vParquet4 and vParquet5 trace blocks and match all span kinds.
+            # Increases memory and disk usage; may also be overridden per tenant.
+            # All-span metrics settle after the wait window to resolve shared span IDs.
+            [enable_service_graph_edge_storage: <bool> | default = false]
+
+            # Presentation blacklist. Never filters stored spans, edge records, or generated metrics.
+            [bypass_services: <list of string>]
+            # Go regular expressions; use ^ and $ for whole-name matching.
+            [bypass_service_regex: <list of string>]
+
             # Workers is the amount of workers that will be used to process the edges
             [workers: <int> | default = 10]
 
@@ -2775,6 +2785,9 @@ overrides:
 
         # Configuration for the service-graphs processor
         service_graphs:
+          [enable_service_graph_edge_storage: <bool>]
+          [bypass_services: <list of string>]
+          [bypass_service_regex: <list of string>]
           [max_items: <int>]
           [histogram_buckets: <list of float>]
           [dimensions: <list of string>]
@@ -2908,6 +2921,10 @@ overrides:
       [confirm_versioning: <bool> | default = true]
 
     api:
+      # Allow API changes to service graph edge storage and presentation settings.
+      # Runtime YAML overrides remain available when this is disabled.
+      [enable_service_graph_bypass: <bool> | default = false]
+
       # When enabled, Tempo will refuse request that modify overrides that are already set in the
       # runtime overrides. For more details, see user-configurable overrides docs.
       [check_for_conflicting_runtime_overrides: <bool> | default = false]

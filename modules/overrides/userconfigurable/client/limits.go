@@ -157,6 +157,9 @@ func (l *LimitsMetricsGeneratorProcessor) GetHostInfo() *LimitsMetricGeneratorPr
 }
 
 type LimitsMetricsGeneratorProcessorServiceGraphs struct {
+	EnableServiceGraphEdgeStorage         *bool                        `yaml:"enable_service_graph_edge_storage,omitempty" json:"enable_service_graph_edge_storage,omitempty"`
+	BypassServices                        *[]string                    `yaml:"bypass_services,omitempty" json:"bypass_services,omitempty"`
+	BypassServiceRegex                    *[]string                    `yaml:"bypass_service_regex,omitempty" json:"bypass_service_regex,omitempty"`
 	Dimensions                            *[]string                    `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 	EnableClientServerPrefix              *bool                        `yaml:"enable_client_server_prefix,omitempty" json:"enable_client_server_prefix,omitempty"`
 	EnableMessagingSystemLatencyHistogram *bool                        `yaml:"enable_messaging_system_latency_histogram,omitempty" json:"enable_messaging_system_latency_histogram,omitempty"`
@@ -333,6 +336,27 @@ type CostAttribution struct {
 func (l *CostAttribution) GetDimensions() (map[string]string, bool) {
 	if l != nil && l.Dimensions != nil {
 		return *l.Dimensions, true
+	}
+	return nil, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetEnableServiceGraphEdgeStorage() (bool, bool) {
+	if l != nil && l.EnableServiceGraphEdgeStorage != nil {
+		return *l.EnableServiceGraphEdgeStorage, true
+	}
+	return false, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetBypassServices() ([]string, bool) {
+	if l != nil && l.BypassServices != nil {
+		return *l.BypassServices, true
+	}
+	return nil, false
+}
+
+func (l *LimitsMetricsGeneratorProcessorServiceGraphs) GetBypassServiceRegex() ([]string, bool) {
+	if l != nil && l.BypassServiceRegex != nil {
+		return *l.BypassServiceRegex, true
 	}
 	return nil, false
 }

@@ -546,3 +546,34 @@ func randomTrace(rnd *rand.Rand) *Trace {
 	}
 	return tr
 }
+
+func TestServiceGraphEdgesJSONMatchesJsonpb(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		edges []*ServiceGraphEdge
+	}{
+		{name: "absent"},
+		{name: "empty", edges: []*ServiceGraphEdge{}},
+		{name: "null record", edges: []*ServiceGraphEdge{nil}},
+		{name: "complete edge", edges: []*ServiceGraphEdge{{ParentSpanId: []byte{1}, ChildSpanId: []byte{2}, ParentService: "A", ChildService: "gateway", ParentKind: 1, ChildKind: 3}}},
+		{name: "unresolved edge", edges: []*ServiceGraphEdge{{ParentSpanId: []byte{1}, ChildSpanId: []byte{2}, ChildService: "gateway", ChildKind: 1, ParentMissing: true}}},
+		{name: "escaped services", edges: []*ServiceGraphEdge{{ParentService: "a\"b", ChildService: "<gateway>\n"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			requireMatchesJsonpb(t, func() *Trace { return proto.Clone(&Trace{ServiceGraphEdges: tc.edges}).(*Trace) })
+		})
+	}
+}
+
+// TestTraceJSONServiceGraphPresentation compares the typed JSON encoder with
+// jsonpb for absent, empty, and populated hints, including escaped service names.
+// Both API formats must encode consistently without mutating the input trace.
+func TestTraceJSONServiceGraphPresentation(t *testing.T) {
+	for _, hints := range []*ServiceGraphPresentation{
+		nil,
+		{},
+		{BypassServices: []string{"gateway", "quoted\"service"}, BypassServiceRegex: []string{`^proxy-.*$`}},
+	} {
+		requireMatchesJsonpb(t, func() *Trace { return &Trace{ServiceGraphPresentation: hints} })
+	}
+}

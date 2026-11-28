@@ -175,7 +175,7 @@ func (cfg *ProcessorConfig) Validate() error {
 	if err := validation.ValidateHostInfoMetricName(cfg.HostInfo.MetricName); err != nil {
 		errs = append(errs, err)
 	}
-	if err := validation.ValidateServiceGraphsMaxItems(cfg.ServiceGraphs.MaxItems); err != nil {
+	if err := cfg.ServiceGraphs.Validate(); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -188,6 +188,14 @@ func (cfg *ProcessorConfig) Validate() error {
 // copyWithOverrides creates a copy of the config using values set in the overrides.
 func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userID string) (ProcessorConfig, error) {
 	copyCfg := *cfg
+
+	if value, ok := o.MetricsGeneratorProcessorServiceGraphsEnableServiceGraphEdgeStorage(userID); ok {
+		copyCfg.ServiceGraphs.EnableServiceGraphEdgeStorage = value
+	}
+	// Presentation rules are owned by the overrides API/UI. Do not feed them to
+	// processor diffing: a visualization toggle must not discard pending matches.
+	copyCfg.ServiceGraphs.BypassServices = nil
+	copyCfg.ServiceGraphs.BypassServiceRegex = nil
 
 	if maxItems, ok := o.MetricsGeneratorProcessorServiceGraphsMaxItems(userID); ok {
 		copyCfg.ServiceGraphs.MaxItems = maxItems

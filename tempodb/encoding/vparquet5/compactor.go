@@ -189,7 +189,11 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 				Options:           inputs[0].Options,
 			}
 
-			currentBlock, _ = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)
+			// Compaction preserves records already written under the tenant's flag.
+			// It must not use a global creation flag to backfill opted-out traces.
+			blockCfg := c.opts.BlockConfig
+			blockCfg.PersistServiceGraphEdges = false
+			currentBlock, _ = newStreamingBlock(ctx, &blockCfg, newMeta, r, w, tempo_io.NewBufferedWriter)
 			currentBlock.meta.CompactionLevel = nextCompactionLevel
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}

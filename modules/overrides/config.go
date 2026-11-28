@@ -111,6 +111,9 @@ func (cfg ForwarderOverrides) validate() error {
 }
 
 type ServiceGraphsOverrides struct {
+	EnableServiceGraphEdgeStorage         *bool                       `yaml:"enable_service_graph_edge_storage,omitempty" json:"enable_service_graph_edge_storage,omitempty"`
+	BypassServices                        []string                    `yaml:"bypass_services,omitempty" json:"bypass_services,omitempty"`
+	BypassServiceRegex                    []string                    `yaml:"bypass_service_regex,omitempty" json:"bypass_service_regex,omitempty"`
 	MaxItems                              *int                        `yaml:"max_items,omitempty" json:"max_items,omitempty"`
 	HistogramBuckets                      []float64                   `yaml:"histogram_buckets,omitempty" json:"histogram_buckets,omitempty"`
 	Dimensions                            []string                    `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`

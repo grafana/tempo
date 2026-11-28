@@ -83,8 +83,9 @@ func (t *tooManySpansError) Error() string {
 type Processor struct {
 	Cfg Config
 
-	registry registry.Registry
-	store    *store.Store
+	registry     registry.Registry
+	store        *store.Store
+	relaxedStore *store.SpanStore
 
 	closeCh chan struct{}
 
@@ -191,7 +192,14 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 		p.serviceGraphConnectionInfo = reg.NewGauge(metricConnectionInfo)
 	}
 
-	p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire, p.metricDroppedSpanSideCacheOverflows)
+	if cfg.EnableServiceGraphEdgeStorage {
+		p.relaxedStore = store.NewSpanStore(cfg.Wait, cfg.MaxItems, func(e *store.Edge) {
+			p.metricTotalEdges.Inc()
+			p.onComplete(e)
+		}, p.onExpire, p.metricDroppedEdges.Inc)
+	} else {
+		p.store = store.NewStore(cfg.Wait, cfg.MaxItems, p.onComplete, p.onExpire, p.metricDroppedSpanSideCacheOverflows)
+	}
 
 	expirationTicker := time.NewTicker(2 * time.Second)
 	for i := 0; i < cfg.Workers; i++ {
@@ -200,7 +208,11 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger, fi
 				select {
 				// Periodically clean expired edges from the store
 				case <-expirationTicker.C:
-					p.store.Expire()
+					if p.relaxedStore != nil {
+						p.relaxedStore.Expire(time.Now())
+					} else {
+						p.store.Expire()
+					}
 
 				case <-p.closeCh:
 					return
@@ -228,6 +240,9 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 }
 
 func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error) {
+	if p.Cfg.EnableServiceGraphEdgeStorage {
+		return p.consumeRelaxed(resourceSpans)
+	}
 	var (
 		isNew             bool
 		totalDroppedSpans int
@@ -412,6 +427,10 @@ func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_comm
 
 func (p *Processor) Shutdown(_ context.Context) {
 	close(p.closeCh)
+	if p.relaxedStore != nil {
+		// Settle accepted windows before replacing or stopping the processor.
+		p.relaxedStore.Expire(time.Now().Add(p.Cfg.Wait))
+	}
 }
 
 func (p *Processor) onComplete(e *store.Edge) {
