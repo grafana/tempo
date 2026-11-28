@@ -31,14 +31,17 @@ profiles:
     metrics_generator:
       processors: [service-graphs]
 overrides:
-  tenant-a: standard
-  tenant-b: standard
+  tenant-a:
+    profile: standard
+  tenant-b:
+    profile: standard
   standard:
     ingestion:
       rate_limit_bytes: 200
   empty: {}
   unset: null
-  "*": standard
+  "*":
+    profile: standard
 `))
 	require.NoError(t, err)
 	require.Same(t, limits["tenant-a"], limits["tenant-b"])
@@ -59,17 +62,25 @@ func TestPerTenantOverridesProfilesInvalid(t *testing.T) {
 		yaml string
 		err  string
 	}{
-		{"unknown profile", "overrides:\n  tenant: missing", `unknown profile "missing"`},
-		{"empty reference", "overrides:\n  tenant: ''", "profile name must not be empty"},
-		{"null profile", "profiles:\n  standard: null\noverrides:\n  tenant: standard", `profile "standard" must not be null`},
+		{"unknown profile", "overrides:\n  tenant:\n    profile: missing", `unknown profile "missing"`},
+		{"empty reference", "overrides:\n  tenant:\n    profile: ''", "profile name must not be empty"},
+		{"null reference", "overrides:\n  tenant:\n    profile:", "profile name must not be empty"},
+		{"non-string reference", "overrides:\n  tenant:\n    profile: {a: 1}", "profile"},
+		{"string shorthand", "profiles:\n  standard: {}\noverrides:\n  tenant: standard", "cannot unmarshal"},
+		{"null profile", "profiles:\n  standard: null\noverrides:\n  tenant:\n    profile: standard", `profile "standard" must not be null`},
 		{"empty profile name", "profiles:\n  '': {}", "profile name must not be empty"},
 		{"unknown top-level key", "profiles: {}\nunknown: true", "field unknown not found"},
 		{"unknown profile key", "profiles:\n  standard:\n    typo: 1", `unknown extension key "typo"`},
 		{"unknown nested key", "profiles:\n  standard:\n    ingestion:\n      typo: 1", "field typo not found"},
 		{"duplicate profile", "profiles:\n  standard: {}\n  standard: {}", "key \"standard\" already set"},
-		{"duplicate tenant", "profiles:\n  standard: {}\noverrides:\n  tenant: standard\n  tenant: standard", "key \"tenant\" already set"},
-		{"legacy profile", "profiles:\n  standard:\n    max_traces_per_user: 1\noverrides:\n  tenant: standard", "profiles"},
+		{"duplicate tenant", "profiles:\n  standard: {}\noverrides:\n  tenant:\n    profile: standard\n  tenant:\n    profile: standard", "key \"tenant\" already set"},
+		{"legacy profile definition", "profiles:\n  standard:\n    max_traces_per_user: 1\noverrides:\n  tenant:\n    profile: standard", "profiles aren't supported in the legacy overrides format"},
+		{"legacy tenant with scoped profiles", "profiles:\n  standard: {}\noverrides:\n  tenant:\n    max_traces_per_user: 1", "profiles aren't supported in the legacy overrides format"},
 		{"profile inheritance", "profiles:\n  standard: other", "cannot unmarshal"},
+		{"profile in profile", "profiles:\n  base: {}\n  standard:\n    profile: base", "profiles can't reference other profiles"},
+		{"profile with other fields", "profiles:\n  standard: {}\noverrides:\n  tenant:\n    profile: standard\n    global:\n      max_bytes_per_trace: 1", `a tenant entry with "profile" can't set other fields`},
+		{"profile with field-level override first", "profiles:\n  standard: {}\noverrides:\n  tenant:\n    global:\n      max_bytes_per_trace: 1\n    profile: standard", `a tenant entry with "profile" can't set other fields`},
+		{"wildcard profile with other fields", "profiles:\n  standard: {}\noverrides:\n  '*':\n    profile: standard\n    ingestion:\n      rate_limit_bytes: 1", `a tenant entry with "profile" can't set other fields`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -84,7 +95,7 @@ func TestLoadPerTenantOverridesProfilesValidation(t *testing.T) {
 		t.Run(fmt.Sprint(referenced), func(t *testing.T) {
 			input := "profiles:\n  standard:\n    forwarder:\n      workers: -1\n"
 			if referenced {
-				input += "overrides:\n  tenant: standard\n"
+				input += "overrides:\n  tenant:\n    profile: standard\n"
 			}
 			loader := loadPerTenantOverrides(nil, ConfigTypeNew, false, false)
 			_, err := loader(strings.NewReader(input))
@@ -106,7 +117,7 @@ func TestLoadPerTenantOverridesProfilesValidation(t *testing.T) {
 	require.Equal(t, 1, calls)
 
 	calls = 0
-	_, err = loader(strings.NewReader("profiles:\n  standard: {}\noverrides:\n  tenant-a: standard\n  tenant-b: standard"))
+	_, err = loader(strings.NewReader("profiles:\n  standard: {}\noverrides:\n  tenant-a:\n    profile: standard\n  tenant-b:\n    profile: standard"))
 	require.NoError(t, err)
 	require.Equal(t, 1, calls, "a shared profile should be validated once per reload")
 }
@@ -121,7 +132,8 @@ profiles:
     ingestion:
       rate_limit_bytes: ${OVERRIDES_RATE}
 overrides:
-  tenant: ${OVERRIDES_PROFILE}
+  tenant:
+    profile: ${OVERRIDES_PROFILE}
 `)))
 	require.NoError(t, err)
 	require.Equal(t, 123, loaded.(*perTenantOverrides).forUser("tenant").Ingestion.RateLimitBytes)
@@ -135,7 +147,7 @@ func TestRuntimeConfigOverridesProfilesReload(t *testing.T) {
 		require.NoError(t, os.Rename(overridesFile+".tmp", overridesFile))
 	}
 	profileConfig := func(rate int) string {
-		return fmt.Sprintf("profiles:\n  standard:\n    ingestion:\n      rate_limit_bytes: %d\noverrides:\n  tenant-a: standard\n  tenant-b: standard\n  '*': standard\n", rate)
+		return fmt.Sprintf("profiles:\n  standard:\n    ingestion:\n      rate_limit_bytes: %d\noverrides:\n  tenant-a:\n    profile: standard\n  tenant-b:\n    profile: standard\n  '*':\n    profile: standard\n", rate)
 	}
 	writeConfig(profileConfig(100))
 	cfg := Config{
@@ -172,7 +184,7 @@ func TestRuntimeConfigOverridesProfilesReload(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 	require.Equal(t, 100, first.Ingestion.RateLimitBytes, "reload must not mutate an older snapshot")
 
-	writeConfig("overrides:\n  tenant-a: missing\n")
+	writeConfig("overrides:\n  tenant-a:\n    profile: missing\n")
 	require.Eventually(t, func() bool {
 		metrics, err := registry.Gather()
 		if err != nil {
@@ -203,7 +215,7 @@ func BenchmarkPerTenantOverridesProfiles(b *testing.B) {
 				input.WriteString("overrides:\n")
 				for i := range tenants {
 					if profiles {
-						fmt.Fprintf(&input, "  tenant-%d: standard\n", i)
+						fmt.Fprintf(&input, "  tenant-%d:\n    profile: standard\n", i)
 					} else {
 						fmt.Fprintf(&input, "  tenant-%d:\n%s", i, limits)
 					}
@@ -232,8 +244,10 @@ profiles:
       field_a: shared
       field_b: 5
 overrides:
-  tenant-a: standard
-  tenant-b: standard
+  tenant-a:
+    profile: standard
+  tenant-b:
+    profile: standard
 `))
 	require.NoError(t, err)
 	require.Same(t, get(limits["tenant-a"]), get(limits["tenant-b"]))
@@ -245,7 +259,39 @@ profiles:
     test_extension:
       field_a: ""
 overrides:
-  tenant: standard
+  tenant:
+    profile: standard
 `))
 	require.ErrorContains(t, err, "field_a cannot be empty")
+}
+
+func TestPerTenantOverridesProfileExtensionConflicts(t *testing.T) {
+	resetRegistryForTesting(t)
+	RegisterExtension(&testExtension{})
+
+	_, err := UnmarshalPerTenantOverrides([]byte(`
+profiles:
+  standard: {}
+overrides:
+  tenant:
+    profile: standard
+    test_extension:
+      field_a: value
+`))
+	require.ErrorContains(t, err, `a tenant entry with "profile" can't set other fields`)
+
+	require.PanicsWithValue(t, `overrides: extension key "profile" is reserved for profile references`, func() {
+		RegisterExtension(&profileKeyExtension{})
+	})
+}
+
+// profileKeyExtension reuses testExtension but claims the key reserved for profile references.
+type profileKeyExtension struct{ testExtension }
+
+func (*profileKeyExtension) Key() string { return "profile" }
+
+func TestConfigDefaultsRejectProfile(t *testing.T) {
+	var cfg Config
+	err := yaml.UnmarshalStrict([]byte("defaults:\n  profile: standard\n"), &cfg)
+	require.ErrorContains(t, err, `defaults can't set "profile"`)
 }

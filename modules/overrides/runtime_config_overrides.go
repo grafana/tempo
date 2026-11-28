@@ -49,6 +49,10 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 		TenantLimits map[string]runtimeOverride `yaml:"overrides"`
 	}
 	err := unmarshal(&rawConfig)
+	if isProfileKeyError(err) {
+		// Tenant entries handle the profile key themselves, so this one came from a profile definition.
+		return fmt.Errorf("profile definitions can't set %q: profiles can't reference other profiles", profileKey)
+	}
 	if err == nil {
 		for name, profile := range rawConfig.Profiles {
 			if name == "" {
@@ -86,6 +90,18 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 		return err
 	}
 
+	// The legacy format has no profiles. Report that before the legacy decode, which would fail
+	// with a less helpful error on the first profile entry.
+	var topLevel yaml.MapSlice
+	if err := unmarshal(&topLevel); err != nil {
+		return err
+	}
+	for _, item := range topLevel {
+		if item.Key == "profiles" {
+			return fmt.Errorf("profiles aren't supported in the legacy overrides format: convert the overrides to the scoped format to use profiles")
+		}
+	}
+
 	var legacyConfig perTenantLegacyOverrides
 	if err := unmarshal(&legacyConfig); err != nil {
 		return err
@@ -96,22 +112,36 @@ func (o *perTenantOverrides) UnmarshalYAML(unmarshal func(interface{}) error) er
 	return nil
 }
 
-// runtimeOverride accepts either an inline overrides block or a profile name.
+// runtimeOverride accepts either an inline overrides block or a profile reference of the
+// form {profile: name}. A profile reference can't set any other field yet.
 type runtimeOverride struct {
 	profile   string
 	overrides *Overrides
 }
 
 func (l *runtimeOverride) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var profile string
-	if err := unmarshal(&profile); err == nil {
-		if profile == "" {
-			return fmt.Errorf("profile name must not be empty")
-		}
-		l.profile = profile
+	// Decode as an inline block first so inline tenants only decode once. The profile key isn't
+	// an overrides field, so it surfaces as an unknown extension key.
+	err := unmarshal(&l.overrides)
+	if err == nil {
 		return nil
 	}
-	return unmarshal(&l.overrides)
+	if !isProfileKeyError(err) {
+		return err
+	}
+	l.overrides = nil
+
+	var ref struct {
+		Profile string `yaml:"profile"`
+	}
+	if err := unmarshal(&ref); err != nil {
+		return fmt.Errorf("a tenant entry with %q can't set other fields, field-level overrides on top of a profile aren't supported: %w", profileKey, err)
+	}
+	if ref.Profile == "" {
+		return fmt.Errorf("profile name must not be empty")
+	}
+	l.profile = ref.Profile
+	return nil
 }
 
 // UnmarshalPerTenantOverrides parses a per-tenant overrides file, handling both legacy

@@ -377,6 +377,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return nil
 	}
 
+	if isProfileKeyError(err) {
+		return fmt.Errorf("defaults can't set %q: profiles apply only to tenant entries in the per-tenant overrides file", profileKey)
+	}
+
 	// Fail only on extension-specific errors, otherwise fallback to legacy mode
 	if isExtensionError(err) || isExtensionKeyError(err) {
 		return err

@@ -814,3 +814,53 @@ func perTenantRuntimeOverrides(tenantID string) *perTenantOverrides {
 func strPtr(s string) *string {
 	return &s
 }
+
+// User-configurable overrides layer on top of a profile-backed tenant without writing into the
+// profile that other tenants share.
+func TestUserConfigOverridesManager_OverProfile(t *testing.T) {
+	const runtimeConfig = `
+profiles:
+  standard:
+    ingestion:
+      rate_limit_bytes: 1000
+    global:
+      max_bytes_per_trace: 5000
+    forwarders: [fwd, fwd-2]
+overrides:
+  tenant-1:
+    profile: standard
+  tenant-2:
+    profile: standard
+`
+	_, mgr, cleanup := localUserConfigOverrides(t, Overrides{}, []byte(runtimeConfig))
+	defer cleanup()
+	base := mgr.Interface
+
+	profile := base.GetRuntimeOverridesFor(tenant1)
+	require.Same(t, profile, base.GetRuntimeOverridesFor(tenant2))
+	before, err := yaml.Marshal(profile)
+	require.NoError(t, err)
+
+	mgr.setTenantLimit(tenant1, &userconfigurableoverrides.Limits{
+		Forwarders: &[]string{"user-fwd"},
+		MetricsGenerator: userconfigurableoverrides.LimitsMetricsGenerator{
+			Processors: &listtomap.ListToMap{"span-metrics": {}},
+		},
+	})
+
+	// tenant-1 sees its user-configurable values and the profile values it doesn't override
+	require.Equal(t, []string{"user-fwd"}, mgr.Forwarders(tenant1))
+	require.Equal(t, map[string]struct{}{"span-metrics": {}}, mgr.MetricsGeneratorProcessors(tenant1))
+	require.Equal(t, float64(1000), mgr.IngestionRateLimitBytes(tenant1))
+	require.Equal(t, 5000, mgr.MaxBytesPerTrace(tenant1))
+
+	// tenant-2 shares the profile and is unaffected
+	require.Equal(t, []string{"fwd", "fwd-2"}, mgr.Forwarders(tenant2))
+	require.Equal(t, float64(1000), mgr.IngestionRateLimitBytes(tenant2))
+
+	// the shared profile is the same object and has not been modified
+	require.Same(t, profile, base.GetRuntimeOverridesFor(tenant1))
+	after, err := yaml.Marshal(profile)
+	require.NoError(t, err)
+	require.Equal(t, string(before), string(after))
+}
