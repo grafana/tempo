@@ -102,6 +102,9 @@ func RegisterExtension[T Extension](e T) func(*Overrides) T {
 // validateExtensionKey checks that key does not conflict with any reserved name.
 // Must be called with extensionRegistry.Lock held.
 func validateExtensionKey(key string) {
+	if key == profileKey {
+		panic(fmt.Sprintf("overrides: extension key %q is reserved for profile references", key))
+	}
 	if _, exists := extensionRegistry.entries[key]; exists {
 		panic(fmt.Sprintf("overrides: extension %q already registered", key))
 	}
@@ -329,6 +332,16 @@ func (e *unknownExtensionKeyError) Error() string {
 func isLegacyExtensionKeyError(err error) bool {
 	var e *unknownExtensionKeyError
 	return errors.As(err, &e) && e.isLegacy
+}
+
+// profileKey is the key of a tenant entry that references a named profile in the per-tenant
+// runtime overrides file. It isn't an extension key.
+const profileKey = "profile"
+
+// isProfileKeyError reports whether err is an unknownExtensionKeyError for the profile key.
+func isProfileKeyError(err error) bool {
+	var e *unknownExtensionKeyError
+	return errors.As(err, &e) && e.key == profileKey
 }
 
 // isExtensionKeyError reports whether err is an unknownExtensionKeyError that does not match a known

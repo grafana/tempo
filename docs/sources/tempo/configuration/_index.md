@@ -2972,6 +2972,68 @@ When a tenant matches a per-tenant override entry, Tempo doesn't merge that entr
 
 For a complete per-tenant `metrics_generator` example, including `remote_write_headers` for per-tenant authentication and environment variable expansion, refer to [Multi-tenancy support](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-from-traces/metrics-generator/multitenancy/).
 
+###### Named runtime override profiles
+
+When many tenants use the same limits,
+define a named profile once in the runtime overrides file
+and assign tenants to it by name.
+Tempo shares the decoded profile between its assigned tenants,
+reducing configuration size and memory use compared with repeated inline blocks.
+
+```yaml
+# /conf/overrides.yaml
+profiles:
+  standard:
+    ingestion:
+      rate_limit_bytes: 1000000
+      burst_size_bytes: 2000000
+    global:
+      max_bytes_per_trace: 5000000
+    compaction:
+      block_retention: 168h
+    metrics_generator:
+      processors: [service-graphs, span-metrics]
+
+overrides:
+  tenant-a:
+    profile: standard
+  tenant-b:
+    profile: standard
+  tenant-c:
+    ingestion:
+      rate_limit_bytes: 500000
+      burst_size_bytes: 1000000
+  "*":
+    profile: standard
+```
+
+A tenant entry can be either a profile reference, written as `profile: <name>`, or an inline override block.
+The wildcard entry can also reference a profile.
+Profile names and tenant IDs are separate,
+so they can use the same name.
+Profiles use the scoped override format shown above.
+They aren't supported in the legacy flat overrides format,
+and Tempo rejects `profile` in `defaults` and inside profile definitions,
+so a profile can't reference another profile.
+
+A tenant entry that sets `profile` can't set any other field.
+Tempo rejects the file instead of applying field-level overrides on top of the profile.
+To customize a single tenant, define another profile or use an inline block.
+
+Profiles have the same field semantics as inline overrides:
+Tempo doesn't merge them field-by-field with `overrides.defaults` or the wildcard entry.
+Existing fallback behavior for individual settings still applies.
+Set all the values required for the tier in its profile.
+An inline tenant block replaces the entire profile selected by the wildcard,
+so it must also include every value that tenant needs.
+
+Changing a profile updates all assigned tenants on the next successful runtime reload.
+An unknown profile reference or invalid profile rejects the reload,
+and Tempo continues to use the last valid configuration.
+The runtime configuration status endpoint and tenant status page
+show each tenant's resolved override values.
+These status responses expand shared profiles into individual tenant blocks.
+
 ##### User-configurable overrides
 
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
