@@ -51,3 +51,37 @@ func TestServiceGraphPresentationRequest(t *testing.T) {
 		require.Same(t, next, WithoutServiceGraphPresentationParams(next))
 	})
 }
+
+// Ordinary queries, explicit opt-outs, and fully supplied lists must not read
+// tenant overrides. Partial lists still inherit the missing tenant default.
+func TestServiceGraphPresentationLazyDefaults(t *testing.T) {
+	for _, tc := range []struct {
+		name, query string
+		calls       int
+		invalid     bool
+	}{
+		{name: "ordinary query"},
+		{name: "opt out", query: "include_service_graph_presentation=false"},
+		{name: "invalid flag", query: "include_service_graph_presentation=nope", invalid: true},
+		{name: "conflicting opt out", query: "include_service_graph_presentation=false&bypass_service=a", invalid: true},
+		{name: "both lists supplied", query: "bypass_service=a&bypass_service_regex=b"},
+		{name: "both lists cleared", query: "bypass_service=&bypass_service_regex="},
+		{name: "tenant defaults", query: "include_service_graph_presentation=true", calls: 1},
+		{name: "inherit regex", query: "bypass_service=a", calls: 1},
+		{name: "inherit names", query: "bypass_service_regex=b", calls: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			_, err := ParseServiceGraphPresentationRequestWithDefaults(httptest.NewRequest("GET", "/?"+tc.query, nil), func() ([]string, []string) {
+				calls++
+				return []string{"gateway"}, []string{"proxy"}
+			})
+			if tc.invalid {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.calls, calls)
+		})
+	}
+}

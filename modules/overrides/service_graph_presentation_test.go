@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/grafana/tempo/v3/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/v3/pkg/sharedconfig"
@@ -102,5 +103,33 @@ func TestPresentationSnapshotsConcurrentReload(t *testing.T) {
 	close(errs)
 	for err := range errs {
 		require.NoError(t, err)
+	}
+}
+
+// Cached and inherited reads must share the overrides read lock with unrelated
+// getters rather than waiting for exclusive access to all tenant settings.
+func TestPresentationReadsShareReadLock(t *testing.T) {
+	for _, saved := range []bool{false, true} {
+		t.Run(fmt.Sprint("saved=", saved), func(t *testing.T) {
+			manager, _, _, _ := newPresentationTestManager(t)
+			if saved {
+				manager.setTenantLimit("tenant", presentationTestLimits(1))
+			}
+			manager.mtx.RLock()
+			done := make(chan struct{})
+			go func() {
+				manager.MetricsGeneratorProcessorServiceGraphsPresentation("tenant")
+				close(done)
+			}()
+			completed := false
+			select {
+			case <-done:
+				completed = true
+			case <-time.After(time.Second):
+			}
+			manager.mtx.RUnlock()
+			<-done
+			require.True(t, completed, "presentation reads must not acquire the overrides write lock")
+		})
 	}
 }

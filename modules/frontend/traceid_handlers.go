@@ -37,8 +37,9 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			return httpInvalidRequest(reqErr), nil
 		}
 
-		names, patterns := o.MetricsGeneratorProcessorServiceGraphsPresentation(tenant)
-		presentation, presentationErr := api.ParseServiceGraphPresentationRequest(req, names, patterns)
+		presentation, presentationErr := api.ParseServiceGraphPresentationRequestWithDefaults(req, func() ([]string, []string) {
+			return o.MetricsGeneratorProcessorServiceGraphsPresentation(tenant)
+		})
 		if presentationErr != nil {
 			return httpInvalidRequest(presentationErr), nil
 		}
@@ -163,8 +164,9 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 		}
 		// filter runs in finalize(), after combine and redaction.
 
-		names, patterns := o.MetricsGeneratorProcessorServiceGraphsPresentation(tenant)
-		presentation, presentationErr := api.ParseServiceGraphPresentationRequest(req, names, patterns)
+		presentation, presentationErr := api.ParseServiceGraphPresentationRequestWithDefaults(req, func() ([]string, []string) {
+			return o.MetricsGeneratorProcessorServiceGraphsPresentation(tenant)
+		})
 		if presentationErr != nil {
 			return httpInvalidRequest(presentationErr), nil
 		}

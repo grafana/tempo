@@ -19,6 +19,12 @@ const (
 // ParseServiceGraphPresentationRequest resolves response-only presentation rules.
 // An omitted list inherits tenant defaults; a single empty value clears a list.
 func ParseServiceGraphPresentationRequest(r *http.Request, services, patterns []string) (*tempopb.ServiceGraphPresentation, error) {
+	return ParseServiceGraphPresentationRequestWithDefaults(r, func() ([]string, []string) { return services, patterns })
+}
+
+// ParseServiceGraphPresentationRequestWithDefaults loads tenant defaults only
+// when presentation is enabled and at least one list needs to be inherited.
+func ParseServiceGraphPresentationRequestWithDefaults(r *http.Request, defaults func() ([]string, []string)) (*tempopb.ServiceGraphPresentation, error) {
 	q := r.URL.Query()
 	flags, hasFlag := q[presentationParam]
 	names, hasNames := q[bypassServiceParam]
@@ -40,6 +46,10 @@ func ParseServiceGraphPresentationRequest(r *http.Request, services, patterns []
 			}
 			return nil, nil
 		}
+	}
+	var services, patterns []string
+	if !hasNames || !hasRegex {
+		services, patterns = defaults()
 	}
 	if hasNames {
 		services = names
