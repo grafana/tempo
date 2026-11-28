@@ -262,7 +262,7 @@ func (t *Table) ResetRows() {
 // output) when rendered as a table. Rows that are longer than this limit will
 // be "snipped" to the length. Length has to be a positive value to take effect.
 //
-// Deprecated: in favor if Style().Size.WidthMax
+// Deprecated: in favor of Style().Size.WidthMax
 func (t *Table) SetAllowedRowLength(length int) {
 	t.allowedRowLength = length
 }

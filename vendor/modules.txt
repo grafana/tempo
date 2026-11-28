@@ -1,7 +1,7 @@
 # cel.dev/expr v0.25.3
 ## explicit; go 1.23.0
 cel.dev/expr
-# charm.land/bubbletea/v2 v2.1.1
+# charm.land/bubbletea/v2 v2.1.3
 ## explicit; go 1.26.0
 charm.land/bubbletea/v2
 # charm.land/lipgloss/v2 v2.1.1
@@ -142,7 +142,7 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric
 # github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.62.0
 ## explicit; go 1.26.0
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping
-# github.com/KimMachineGun/automemlimit v1.0.1
+# github.com/KimMachineGun/automemlimit v1.0.2
 ## explicit; go 1.21.0
 github.com/KimMachineGun/automemlimit/memlimit
 # github.com/Microsoft/go-winio v0.6.4
@@ -351,7 +351,7 @@ github.com/beorn7/perks/quantile
 # github.com/bits-and-blooms/bitset v1.29.0
 ## explicit; go 1.16
 github.com/bits-and-blooms/bitset
-# github.com/bits-and-blooms/bloom/v3 v3.7.1
+# github.com/bits-and-blooms/bloom/v3 v3.7.2
 ## explicit; go 1.16
 github.com/bits-and-blooms/bloom/v3
 # github.com/brunoscheufler/aws-ecs-metadata-go v0.0.0-20221221133751-67e37ae746cd
@@ -423,7 +423,7 @@ github.com/charmbracelet/colorprofile
 # github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4
 ## explicit; go 1.26.0
 github.com/charmbracelet/ultraviolet
-# github.com/charmbracelet/x/ansi v0.11.9
+# github.com/charmbracelet/x/ansi v0.11.10
 ## explicit; go 1.24.2
 github.com/charmbracelet/x/ansi
 github.com/charmbracelet/x/ansi/kitty
@@ -1017,7 +1017,7 @@ github.com/jcmturner/gokrb5/v8/types
 ## explicit; go 1.13
 github.com/jcmturner/rpc/v2/mstypes
 github.com/jcmturner/rpc/v2/ndr
-# github.com/jedib0t/go-pretty/v6 v6.9.2
+# github.com/jedib0t/go-pretty/v6 v6.9.3
 ## explicit; go 1.18
 github.com/jedib0t/go-pretty/v6/table
 github.com/jedib0t/go-pretty/v6/text
@@ -1036,7 +1036,7 @@ github.com/julienschmidt/httprouter
 # github.com/kamstrup/intmap v0.5.2
 ## explicit; go 1.23
 github.com/kamstrup/intmap
-# github.com/klauspost/compress v1.20.4
+# github.com/klauspost/compress v1.20.5
 ## explicit; go 1.25
 github.com/klauspost/compress
 github.com/klauspost/compress/flate
@@ -1799,7 +1799,7 @@ github.com/yusufpapurcu/wmi
 # github.com/zeebo/xxh3 v1.1.0
 ## explicit; go 1.22
 github.com/zeebo/xxh3
-# go.etcd.io/etcd/api/v3 v3.7.3
+# go.etcd.io/etcd/api/v3 v3.7.4
 ## explicit; go 1.26.0
 go.etcd.io/etcd/api/v3/authpb
 go.etcd.io/etcd/api/v3/etcdserverpb
@@ -2539,7 +2539,7 @@ google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20261110000943-09e21b237f2c
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20261123191846-1e707ab9fbc2
 ## explicit; go 1.26.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails

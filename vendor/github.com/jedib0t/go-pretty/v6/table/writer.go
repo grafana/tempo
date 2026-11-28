@@ -36,7 +36,7 @@ type Writer interface {
 	SuppressEmptyColumns()
 	SuppressTrailingSpaces()
 
-	// deprecated; in favor if Style().Size.WidthMax
+	// deprecated; in favor of Style().Size.WidthMax
 	SetAllowedRowLength(length int)
 	// deprecated; in favor of Style().HTML.CSSClass
 	SetHTMLCSSClass(cssClass string)

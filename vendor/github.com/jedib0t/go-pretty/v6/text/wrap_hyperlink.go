@@ -251,7 +251,10 @@ func hyperlinkToken(str string) (token, rest string, escape bool) {
 	}
 	parser := EscSeqParser{skipParse: true}
 	for idx, r := range str {
-		parser.Consume(r)
+		if !parser.ParseRune(r) {
+			// the rune is text: the escape sequence was over without it
+			return str[:idx], str[idx:], true
+		}
 		if !parser.InSequence() {
 			_, size := utf8.DecodeRuneInString(str[idx:])
 			end := idx + size

@@ -129,27 +129,23 @@ func appendWord(word string, lineIdx *int, lastSeenEscSeq string, wrapLen int, o
 		// escape sequences are written out as they are, a rune at a time
 		if esp.InSequence() || word[idx] == byte(EscapeStartRune) {
 			char, size := utf8.DecodeRuneInString(word[idx:])
-			idx += size
-			if !esp.InSequence() {
+			if !esp.InSequence() || char == EscapeStartRune {
+				// an ESC starts a sequence, and starts over inside one; one
+				// that is half of an ST is not in a sequence that sets colors
 				escSeq = ""
 			}
-			esp.Consume(char)
-			if len(escSeq) < escSeqMaxLength {
-				escSeq += string(char)
-			}
-			out.WriteRune(char)
-
-			// A sequence that sets colors or attributes remains in force for
-			// the text after it, and has to be restarted on every new line.
-			// Any other sequence (moving the cursor, erasing the line, ...) is
-			// done once it has been written out.
-			if !esp.InSequence() && strings.HasPrefix(escSeq, EscapeStartCSI) && strings.HasSuffix(escSeq, EscapeStopCSI) {
-				lastSeenEscSeq = escSeq
-				if lastSeenEscSeq == EscapeReset {
-					lastSeenEscSeq = ""
+			if esp.ParseRune(char) {
+				idx += size
+				if len(escSeq) < escSeqMaxLength {
+					escSeq += string(char)
 				}
+				out.WriteRune(char)
+				if !esp.InSequence() {
+					lastSeenEscSeq = escSeqInForce(escSeq, lastSeenEscSeq)
+				}
+				continue
 			}
-			continue
+			// the rune is text: the escape sequence was over without it
 		}
 
 		// text is written out a grapheme cluster at a time, so that a cluster
@@ -165,6 +161,21 @@ func appendWord(word string, lineIdx *int, lastSeenEscSeq string, wrapLen int, o
 		appendCluster(word[idx:idx+size], clusterWidth, wrapLen, lineIdx, lastSeenEscSeq, out)
 		idx += size
 	}
+}
+
+// escSeqInForce returns the escape sequence to restart on every new line, now
+// that the given escape sequence has been written out. A sequence that sets
+// colors or attributes remains in force for the text after it, and replaces
+// the one that was in force. Any other sequence (moving the cursor, erasing
+// the line, ...) is done once it has been written out, and changes nothing.
+func escSeqInForce(escSeq string, lastSeenEscSeq string) string {
+	if !strings.HasPrefix(escSeq, EscapeStartCSI) || !strings.HasSuffix(escSeq, EscapeStopCSI) {
+		return lastSeenEscSeq
+	}
+	if escSeq == EscapeReset {
+		return ""
+	}
+	return escSeq
 }
 
 // wrapCluster returns the size in bytes and the display width of the grapheme
