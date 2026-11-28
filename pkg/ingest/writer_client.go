@@ -61,6 +61,11 @@ func NewWriterClient(kafkaCfg KafkaConfig, maxInflightProduceRequests int, logge
 		// which means the Kafka client will keep issuing a Produce request every 50ms as far as the Kafka backend
 		// doesn't take longer than 1s to process them (if it takes longer, the client will buffer data and stop
 		// issuing new Produce requests until some previous ones complete).
+		//
+		// The linger is configurable because a caller that produces one record at a time and waits for the
+		// acknowledgement pays it in full on every record: with a 50ms linger that is a ceiling of 20 records per
+		// second per partition. At 0 a record goes out as soon as it is produced, so the product above no longer
+		// describes the rate, only the buffering that is left.
 		kgo.DisableIdempotentWrite(),
 		kgo.ProducerLinger(kafkaCfg.ProducerLinger),
 		kgo.MaxProduceRequestsInflightPerBroker(maxInflightProduceRequests),
