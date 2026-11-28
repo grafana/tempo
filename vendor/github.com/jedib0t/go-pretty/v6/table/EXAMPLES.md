@@ -40,6 +40,10 @@ Running the above will result in:
 +-----+------------+-----------+--------+-----------------------------+
 ```
 
+The snippets below go in place of the final `t.Render()` call, unless they
+create a table of their own. Some of them need more imports: `fmt`, `strconv`
+and `github.com/jedib0t/go-pretty/v6/text`.
+
 ---
 
 <details>
@@ -143,7 +147,7 @@ Or you can use one of the ready-to-use Styles, and just make a few tweaks:
 
 For more granular control over horizontal lines in your table, you can use `BoxStyleHorizontal` to customize different separator types independently. This allows you to have different horizontal line styles for titles, headers, rows, and footers.
 
-The `BoxStyleHorizontal` struct provides 10 customizable separator types:
+The `BoxStyleHorizontal` struct provides 11 customizable separator types:
 - `TitleTop` / `TitleBottom` - Lines above/below the title
 - `HeaderTop` / `HeaderMiddle` / `HeaderBottom` - Lines in the header section
 - `RowTop` / `RowMiddle` / `RowBottom` - Lines in the data rows section
@@ -199,7 +203,7 @@ When `BoxStyle.Horizontal` is set to a non-nil value, it overrides the `MiddleHo
 <details>
 <summary><strong>Auto-Merge</strong></summary>
 
-You can auto-merge cells horizontally and vertically, but you have request for
+You can auto-merge cells horizontally and vertically, but you have to request
 it specifically for each row/column using `RowConfig` or `ColumnConfig`.
 
 ```golang
@@ -266,20 +270,21 @@ can handle rows with multiple lines too. The recommended way is to use the
 `Pager()` interface:
 
 ```golang
-    pager := t.Pager(PageSize(1))
-    pager.Render()  // Render first page
-    pager.Next()    // Move to next page and render
-    pager.Prev()    // Move to previous page and render
-    pager.GoTo(3)   // Jump to page 3
-    pager.Location() // Get current page number
+    pager := t.Pager(table.PageSize(1))
+    pager.Render()   // returns the first page, and writes it to the output mirror
+    pager.Next()     // moves to the next page, and returns it
+    pager.Render()   // writes the page that it moved to
+    pager.Prev()     // moves to the previous page, and returns it
+    pager.GoTo(3)    // moves to page 3, and returns it
+    pager.Location() // returns the current page number: 3
 ```
 
-Or use the deprecated `SetPageSize()` method for simple cases:
-```golang
-    t.SetPageSize(1)
-    t.Render()
-```
-to get:
+Only `Render()` writes to the output mirror, which is the one set on the table
+unless you change it with `pager.SetOutputMirror()`. `Next()`, `Prev()` and
+`GoTo()` move to a page and return it as a string without writing it anywhere:
+print what they return, or call `Render()` after them.
+
+The code above writes the first two pages, one after the other:
 ```
 +-----+------------+-----------+--------+-----------------------------+
 |   # | FIRST NAME | LAST NAME | SALARY |                             |
@@ -288,19 +293,10 @@ to get:
 +-----+------------+-----------+--------+-----------------------------+
 |     |            | TOTAL     |  10000 |                             |
 +-----+------------+-----------+--------+-----------------------------+
-
 +-----+------------+-----------+--------+-----------------------------+
 |   # | FIRST NAME | LAST NAME | SALARY |                             |
 +-----+------------+-----------+--------+-----------------------------+
 |  20 | Jon        | Snow      |   2000 | You know nothing, Jon Snow! |
-+-----+------------+-----------+--------+-----------------------------+
-|     |            | TOTAL     |  10000 |                             |
-+-----+------------+-----------+--------+-----------------------------+
-
-+-----+------------+-----------+--------+-----------------------------+
-|   # | FIRST NAME | LAST NAME | SALARY |                             |
-+-----+------------+-----------+--------+-----------------------------+
-| 300 | Tyrion     | Lannister |   5000 |                             |
 +-----+------------+-----------+--------+-----------------------------+
 |     |            | TOTAL     |  10000 |                             |
 +-----+------------+-----------+--------+-----------------------------+
@@ -365,7 +361,7 @@ Example: Filter by salary and name
         {Number: 4, Operator: table.GreaterThan, Value: 2000},
         {Number: 3, Operator: table.Contains, Value: "Stark"},
     })
-    t.Render()
+    fmt.Println(t.Render())
 ```
 to get:
 ```
@@ -389,8 +385,8 @@ rows be sorted first by "First Name" and then by "Last Name" (in case of similar
 "First Name" entries).
 ```golang
     t.SortBy([]table.SortBy{
-	    {Name: "First Name", Mode: table.Asc},
-	    {Name: "Last Name", Mode: table.Asc},
+        {Name: "First Name", Mode: table.Asc},
+        {Name: "Last Name", Mode: table.Asc},
     })
 ```
 
@@ -403,7 +399,7 @@ The `Mode` field in `SortBy` supports various sorting modes:
 You can also make sorting case-insensitive by setting `IgnoreCase: true`:
 ```golang
     t.SortBy([]table.SortBy{
-	    {Name: "First Name", Mode: table.Asc, IgnoreCase: true},
+        {Name: "First Name", Mode: table.Asc, IgnoreCase: true},
     })
 ```
 
@@ -427,51 +423,51 @@ to strings) and must return:
 Example: Custom numeric sorting that handles string numbers correctly.
 ```golang
     t.SortBy([]table.SortBy{
-	    {
-		    Number: 1,
-		    CustomLess: func(iStr string, jStr string) int {
-			    iNum, iErr := strconv.Atoi(iStr)
-			    jNum, jErr := strconv.Atoi(jStr)
-			    if iErr != nil || jErr != nil {
-				    // Fallback to string comparison if not numeric
-				    if iStr < jStr {
-					    return -1
-				    }
-				    if iStr > jStr {
-					    return 1
-				    }
-				    return 0
-			    }
-			    if iNum < jNum {
-				    return -1
-			    }
-			    if iNum > jNum {
-				    return 1
-			    }
-			    return 0
-		    },
-	    },
+        {
+            Number: 1,
+            CustomLess: func(iStr string, jStr string) int {
+                iNum, iErr := strconv.Atoi(iStr)
+                jNum, jErr := strconv.Atoi(jStr)
+                if iErr != nil || jErr != nil {
+                    // Fallback to string comparison if not numeric
+                    if iStr < jStr {
+                        return -1
+                    }
+                    if iStr > jStr {
+                        return 1
+                    }
+                    return 0
+                }
+                if iNum < jNum {
+                    return -1
+                }
+                if iNum > jNum {
+                    return 1
+                }
+                return 0
+            },
+        },
     })
 ```
 
 Example: Combining custom sorting with default sorting modes.
 ```golang
     t.SortBy([]table.SortBy{
-	    {
-		    Number: 1,
-		    CustomLess: func(iStr string, jStr string) int {
-			    // Custom logic: "same" values come first
-			    if iStr == "same" && jStr != "same" {
-				    return -1
-			    }
-			    if iStr != "same" && jStr == "same" {
-				    return 1
-			    }
-			    return 0 // Equal, continue to next column
-		    },
-	    },
-	    {Number: 2, Mode: table.Asc},        // Default alphabetical sort
-	    {Number: 3, Mode: table.AscNumeric}, // Default numeric sort
+        {
+            Number: 1,
+            CustomLess: func(iStr string, jStr string) int {
+                // Custom logic: "same" values come first
+                if iStr == "same" && jStr != "same" {
+                    return -1
+                }
+                if iStr != "same" && jStr == "same" {
+                    return 1
+                }
+                return 0 // Equal, continue to next column
+            },
+        },
+        {Number: 2, Mode: table.Asc},        // Default alphabetical sort
+        {Number: 3, Mode: table.AscNumeric}, // Default numeric sort
     })
 ```
 </details>
@@ -483,7 +479,7 @@ Example: Combining custom sorting with default sorting modes.
 
 You can restrict the maximum (text) width for a Row:
 ```golang
-    t.SetAllowedRowLength(50)
+    t.Style().Size.WidthMax = 50
     t.Render()
 ```
 to get:
@@ -508,7 +504,7 @@ to get:
 <summary><strong>Column Control - Alignment, Colors, Width and more</strong></summary>
 
 You can control a lot of things about individual cells/columns which overrides
-global properties/styles using the `SetColumnConfig()` interface:
+global properties/styles using the `SetColumnConfigs()` interface:
 - Alignment (horizontal & vertical)
 - Colorization
 - Transform individual cells based on the content
@@ -520,7 +516,7 @@ global properties/styles using the `SetColumnConfig()` interface:
         return text.Bold.Sprint(val)
     })
 
-    t.SetColumnConfigs([]ColumnConfig{
+    t.SetColumnConfigs([]table.ColumnConfig{
         {
             Name:              "First Name",
             Align:             text.AlignLeft,
@@ -538,7 +534,7 @@ global properties/styles using the `SetColumnConfig()` interface:
             VAlignHeader:      text.VAlignBottom,
             WidthMin:          6,
             WidthMax:          64,
-        }
+        },
     })
 ```
 
@@ -554,9 +550,9 @@ global properties/styles using the `SetColumnConfig()` interface:
 ```
 to get:
 ```
-,First Name,Last Name,Salary,
+#,First Name,Last Name,Salary,
 1,Arya,Stark,3000,
-20,Jon,Snow,2000,"You know nothing\, Jon Snow!"
+20,Jon,Snow,2000,"You know nothing, Jon Snow!"
 300,Tyrion,Lannister,5000,
 ,,Total,10000,
 ```

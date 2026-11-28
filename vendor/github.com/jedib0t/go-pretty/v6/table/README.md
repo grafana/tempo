@@ -7,7 +7,7 @@ Pretty-print tables into ASCII/Unicode strings.
 
 ```
 +---------------------------------------------------------------------+
-| Game of Thrones                                                     +
+| Game of Thrones                                                     |
 +-----+------------+-----------+--------+-----------------------------+
 |   # | FIRST NAME | LAST NAME | SALARY |                             |
 +-----+------------+-----------+--------+-----------------------------+
@@ -41,23 +41,23 @@ If you want very specific examples, look at the [EXAMPLES.md](EXAMPLES.md) file.
   - Auto Index Rows (1, 2, 3 ...) and Columns (A, B, C, ...) (`SetAutoIndex`)
   - Set which column is the index column (`SetIndexColumn`)
   - Pager interface for navigating through paged output (`Pager()`)
-    - `GoTo(pageNum)` - Jump to specific page
-    - `Next()` - Move to next page
-    - `Prev()` - Move to previous page
+    - `GoTo(pageNum)` - Jump to a specific page, and return it
+    - `Next()` - Move to the next page, and return it
+    - `Prev()` - Move to the previous page, and return it
     - `Location()` - Get current page number
-    - `Render()` - Render current page
+    - `Render()` - Return the current page, and write it to the output mirror
     - `SetOutputMirror()` - Mirror output to io.Writer
 
 ### Auto Merge
 
   - Auto Merge cells (_not supported in CSV/Markdown/TSV modes_)
     - Cells in a Row (`RowConfig.AutoMerge`)
-    - Columns (`ColumnConfig.AutoMerge`) (_not supported in HTML mode_)
+    - Columns (`ColumnConfig.AutoMerge`)
     - Custom alignment for merged cells (`RowConfig.AutoMergeAlign`)
 
 ### Size & Width Control
 
-  - Limit the length of Rows (`SetAllowedRowLength` or `Style().Size.WidthMax`)
+  - Limit the length of Rows (`Style().Size.WidthMax`)
   - Auto-size Rows (`Style().Size.WidthMin` and `Style().Size.WidthMax`)
   - Column width control (`ColumnConfig.WidthMin` and `ColumnConfig.WidthMax`)
   - Custom width enforcement functions (`ColumnConfig.WidthMaxEnforcer`)
@@ -138,4 +138,4 @@ If you want very specific examples, look at the [EXAMPLES.md](EXAMPLES.md) file.
     - HTML Table - With custom CSS Class and options
     - Markdown Table - Markdown-compatible format
     - TSV - Tab-separated values
-  - Mirror output to an `io.Writer` (ex. `os.StdOut`) (`SetOutputMirror`)
+  - Mirror output to an `io.Writer` (ex. `os.Stdout`) (`SetOutputMirror`)

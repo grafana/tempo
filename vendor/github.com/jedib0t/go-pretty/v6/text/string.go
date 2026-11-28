@@ -38,13 +38,7 @@ func InsertEveryN(str string, runeToInsert rune, n int) string {
 		var cluster string
 		cluster, str, _, state = uniseg.StepString(str, state)
 		for idx, c := range cluster {
-			if esp.InSequence() {
-				esp.Consume(c)
-				out.WriteRune(c)
-				continue
-			}
-			esp.Consume(c)
-			if esp.InSequence() {
+			if esp.ParseRune(c) {
 				out.WriteRune(c)
 				continue
 			}
@@ -78,17 +72,15 @@ func LongestLineLen(str string) int {
 	//fmt.Println(str)
 	for _, c := range str {
 		//fmt.Printf("%03d | %03d | %c | %5v | %v | %#v\n", idx, c, c, esp.inEscSeq, esp.Codes(), esp.escapeSeq)
-		if esp.InSequence() {
-			esp.Consume(c)
+		if esp.ParseRune(c) {
 			continue
 		}
-		esp.Consume(c)
 		if c == '\n' {
 			if currLength > maxLength {
 				maxLength = currLength
 			}
 			currLength = 0
-		} else if !esp.InSequence() {
+		} else {
 			currLength += RuneWidth(c)
 		}
 	}
@@ -205,8 +197,7 @@ func RepeatAndTrim(str string, maxRunes int) string {
 	for idx := 0; idx < len(str); {
 		c, size := utf8.DecodeRuneInString(str[idx:])
 		idx += size
-		if esp.InSequence() || c == EscapeStartRune {
-			esp.Consume(c)
+		if esp.ParseRune(c) {
 			continue
 		}
 		if textBegin < 0 {
@@ -248,7 +239,7 @@ func repeatAndTrim(str string, maxLen int) string {
 //	RuneCount("\x1b[33mGhost\x1b[0m") == 5
 //	RuneCount("\x1b[33mGhost\x1b[0") == 5
 //
-// Deprecated: in favor of RuneWidthWithoutEscSequences
+// Deprecated: in favor of StringWidthWithoutEscSequences
 func RuneCount(str string) int {
 	return StringWidthWithoutEscSequences(str)
 }
@@ -369,12 +360,7 @@ func StringWidthWithoutEscSequences(str string) int {
 
 	count, esp := 0, EscSeqParser{skipParse: true}
 	for _, c := range str {
-		if esp.InSequence() {
-			esp.Consume(c)
-			continue
-		}
-		esp.Consume(c)
-		if !esp.InSequence() {
+		if !esp.ParseRune(c) {
 			count += RuneWidth(c)
 		}
 	}
@@ -407,10 +393,12 @@ func Trim(str string, maxLen int) string {
 		// sequence can start inside a cluster.
 		if esp.InSequence() || str[idx] == byte(EscapeStartRune) {
 			sChr, size := utf8.DecodeRuneInString(str[idx:])
-			esp.Consume(sChr)
-			out.WriteRune(sChr)
-			idx += size
-			continue
+			if esp.ParseRune(sChr) {
+				out.WriteRune(sChr)
+				idx += size
+				continue
+			}
+			// the rune is text: the escape sequence was over without it
 		}
 
 		// Count the display width of the whole grapheme cluster (wide East
@@ -502,13 +490,7 @@ func trimCluster(str string) (int, int) {
 func trailingEscSequences(str string, esp *EscSeqParser) string {
 	var out strings.Builder
 	for _, c := range str {
-		if esp.InSequence() {
-			esp.Consume(c)
-			out.WriteRune(c)
-			continue
-		}
-		esp.Consume(c)
-		if esp.InSequence() {
+		if esp.ParseRune(c) {
 			out.WriteRune(c)
 		}
 	}
@@ -525,16 +507,10 @@ func Widen(str string) string {
 
 	esp := EscSeqParser{skipParse: true}
 	for _, c := range str {
-		if esp.InSequence() {
+		if esp.ParseRune(c) {
 			sb.WriteRune(c)
-			esp.Consume(c)
-			continue
-		}
-		esp.Consume(c)
-		if !esp.InSequence() {
-			sb.WriteString(width.Widen.String(string(c)))
 		} else {
-			sb.WriteRune(c)
+			sb.WriteString(width.Widen.String(string(c)))
 		}
 	}
 	return sb.String()

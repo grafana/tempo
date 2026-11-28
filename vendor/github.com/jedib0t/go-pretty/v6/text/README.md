@@ -81,7 +81,8 @@ Used heavily in the other packages in this repo ([list](../list),
     - `EscSeqParser` - Parser for advanced escape sequence parsing and tracking
       - Supports both CSI (Control Sequence Introducer) and OSI (Operating System Command) formats
       - Tracks active formatting codes and can generate consolidated escape sequences
-      - Full support for 256-color escape sequences (`\x1b[38;5;n`m` and `\x1b[48;5;n`m`)
+      - Full support for 256-color escape sequences (`\x1b[38;5;nm` and `\x1b[48;5;nm`)
+      - Full support for 24-bit color escape sequences (`\x1b[38;2;r;g;bm` and `\x1b[48;2;r;g;bm`)
 
 ### Cursor Control
 

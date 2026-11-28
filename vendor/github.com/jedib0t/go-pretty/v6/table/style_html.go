@@ -2,7 +2,7 @@ package table
 
 // HTMLOptions defines the global options to control HTML rendering.
 type HTMLOptions struct {
-	ConvertColorsToSpans bool   // convert ANSI escape sequences to HTML <span> tags with CSS classes? EscapeText will be true if this is true.
+	ConvertColorsToSpans bool   // convert ANSI escape sequences to HTML <span> tags with CSS classes (and inline styles for 24-bit colors)? EscapeText will be true if this is true.
 	CSSClass             string // CSS class to set on the overall <table> tag
 	EmptyColumn          string // string to replace "" columns with (entire content being "")
 	EscapeText           bool   // escape text into HTML-safe content?
